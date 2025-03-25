@@ -32,8 +32,9 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "transactions" && (
             <ul className="ml-4 mt-2 space-y-2">
-              <li><Link to="/sales" className="block p-2 text-sm hover:bg-gray-600 rounded">Sales</Link></li>
-              <li><Link to="/purchases" className="block p-2 text-sm hover:bg-gray-600 rounded">Purchases</Link></li>
+              <li><Link to="/receiving" className="block p-2 text-sm hover:bg-gray-600 rounded">Receiving</Link></li>
+              <li><Link to="/trading" className="block p-2 text-sm hover:bg-gray-600 rounded">Trading</Link></li>
+              <li><Link to="/invoice" className="block p-2 text-sm hover:bg-gray-600 rounded">Invoice</Link></li>
             </ul>
           )}
         </li>
