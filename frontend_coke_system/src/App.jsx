@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import Warehouses from "./pages/Warehouses"; // Import Warehouses Page
+import Suppliers from "./pages/Suppliers";
 
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -42,10 +43,9 @@ function App() {
             {/* Page Content */}
             <Routes>
               <Route path="/warehouses" element={<Warehouses />} />
+              <Route path="/suppliers" element={<Suppliers />} /> {/* Add this line */}
             </Routes>
           </div>
-          
-
         </div>
       </div>
     </Router>

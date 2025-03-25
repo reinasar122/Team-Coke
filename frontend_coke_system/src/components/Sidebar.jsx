@@ -14,7 +14,7 @@ const Sidebar = ({ isSidebarOpen }) => {
     <div className={`bg-gray-900 text-white w-64 h-screen p-5 fixed top-12 left-0 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-64"}`}>
       <ul className="space-y-3">
         <li>
-          <Link to="/" className="block p-2 hover:bg-gray-700 rounded flex items-center">
+          <Link to="/" className="p-2 hover:bg-gray-700 rounded flex items-center">
             <FontAwesomeIcon icon={faTachometerAlt} className="mr-2" /> Dashboard
           </Link>
         </li>
@@ -23,7 +23,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button 
             onClick={() => toggleDropdown("transactions")} 
-            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className="w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faShoppingCart} className="mr-2" /> Transactions
@@ -32,8 +32,8 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "transactions" && (
             <ul className="ml-4 mt-2 space-y-2">
-              <li><Link to="/sales" className="block p-2 text-sm hover:bg-gray-600 rounded">Sales</Link></li>
-              <li><Link to="/purchases" className="block p-2 text-sm hover:bg-gray-600 rounded">Purchases</Link></li>
+              <li><Link to="/sales" className="p-2 text-sm hover:bg-gray-600 rounded">Sales</Link></li>
+              <li><Link to="/purchases" className="p-2 text-sm hover:bg-gray-600 rounded">Purchases</Link></li>
             </ul>
           )}
         </li>
@@ -42,7 +42,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button 
             onClick={() => toggleDropdown("inventory")} 
-            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className="w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faBoxOpen} className="mr-2" /> Inventory
@@ -51,8 +51,8 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "inventory" && (
             <ul className="ml-4 mt-2 space-y-2">
-              <li><Link to="/stock" className="block p-2 text-sm hover:bg-gray-600 rounded">Stock</Link></li>
-              <li><Link to="/suppliers" className="block p-2 text-sm hover:bg-gray-600 rounded">Suppliers</Link></li>
+              <li><Link to="/stock" className="p-2 text-sm hover:bg-gray-600 rounded">Stock</Link></li>
+              <li><Link to="/suppliers" className="p-2 text-sm hover:bg-gray-600 rounded">Suppliers</Link></li>
             </ul>
           )}
         </li>
@@ -60,7 +60,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button 
             onClick={() => toggleDropdown("manage")} 
-            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className="w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faBoxOpen} className="mr-2" /> Manage
@@ -69,23 +69,23 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "manage" && (
             <ul className="ml-4 mt-2 space-y-2">
-              <li><Link to="/users" className="block p-2 text-sm hover:bg-gray-600 rounded">Users</Link></li>
-              <li><Link to="/roles" className="block p-2 text-sm hover:bg-gray-600 rounded">Roles</Link></li>
-              <li><Link to="/warehouses" className="block p-2 text-sm hover:bg-gray-600 rounded">Warehouses</Link></li>
+              <li><Link to="/users" className="p-2 text-sm hover:bg-gray-600 rounded">Users</Link></li>
+              <li><Link to="/roles" className="p-2 text-sm hover:bg-gray-600 rounded">Roles</Link></li>
+              <li><Link to="/warehouses" className="p-2 text-sm hover:bg-gray-600 rounded">Warehouses</Link></li>
             </ul>
           )}
         </li>
 
         {/* Settings */}
         <li>
-          <Link to="/settings" className="block p-2 hover:bg-gray-700 rounded flex items-center">
+          <Link to="/settings" className="p-2 hover:bg-gray-700 rounded flex items-center">
             <FontAwesomeIcon icon={faCog} className="mr-2" /> Settings
           </Link>
         </li>
 
         {/* Logout */}
         <li>
-          <button className="block w-full text-left p-2 text-red-400 hover:bg-red-700 rounded flex items-center">
+          <button className="w-full text-left p-2 text-red-400 hover:bg-red-700 rounded flex items-center">
             <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" /> Log out
           </button>
         </li>
