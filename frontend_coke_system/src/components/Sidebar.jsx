@@ -32,8 +32,9 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "transactions" && (
             <ul className="ml-4 mt-2 space-y-2">
-              <li><Link to="/sales" className="p-2 text-sm hover:bg-gray-600 rounded">Sales</Link></li>
-              <li><Link to="/purchases" className="p-2 text-sm hover:bg-gray-600 rounded">Purchases</Link></li>
+              <li><Link to="/receiving" className="block p-2 text-sm hover:bg-gray-600 rounded">Receiving</Link></li>
+              <li><Link to="/trading" className="block p-2 text-sm hover:bg-gray-600 rounded">Trading</Link></li>
+              <li><Link to="/invoice" className="block p-2 text-sm hover:bg-gray-600 rounded">Invoice</Link></li>
             </ul>
           )}
         </li>
@@ -42,7 +43,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button 
             onClick={() => toggleDropdown("inventory")} 
-            className="w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faBoxOpen} className="mr-2" /> Inventory
@@ -60,7 +61,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button 
             onClick={() => toggleDropdown("manage")} 
-            className="w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faBoxOpen} className="mr-2" /> Manage
@@ -78,7 +79,7 @@ const Sidebar = ({ isSidebarOpen }) => {
 
         {/* Settings */}
         <li>
-          <Link to="/settings" className="p-2 hover:bg-gray-700 rounded flex items-center">
+          <Link to="/settings" className="block p-2 hover:bg-gray-700 rounded flex items-center">
             <FontAwesomeIcon icon={faCog} className="mr-2" /> Settings
           </Link>
         </li>
