@@ -1,11 +1,14 @@
-from django.shortcuts import render
-from rest_framework.response import Response
-from rest_framework.decorators import api_view
-from .models import Item
-from .serializers import ItemSerializer
+from rest_framework import generics
+from api.models import Warehouse
+from .serializers import WarehouseSerializer
 
-@api_view(['GET'])
-def get_items(request):
-    items = Item.objects.all()
-    serializer = ItemSerializer(items, many=True)
-    return Response(serializer.data)
+
+# List all warehouses or create a new one
+class WarehouseListCreateView(generics.ListCreateAPIView):
+    queryset = Warehouse.objects.all()
+    serializer_class = WarehouseSerializer
+
+# Retrieve, update, or delete a specific warehouse
+class WarehouseDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Warehouse.objects.all()
+    serializer_class = WarehouseSerializer
