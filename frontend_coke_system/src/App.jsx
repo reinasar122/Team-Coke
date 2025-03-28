@@ -56,7 +56,7 @@ function App() {
             <Routes>
               <Route path="/warehouses" element={<Warehouses />} />
               <Route path="/warehouseForm" element={<WarehouseForm />} />
-              <Route path="/editWarehouse" element={<EditWarehouse />} />
+              <Route path="/editWarehouse/:id" element={<EditWarehouse />} />
               <Route path="/suppliers" element={<Suppliers />} /> {/* Add this line */}
             </Routes>
           </div>

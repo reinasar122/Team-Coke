@@ -18,10 +18,23 @@ const WarehouseForm = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Form Data Submitted:", formData);
-    navigate("/warehouses");
+    try {
+      const response = await fetch("http://127.0.0.1:8000/api/warehouses/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (response.ok) {
+        navigate("/warehouses"); // Redirect after successful creation
+      } else {
+        console.error("Failed to create warehouse");
+      }
+    } catch (error) {
+      console.error("Error creating warehouse:", error);
+    }
   };
 
   return (
