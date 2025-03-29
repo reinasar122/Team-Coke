@@ -18,7 +18,7 @@ const EditWarehouse = () => {
     const fetchWarehouse = async () => {
       try {
         console.log("Fetching warehouse data..."); // Debugging
-        const response = await fetch(`http://127.0.0.1:8000/api/warehouses/${id}/`);  // ✅ Correct
+        const response = await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`);  // ✅ Correct
 
         
         if (!response.ok) {
@@ -44,7 +44,7 @@ const EditWarehouse = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(`http://127.0.0.1:8000/api/warehouses/${id}/`, {
+      const response = await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(warehouse),

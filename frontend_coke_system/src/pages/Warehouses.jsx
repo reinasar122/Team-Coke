@@ -10,7 +10,7 @@ const Warehouses = () => {
   useEffect(() => {
     const fetchWarehouses = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8000/api/warehouses/");
+        const response = await fetch("http://127.0.0.1:8080/api/warehouses/");
         const data = await response.json();
         setWarehouses(data);
       } catch (error) {
@@ -24,7 +24,7 @@ const Warehouses = () => {
   // Delete a warehouse
   const deleteWarehouse = async (id) => {
     try {
-      await fetch(`http://127.0.0.1:8000/api/warehouses/${id}/`, {
+      await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`, {
         method: "DELETE",
       });
       setWarehouses(warehouses.filter((warehouse) => warehouse.id !== id));

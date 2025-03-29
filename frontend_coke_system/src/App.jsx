@@ -6,6 +6,8 @@ import WarehouseForm from "./pages/WarehouseForm";
 import Warehouses from "./pages/Warehouses";  
 import EditWarehouse from "./pages/EditWarehouse";  
 import Suppliers from "./pages/Suppliers"; 
+import Stocks from "./pages/Stocks";  
+import StocksAdjustment from "./pages/StockAdjustment"; 
 
 
 import { 
@@ -41,7 +43,8 @@ function App() {
               <Route path="/receiving" element={<h1 className="text-2xl flex items-center gap-2"><FaClipboardCheck /> Receiving</h1>} />
               <Route path="/trading" element={<h1 className="text-2xl flex items-center gap-2"><FaChartLine /> Trading</h1>} />
               <Route path="/invoice" element={<h1 className="text-2xl flex items-center gap-2"><FaFileInvoice /> Invoice</h1>} />
-              <Route path="/stock" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes /> Stock</h1>} />
+              <Route path="/stocks" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes /> Stocks</h1>} />
+              <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} />
               <Route path="/suppliers" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Suppliers</h1>} />
               <Route path="/dashboard" element={<h1 className="text-2xl flex items-center gap-2"><FaChartPie /> Dashboard</h1>} />
               <Route path="/settings" element={<h1 className="text-2xl flex items-center gap-2"><FaCogs /> Settings</h1>} />
@@ -58,6 +61,8 @@ function App() {
               <Route path="/warehouseForm" element={<WarehouseForm />} />
               <Route path="/editWarehouse/:id" element={<EditWarehouse />} />
               <Route path="/suppliers" element={<Suppliers />} /> {/* Add this line */}
+              <Route path="/Stocks" element={<Stocks />} />
+              <Route path="/StocksAdjustment" element={<StocksAdjustment />} />
             </Routes>
           </div>
           
