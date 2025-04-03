@@ -1,249 +1,86 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import { useNavigate, useParams } from "react-router-dom";
 
-const SupplierEditForm = ({ initialData, onSubmit, onCancel }) => {
-  const [formData, setFormData] = useState(initialData || {
-    companyName: '',
-    registrationNumber: '',
-    birNo: '',
-    contactPerson: '',
-    email: '',
-    phoneNumber: '',
-    streetAddress: '',
-    city: '',
-    region: '',
-    zipCode: '',
-    additionalContacts: []
-  });
-
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value
-    });
-  };
-
-  const handleContactChange = (index, e) => {
-    const { name, value } = e.target;
-    const updatedContacts = formData.additionalContacts.map((contact, i) =>
-      i === index ? { ...contact, [name]: value } : contact
-    );
-    setFormData({
-      ...formData,
-      additionalContacts: updatedContacts
-    });
-  };
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(formData);
-  };
-
-  return (
-    <div className="p-6 bg-white dark:bg-gray-800 rounded-lg shadow">
-      <div className="border-l-4 border-red-600 pl-4 mb-6">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Edit Supplier</h1>
-      </div>
-      
-      <form onSubmit={handleSubmit}>
-        {/* Company Information Section */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Company Information</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Company Name</label>
-              <input
-                type="text"
-                name="companyName"
-                value={formData.companyName}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Registration Number</label>
-              <input
-                type="text"
-                name="registrationNumber"
-                value={formData.registrationNumber}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                required
-              />
-            </div>
-          </div>
-          
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">BIR NO.</label>
-            <input
-              type="text"
-              name="birNo"
-              value={formData.birNo}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-              required
-            />
-          </div>
-        </div>
+const SupplierEditForm = () => {
+    const { id } = useParams(); // Get supplier ID from URL
+    const navigate = useNavigate();
+    const [supplier, setSupplier] = useState({
+        company_name: "",
+        bir_no: "",
+        contact_person: "",
+        email: "",
+        phone_number: "",
+        street_address: "",
+        city: "",
+        region: "",
+        zip_code: ""
         
-        {/* Contact Information Section */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Contact Information</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contact Person</label>
-              <input
-                type="text"
-                name="contactPerson"
-                value={formData.contactPerson}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                required
-              />
-            </div>
-          </div>
-          
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-            <input
-              type="tel"
-              name="phoneNumber"
-              value={formData.phoneNumber}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-              required
-            />
-          </div>
+    });
 
-          {/* Additional Contacts */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">Additional Contacts</h3>
-            {formData.additionalContacts.map((contact, index) => (
-              <div key={index} className="mb-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Contact Person</label>
-                    <input
-                      type="text"
-                      name="contactPerson"
-                      value={contact.contactPerson}
-                      onChange={(e) => handleContactChange(index, e)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
-                    <input
-                      type="email"
-                      name="email"
-                      value={contact.email}
-                      onChange={(e) => handleContactChange(index, e)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Phone Number</label>
-                    <input
-                      type="tel"
-                      name="phoneNumber"
-                      value={contact.phoneNumber}
-                      onChange={(e) => handleContactChange(index, e)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                    />
-                  </div>
+    // ✅ Fetch supplier data when component mounts
+    useEffect(() => {
+        axios.get(`http://localhost:8080/api/suppliers/${id}/`)
+            .then(response => setSupplier(response.data))
+            .catch(error => console.error("Error fetching supplier data:", error));
+    }, [id]);
+
+    // ✅ Handle form field changes
+    const handleChange = (e) => {
+        setSupplier({ ...supplier, [e.target.name]: e.target.value });
+    };
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      try {
+          const response = await axios.put(`http://localhost:8080/api/suppliers/${id}/`, supplier);
+          
+          console.log("Update Response:", response); // Debugging: Log API response
+  
+          if (response.status === 200) { 
+              alert("Supplier updated successfully!");
+              navigate("/suppliers"); // ✅ Redirect after successful update
+          } else {
+              alert("Failed to update supplier. Please try again.");
+          }
+      } catch (error) {
+          console.error("Error updating supplier:", error);
+          alert("Error updating supplier. Check console for details.");
+      }
+  };
+
+    return (
+        <div className="container mx-auto p-6">
+            <h2 className="text-2xl font-bold border-l-4 border-blue-500 pl-2">Edit Supplier</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <h3 className="font-semibold">Company Information</h3>
+                    <input type="text" name="company_name" value={supplier.company_name} onChange={handleChange} placeholder="Company Name" className="w-full border p-2" />
+                    <input type="text" name="bir_no" value={supplier.bir_no} onChange={handleChange} placeholder="BIR NO." className="w-full border p-2 mt-2" />
                 </div>
-              </div>
-            ))}
-          </div>
+
+                <div>
+                    <h3 className="font-semibold">Contact Information</h3>
+                    <input type="text" name="contact_person" value={supplier.contact_person} onChange={handleChange} placeholder="Contact Person" className="w-full border p-2" />
+                    <input type="email" name="email" value={supplier.email} onChange={handleChange} placeholder="Email" className="w-full border p-2 mt-2" />
+                    <input type="text" name="phone_number" value={supplier.phone_number} onChange={handleChange} placeholder="Phone Number" className="w-full border p-2 mt-2" />
+                </div>
+
+                <div>
+                    <h3 className="font-semibold">Address</h3>
+                    <input type="text" name="street_address" value={supplier.street_address} onChange={handleChange} placeholder="Street Address" className="w-full border p-2" />
+                    <input type="text" name="city" value={supplier.city} onChange={handleChange} placeholder="City" className="w-full border p-2 mt-2" />
+                    <input type="text" name="region" value={supplier.region} onChange={handleChange} placeholder="Region" className="w-full border p-2 mt-2" />
+                    <input type="text" name="zip_code" value={supplier.zip_code} onChange={handleChange} placeholder="Zip Code" className="w-full border p-2 mt-2" />
+                </div>
+
+                <div className="flex justify-between">
+                    <button type="button" onClick={() => navigate("/suppliers")} className="border px-4 py-2">Cancel</button>
+                    <button type="submit" className="bg-blue-500 text-white px-4 py-2">Update Supplier</button>
+                </div>
+            </form>
         </div>
-        
-        {/* Address Section */}
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold mb-4 text-gray-800 dark:text-white">Address</h2>
-          
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Street Address</label>
-            <input
-              type="text"
-              name="streetAddress"
-              value={formData.streetAddress}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-              required
-            />
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">City</label>
-              <input
-                type="text"
-                name="city"
-                value={formData.city}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Region</label>
-              <input
-                type="text"
-                name="region"
-                value={formData.region}
-                onChange={handleChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-                required
-              />
-            </div>
-          </div>
-          
-          <div className="mt-4">
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Zip Code</label>
-            <input
-              type="text"
-              name="zipCode"
-              value={formData.zipCode}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-base"
-              required
-            />
-          </div>
-        </div>
-        
-        {/* Form Buttons */}
-        <div className="flex justify-end space-x-4 mt-8">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="px-6 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500 dark:bg-gray-600 dark:text-white dark:border-gray-500 dark:hover:bg-gray-700"
-          >
-            Cancel
-          </button>
-          <button
-            type="submit"
-            className="px-6 py-2 bg-red-600 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-          >
-            Update
-          </button>
-        </div>
-      </form>
-    </div>
-  );
+    );
 };
 
 export default SupplierEditForm;

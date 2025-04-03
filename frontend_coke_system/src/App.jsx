@@ -6,6 +6,8 @@ import WarehouseForm from "./pages/WarehouseForm";
 import Warehouses from "./pages/Warehouses";  
 import EditWarehouse from "./pages/EditWarehouse";  
 import Suppliers from "./pages/Suppliers"; 
+import SupplierRegistrationForm from "./pages/SupplierRegistrationForm"; 
+import SupplierEditForm from "./pages/SupplierEditForm";  
 import Stocks from "./pages/Stocks";  
 import StocksAdjustment from "./pages/StockAdjustment"; 
 
@@ -61,6 +63,8 @@ function App() {
               <Route path="/warehouseForm" element={<WarehouseForm />} />
               <Route path="/editWarehouse/:id" element={<EditWarehouse />} />
               <Route path="/suppliers" element={<Suppliers />} /> {/* Add this line */}
+              <Route path="/register-supplier" element={<SupplierRegistrationForm />} />
+              <Route path="/edit-supplier/:id" element={<SupplierEditForm />} />
               <Route path="/Stocks" element={<Stocks />} />
               <Route path="/StocksAdjustment" element={<StocksAdjustment />} />
             </Routes>

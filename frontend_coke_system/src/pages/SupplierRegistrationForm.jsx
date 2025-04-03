@@ -1,244 +1,115 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom"; 
 import axios from "axios";
 
-const SupplierRegistrationForm = ({ onSubmit }) => {
-  const [formData, setFormData] = useState({
-    company_name: "",
-    registration_number: "",
-    bir_no: "",
-    contact_person: "",
-    email: "",
-    phone_number: "",
-    street_address: "",
-    city: "",
-    region: "",
-    zip_code: "",
-    additionalContacts: [],
-  });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
+const SupplierRegistration = () => {
+  const navigate = useNavigate();
+
+
+    const [supplier, setSupplier] = useState({
+        company_name: "",
+        bir_no: "",
+        contact_person: "",
+        email: "",
+        phone_number: "",
+        street_address: "",
+        city: "",
+        region: "",
+        zip_code: "",
+        contacts: []
     });
-  };
 
-  const handleAddContact = () => {
-    setFormData((prevData) => ({
-      ...prevData,
-      additionalContacts: [
-        ...prevData.additionalContacts,
-        { contactPerson: "", email: "", phoneNumber: "" },
-      ],
-    }));
-  };
+    const [newContact, setNewContact] = useState({ contact_person: "", email: "", phone_number: "" });
 
-  const handleContactChange = (index, e) => {
-    const { name, value } = e.target;
-    setFormData((prevData) => {
-      const updatedContacts = [...prevData.additionalContacts];
-      updatedContacts[index] = { ...updatedContacts[index], [name]: value };
-      return { ...prevData, additionalContacts: updatedContacts };
-    });
-  };
+    const handleChange = (e) => {
+        setSupplier({ ...supplier, [e.target.name]: e.target.value });
+    };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const formattedData = {
-        ...formData,
-        contacts: formData.additionalContacts.map(contact => ({
-          contact_person: contact.contactPerson,
-          email: contact.email,
-          phone_number: contact.phoneNumber
-        }))
-      };
+    const handleContactChange = (e) => {
+        setNewContact({ ...newContact, [e.target.name]: e.target.value });
+    };
+
+    const addContact = () => {
+        if (newContact.contact_person && newContact.email && newContact.phone_number) {
+            setSupplier({ ...supplier, contacts: [...supplier.contacts, newContact] });
+            setNewContact({ contact_person: "", email: "", phone_number: "" });
+        }
+    };
+
+    const removeContact = (index) => {
+        const updatedContacts = supplier.contacts.filter((_, i) => i !== index);
+        setSupplier({ ...supplier, contacts: updatedContacts });
+    };
+
+    const handleSubmit = async (e) => {
+      e.preventDefault();
+      console.log("Submitting Data:", JSON.stringify(supplier, null, 2));  // ✅ Log request
   
-      const response = await axios.post("http://localhost:8000/api/suppliers/", formattedData);
-      console.log("Supplier Registered:", response.data);
-    } catch (error) {
-      console.error("Error registering supplier:", error);
-    }
+      try {
+          const response = await axios.post("http://localhost:8080/api/suppliers/", supplier);
+          console.log("Response:", response.data);  // ✅ Log API response
+          alert("Supplier registered successfully!");
+          navigate("/suppliers");
+      } catch (error) {
+          console.error("Error:", error.response?.data || error.message);
+      }
   };
   
 
-  const handleClear = () => {
-    setFormData({
-      company_name: "",
-      registration_number: "",
-      bir_no: "",
-      contact_person: "",
-      email: "",
-      phone_number: "",
-      street_address: "",
-      city: "",
-      region: "",
-      zip_code: "",
-      additionalContacts: [],
-    });
-  };
+    return (
+        <div className="container mx-auto p-6">
+            <h2 className="text-2xl font-bold border-l-4 border-red-500 pl-2">Supplier Registration</h2>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                    <h3 className="font-semibold">Company Information</h3>
+                    <input type="text" name="company_name" placeholder="Company Name" value={supplier.company_name} onChange={handleChange} className="w-full border p-2" />
+                    <input type="text" name="bir_no" placeholder="BIR NO." value={supplier.bir_no} onChange={handleChange} className="w-full border p-2 mt-2" />
+                </div>
 
-  return (
-    <div className="p-6 bg-white rounded-lg shadow-md">
-      <h1 className="text-2xl font-bold text-red-600 mb-4 border-l-4 pl-2 border-red-600">
-        Supplier Registration
-      </h1>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Company Information */}
-        <div>
-          <h2 className="text-lg font-semibold">Company Information</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <input
-              type="text"
-              name="company_name"
-              value={formData.company_name}
-              onChange={handleChange}
-              placeholder="Company Name"
-              required
-              className="border px-3 py-2 rounded-md"
-            />
-          
-            <input
-              type="text"
-              name="bir_no"
-              value={formData.bir_no}
-              onChange={handleChange}
-              placeholder="BIR NO."
-              className="border px-3 py-2 rounded-md col-span-2"
-            />
-          </div>
-        </div>
+                <div>
+                    <h3 className="font-semibold">Contact Information</h3>
+                    <input type="text" name="contact_person" placeholder="Contact Person" value={supplier.contact_person} onChange={handleChange} className="w-full border p-2" />
+                    <input type="email" name="email" placeholder="Email" value={supplier.email} onChange={handleChange} className="w-full border p-2 mt-2" />
+                    <input type="text" name="phone_number" placeholder="Phone Number" value={supplier.phone_number} onChange={handleChange} className="w-full border p-2 mt-2" />
+                </div>
 
-        {/* Contact Information */}
-        <div>
-          <h2 className="text-lg font-semibold">Contact Information</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <input
-              type="text"
-              name="contact_person"
-              value={formData.contact_person}
-              onChange={handleChange}
-              placeholder="Contact Person"
-              className="border px-3 py-2 rounded-md"
-            />
-            <input
-              type="email"
-              name="email"
-              value={formData.email}
-              onChange={handleChange}
-              placeholder="Email"
-              className="border px-3 py-2 rounded-md"
-            />
-            <input
-              type="text"
-              name="phone_number"
-              value={formData.phone_number}
-              onChange={handleChange}
-              placeholder="Phone Number"
-              className="border px-3 py-2 rounded-md col-span-2"
-            />
-          </div>
-        </div>
+                <div>
+                    <h3 className="font-semibold">Additional Contacts</h3>
+                    {supplier.contacts.map((contact, index) => (
+                        <div key={index} className="border p-2 mb-2 flex justify-between items-center">
+                            <span>{contact.contact_person} - {contact.email} - {contact.phone_number}</span>
+                            <button type="button" onClick={() => removeContact(index)} className="bg-red-500 text-white px-2 py-1">Remove</button>
+                        </div>
+                    ))}
+                    <input type="text" name="contact_person" placeholder="Contact Person" value={newContact.contact_person} onChange={handleContactChange} className="w-full border p-2" />
+                    <input type="email" name="email" placeholder="Email" value={newContact.email} onChange={handleContactChange} className="w-full border p-2 mt-2" />
+                    <input type="text" name="phone_number" placeholder="Phone Number" value={newContact.phone_number} onChange={handleContactChange} className="w-full border p-2 mt-2" />
+                    <button type="button" onClick={addContact} className="bg-blue-500 text-white px-4 py-2 mt-2">Add Contact</button>
+                </div>
 
-        {/* Additional Contacts */}
-        <div>
-          <h2 className="text-lg font-semibold">Additional Contacts</h2>
-          <button
-            type="button"
-            onClick={handleAddContact}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md mb-2"
-          >
-            Add Contact
-          </button>
-          {formData.additionalContacts.map((contact, index) => (
-            <div key={index} className="grid grid-cols-3 gap-4 mb-2">
-              <input
-                type="text"
-                name="contactPerson"
-                value={contact.contactPerson}
-                onChange={(e) => handleContactChange(index, e)}
-                placeholder="Contact Person"
-                className="border px-3 py-2 rounded-md"
-              />
-              <input
-                type="email"
-                name="email"
-                value={contact.email}
-                onChange={(e) => handleContactChange(index, e)}
-                placeholder="Email"
-                className="border px-3 py-2 rounded-md"
-              />
-              <input
-                type="text"
-                name="phoneNumber"
-                value={contact.phoneNumber}
-                onChange={(e) => handleContactChange(index, e)}
-                placeholder="Phone Number"
-                className="border px-3 py-2 rounded-md"
-              />
-            </div>
-          ))}
-        </div>
+                <div>
+                    <h3 className="font-semibold">Address</h3>
+                    <input type="text" name="street_address" placeholder="Street Address" value={supplier.street_address} onChange={handleChange} className="w-full border p-2" />
+                    <input type="text" name="city" placeholder="City" value={supplier.city} onChange={handleChange} className="w-full border p-2 mt-2" />
+                    <input type="text" name="region" placeholder="Region" value={supplier.region} onChange={handleChange} className="w-full border p-2 mt-2" />
+                    <input type="text" name="zip_code" placeholder="Zip Code" value={supplier.zip_code} onChange={handleChange} className="w-full border p-2 mt-2" />
+                </div>
 
-        {/* Address */}
-        <div>
-          <h2 className="text-lg font-semibold">Address</h2>
-          <div className="grid grid-cols-2 gap-4">
-            <input
-              type="text"
-              name="street_address"
-              value={formData.street_address}
-              onChange={handleChange}
-              placeholder="Street Address"
-              className="border px-3 py-2 rounded-md col-span-2"
-            />
-            <input
-              type="text"
-              name="city"
-              value={formData.city}
-              onChange={handleChange}
-              placeholder="City"
-              className="border px-3 py-2 rounded-md"
-            />
-            <input
-              type="text"
-              name="region"
-              value={formData.region}
-              onChange={handleChange}
-              placeholder="Region"
-              className="border px-3 py-2 rounded-md"
-            />
-            <input
-              type="text"
-              name="zip_code"
-              value={formData.zip_code}
-              onChange={handleChange}
-              placeholder="Zip Code"
-              className="border px-3 py-2 rounded-md col-span-2"
-            />
-          </div>
-        </div>
+                <div className="flex justify-between">
+    <button 
+        type="button" 
+        className="border px-4 py-2" 
+        onClick={() => navigate("/suppliers")} // ✅ Redirect to supplier list
+    >
+        Back
+    </button>
 
-        {/* Buttons */}
-        <div className="flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={handleClear}
-            className="border border-red-600 text-red-600 px-4 py-2 rounded-md"
-          >
-            Clear Forms
-          </button>
-          <button
-            type="submit"
-            className="bg-red-600 text-white px-4 py-2 rounded-md"
-          >
-            Submit Registration
-          </button>
+                    <button type="submit" className="bg-red-500 text-white px-4 py-2">Submit Registration</button>
+                </div>
+            </form>
         </div>
-      </form>
-    </div>
-  );
+    );
 };
 
-export default SupplierRegistrationForm;
+export default SupplierRegistration;
