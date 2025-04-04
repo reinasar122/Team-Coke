@@ -1,6 +1,61 @@
 from rest_framework import serializers
 from .models import Warehouse
 from .models import Supplier, SupplierContact
+from django.contrib.auth.hashers import make_password
+from .models import User, Role
+
+
+class RoleSerializer(serializers.ModelSerializer):
+    """Serializer for Role model"""
+    class Meta:
+        model = Role
+        fields = '__all__'
+
+
+class UserSerializer(serializers.ModelSerializer):
+    """Updated UserSerializer to return role_name and warehouse_name instead of full objects"""
+    role_name = serializers.CharField(source='role.name', read_only=True)  # Only the role name
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)  # Only the warehouse name
+    
+    role_id = serializers.PrimaryKeyRelatedField(
+        queryset=Role.objects.all(), source='role', write_only=True
+    )
+    warehouse_id = serializers.PrimaryKeyRelatedField(
+        queryset=Warehouse.objects.all(), source='warehouse', write_only=True
+    )
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'password', 'first_name', 'last_name', 'gender',
+            'phone_number', 'role_name', 'role_id', 'warehouse_name', 'warehouse_id',
+            'is_active', 'created_at', 'last_login'
+        ]
+        extra_kwargs = {'password': {'write_only': True}}  # Hide password from responses
+
+    def create(self, validated_data):
+        """Hash password before saving"""
+        if 'password' in validated_data:
+            validated_data['password'] = make_password(validated_data['password'])
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        """Hash password if it's being updated"""
+        if 'password' in validated_data:
+            validated_data['password'] = make_password(validated_data['password'])
+
+        # Set the role and warehouse based on their IDs
+        role_id = validated_data.pop('role', None)
+        warehouse_id = validated_data.pop('warehouse', None)
+
+        if role_id is not None:
+            instance.role = role_id
+        if warehouse_id is not None:
+            instance.warehouse = warehouse_id
+
+        return super().update(instance, validated_data)
+
+
 
 
 class WarehouseSerializer(serializers.ModelSerializer):
