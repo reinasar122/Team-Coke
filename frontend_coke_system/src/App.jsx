@@ -11,6 +11,12 @@ import SupplierEditForm from "./pages/SupplierEditForm";
 import Stocks from "./pages/Stocks";  
 import StocksAdjustment from "./pages/StockAdjustment"; 
 
+import UserList from "./pages/UserList";  
+import UserForm from "./pages/UserForm";  
+import RoleList from "./pages/RoleList";  
+import RoleForm from "./pages/RoleForm";  
+
+
 
 import { 
   FaHome, FaClipboardCheck, FaChartLine, FaFileInvoice, FaBoxes, 
@@ -46,7 +52,7 @@ function App() {
               <Route path="/trading" element={<h1 className="text-2xl flex items-center gap-2"><FaChartLine /> Trading</h1>} />
               <Route path="/invoice" element={<h1 className="text-2xl flex items-center gap-2"><FaFileInvoice /> Invoice</h1>} />
               <Route path="/stocks" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes /> Stocks</h1>} />
-              <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} />
+              <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} />                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
               <Route path="/suppliers" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Suppliers</h1>} />
               <Route path="/dashboard" element={<h1 className="text-2xl flex items-center gap-2"><FaChartPie /> Dashboard</h1>} />
               <Route path="/settings" element={<h1 className="text-2xl flex items-center gap-2"><FaCogs /> Settings</h1>} />
@@ -67,6 +73,15 @@ function App() {
               <Route path="/edit-supplier/:id" element={<SupplierEditForm />} />
               <Route path="/Stocks" element={<Stocks />} />
               <Route path="/StocksAdjustment" element={<StocksAdjustment />} />
+
+              {/* ✅ Add User Routes */}
+              <Route path="/users" element={<UserList />} />
+              <Route path="/create-user" element={<UserForm />} />
+
+              {/* ✅ Add Role Routes */}
+              <Route path="/roles" element={<RoleList />} />
+              <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
+
             </Routes>
           </div>
           
