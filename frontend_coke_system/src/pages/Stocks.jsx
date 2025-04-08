@@ -32,9 +32,9 @@ export default function InventoryUI() {
         .filter(item => item.name.toLowerCase().includes(search.toLowerCase()))
         .sort((a, b) => a.quantity - b.quantity); // Sorting from least to greatest quantity
 
-    const calculateProfitMargin = (purchasePrice, sellingPrice) => {
-        return `$${(parseFloat(sellingPrice.replace('$', '')) - parseFloat(purchasePrice.replace('$', ''))).toFixed(2)}`;
-    };
+    // const calculateProfitMargin = (purchasePrice, sellingPrice) => {
+    //     return `$${(parseFloat(sellingPrice.replace('$', '')) - parseFloat(purchasePrice.replace('$', ''))).toFixed(2)}`;
+    // };
 
     return (
         <div className="p-6 max-w-6xl mx-auto">
@@ -51,12 +51,9 @@ export default function InventoryUI() {
                 <thead>
                     <tr className="bg-gray-200 text-gray-700">
                         <th className="p-2">System Code</th>
+                        <th className="p-2">Supplier Code</th>
                         <th className="p-2">Product Name</th>
-                        <th className="p-2">Category</th>
                         <th className="p-2">Stock Qty.</th>
-                        <th className="p-2">Purchase Price</th>
-                        <th className="p-2">Selling Price</th>
-                        <th className="p-2">Profit Margin</th>
                         <th className="p-2">Stock Status</th>
                     </tr>
                 </thead>
@@ -64,12 +61,9 @@ export default function InventoryUI() {
                     {filteredItems.map(item => (
                         <tr key={item.id} className="border-t">
                             <td className="p-2">{item.SystemCode}</td>
+                            <td className="p-2">{item.SupplierCode}</td>
                             <td className="p-2">{item.name}</td>
-                            <td className="p-2">{item.type}</td>
                             <td className="p-2">{item.quantity}</td>
-                            <td className="p-2">{item.prices.supplier}</td>
-                            <td className="p-2">{item.prices.retail}</td>
-                            <td className="p-2">{calculateProfitMargin(item.prices.supplier, item.prices.retail)}</td>
                             <td className={`p-2 text-white rounded ${statusColors[item.status]}`}>{item.status}</td>
                         </tr>
                     ))}
