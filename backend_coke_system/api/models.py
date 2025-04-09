@@ -96,3 +96,32 @@ class User(models.Model):
     def check_password(self, raw_password):
         """Check hashed password."""
         return check_password(raw_password, self.password)
+    
+
+class ContentType(models.Model):
+    description = models.TextField()
+
+class ShellType(models.Model):
+    description = models.TextField()
+
+class UnitType(models.Model):
+    content_no = models.IntegerField()
+    shell_type = models.ForeignKey(ShellType, on_delete=models.SET_NULL, null=True)
+    returnable = models.BooleanField()
+    content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
+    content_returnable = models.BooleanField()
+
+class Pricing(models.Model):
+    purchase_price = models.FloatField()
+    selling_price = models.FloatField()
+    shell_price = models.FloatField()
+    bottle_price = models.FloatField()
+
+class Product(models.Model):
+    system_code = models.TextField()
+    supplier_code = models.TextField()
+    product_name = models.TextField()
+    product_category = models.TextField()
+    unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
+    price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
+

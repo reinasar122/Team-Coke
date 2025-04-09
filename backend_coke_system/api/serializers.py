@@ -3,6 +3,7 @@ from .models import Warehouse
 from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
 from .models import User, Role
+from .models import ContentType, ShellType, UnitType, Pricing, Product
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -104,3 +105,51 @@ class SupplierSerializer(serializers.ModelSerializer):
             SupplierContact.objects.create(supplier=instance, **contact_data)
 
         return instance
+    
+
+
+#ProductSerializer
+
+class ContentTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContentType
+        fields = '__all__'
+
+class ShellTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShellType
+        fields = '__all__'
+
+class UnitTypeSerializer(serializers.ModelSerializer):
+    shell_type = ShellTypeSerializer(read_only=True)
+    content_type = ContentTypeSerializer(read_only=True)
+
+    class Meta:
+        model = UnitType
+        fields = '__all__'
+
+class PricingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pricing
+        fields = '__all__'
+
+class ProductSerializer(serializers.ModelSerializer):
+    unit_type_id = serializers.PrimaryKeyRelatedField(queryset=UnitType.objects.all(), source='unit_type')
+    unit_type = UnitTypeSerializer(read_only=True)
+
+    price_id = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all(), source='price')
+    price = PricingSerializer(read_only=True)
+
+    class Meta:
+        model = Product
+        fields = [
+            'id',
+            'system_code',
+            'supplier_code',
+            'product_name',
+            'product_category',
+            'unit_type_id',
+            'unit_type',
+            'price_id',
+            'price'
+        ]

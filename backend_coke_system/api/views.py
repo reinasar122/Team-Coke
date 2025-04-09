@@ -6,6 +6,8 @@ from rest_framework.response import Response  # Fix: Import Response
 from .models import Supplier, User, Role
 from .serializers import SupplierSerializer, UserSerializer, RoleSerializer
 from django.db import connection
+from .models import Product
+from .serializers import ProductSerializer
 
 
 class RoleListCreateView(generics.ListCreateAPIView):
@@ -79,3 +81,14 @@ class SupplierListCreateView(generics.ListCreateAPIView):
 class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
+
+
+
+# PRODUCT
+class ProductListCreateView(generics.ListCreateAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+
+class ProductRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
