@@ -4,9 +4,10 @@ from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
 from .models import Supplier, User, Role
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer
+
 from django.db import connection
-from .models import Product
+from .models import Product, UnitType, Pricing, ShellType, ContentType
 from .serializers import ProductSerializer
 
 
@@ -83,12 +84,40 @@ class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SupplierSerializer
 
 
+#Products
 
-# PRODUCT
+class ShellTypeListCreateView(generics.ListCreateAPIView):
+    queryset = ShellType.objects.all()
+    serializer_class = ShellTypeSerializer
+
+class ContentTypeListCreateView(generics.ListCreateAPIView):
+    queryset = ContentType.objects.all()
+    serializer_class = ContentTypeSerializer
+
+
+
+class UnitTypeListCreateView(generics.ListCreateAPIView):
+    queryset = UnitType.objects.all()
+    serializer_class = UnitTypeSerializer
+
+class UnitTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = UnitType.objects.all()
+    serializer_class = UnitTypeSerializer
+
+class PricingListCreateView(generics.ListCreateAPIView):
+    queryset = Pricing.objects.all()
+    serializer_class = PricingSerializer
+
+class PricingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Pricing.objects.all()
+    serializer_class = PricingSerializer
+
+
 class ProductListCreateView(generics.ListCreateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
-class ProductRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Product.objects.all()
-    serializer_class = ProductSerializer
+    serializer_class = ProductDetailSerializer
+

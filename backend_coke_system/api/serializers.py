@@ -121,35 +121,28 @@ class ShellTypeSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class UnitTypeSerializer(serializers.ModelSerializer):
-    shell_type = ShellTypeSerializer(read_only=True)
-    content_type = ContentTypeSerializer(read_only=True)
-
     class Meta:
         model = UnitType
         fields = '__all__'
+
 
 class PricingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Pricing
         fields = '__all__'
 
-class ProductSerializer(serializers.ModelSerializer):
-    unit_type_id = serializers.PrimaryKeyRelatedField(queryset=UnitType.objects.all(), source='unit_type')
-    unit_type = UnitTypeSerializer(read_only=True)
 
-    price_id = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all(), source='price')
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = '__all__'
+
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    unit_type = UnitTypeSerializer(read_only=True)
     price = PricingSerializer(read_only=True)
 
     class Meta:
         model = Product
-        fields = [
-            'id',
-            'system_code',
-            'supplier_code',
-            'product_name',
-            'product_category',
-            'unit_type_id',
-            'unit_type',
-            'price_id',
-            'price'
-        ]
+        fields = '__all__'

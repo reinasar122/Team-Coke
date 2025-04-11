@@ -98,6 +98,8 @@ class User(models.Model):
         return check_password(raw_password, self.password)
     
 
+#Product and Pricing Models
+
 class ContentType(models.Model):
     description = models.TextField()
 

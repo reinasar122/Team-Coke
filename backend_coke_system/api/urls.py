@@ -4,7 +4,14 @@ from .views import (
     SupplierListCreateView, SupplierRetrieveUpdateDestroyView,
     UserListCreateView, UserDetailView,
     RoleListCreateView, RoleDetailView,  # ✅ Added Role views
-    ProductListCreateView, ProductRetrieveUpdateDestroyView
+    ShellTypeListCreateView,
+    ContentTypeListCreateView,
+    UnitTypeListCreateView,
+    UnitTypeDetailView,
+    PricingListCreateView,
+    PricingDetailView,
+    ProductListCreateView,
+    ProductDetailView
 )
 
 urlpatterns = [
@@ -21,6 +28,12 @@ urlpatterns = [
     path('suppliers/', SupplierListCreateView.as_view(), name='supplier-list-create'),
     path('suppliers/<int:pk>/', SupplierRetrieveUpdateDestroyView.as_view(), name='supplier-detail'),
 
-    path('products/', ProductListCreateView.as_view(), name='product-list-create'),
-    path('products/<int:pk>/', ProductRetrieveUpdateDestroyView.as_view(), name='product-detail'),
+    path('shelltypes/', ShellTypeListCreateView.as_view()),
+    path('contenttypes/', ContentTypeListCreateView.as_view()),
+    path('unit-types/', UnitTypeListCreateView.as_view()),
+    path('unit-types/<int:pk>/', UnitTypeDetailView.as_view()),
+    path('pricing/', PricingListCreateView.as_view()),
+    path('pricing/<int:pk>/', PricingDetailView.as_view()),
+    path('products/', ProductListCreateView.as_view()),
+    path('products/<int:pk>/', ProductDetailView.as_view()),
 ]
