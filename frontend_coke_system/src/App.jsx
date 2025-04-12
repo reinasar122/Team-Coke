@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import WarehouseForm from "./pages/WarehouseForm";
@@ -14,7 +14,12 @@ import StocksAdjustment from "./pages/StockAdjustment";
 import UserList from "./pages/UserList";  
 import UserForm from "./pages/UserForm";  
 import RoleList from "./pages/RoleList";  
-import RoleForm from "./pages/RoleForm";  
+import RoleForm from "./pages/RoleForm";
+
+import ProductForm from './pages/ProductForm';
+import ProductEdit from './pages/ProductEdit';
+import ProductList from './pages/ProductList';
+
 
 
 
@@ -52,7 +57,8 @@ function App() {
               <Route path="/trading" element={<h1 className="text-2xl flex items-center gap-2"><FaChartLine /> Trading</h1>} />
               <Route path="/invoice" element={<h1 className="text-2xl flex items-center gap-2"><FaFileInvoice /> Invoice</h1>} />
               <Route path="/stocks" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes /> Stocks</h1>} />
-              <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} />                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+              <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} /> 
+              <Route path="/products" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes />Products</h1>} />                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
               <Route path="/suppliers" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Suppliers</h1>} />
               <Route path="/dashboard" element={<h1 className="text-2xl flex items-center gap-2"><FaChartPie /> Dashboard</h1>} />
               <Route path="/settings" element={<h1 className="text-2xl flex items-center gap-2"><FaCogs /> Settings</h1>} />
@@ -81,6 +87,12 @@ function App() {
               {/* ✅ Add Role Routes */}
               <Route path="/roles" element={<RoleList />} />
               <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
+
+              <Route path="/" element={<Navigate to="/products" />} />
+              <Route path="/products" element={<ProductList />} />
+              <Route path="/products/new" element={<ProductForm />} />
+              <Route path="/products/:id/edit" element={<ProductEdit />} />
+
 
             </Routes>
           </div>
