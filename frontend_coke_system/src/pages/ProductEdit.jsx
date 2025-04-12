@@ -1,55 +1,43 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 
 const ProductEdit = () => {
-  const { id } = useParams(); // get product ID from URL
   const navigate = useNavigate();
-
+  const { productId } = useParams(); // Get product ID from URL
   const [formData, setFormData] = useState({
     system_code: '',
     supplier_code: '',
     product_name: '',
     product_category: '',
-    returnable: false,
     purchase_price: '',
     selling_price: '',
     shell_price: '',
     bottle_price: '',
     content_no: '',
     shell_type: '',
-    content_type: '',
+    returnable: false,
+    content_type: ''
   });
 
   const [shellTypes, setShellTypes] = useState([]);
   const [contentTypes, setContentTypes] = useState([]);
 
   useEffect(() => {
-    // Fetch dropdown options
-    axios.get('/shell-types/').then(res => setShellTypes(res.data));
-    axios.get('/content-types/').then(res => setContentTypes(res.data));
+    // Fetch shell types and content types
+    axios.get('http://localhost:8080/api/shelltypes/').then(res => setShellTypes(res.data));
+    axios.get('http://localhost:8080/api/contenttypes/').then(res => setContentTypes(res.data));
 
-    // Fetch product to edit
-    axios.get(`/products/${id}/`)
+    // Fetch the product data
+    axios.get(`http://localhost:8080/api/products/${productId}/`)
       .then(res => {
-        const product = res.data;
-        setFormData({
-          system_code: product.system_code,
-          supplier_code: product.supplier_code,
-          product_name: product.product_name,
-          product_category: product.product_category,
-          returnable: product.unit_type.returnable,
-          purchase_price: product.price.purchase_price,
-          selling_price: product.price.selling_price,
-          shell_price: product.price.shell_price,
-          bottle_price: product.price.bottle_price,
-          content_no: product.unit_type.content_no,
-          shell_type: product.unit_type.shell_type,
-          content_type: product.unit_type.content_type,
-        });
+        setFormData(res.data);
       })
-      .catch(err => console.error('Error fetching product:', err));
-  }, [id]);
+      .catch(err => {
+        console.error('Failed to fetch product data:', err);
+        alert('❌ Failed to load product data');
+      });
+  }, [productId]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -59,51 +47,159 @@ const ProductEdit = () => {
     }));
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    axios.put(`/products/${id}/`, formData)
-      .then(() => navigate('/products'))
-      .catch(err => console.error('Error updating product:', err));
+    try {
+      // Update pricing information
+      const pricingRes = await axios.put(`http://localhost:8080/api/pricing/${formData.price.id}/`, {
+        purchase_price: formData.purchase_price,
+        selling_price: formData.selling_price,
+        shell_price: formData.shell_price,
+        bottle_price: formData.bottle_price
+      });
+
+      // Update unit type information
+      const unitTypeRes = await axios.put(`http://localhost:8080/api/unit-types/${formData.unit_type.id}/`, {
+        content_no: formData.content_no,
+        returnable: formData.returnable,
+        shell_type: formData.shell_type,
+        content_type: formData.content_type,
+        content_returnable: formData.returnable
+      });
+
+      // Update product information
+      await axios.put(`http://localhost:8080/api/products/${productId}/`, {
+        system_code: formData.system_code,
+        supplier_code: formData.supplier_code,
+        product_name: formData.product_name,
+        product_category: formData.product_category,
+        unit_type: unitTypeRes.data.id,
+        price: pricingRes.data.id
+      });
+
+      alert('✅ Product updated successfully!');
+      navigate('/products');
+    } catch (err) {
+      console.error(err);
+      alert('❌ Failed to update product');
+    }
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-6 bg-gray-100 shadow-md rounded-md mt-6">
-      <h2 className="text-2xl font-bold mb-4">Edit Product</h2>
-      <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-4">
-        <input name="system_code" placeholder="System Code" value={formData.system_code} onChange={handleChange} className="p-2 border rounded" />
-        <input name="supplier_code" placeholder="Supplier Code" value={formData.supplier_code} onChange={handleChange} className="p-2 border rounded" />
-        <input name="product_name" placeholder="Product Name" value={formData.product_name} onChange={handleChange} className="p-2 border rounded" />
-        <input name="product_category" placeholder="Product Category" value={formData.product_category} onChange={handleChange} className="p-2 border rounded" />
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-8 bg-gray-300 p-6 rounded-xl shadow-lg">
+      <h2 className="text-3xl font-bold mb-6">EDIT PRODUCT</h2>
 
-        <div className="col-span-2 flex items-center space-x-4">
-          <label className="font-semibold">Returnable?</label>
-          <label><input type="radio" name="returnable" value={true} checked={formData.returnable === true} onChange={() => setFormData(prev => ({ ...prev, returnable: true }))} /> Yes</label>
-          <label><input type="radio" name="returnable" value={false} checked={formData.returnable === false} onChange={() => setFormData(prev => ({ ...prev, returnable: false }))} /> No</label>
+      {[ // Same fields as in ProductForm
+        { label: 'System Code', name: 'system_code' },
+        { label: 'Supplier Code', name: 'supplier_code' },
+        { label: 'Product Name', name: 'product_name' },
+      ].map(({ label, name }) => (
+        <div className="mb-4" key={name}>
+          <label className="block font-medium mb-1">{label}</label>
+          <input
+            name={name}
+            value={formData[name]}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border rounded"
+          />
         </div>
+      ))}
 
-        <input name="purchase_price" placeholder="Purchase Price" type="number" value={formData.purchase_price} onChange={handleChange} className="p-2 border rounded" />
-        <input name="selling_price" placeholder="Selling Price" type="number" value={formData.selling_price} onChange={handleChange} className="p-2 border rounded" />
-        <input name="shell_price" placeholder="Shell Price" type="number" value={formData.shell_price} onChange={handleChange} className="p-2 border rounded" />
-        <input name="bottle_price" placeholder="Bottle Price" type="number" value={formData.bottle_price} onChange={handleChange} className="p-2 border rounded" />
-        <input name="content_no" placeholder="Content No" type="number" value={formData.content_no} onChange={handleChange} className="p-2 border rounded" />
+      <div className="mb-4">
+        <label className="block font-medium mb-1">Product Category</label>
+        <select
+          name="product_category"
+          value={formData.product_category}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded"
+        >
+          <option value="">-- Select --</option>
+          <option value="Soft Drinks">Soft Drinks</option>
+          <option value="Hydration">Hydration</option>
+          <option value="Juices">Juices</option>
+          <option value="Alcohol">Alcohol</option>
+          <option value="Dairy">Dairy</option>
+        </select>
+      </div>
 
-        <select name="shell_type" value={formData.shell_type} onChange={handleChange} className="p-2 border rounded">
-          <option value="">Select Shell Type</option>
-          {shellTypes.map(st => (
-            <option key={st.id} value={st.id}>{st.description}</option>
+      <div className="mb-4">
+        <label className="block font-medium mb-1">Returnable</label>
+        <input
+          type="checkbox"
+          name="returnable"
+          checked={formData.returnable}
+          onChange={handleChange}
+          className="mr-2"
+        />
+        <span>{formData.returnable ? "Yes" : "No"}</span>
+      </div>
+
+      {[ // Pricing and other fields
+        { label: 'Purchased Price', name: 'purchase_price' },
+        { label: 'Selling Price', name: 'selling_price' },
+        { label: 'Shell Price', name: 'shell_price' },
+        { label: 'Bottle Price', name: 'bottle_price' },
+        { label: 'Content No', name: 'content_no' },
+      ].map(({ label, name }) => (
+        <div className="mb-4" key={name}>
+          <label className="block font-medium mb-1">{label}</label>
+          <input
+            name={name}
+            type="number"
+            value={formData[name]}
+            onChange={handleChange}
+            className="w-full px-3 py-2 border rounded"
+          />
+        </div>
+      ))}
+
+      <div className="mb-4">
+        <label className="block font-medium mb-1">Shell Type</label>
+        <select
+          name="shell_type"
+          value={formData.shell_type}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded"
+        >
+          <option value="">-- Select --</option>
+          {shellTypes.map(shell => (
+            <option key={shell.id} value={shell.id}>{shell.description}</option>
           ))}
         </select>
+      </div>
 
-        <select name="content_type" value={formData.content_type} onChange={handleChange} className="p-2 border rounded">
-          <option value="">Select Content Type</option>
-          {contentTypes.map(ct => (
-            <option key={ct.id} value={ct.id}>{ct.description}</option>
+      <div className="mb-6">
+        <label className="block font-medium mb-1">Content Type</label>
+        <select
+          name="content_type"
+          value={formData.content_type}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded"
+        >
+          <option value="">-- Select --</option>
+          {contentTypes.map(content => (
+            <option key={content.id} value={content.id}>{content.description}</option>
           ))}
         </select>
+      </div>
 
-        <button type="submit" className="col-span-2 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 mt-4">Update Product</button>
-      </form>
-    </div>
+      <div className="flex justify-between">
+        <button
+          type="button"
+          onClick={() => navigate('/products')}
+          className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+        >
+          Save Changes
+        </button>
+      </div>
+
+    </form>
   );
 };
 

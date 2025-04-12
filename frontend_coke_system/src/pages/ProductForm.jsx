@@ -18,9 +18,10 @@ const ProductForm = () => {
     returnable: false,
     content_type: ''
   });
-
+  
   const [shellTypes, setShellTypes] = useState([]);
   const [contentTypes, setContentTypes] = useState([]);
+
 
   useEffect(() => {
     axios.get('http://localhost:8080/api/shelltypes/').then(res => setShellTypes(res.data));
@@ -63,12 +64,16 @@ const ProductForm = () => {
         price: pricingRes.data.id
       });
 
-      navigate('/products');
-    } catch (err) {
-      console.error(err);
-      alert('Failed to create product');
-    }
-  };
+      // ✅ Browser's alert box
+    alert('✅ Product registered successfully!');
+    
+    navigate('/products');
+  } catch (err) {
+    console.error(err);
+    alert('❌ Failed to create product');
+  }
+};
+
 
   return (
     <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-8 bg-gray-300 p-6 rounded-xl shadow-lg">
@@ -169,12 +174,22 @@ const ProductForm = () => {
         </select>
       </div>
 
+      <div className="flex justify-between">
+      <button
+        type="button"
+        onClick={() => navigate('/products')}
+        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
+      >
+        Cancel
+      </button>
       <button
         type="submit"
-        className="w-full bg-blue-600 text-white py-2 rounded hover:bg-blue-700"
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
       >
         Save Product
       </button>
+    </div>
+
     </form>
   );
 };
