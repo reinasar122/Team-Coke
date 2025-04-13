@@ -114,6 +114,12 @@ class ContentType(models.Model):
 class ShellType(models.Model):
     description = models.TextField()
 
+class ProductCategory(models.Model):
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
 class UnitType(models.Model):
     content_no = models.IntegerField()
     shell_type = models.ForeignKey(ShellType, on_delete=models.SET_NULL, null=True)
@@ -131,7 +137,7 @@ class Product(models.Model):
     system_code = models.TextField()
     supplier_code = models.TextField()
     product_name = models.TextField()
-    product_category = models.TextField()
+    product_category = models.ForeignKey(ProductCategory, on_delete=models.SET_NULL, null=True)
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
 

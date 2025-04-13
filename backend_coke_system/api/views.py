@@ -7,8 +7,8 @@ from .models import Supplier, User, Role, Van
 from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer
 
 from django.db import connection
-from .models import Product, UnitType, Pricing, ShellType, ContentType
-from .serializers import ProductSerializer
+from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
+from .serializers import ProductSerializer, ProductCategorySerializer
 
 
 class RoleListCreateView(generics.ListCreateAPIView):
@@ -103,7 +103,13 @@ class ContentTypeListCreateView(generics.ListCreateAPIView):
     queryset = ContentType.objects.all()
     serializer_class = ContentTypeSerializer
 
+class ProductCategoryListCreateView(generics.ListCreateAPIView):
+    queryset = ProductCategory.objects.all()
+    serializer_class = ProductCategorySerializer
 
+class ProductCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = ProductCategory.objects.all()
+    serializer_class = ProductCategorySerializer
 
 class UnitTypeListCreateView(generics.ListCreateAPIView):
     queryset = UnitType.objects.all()
@@ -124,9 +130,27 @@ class PricingDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class ProductListCreateView(generics.ListCreateAPIView):
     queryset = Product.objects.all()
-    serializer_class = ProductSerializer
+
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return ProductDetailSerializer  # ✅ return full nested data on GET
+        return ProductSerializer  # ✅ for POST
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductDetailSerializer
 
+    def perform_destroy(self, instance):
+        unit = instance.unit_type
+        price = instance.price
+
+        # Delete the product first
+        super().perform_destroy(instance)
+
+        # 🧹 Delete unit_type if not used by any other product
+        if unit and not Product.objects.filter(unit_type=unit).exists():
+            unit.delete()
+
+        # 🧹 Delete pricing if not used by any other product
+        if price and not Product.objects.filter(price=price).exists():
+            price.delete()

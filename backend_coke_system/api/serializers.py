@@ -4,7 +4,7 @@ from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
 from .models import User, Role
 from .models import Van
-from .models import ContentType, ShellType, UnitType, Pricing, Product
+from .models import ContentType, ShellType, UnitType, Pricing, Product, ProductCategory
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -126,6 +126,13 @@ class ShellTypeSerializer(serializers.ModelSerializer):
         model = ShellType
         fields = '__all__'
 
+
+class ProductCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductCategory
+        fields = '__all__'
+
+
 class UnitTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = UnitType
@@ -148,7 +155,9 @@ class ProductSerializer(serializers.ModelSerializer):
 class ProductDetailSerializer(serializers.ModelSerializer):
     unit_type = UnitTypeSerializer(read_only=True)
     price = PricingSerializer(read_only=True)
+    product_category = ProductCategorySerializer(read_only=True)
 
     class Meta:
         model = Product
         fields = '__all__'
+

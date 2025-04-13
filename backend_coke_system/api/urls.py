@@ -13,7 +13,10 @@ from .views import (
     ProductListCreateView,
     ProductDetailView,
     VanListCreateView,
-    VanRetrieveUpdateDestroyView
+    VanRetrieveUpdateDestroyView,
+    ProductCategoryListCreateView,
+    ProductCategoryDetailView
+
 
 )
 
@@ -36,6 +39,8 @@ urlpatterns = [
 
     path('shelltypes/', ShellTypeListCreateView.as_view()),
     path('contenttypes/', ContentTypeListCreateView.as_view()),
+    path('product-categories/', ProductCategoryListCreateView.as_view()),
+    path('product-categories/<int:pk>/', ProductCategoryDetailView.as_view()),
     path('unit-types/', UnitTypeListCreateView.as_view()),
     path('unit-types/<int:pk>/', UnitTypeDetailView.as_view()),
     path('pricing/', PricingListCreateView.as_view()),
