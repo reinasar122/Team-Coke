@@ -3,6 +3,7 @@ from .models import Warehouse
 from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
 from .models import User, Role
+from .models import Van
 from .models import ContentType, ShellType, UnitType, Pricing, Product
 
 
@@ -106,6 +107,11 @@ class SupplierSerializer(serializers.ModelSerializer):
 
         return instance
     
+
+class VanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Van
+        fields = '__all__'
 
 
 #ProductSerializer

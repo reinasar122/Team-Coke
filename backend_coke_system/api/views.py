@@ -3,8 +3,8 @@ from api.models import Warehouse
 from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
-from .models import Supplier, User, Role
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer
+from .models import Supplier, User, Role, Van
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer
 
 from django.db import connection
 from .models import Product, UnitType, Pricing, ShellType, ContentType
@@ -82,6 +82,15 @@ class SupplierListCreateView(generics.ListCreateAPIView):
 class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
+
+
+class VanListCreateView(generics.ListCreateAPIView):
+    queryset = Van.objects.all()
+    serializer_class = VanSerializer
+
+class VanRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Van.objects.all()
+    serializer_class = VanSerializer
 
 
 #Products

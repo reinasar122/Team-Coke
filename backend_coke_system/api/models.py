@@ -98,6 +98,14 @@ class User(models.Model):
         return check_password(raw_password, self.password)
     
 
+class Van(models.Model):
+    van_id = models.CharField(max_length=50)
+    plate_number = models.CharField(max_length=20)
+
+    def __str__(self):
+        return f"{self.van_id} - {self.plate_number}"
+    
+
 #Product and Pricing Models
 
 class ContentType(models.Model):

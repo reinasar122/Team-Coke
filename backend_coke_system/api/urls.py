@@ -11,7 +11,10 @@ from .views import (
     PricingListCreateView,
     PricingDetailView,
     ProductListCreateView,
-    ProductDetailView
+    ProductDetailView,
+    VanListCreateView,
+    VanRetrieveUpdateDestroyView
+
 )
 
 urlpatterns = [
@@ -27,6 +30,9 @@ urlpatterns = [
     path('warehouses/<int:pk>/', WarehouseDetailView.as_view(), name='warehouse-detail'),
     path('suppliers/', SupplierListCreateView.as_view(), name='supplier-list-create'),
     path('suppliers/<int:pk>/', SupplierRetrieveUpdateDestroyView.as_view(), name='supplier-detail'),
+
+    path('vans/', VanListCreateView.as_view(), name='van-list-create'),
+    path('vans/<int:pk>/', VanRetrieveUpdateDestroyView.as_view(), name='van-detail'),
 
     path('shelltypes/', ShellTypeListCreateView.as_view()),
     path('contenttypes/', ContentTypeListCreateView.as_view()),
