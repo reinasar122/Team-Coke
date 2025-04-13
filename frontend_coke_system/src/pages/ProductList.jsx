@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
-import { FaEdit, FaTrash } from 'react-icons/fa'; // Font Awesome icons
+import { FaEdit, FaTrash } from 'react-icons/fa';
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -11,7 +11,6 @@ const ProductList = () => {
       .then(res => setProducts(res.data))
       .catch(err => console.error(err));
   }, []);
-
 
   const handleDelete = async (id) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this product?");
@@ -26,7 +25,6 @@ const ProductList = () => {
       alert("❌ Failed to delete product.");
     }
   };
-
 
   return (
     <div className="p-6">
@@ -56,9 +54,11 @@ const ProductList = () => {
               <td className="p-2">{prod.system_code}</td>
               <td className="p-2">{prod.supplier_code}</td>
               <td className="p-2">{prod.product_name}</td>
-              <td className="p-2">{prod.product_category}</td>
               <td className="p-2">
-              <div className="flex justify-center gap-4">
+                {prod.product_category?.name || "N/A"}
+              </td>
+              <td className="p-2">
+                <div className="flex justify-center gap-4">
                   <Link to={`/products/${prod.id}/edit`} title="Edit">
                     <FaEdit className="text-blue-600 hover:text-blue-800 cursor-pointer" />
                   </Link>

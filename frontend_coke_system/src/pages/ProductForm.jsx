@@ -1,89 +1,169 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from "react";
+import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 const ProductForm = () => {
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    system_code: '',
-    supplier_code: '',
-    product_name: '',
-    product_category: '',
-    purchase_price: '',
-    selling_price: '',
-    shell_price: '',
-    bottle_price: '',
-    content_no: '',
-    shell_type: '',
-    returnable: false,
-    content_type: ''
+    system_code: "",
+    supplier_code: "",
+    product_name: "",
+    product_category: "",
+    returnable: true,
+    purchase_price: "",
+    selling_price: "",
+    shell_price: "",
+    bottle_price: "",
+    content_no: "",
+    shell_type: "",
+    content_type: "",
   });
-  
+
+  const [categories, setCategories] = useState([]);
   const [shellTypes, setShellTypes] = useState([]);
   const [contentTypes, setContentTypes] = useState([]);
 
+  const [showModal, setShowModal] = useState({ type: null });
+  const [newValue, setNewValue] = useState("");
+
+  const fetchDropdowns = () => {
+    axios.get("http://localhost:8080/api/product-categories/").then((res) => setCategories(res.data));
+    axios.get("http://localhost:8080/api/shelltypes/").then((res) => setShellTypes(res.data));
+    axios.get("http://localhost:8080/api/contenttypes/").then((res) => setContentTypes(res.data));
+  };
+
+  const generateSystemCode = () => {
+    const code = `PROD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    setFormData((prev) => ({ ...prev, system_code: code }));
+  };
 
   useEffect(() => {
-    axios.get('http://localhost:8080/api/shelltypes/').then(res => setShellTypes(res.data));
-    axios.get('http://localhost:8080/api/contenttypes/').then(res => setContentTypes(res.data));
-
+    generateSystemCode();
+    fetchDropdowns();
   }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: type === 'checkbox' ? checked : value
-    }));
+    let val = type === "checkbox" ? checked : value;
+
+    if (name === "returnable" && !checked) {
+      setFormData((prev) => ({
+        ...prev,
+        returnable: false,
+        shell_price: 0,
+        bottle_price: 0,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: val,
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const pricingRes = await axios.post('http://localhost:8080/api/pricing/', {
+      const pricingRes = await axios.post("http://localhost:8080/api/pricing/", {
         purchase_price: formData.purchase_price,
         selling_price: formData.selling_price,
         shell_price: formData.shell_price,
-        bottle_price: formData.bottle_price
+        bottle_price: formData.bottle_price,
       });
 
-      const unitTypeRes = await axios.post('http://localhost:8080/api/unit-types/', {
+      const unitTypeRes = await axios.post("http://localhost:8080/api/unit-types/", {
         content_no: formData.content_no,
         returnable: formData.returnable,
         shell_type: formData.shell_type,
         content_type: formData.content_type,
-        content_returnable: formData.returnable
+        content_returnable: formData.returnable,
       });
 
-      await axios.post('http://localhost:8080/api/products/', {
+      await axios.post("http://localhost:8080/api/products/", {
         system_code: formData.system_code,
         supplier_code: formData.supplier_code,
         product_name: formData.product_name,
         product_category: formData.product_category,
         unit_type: unitTypeRes.data.id,
-        price: pricingRes.data.id
+        price: pricingRes.data.id,
       });
 
-      // ✅ Browser's alert box
-    alert('✅ Product registered successfully!');
-    
-    navigate('/products');
-  } catch (err) {
-    console.error(err);
-    alert('❌ Failed to create product');
-  }
-};
+      alert("✅ Product saved!");
+      navigate("/products");
+    } catch (err) {
+      console.error("❌ Save Error:", err.response?.data || err.message);
+      alert("❌ Error saving product");
+    }
+  };
 
+  const handleAddNew = async () => {
+    let endpoint = "";
+    let payload = {};
+
+    if (showModal.type === "category") {
+      endpoint = "product-categories/";
+      payload = { name: newValue };
+    } else if (showModal.type === "shell") {
+      endpoint = "shelltypes/";
+      payload = { description: newValue };
+    } else if (showModal.type === "content") {
+      endpoint = "contenttypes/";
+      payload = { description: newValue };
+    }
+
+    try {
+      const res = await axios.post(`http://localhost:8080/api/${endpoint}`, payload);
+      fetchDropdowns();
+
+      setFormData((prev) => ({
+        ...prev,
+        [`${showModal.type}_type`]: res.data.id,
+        product_category: showModal.type === "category" ? res.data.id : prev.product_category,
+      }));
+
+      setShowModal({ type: null });
+      setNewValue("");
+    } catch (err) {
+      console.error("❌ Add New Error:", err.response?.data || err.message);
+      alert("❌ Failed to add new item");
+    }
+  };
+
+  const renderDropdown = (label, name, options, modalType) => (
+    <div className="mb-4">
+      <label className="block font-medium mb-1">{label}</label>
+      <select
+        name={name}
+        value={formData[name]}
+        onChange={(e) => {
+          if (e.target.value === "add_new") {
+            setShowModal({ type: modalType });
+          } else {
+            handleChange(e);
+          }
+        }}
+        className="w-full px-3 py-2 border rounded"
+      >
+        <option value="">-- Select --</option>
+        {options.map((item) => (
+          <option key={item.id} value={item.id}>
+            {item.name || item.description}
+          </option>
+        ))}
+        <option value="add_new">+ Add New</option>
+      </select>
+    </div>
+  );
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-8 bg-gray-300 p-6 rounded-xl shadow-lg">
+    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-8 bg-gray-200 p-6 rounded-xl shadow-lg">
       <h2 className="text-3xl font-bold mb-6">PRODUCT</h2>
 
       {[
-        { label: 'System Code', name: 'system_code' },
-        { label: 'Supplier Code', name: 'supplier_code' },
-        { label: 'Product Name', name: 'product_name' },
-      ].map(({ label, name }) => (
+        ["System Code", "system_code"],
+        ["Supplier Code", "supplier_code"],
+        ["Product Name", "product_name"],
+      ].map(([label, name]) => (
         <div className="mb-4" key={name}>
           <label className="block font-medium mb-1">{label}</label>
           <input
@@ -91,47 +171,26 @@ const ProductForm = () => {
             value={formData[name]}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded"
+            readOnly={name === "system_code"}
           />
         </div>
       ))}
 
-      <div className="mb-4">
-        <label className="block font-medium mb-1">Product Category</label>
-        <select
-          name="product_category"
-          value={formData.product_category}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded"
-        >
-          <option value="">-- Select --</option>
-          <option value="Soft Drinks">Soft Drinks</option>
-          <option value="Hydration">Hydration</option>
-          <option value="Juices">Juices</option>
-          <option value="Alcohol">Alcohol</option>
-          <option value="Dairy">Dairy</option>
-        </select>
+      {renderDropdown("Product Category", "product_category", categories, "category")}
+
+      <div className="mb-4 flex items-center">
+        <label className="font-medium mr-4">RETURNABLE</label>
+        <input type="checkbox" name="returnable" checked={formData.returnable} onChange={handleChange} />
+        <span className="ml-2">{formData.returnable ? "YES" : "NO"}</span>
       </div>
 
-      <div className="mb-4">
-  <label className="block font-medium mb-1">Returnable</label>
-  <input
-    type="checkbox"
-    name="returnable"
-    checked={formData.returnable}
-    onChange={handleChange}
-    className="mr-2"
-  />
-  <span>{formData.returnable ? "Yes" : "No"}</span>
-</div>
-
-
       {[
-        { label: 'Purchased Price', name: 'purchase_price' },
-        { label: 'Selling Price', name: 'selling_price' },
-        { label: 'Shell Price', name: 'shell_price' },
-        { label: 'Bottle Price', name: 'bottle_price' },
-        { label: 'Content No', name: 'content_no' },
-      ].map(({ label, name }) => (
+        ["Purchased Price", "purchase_price"],
+        ["Selling Price", "selling_price"],
+        ["Shell Price", "shell_price"],
+        ["Bottle Price", "bottle_price"],
+        ["Content No", "content_no"],
+      ].map(([label, name]) => (
         <div className="mb-4" key={name}>
           <label className="block font-medium mb-1">{label}</label>
           <input
@@ -140,56 +199,45 @@ const ProductForm = () => {
             value={formData[name]}
             onChange={handleChange}
             className="w-full px-3 py-2 border rounded"
+            readOnly={["shell_price", "bottle_price"].includes(name) && !formData.returnable}
           />
         </div>
       ))}
 
-      <div className="mb-4">
-        <label className="block font-medium mb-1">Shell Type</label>
-        <select
-          name="shell_type"
-          value={formData.shell_type}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded"
-        >
-          <option value="">-- Select --</option>
-          {shellTypes.map(shell => (
-            <option key={shell.id} value={shell.id}>{shell.description}</option>
-          ))}
-        </select>
-      </div>
-
-      <div className="mb-6">
-        <label className="block font-medium mb-1">Content Type</label>
-        <select
-          name="content_type"
-          value={formData.content_type}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded"
-        >
-          <option value="">-- Select --</option>
-          {contentTypes.map(content => (
-            <option key={content.id} value={content.id}>{content.description}</option>
-          ))}
-        </select>
-      </div>
+      {renderDropdown("Shell Type", "shell_type", shellTypes, "shell")}
+      {renderDropdown("Content Type", "content_type", contentTypes, "content")}
 
       <div className="flex justify-between">
-      <button
-        type="button"
-        onClick={() => navigate('/products')}
-        className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-      >
-        Cancel
-      </button>
-      <button
-        type="submit"
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-      >
-        Save Product
-      </button>
-    </div>
+        <button type="button" onClick={() => navigate("/products")} className="bg-gray-500 text-white px-4 py-2 rounded">
+          Cancel
+        </button>
+        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
+          Save Product
+        </button>
+      </div>
 
+      {showModal.type && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center z-50">
+          <div className="bg-white p-6 rounded-xl w-80">
+            <h3 className="text-lg font-bold mb-4">Add New {showModal.type.toUpperCase()}</h3>
+            <input
+              type="text"
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              className="w-full px-3 py-2 border rounded mb-4"
+              placeholder="Enter value"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowModal({ type: null })} className="px-3 py-1 bg-gray-400 text-white rounded">
+                Cancel
+              </button>
+              <button onClick={handleAddNew} className="px-3 py-1 bg-blue-600 text-white rounded">
+                Add
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </form>
   );
 };
