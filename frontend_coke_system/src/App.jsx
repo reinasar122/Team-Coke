@@ -20,6 +20,8 @@ import ProductForm from './pages/ProductForm';
 import ProductEdit from './pages/ProductEdit';
 import ProductList from './pages/ProductList';
 
+import VanList from "./pages/VanList";
+
 
 
 
@@ -93,6 +95,7 @@ function App() {
               <Route path="/products/new" element={<ProductForm />} />
               <Route path="/products/:id/edit" element={<ProductEdit />} />
 
+              <Route path="/vans" element={<VanList />} />
 
             </Routes>
           </div>

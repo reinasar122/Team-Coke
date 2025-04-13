@@ -75,6 +75,7 @@ const Sidebar = ({ isSidebarOpen }) => {
               <li><Link to="/roles" className="block p-2 text-sm hover:bg-gray-600 rounded">Roles</Link></li>
               <li><Link to="/warehouses" className="block p-2 text-sm hover:bg-gray-600 rounded">Warehouses</Link></li>
               <li><Link to="/suppliers" className="block p-2 text-sm hover:bg-gray-600 rounded">Suppliers</Link></li>
+              <li><Link to="/vans" className="block p-2 text-sm hover:bg-gray-600 rounded">Van</Link></li>
             </ul>
           )}
         </li>
