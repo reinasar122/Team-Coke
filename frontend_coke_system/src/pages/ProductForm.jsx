@@ -89,9 +89,9 @@ const ProductForm = () => {
       });
 
       alert("✅ Product saved!");
-      navigate("/products");
+      navigate("/products/");
     } catch (err) {
-      console.error("❌ Save Error:", err.response?.data || err.message);
+      console.log("Form values when saving:", formData);
       alert("❌ Error saving product");
     }
   };
@@ -99,28 +99,29 @@ const ProductForm = () => {
   const handleAddNew = async () => {
     let endpoint = "";
     let payload = {};
-
+    let fieldName = "";
+  
     if (showModal.type === "category") {
       endpoint = "product-categories/";
       payload = { name: newValue };
+      fieldName = "product_category";
     } else if (showModal.type === "shell") {
       endpoint = "shelltypes/";
       payload = { description: newValue };
+      fieldName = "shell_type";
     } else if (showModal.type === "content") {
       endpoint = "contenttypes/";
       payload = { description: newValue };
+      fieldName = "content_type";
     }
-
+  
     try {
       const res = await axios.post(`http://localhost:8080/api/${endpoint}`, payload);
       fetchDropdowns();
-
       setFormData((prev) => ({
         ...prev,
-        [`${showModal.type}_type`]: res.data.id,
-        product_category: showModal.type === "category" ? res.data.id : prev.product_category,
+        [fieldName]: res.data.id,
       }));
-
       setShowModal({ type: null });
       setNewValue("");
     } catch (err) {
@@ -128,7 +129,8 @@ const ProductForm = () => {
       alert("❌ Failed to add new item");
     }
   };
-
+  
+  
   const renderDropdown = (label, name, options, modalType) => (
     <div className="mb-4">
       <label className="block font-medium mb-1">{label}</label>
@@ -231,9 +233,10 @@ const ProductForm = () => {
               <button onClick={() => setShowModal({ type: null })} className="px-3 py-1 bg-gray-400 text-white rounded">
                 Cancel
               </button>
-              <button onClick={handleAddNew} className="px-3 py-1 bg-blue-600 text-white rounded">
+              <button type="button" onClick={handleAddNew} className="px-3 py-1 bg-blue-600 text-white rounded">
                 Add
               </button>
+
             </div>
           </div>
         </div>

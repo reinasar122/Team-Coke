@@ -26,7 +26,6 @@ const ProductEdit = () => {
   const [categories, setCategories] = useState([]);
   const [shellTypes, setShellTypes] = useState([]);
   const [contentTypes, setContentTypes] = useState([]);
-
   const [showModal, setShowModal] = useState({ type: null });
   const [newValue, setNewValue] = useState("");
 
@@ -36,36 +35,37 @@ const ProductEdit = () => {
     axios.get("http://localhost:8080/api/contenttypes/").then((res) => setContentTypes(res.data));
   };
 
-  const fetchProduct = async () => {
-    try {
-      const res = await axios.get(`http://localhost:8080/api/products/${id}/`);
-      const product = res.data;
-
-      setFormData({
-        system_code: product.system_code,
-        supplier_code: product.supplier_code,
-        product_name: product.product_name,
-        product_category: product.product_category?.id || "",
-        returnable: product.unit_type?.returnable || true,
-        purchase_price: product.price?.purchase_price || "",
-        selling_price: product.price?.selling_price || "",
-        shell_price: product.price?.shell_price ?? 0,
-        bottle_price: product.price?.bottle_price ?? 0,
-        content_no: product.unit_type?.content_no || "",
-        shell_type: product.unit_type?.shell_type || "",
-        content_type: product.unit_type?.content_type || "",
-        price_id: product.price?.id || null,
-        unit_type_id: product.unit_type?.id || null,
-      });
-    } catch (err) {
-      console.error("❌ Failed to load product:", err);
-    }
-  };
-
   useEffect(() => {
     fetchDropdowns();
+
+    const fetchProduct = async () => {
+      try {
+        const res = await axios.get(`http://localhost:8080/api/products/${id}/`);
+        const product = res.data;
+
+        setFormData({
+          system_code: product.system_code,
+          supplier_code: product.supplier_code,
+          product_name: product.product_name,
+          product_category: product.product_category?.id || "",
+          returnable: product.unit_type?.returnable ?? true,
+          purchase_price: product.price?.purchase_price ?? 0,
+          selling_price: product.price?.selling_price ?? 0,
+          shell_price: product.price?.shell_price ?? 0,
+          bottle_price: product.price?.bottle_price ?? 0,
+          content_no: product.unit_type?.content_no || "",
+          shell_type: product.unit_type?.shell_type || "",
+          content_type: product.unit_type?.content_type || "",
+          price_id: product.price?.id || null,
+          unit_type_id: product.unit_type?.id || null,
+        });
+      } catch (err) {
+        console.error("❌ Failed to load product:", err);
+      }
+    };
+
     fetchProduct();
-  }, []);
+  }, [id]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -86,7 +86,6 @@ const ProductEdit = () => {
   const handleUpdate = async (e) => {
     e.preventDefault();
     try {
-      // ✅ Update existing Pricing
       await axios.put(`http://localhost:8080/api/pricing/${formData.price_id}/`, {
         purchase_price: parseFloat(formData.purchase_price) || 0,
         selling_price: parseFloat(formData.selling_price) || 0,
@@ -94,7 +93,6 @@ const ProductEdit = () => {
         bottle_price: parseFloat(formData.bottle_price) || 0,
       });
 
-      // ✅ Update existing UnitType
       await axios.put(`http://localhost:8080/api/unit-types/${formData.unit_type_id}/`, {
         content_no: formData.content_no,
         returnable: formData.returnable,
@@ -103,7 +101,6 @@ const ProductEdit = () => {
         content_returnable: formData.returnable,
       });
 
-      // ✅ Update the Product
       await axios.put(`http://localhost:8080/api/products/${id}/`, {
         system_code: formData.system_code,
         supplier_code: formData.supplier_code,
@@ -124,16 +121,20 @@ const ProductEdit = () => {
   const handleAddNew = async () => {
     let endpoint = "";
     let payload = {};
+    let fieldName = "";
 
     if (showModal.type === "category") {
       endpoint = "product-categories/";
       payload = { name: newValue };
+      fieldName = "product_category";
     } else if (showModal.type === "shell") {
       endpoint = "shelltypes/";
       payload = { description: newValue };
+      fieldName = "shell_type";
     } else if (showModal.type === "content") {
       endpoint = "contenttypes/";
       payload = { description: newValue };
+      fieldName = "content_type";
     }
 
     try {
@@ -141,8 +142,7 @@ const ProductEdit = () => {
       fetchDropdowns();
       setFormData((prev) => ({
         ...prev,
-        [`${showModal.type}_type`]: res.data.id,
-        product_category: showModal.type === "category" ? res.data.id : prev.product_category,
+        [fieldName]: res.data.id,
       }));
       setShowModal({ type: null });
       setNewValue("");
