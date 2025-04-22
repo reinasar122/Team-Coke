@@ -90,7 +90,7 @@ function App() {
               <Route path="/roles" element={<RoleList />} />
               <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
 
-              <Route path="/" element={<Navigate to="/products" />} />
+              <Route path="/" element={<Navigate/>} />
               <Route path="/products" element={<ProductList />} />
               <Route path="/products/new" element={<ProductForm />} />
               <Route path="/products/:id/edit" element={<ProductEdit />} />
