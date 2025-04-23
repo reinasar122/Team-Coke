@@ -15,19 +15,27 @@ const EditWarehouse = () => {
   });
 
   useEffect(() => {
-    // Fetch existing warehouse details by ID (Replace with your API)
     const fetchWarehouse = async () => {
       try {
-        const response = await fetch(`/api/warehouses/${id}`);
+        console.log("Fetching warehouse data..."); // Debugging
+        const response = await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`);  // ✅ Correct
+
+        
+        if (!response.ok) {
+          throw new Error("Failed to fetch warehouse data");
+        }
+  
         const data = await response.json();
+        console.log("Warehouse data received:", data); // Debugging
         setWarehouse(data);
       } catch (error) {
         console.error("Error fetching warehouse:", error);
       }
     };
-
+  
     fetchWarehouse();
   }, [id]);
+  
 
   const handleChange = (e) => {
     setWarehouse({ ...warehouse, [e.target.name]: e.target.value });
@@ -36,11 +44,16 @@ const EditWarehouse = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await fetch(`/api/warehouses/${id}`, {
+      const response = await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(warehouse),
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to update warehouse");
+      }
+
       navigate("/warehouses");
     } catch (error) {
       console.error("Error updating warehouse:", error);

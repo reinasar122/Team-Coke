@@ -34,6 +34,7 @@ const Sidebar = ({ isSidebarOpen }) => {
             <ul className="ml-4 mt-2 space-y-2">
               <li><Link to="/receiving" className="block p-2 text-sm hover:bg-gray-600 rounded">Receiving</Link></li>
               <li><Link to="/trading" className="block p-2 text-sm hover:bg-gray-600 rounded">Trading</Link></li>
+              <li><Link to="/loadout" className="block p-2 text-sm hover:bg-gray-600 rounded">test</Link></li>
               <li><Link to="/invoice" className="block p-2 text-sm hover:bg-gray-600 rounded">Invoice</Link></li>
             </ul>
           )}
