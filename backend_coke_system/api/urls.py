@@ -15,7 +15,8 @@ from .views import (
     VanListCreateView,
     VanRetrieveUpdateDestroyView,
     ProductCategoryListCreateView,
-    ProductCategoryDetailView
+    ProductCategoryDetailView,
+    next_product_code,  # Import views for next_product_code
 
 
 )
@@ -47,4 +48,6 @@ urlpatterns = [
     path('pricing/<int:pk>/', PricingDetailView.as_view()),
     path('products/', ProductListCreateView.as_view()),
     path('products/<int:pk>/', ProductDetailView.as_view()),
+    path('products/next-system-code/', next_product_code, name='next-product-code'),
+
 ]

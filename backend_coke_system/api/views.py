@@ -6,6 +6,10 @@ from rest_framework.response import Response  # Fix: Import Response
 from .models import Supplier, User, Role, Van
 from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer
 
+
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+
 from django.db import connection
 from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
 from .serializers import ProductSerializer, ProductCategorySerializer
@@ -154,3 +158,10 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
         # 🧹 Delete pricing if not used by any other product
         if price and not Product.objects.filter(price=price).exists():
             price.delete()
+
+@api_view(['GET'])
+def next_product_code(request):
+    last = Product.objects.order_by('-id').first()
+    next_id = last.id + 1 if last else 1
+    next_code = f"PRD-{next_id:04d}"
+    return Response({"system_code": next_code})

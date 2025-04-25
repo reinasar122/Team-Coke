@@ -141,3 +141,9 @@ class Product(models.Model):
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
 
+    def save(self, *args, **kwargs):
+        if not self.system_code:
+            last = Product.objects.order_by('-id').first()
+            next_id = last.id + 1 if last else 1
+            self.system_code = f"PROD-{next_id:04d}"
+        super().save(*args, **kwargs)
