@@ -96,3 +96,48 @@ class User(models.Model):
     def check_password(self, raw_password):
         """Check hashed password."""
         return check_password(raw_password, self.password)
+    
+
+class Van(models.Model):
+    van_id = models.CharField(max_length=50)
+    plate_number = models.CharField(max_length=20)
+
+    def __str__(self):
+        return f"{self.van_id} - {self.plate_number}"
+    
+
+#Product and Pricing Models
+
+class ContentType(models.Model):
+    description = models.TextField()
+
+class ShellType(models.Model):
+    description = models.TextField()
+
+class ProductCategory(models.Model):
+    name = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
+class UnitType(models.Model):
+    content_no = models.IntegerField()
+    shell_type = models.ForeignKey(ShellType, on_delete=models.SET_NULL, null=True)
+    returnable = models.BooleanField()
+    content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
+    content_returnable = models.BooleanField()
+
+class Pricing(models.Model):
+    purchase_price = models.FloatField()
+    selling_price = models.FloatField()
+    shell_price = models.FloatField()
+    bottle_price = models.FloatField()
+
+class Product(models.Model):
+    system_code = models.TextField()
+    supplier_code = models.TextField()
+    product_name = models.TextField()
+    product_category = models.ForeignKey(ProductCategory, on_delete=models.SET_NULL, null=True)
+    unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
+    price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
+

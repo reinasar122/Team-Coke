@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import WarehouseForm from "./pages/WarehouseForm";
@@ -14,7 +14,14 @@ import Dashboard from "./pages/Dashboard";
 import UserList from "./pages/UserList";  
 import UserForm from "./pages/UserForm";  
 import RoleList from "./pages/RoleList";  
-import RoleForm from "./pages/RoleForm";  
+import RoleForm from "./pages/RoleForm";
+
+import ProductForm from './pages/ProductForm';
+import ProductEdit from './pages/ProductEdit';
+import ProductList from './pages/ProductList';
+
+import VanList from "./pages/VanList";
+
 import Loadout from "./pages/Loadout"; 
 
 
@@ -24,7 +31,7 @@ import {
   FaFileInvoice,
   FaBoxes,
   FaTruck,
-  // FaHome,
+  FaHome,
   FaChartPie,
   FaCogs,
   FaUsers,
@@ -58,19 +65,21 @@ function App() {
             {/* Page Title */}
             <div className="page-title mb-4">
             <Routes>
-                 <Route path="/"element={<h1 className="text-2xl flex items-center gap-2"><FaChartPie /> Dashboard</h1> }/>
-                 <Route path="/receiving" element={<h1 className="text-2xl flex items-center gap-2"><FaClipboardCheck /> Receiving</h1>} />
-                 <Route path="/trading" element={ <h1 className="text-2xl flex items-center gap-2"><FaChartLine /> Trading</h1>}/>
-                 <Route path="/invoice"element={<h1 className="text-2xl flex items-center gap-2"><FaFileInvoice /> Invoice </h1>} />
-                 <Route path="/stocks"element={ <h1 className="text-2xl flex items-center gap-2"><FaBoxes /> Stocks</h1>}/>
-                 <Route path="/suppliers" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Suppliers</h1>} />
-                 {/* <Route path="/StocksAdjustment" element={ <h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1> }/> */}
-                 <Route path="/settings"element={<h1 className="text-2xl flex items-center gap-2"><FaCogs /> Settings</h1>}/>
-                 <Route path="/users"element={<h1 className="text-2xl flex items-center gap-2"><FaUsers /> Users</h1>}/>
-                 <Route path="/roles"element={<h1 className="text-2xl flex items-center gap-2"> <FaUserShield /> Roles</h1>}/>
-                 <Route path="/loadout"element={<h1 className="text-2xl flex items-center gap-2"> <FaUserShield /> Load Out</h1>}/>
-                 <Route path="/warehouses"element={<h1 className="text-2xl flex items-center gap-2"><FaWarehouse className="text-red-500" /> Warehouses </h1>}/>
-               </Routes>
+              <Route path="/" element={<h1 className="text-2xl flex items-center gap-2"><FaHome /> Home Page</h1>} />
+              <Route path="/receiving" element={<h1 className="text-2xl flex items-center gap-2"><FaClipboardCheck /> Receiving</h1>} />
+              <Route path="/trading" element={<h1 className="text-2xl flex items-center gap-2"><FaChartLine /> Trading</h1>} />
+              <Route path="/invoice" element={<h1 className="text-2xl flex items-center gap-2"><FaFileInvoice /> Invoice</h1>} />
+              <Route path="/stocks" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes /> Stocks</h1>} />
+              <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} /> 
+              <Route path="/products" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes />Products</h1>} />                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+              <Route path="/suppliers" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Suppliers</h1>} />
+              <Route path="/dashboard" element={<h1 className="text-2xl flex items-center gap-2"><FaChartPie /> Dashboard</h1>} />
+              <Route path="/settings" element={<h1 className="text-2xl flex items-center gap-2"><FaCogs /> Settings</h1>} />
+              <Route path="/users" element={<h1 className="text-2xl flex items-center gap-2"><FaUsers /> Users</h1>} />
+              <Route path="/roles" element={<h1 className="text-2xl flex items-center gap-2"><FaUserShield /> Roles</h1>} />
+              <Route path="/warehouses" element={<h1 className="text-2xl flex items-center gap-2"><FaWarehouse className="text-red-500" />  Warehouses</h1>} />
+              
+            </Routes>
             </div>
             
             {/* Page Content */}
@@ -93,6 +102,13 @@ function App() {
               {/* ✅ Add Role Routes */}
               <Route path="/roles" element={<RoleList />} />
               <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
+
+              <Route path="/" element={<Navigate/>} />
+              <Route path="/products" element={<ProductList />} />
+              <Route path="/products/new" element={<ProductForm />} />
+              <Route path="/products/:id/edit" element={<ProductEdit />} />
+
+              <Route path="/vans" element={<VanList />} />
 
             </Routes>
           </div>

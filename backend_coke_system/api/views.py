@@ -3,9 +3,12 @@ from api.models import Warehouse
 from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
-from .models import Supplier, User, Role
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer
+from .models import Supplier, User, Role, Van
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer
+
 from django.db import connection
+from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
+from .serializers import ProductSerializer, ProductCategorySerializer
 
 
 class RoleListCreateView(generics.ListCreateAPIView):
@@ -79,3 +82,75 @@ class SupplierListCreateView(generics.ListCreateAPIView):
 class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
+
+
+class VanListCreateView(generics.ListCreateAPIView):
+    queryset = Van.objects.all()
+    serializer_class = VanSerializer
+
+class VanRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Van.objects.all()
+    serializer_class = VanSerializer
+
+
+#Products
+
+class ShellTypeListCreateView(generics.ListCreateAPIView):
+    queryset = ShellType.objects.all()
+    serializer_class = ShellTypeSerializer
+
+class ContentTypeListCreateView(generics.ListCreateAPIView):
+    queryset = ContentType.objects.all()
+    serializer_class = ContentTypeSerializer
+
+class ProductCategoryListCreateView(generics.ListCreateAPIView):
+    queryset = ProductCategory.objects.all()
+    serializer_class = ProductCategorySerializer
+
+class ProductCategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = ProductCategory.objects.all()
+    serializer_class = ProductCategorySerializer
+
+class UnitTypeListCreateView(generics.ListCreateAPIView):
+    queryset = UnitType.objects.all()
+    serializer_class = UnitTypeSerializer
+
+class UnitTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = UnitType.objects.all()
+    serializer_class = UnitTypeSerializer
+
+class PricingListCreateView(generics.ListCreateAPIView):
+    queryset = Pricing.objects.all()
+    serializer_class = PricingSerializer
+
+class PricingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Pricing.objects.all()
+    serializer_class = PricingSerializer
+
+
+class ProductListCreateView(generics.ListCreateAPIView):
+    queryset = Product.objects.all()
+
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return ProductDetailSerializer  # ✅ return full nested data on GET
+        return ProductSerializer  # ✅ for POST
+
+class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Product.objects.all()
+    serializer_class = ProductDetailSerializer
+
+    def perform_destroy(self, instance):
+        unit = instance.unit_type
+        price = instance.price
+
+        # Delete the product first
+        super().perform_destroy(instance)
+
+        # 🧹 Delete unit_type if not used by any other product
+        if unit and not Product.objects.filter(unit_type=unit).exists():
+            unit.delete()
+
+        # 🧹 Delete pricing if not used by any other product
+        if price and not Product.objects.filter(price=price).exists():
+            price.delete()

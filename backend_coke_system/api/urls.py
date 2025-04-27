@@ -3,7 +3,21 @@ from .views import (
     WarehouseListCreateView, WarehouseDetailView,
     SupplierListCreateView, SupplierRetrieveUpdateDestroyView,
     UserListCreateView, UserDetailView,
-    RoleListCreateView, RoleDetailView  # ✅ Added Role views
+    RoleListCreateView, RoleDetailView,  # ✅ Added Role views
+    ShellTypeListCreateView,
+    ContentTypeListCreateView,
+    UnitTypeListCreateView,
+    UnitTypeDetailView,
+    PricingListCreateView,
+    PricingDetailView,
+    ProductListCreateView,
+    ProductDetailView,
+    VanListCreateView,
+    VanRetrieveUpdateDestroyView,
+    ProductCategoryListCreateView,
+    ProductCategoryDetailView
+
+
 )
 
 urlpatterns = [
@@ -19,4 +33,18 @@ urlpatterns = [
     path('warehouses/<int:pk>/', WarehouseDetailView.as_view(), name='warehouse-detail'),
     path('suppliers/', SupplierListCreateView.as_view(), name='supplier-list-create'),
     path('suppliers/<int:pk>/', SupplierRetrieveUpdateDestroyView.as_view(), name='supplier-detail'),
+
+    path('vans/', VanListCreateView.as_view(), name='van-list-create'),
+    path('vans/<int:pk>/', VanRetrieveUpdateDestroyView.as_view(), name='van-detail'),
+
+    path('shelltypes/', ShellTypeListCreateView.as_view()),
+    path('contenttypes/', ContentTypeListCreateView.as_view()),
+    path('product-categories/', ProductCategoryListCreateView.as_view()),
+    path('product-categories/<int:pk>/', ProductCategoryDetailView.as_view()),
+    path('unit-types/', UnitTypeListCreateView.as_view()),
+    path('unit-types/<int:pk>/', UnitTypeDetailView.as_view()),
+    path('pricing/', PricingListCreateView.as_view()),
+    path('pricing/<int:pk>/', PricingDetailView.as_view()),
+    path('products/', ProductListCreateView.as_view()),
+    path('products/<int:pk>/', ProductDetailView.as_view()),
 ]

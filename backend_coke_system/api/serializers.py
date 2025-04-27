@@ -3,6 +3,8 @@ from .models import Warehouse
 from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
 from .models import User, Role
+from .models import Van
+from .models import ContentType, ShellType, UnitType, Pricing, Product, ProductCategory
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -104,3 +106,58 @@ class SupplierSerializer(serializers.ModelSerializer):
             SupplierContact.objects.create(supplier=instance, **contact_data)
 
         return instance
+    
+
+class VanSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Van
+        fields = '__all__'
+
+
+#ProductSerializer
+
+class ContentTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ContentType
+        fields = '__all__'
+
+class ShellTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShellType
+        fields = '__all__'
+
+
+class ProductCategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductCategory
+        fields = '__all__'
+
+
+class UnitTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UnitType
+        fields = '__all__'
+
+
+class PricingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pricing
+        fields = '__all__'
+
+
+class ProductSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Product
+        fields = '__all__'
+
+
+
+class ProductDetailSerializer(serializers.ModelSerializer):
+    unit_type = UnitTypeSerializer(read_only=True)
+    price = PricingSerializer(read_only=True)
+    product_category = ProductCategorySerializer(read_only=True)
+
+    class Meta:
+        model = Product
+        fields = '__all__'
+

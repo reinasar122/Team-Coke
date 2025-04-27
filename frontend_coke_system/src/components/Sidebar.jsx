@@ -53,8 +53,9 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "inventory" && (
             <ul className="ml-4 mt-2 space-y-2">
-              <li><Link to="/stocks" className="block p-2 text-sm hover:bg-gray-600 rounded">Stock</Link></li>
               {/* <li><Link to="/StocksAdjustment" className="block p-2 text-sm hover:bg-gray-600 rounded">Stocks Adjustment</Link></li> */}
+              <li><Link to="/stocks" className="block p-2 text-sm hover:bg-gray-600 rounded">Stocks</Link></li>
+              <li><Link to="/products" className="block p-2 text-sm hover:bg-gray-600 rounded">Products</Link></li>
             </ul>
           )}
         </li>
@@ -74,6 +75,8 @@ const Sidebar = ({ isSidebarOpen }) => {
               <li><Link to="/users" className="block p-2 text-sm hover:bg-gray-600 rounded">Users</Link></li>
               <li><Link to="/roles" className="block p-2 text-sm hover:bg-gray-600 rounded">Roles</Link></li>
               <li><Link to="/warehouses" className="block p-2 text-sm hover:bg-gray-600 rounded">Warehouses</Link></li>
+              <li><Link to="/suppliers" className="block p-2 text-sm hover:bg-gray-600 rounded">Suppliers</Link></li>
+              <li><Link to="/vans" className="block p-2 text-sm hover:bg-gray-600 rounded">Van</Link></li>
             </ul>
           )}
         </li>

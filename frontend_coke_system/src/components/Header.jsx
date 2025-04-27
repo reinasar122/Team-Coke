@@ -13,7 +13,7 @@ const Header = ({ toggleSidebar }) => {
         <button onClick={toggleSidebar} className="text-xl mr-4 focus:outline-none">
           <FontAwesomeIcon icon={faBars} />
         </button>
-        <h1 className="text-xl font-bold">Coke POS System</h1>
+        <h1 className="text-xl font-bold">Coke Sales and Inventory System</h1>
       </div>
 
       {/* Right - Profile Dropdown */}
