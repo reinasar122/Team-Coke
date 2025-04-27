@@ -32,13 +32,18 @@ const ProductForm = () => {
     axios.get("http://localhost:8080/api/contenttypes/").then((res) => setContentTypes(res.data));
   };
 
-  const generateSystemCode = () => {
-    const code = `PROD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    setFormData((prev) => ({ ...prev, system_code: code }));
+  const fetchSystemCode = async () => {
+    try {
+      const res = await axios.get("http://localhost:8080/api/products/next-system-code/");
+      setFormData((prev) => ({ ...prev, system_code: res.data.system_code }));
+    } catch (err) {
+      console.error("Failed to fetch system code", err);
+    }
   };
+  
 
   useEffect(() => {
-    generateSystemCode();
+    fetchSystemCode();
     fetchDropdowns();
   }, []);
 

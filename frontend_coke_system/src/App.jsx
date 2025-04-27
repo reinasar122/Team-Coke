@@ -9,8 +9,12 @@ import Suppliers from "./pages/Suppliers";
 import SupplierRegistrationForm from "./pages/SupplierRegistrationForm"; 
 import SupplierEditForm from "./pages/SupplierEditForm";  
 import Stocks from "./pages/Stocks";  
+<<<<<<< HEAD
 import StocksAdjustment from "./pages/StockAdjustment"; 
 import Dashboard from "./pages/Dashboard";
+=======
+
+>>>>>>> 79a7a9abe558f41048dd6368b0b673ca224d1af7
 import UserList from "./pages/UserList";  
 import UserForm from "./pages/UserForm";  
 import RoleList from "./pages/RoleList";  
@@ -22,7 +26,12 @@ import ProductList from './pages/ProductList';
 
 import VanList from "./pages/VanList";
 
+<<<<<<< HEAD
 import Loadout from "./pages/Loadout"; 
+=======
+import ReceivingList from "./pages/ReceivingList";
+import ReceivingForm from "./pages/ReceivingForm";
+>>>>>>> 79a7a9abe558f41048dd6368b0b673ca224d1af7
 
 
 import {
@@ -92,8 +101,12 @@ function App() {
               <Route path="/register-supplier" element={<SupplierRegistrationForm />} />
               <Route path="/edit-supplier/:id" element={<SupplierEditForm />} />
               <Route path="/Stocks" element={<Stocks />} />
+<<<<<<< HEAD
               <Route path="/loadout" element={<Loadout />} />
               <Route path="/StocksAdjustment" element={<StocksAdjustment />} />
+=======
+              
+>>>>>>> 79a7a9abe558f41048dd6368b0b673ca224d1af7
 
               {/* ✅ Add User Routes */}
               <Route path="/users" element={<UserList />} />
@@ -103,12 +116,20 @@ function App() {
               <Route path="/roles" element={<RoleList />} />
               <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
 
+              {/* ✅ Add Product Routes */}
               <Route path="/" element={<Navigate/>} />
               <Route path="/products" element={<ProductList />} />
               <Route path="/products/new" element={<ProductForm />} />
               <Route path="/products/:id/edit" element={<ProductEdit />} />
 
               <Route path="/vans" element={<VanList />} />
+
+              {/* Receiving */}
+              <Route path="/receiving" element={<ReceivingList />} />
+              <Route path="/receiving/new" element={<ReceivingForm />} />
+
+              {/* Default Redirect */}
+              <Route path="/" element={<Navigate to="/dashboard" />} />
 
             </Routes>
           </div>

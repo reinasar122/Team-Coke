@@ -1,5 +1,8 @@
 from django.db import models
 import uuid
+import string
+import random
+from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password  # Use Django's secure hashers
 
 class Warehouse(models.Model):
@@ -141,3 +144,91 @@ class Product(models.Model):
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
 
+    def save(self, *args, **kwargs):
+        if not self.system_code:
+            last = Product.objects.order_by('-id').first()
+            next_id = last.id + 1 if last else 1
+            self.system_code = f"PROD-{next_id:04d}"
+        super().save(*args, **kwargs)
+
+
+class Receiving(models.Model):
+    receive_no = models.CharField(max_length=20, unique=True, editable=False)
+    date_time = models.DateTimeField(default=timezone.now)
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
+    invoice_no = models.CharField(max_length=100, blank=True, null=True)
+
+    return_total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    receive_total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    net_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    received_by = models.CharField(max_length=100, blank=True, null=True)
+    remarks = models.TextField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.receive_no:
+            self.receive_no = self.generate_code()
+        super().save(*args, **kwargs)
+
+    def generate_code(self):
+        chars = string.ascii_uppercase + string.digits
+        while True:
+            code = 'RCV-' + ''.join(random.choices(chars, k=6))
+            if not Receiving.objects.filter(receive_no=code).exists():
+                return code
+
+    def __str__(self):
+        return self.receive_no
+
+
+
+class ReceivingItem(models.Model):
+    receiving = models.ForeignKey(Receiving, related_name="details", on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True)  # 👈 Add this
+    product_name = models.CharField(max_length=255, blank=True, null=True)
+    pcs_qty = models.PositiveIntegerField(default=0)
+    shell_qty = models.PositiveIntegerField(default=0)
+    bottle_qty = models.PositiveIntegerField(default=0)
+    bad_order_pcs = models.PositiveIntegerField(default=0)
+    unit_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    shell_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    bottle_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+
+    def save(self, *args, **kwargs):
+        # Get the content quantity from the product's unit type
+        content_no = self.product.unit_type.content_no if self.product and self.product.unit_type else 1
+
+        # If shell is provided, calculate pcs
+        if self.shell_qty > 0:
+            self.pcs_qty = self.shell_qty * content_no
+        elif self.pcs_qty > 0:
+            self.shell_qty = self.pcs_qty // content_no  # Integer division
+
+        self.bottle_qty = self.pcs_qty
+
+        self.unit_cost = self.unit_price + self.bottle_price + (self.shell_price / content_no)
+        self.total = self.pcs_qty * self.unit_cost
+
+        super().save(*args, **kwargs)
+
+
+# === STOCK  ===
+class Stock(models.Model):
+    product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    quantity_available = models.PositiveIntegerField(default=0)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.product.product_name} - {self.quantity_available} pcs"
+
+    def stock_status(self):
+        if self.quantity_available == 0:
+            return "Out of Stock"
+        elif self.quantity_available < 1000:
+            return "Low"
+        elif self.quantity_available < 5000:
+            return "Moderate"
+        else:
+            return "High"

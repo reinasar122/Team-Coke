@@ -1,52 +1,71 @@
-import { useState } from "react";
-
-export const inventoryItems = [
-    { id: 1, name: "Tanduay", type: "Alcoholic", SystemCode: "I05279", status: "Out of Stock", prices: { supplier: "$20", retail: "$25" }, quantity: 0 },
-    { id: 2, name: "Minute Maid", type: "Juice", SystemCode: "I05678", status: "Low", prices: { supplier: "$10", retail: "$15" }, quantity: 5 },
-    { id: 3, name: "Coke 8oz", type: "Softdrink", SystemCode: "I01234", status: "Moderate", prices: { supplier: "$8", retail: "$12" }, quantity: 20 },
-    { id: 4, name: "Water", type: "Hydration", SystemCode: "I01235", status: "High", prices: { supplier: "$2", retail: "$4" }, quantity: 50 },
-    { id: 5, name: "Sprite 12oz", type: "Softdrink", SystemCode: "I01236", status: "High", prices: { supplier: "$9", retail: "$13" }, quantity: 30 },
-    { id: 6, name: "Red Horse Beer", type: "Alcoholic", SystemCode: "I05280", status: "Low", prices: { supplier: "$18", retail: "$22" }, quantity: 10 },
-    { id: 7, name: "Gatorade", type: "Hydration", SystemCode: "I05679", status: "Moderate", prices: { supplier: "$12", retail: "$16" }, quantity: 25 },
-    { id: 8, name: "Pepsi 1L", type: "Softdrink", SystemCode: "I01237", status: "High", prices: { supplier: "$7", retail: "$11" }, quantity: 40 },
-    { id: 9, name: "C2 Green Tea", type: "Tea", SystemCode: "I05700", status: "Low", prices: { supplier: "$6", retail: "$9" }, quantity: 7 },
-    { id: 10, name: "Royal 500ml", type: "Softdrink", SystemCode: "I01238", status: "Moderate", prices: { supplier: "$5", retail: "$8" }, quantity: 15 },
-    { id: 11, name: "Milo Drink", type: "Energy", SystemCode: "I05800", status: "High", prices: { supplier: "$9", retail: "$13" }, quantity: 35 },
-    { id: 12, name: "Nestea Lemon", type: "Tea", SystemCode: "I05701", status: "Low", prices: { supplier: "$7", retail: "$10" }, quantity: 5 },
-    { id: 13, name: "Ginebra San Miguel", type: "Alcoholic", SystemCode: "I05281", status: "Moderate", prices: { supplier: "$15", retail: "$20" }, quantity: 18 },
-    { id: 14, name: "Del Monte Pineapple Juice", type: "Juice", SystemCode: "I05680", status: "High", prices: { supplier: "$8", retail: "$12" }, quantity: 50 },
-    { id: 15, name: "Absolute Distilled Water", type: "Hydration", SystemCode: "I01239", status: "High", prices: { supplier: "$3", retail: "$5" }, quantity: 60 },
-];
+import React, { useEffect, useState } from "react";
+import axios from "axios";
 
 const statusColors = {
-    "Out of Stock": "bg-gray-500",
-    Low: "bg-red-500",
-    Moderate: "bg-yellow-500",
-    High: "bg-green-500",
+  "Out of Stock": "bg-red-500",
+  Low: "bg-yellow-500",
+  Moderate: "bg-blue-400",
+  High: "bg-green-500",
 };
 
-export default function InventoryUI() {
-    const [search, setSearch] = useState("");
+const Stocks = () => {
+  const [stocks, setStocks] = useState([]);
 
-    const filteredItems = inventoryItems
-        .filter(item => item.name.toLowerCase().includes(search.toLowerCase()))
-        .sort((a, b) => a.quantity - b.quantity); // Sorting from least to greatest quantity
+  useEffect(() => {
+    axios
+      .get("http://localhost:8080/api/stocks/")
+      .then((res) => setStocks(res.data))
+      .catch((err) => console.error("Failed to load stocks:", err));
+  }, []);
 
+<<<<<<< HEAD
     // const calculateProfitMargin = (purchasePrice, sellingPrice) => {
     //     return `$${(parseFloat(sellingPrice.replace('$', '')) - parseFloat(purchasePrice.replace('$', ''))).toFixed(2)}`;
     // };
+=======
+  return (
+    <div className="p-6 max-w-6xl mx-auto">
+      <h1 className="text-2xl font-bold mb-4">📦 Product Stock List</h1>
+>>>>>>> 79a7a9abe558f41048dd6368b0b673ca224d1af7
 
-    return (
-        <div className="p-6 max-w-6xl mx-auto">
-            <h1 className="text-2xl font-bold mb-4">Stocks Inventory</h1>
-            <input
-                type="text"
-                placeholder="Search items..."
-                className="w-full p-2 border rounded mb-4"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-            />
+      <table className="w-full border text-center">
+        <thead>
+          <tr className="bg-purple-200 text-gray-700">
+            <th className="p-2">Product</th>
+            <th className="p-2">Quantity (PCS)</th>
+            <th className="p-2">Last Updated</th>
+            <th className="p-2">Stock Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {stocks.map((item) => (
+            <tr key={item.id} className="border-t">
+              <td className="p-2 font-medium">{item.product_name}</td>
+              <td className="p-2">{item.quantity_available}</td>
+              <td className="p-2">
+                {new Date(item.last_updated).toLocaleString("en-US", {
+                  month: "short",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+              </td>
+              <td className="p-2">
+                <span
+                  className={`inline-block w-24 px-2 py-1 text-white rounded ${statusColors[item.stock_status]}`}
+                >
+                  {item.stock_status}
+                </span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
 
+<<<<<<< HEAD
             <table className="w-full border text-center">
                 <thead>
                     <tr className="bg-gray-200 text-gray-700">
@@ -72,3 +91,6 @@ export default function InventoryUI() {
         </div>
     );
 }
+=======
+export default Stocks;
+>>>>>>> 79a7a9abe558f41048dd6368b0b673ca224d1af7

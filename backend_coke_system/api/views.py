@@ -3,8 +3,14 @@ from api.models import Warehouse
 from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
-from .models import Supplier, User, Role, Van
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer
+from django.db import connection
+from .models import Supplier, User, Role, Van, Receiving, Stock
+
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer
+
+
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
 
 from django.db import connection
 from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
@@ -154,3 +160,31 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
         # 🧹 Delete pricing if not used by any other product
         if price and not Product.objects.filter(price=price).exists():
             price.delete()
+
+@api_view(['GET'])
+def next_product_code(request):
+    last = Product.objects.order_by('-id').first()
+    next_id = last.id + 1 if last else 1
+    next_code = f"PRD-{next_id:04d}"
+    return Response({"system_code": next_code})
+
+
+
+# ===== RECEIVING MODULE =====
+class ReceivingListCreateView(generics.ListCreateAPIView):
+    queryset = Receiving.objects.select_related('supplier').prefetch_related('details').order_by('-id')
+    serializer_class = ReceivingSerializer
+
+class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Receiving.objects.all()
+    serializer_class = ReceivingSerializer
+
+
+# ===== STOCKS =====
+class StockListCreateView(generics.ListCreateAPIView):
+    queryset = Stock.objects.select_related('product').all().order_by('product__product_name')
+    serializer_class = StockSerializer
+
+class StockDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Stock.objects.all()
+    serializer_class = StockSerializer

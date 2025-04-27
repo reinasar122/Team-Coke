@@ -4,7 +4,8 @@ from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
 from .models import User, Role
 from .models import Van
-from .models import ContentType, ShellType, UnitType, Pricing, Product, ProductCategory
+from .models import ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock
+
 
 
 class RoleSerializer(serializers.ModelSerializer):
@@ -161,3 +162,85 @@ class ProductDetailSerializer(serializers.ModelSerializer):
         model = Product
         fields = '__all__'
 
+
+class ReceivingItemSerializer(serializers.ModelSerializer):
+    product_id = serializers.IntegerField(write_only=True)
+    product_name = serializers.CharField(source='product.product_name', read_only=True)
+
+    class Meta:
+        model = ReceivingItem
+        exclude = ['receiving']
+        read_only_fields = ['product_name']
+
+    def create(self, validated_data):
+        product_id = validated_data.pop('product_id')
+        product = Product.objects.get(id=product_id)
+        validated_data['product'] = product
+        validated_data['product_name'] = product.product_name
+        return ReceivingItem(**validated_data)
+
+class ReceivingSerializer(serializers.ModelSerializer):
+    received_by_first_name = serializers.CharField(source='received_by.first_name', read_only=True)
+    received_by_last_name = serializers.CharField(source='received_by.last_name', read_only=True)
+    details = ReceivingItemSerializer(many=True)
+    supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+
+    class Meta:
+        model = Receiving
+        fields = '__all__'
+
+    def create(self, validated_data):
+        details_data = validated_data.pop('details')
+        receiving = Receiving.objects.create(**validated_data)
+
+        for detail in details_data:
+            detail_instance = ReceivingItemSerializer().create(detail)
+            detail_instance.receiving = receiving
+            detail_instance.save()
+
+            try:
+                product = detail_instance.product
+                content_no = product.unit_type.content_no if product.unit_type else 1
+
+                pcs_qty = (detail_instance.shell_qty * content_no)
+                adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
+
+                stock, created = Stock.objects.get_or_create(product=product)
+                stock.quantity_available += max(adjusted_pcs, 0)
+                stock.save()
+            except Product.DoesNotExist:
+                continue
+
+        return receiving
+
+    def update(self, instance, validated_data):
+        details_data = validated_data.pop('details', [])
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        instance.details.all().delete()
+        for detail in details_data:
+            detail_instance = ReceivingItemSerializer().create(detail)
+            detail_instance.receiving = instance
+            detail_instance.save()
+
+        return instance
+    
+
+class StockSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source='product.product_name', read_only=True)
+    stock_status = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Stock
+        fields = ['id', 'product', 'product_name', 'quantity_available', 'last_updated', 'stock_status']  # ← ✅ include stock_status
+
+    def get_stock_status(self, obj):
+        return obj.stock_status()
+
+
+class RoleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Role
+        fields = '__all__'
