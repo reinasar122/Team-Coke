@@ -4,9 +4,9 @@ from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
 from django.db import connection
-from .models import Supplier, User, Role, Van, Receiving, Stock
+from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem
 
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer
 
 
 from rest_framework.decorators import api_view
@@ -188,3 +188,81 @@ class StockListCreateView(generics.ListCreateAPIView):
 class StockDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Stock.objects.all()
     serializer_class = StockSerializer
+
+
+class RouteListCreateView(generics.ListCreateAPIView):
+    queryset = Route.objects.all()
+    serializer_class = RouteSerializer
+
+
+# TransactionType Views
+class TransactionTypeListCreateView(generics.ListCreateAPIView):
+    queryset = TransactionType.objects.all()
+    serializer_class = TransactionTypeSerializer
+
+class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = TransactionType.objects.all()
+    serializer_class = TransactionTypeSerializer
+
+# Merchandising Views
+class MerchandisingListCreateView(generics.ListCreateAPIView):
+    queryset = Merchandising.objects.all()
+    serializer_class = MerchandisingSerializer
+
+class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Merchandising.objects.all()
+    serializer_class = MerchandisingSerializer
+
+# MerchandisingItem Views
+class MerchandisingItemListCreateView(generics.ListCreateAPIView):
+    queryset = MerchandisingItem.objects.all()
+    serializer_class = MerchandisingItemSerializer
+
+class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = MerchandisingItem.objects.all()
+    serializer_class = MerchandisingItemSerializer
+
+# MiscellaneousItem Views
+class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
+    queryset = MiscellaneousItem.objects.all()
+    serializer_class = MiscellaneousItemSerializer
+
+class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = MiscellaneousItem.objects.all()
+    serializer_class = MiscellaneousItemSerializer
+
+# Payment Views
+class PaymentListCreateView(generics.ListCreateAPIView):
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+
+class PaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+
+# ReturnableStock Views
+class ReturnableStockListCreateView(generics.ListCreateAPIView):
+    queryset = ReturnableStock.objects.all()
+    serializer_class = ReturnableStockSerializer
+
+class ReturnableStockDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = ReturnableStock.objects.all()
+    serializer_class = ReturnableStockSerializer
+
+# SupplierReturn Views
+class SupplierReturnListCreateView(generics.ListCreateAPIView):
+    queryset = SupplierReturn.objects.all()
+    serializer_class = SupplierReturnSerializer
+
+class SupplierReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = SupplierReturn.objects.all()
+    serializer_class = SupplierReturnSerializer
+
+# SupplierReturnItem Views
+class SupplierReturnItemListCreateView(generics.ListCreateAPIView):
+    queryset = SupplierReturnItem.objects.all()
+    serializer_class = SupplierReturnItemSerializer
+
+class SupplierReturnItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = SupplierReturnItem.objects.all()
+    serializer_class = SupplierReturnItemSerializer

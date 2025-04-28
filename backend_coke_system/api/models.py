@@ -232,3 +232,136 @@ class Stock(models.Model):
             return "Moderate"
         else:
             return "High"
+        
+
+class Route(models.Model):
+    route_name = models.CharField(max_length=100, unique=True)
+
+    def __str__(self):
+        return self.route_name
+
+    
+# 5. TransactionType
+class TransactionType(models.Model):
+    name = models.CharField(max_length=100, unique=True)
+    description = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.name
+
+# 6. Merchandising (Main Header)
+class Merchandising(models.Model):
+    msp_no = models.CharField(max_length=20, unique=True, editable=False)
+    transaction_type = models.ForeignKey(TransactionType, on_delete=models.CASCADE)
+    handled_by = models.CharField(max_length=100)
+    route = models.ForeignKey('Route', on_delete=models.CASCADE)
+    van = models.ForeignKey('Van', on_delete=models.CASCADE)
+    date_time = models.DateTimeField(default=timezone.now)
+
+    expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    actual_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    miscellaneous = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    payment_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    payment_method = models.CharField(max_length=50, blank=True, null=True)
+    invoice_no = models.CharField(max_length=20, blank=True, null=True)
+    status = models.CharField(max_length=50, default="PENDING")
+    remarks = models.TextField(blank=True, null=True)
+
+    def save(self, *args, **kwargs):
+        if not self.msp_no:
+            prefix = ''
+            if self.transaction_type.name.lower() == 'warehouse':
+                prefix = 'W'
+            elif self.transaction_type.name.lower() == 'van':
+                prefix = 'V'
+            else:
+                prefix = 'X'  # default prefix if unknown type
+
+            last = Merchandising.objects.filter(transaction_type=self.transaction_type).order_by('-id').first()
+            next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
+            self.msp_no = f"{prefix}-{next_number:04d}"
+
+        super().save(*args, **kwargs)
+
+
+        
+# 7. MerchandisingItem (Per-product Detail)
+class MerchandisingItem(models.Model):
+    merchandising = models.ForeignKey(Merchandising, related_name='items', on_delete=models.CASCADE)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE)
+
+    dispatched_pcs = models.PositiveIntegerField(default=0)
+    dispatched_shell = models.PositiveIntegerField(default=0)
+
+    sold_pcs = models.PositiveIntegerField(default=0)
+    sold_shell = models.PositiveIntegerField(default=0)
+
+    expected_return_pcs = models.PositiveIntegerField(default=0)
+    expected_return_shell = models.PositiveIntegerField(default=0)
+
+    actual_return_pcs = models.PositiveIntegerField(default=0)
+    actual_return_shell = models.PositiveIntegerField(default=0)
+
+    discrepancy_pcs = models.PositiveIntegerField(default=0)
+    discrepancy_shell = models.PositiveIntegerField(default=0)
+
+    empty_return_pcs = models.PositiveIntegerField(default=0)
+    empty_return_shell = models.PositiveIntegerField(default=0)
+
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    actual_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    def __str__(self):
+        return f"{self.product.name} - {self.merchandising.msp_no}"
+
+# 8. MiscellaneousItem
+class MiscellaneousItem(models.Model):
+    merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
+    description = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.description} - ₱{self.amount}"
+
+# 9. ReturnableStock
+class ReturnableStock(models.Model):
+    product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    empty_bottle_qty = models.PositiveIntegerField(default=0)
+    empty_shell_qty = models.PositiveIntegerField(default=0)
+    last_updated = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.product.name} Returnables"
+
+# 10. SupplierReturn
+class SupplierReturn(models.Model):
+    supplier = models.ForeignKey('Supplier', on_delete=models.CASCADE)
+    return_no = models.CharField(max_length=20, unique=True)
+    date_returned = models.DateTimeField(auto_now_add=True)
+    remarks = models.TextField(blank=True, null=True)
+
+    def __str__(self):
+        return self.return_no
+
+# 11. SupplierReturnItem
+class SupplierReturnItem(models.Model):
+    supplier_return = models.ForeignKey(SupplierReturn, related_name='items', on_delete=models.CASCADE)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    returned_empty_pcs = models.PositiveIntegerField(default=0)
+    returned_empty_shell = models.PositiveIntegerField(default=0)
+
+    def __str__(self):
+        return f"{self.product.name} returned"
+
+
+
+class Payment(models.Model):
+    merchandising = models.ForeignKey(Merchandising, on_delete=models.CASCADE, related_name='payments')
+    amount = models.DecimalField(max_digits=12, decimal_places=2)
+    method = models.CharField(max_length=50)
+    date_paid = models.DateTimeField(auto_now_add=True)
+    reference_no = models.CharField(max_length=100, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.method} - ₱{self.amount}"
