@@ -39,8 +39,7 @@ const ReceivingForm = () => {
 
     const generateJumbledCode = () => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-      return `RCV-${Array.from({ length: 6 }, () =>
-        chars[Math.floor(Math.random() * chars.length)]).join('')}`;
+      return `RCV-${Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')}`;
     };
 
     setReceiveNo(generateJumbledCode());
@@ -75,10 +74,7 @@ const ReceivingForm = () => {
       const shell_price = product.price.shell_price || 0;
       const bottle_price = product.price.bottle_price || 0;
       const unit_cost = unit_price + bottle_price + (shell_price / content_no);
-      row.unit_price = unit_price;
-      row.shell_price = shell_price;
-      row.bottle_price = bottle_price;
-      row.unit_cost = unit_cost.toFixed(2);
+      row.unit_price = unit_cost.toFixed(2);
       row.total = (adjusted_pcs * unit_cost).toFixed(2);
     }
 
@@ -139,16 +135,33 @@ const ReceivingForm = () => {
     }
   };
 
+  // Check if at least one product selected
+  const hasSelectedProduct = form.details.some(row => row.product_id);
+
   return (
-    <form onSubmit={handleSubmit} className="p-6 bg-gray-100 space-y-6 rounded">
-      <div className="grid grid-cols-2 gap-4">
+    <form onSubmit={handleSubmit} className="max-w-[98%] mx-auto p-10 bg-white rounded-3xl shadow-lg space-y-10">
+
+      {/* Remove spinner for all number fields */}
+      <style>{`
+        input[type=number]::-webkit-outer-spin-button,
+        input[type=number]::-webkit-inner-spin-button {
+          -webkit-appearance: none;
+          margin: 0;
+        }
+        input[type=number] {
+          -moz-appearance: textfield;
+        }
+      `}</style>
+
+      {/* Header Section */}
+      <div className="grid md:grid-cols-2 gap-6">
         <div>
-          <label>Receiving No:</label>
-          <input type="text" value={receiveNo} readOnly className="w-full p-2 border rounded bg-white font-semibold" />
+          <label className="block text-gray-600 font-semibold mb-2">Receiving No:</label>
+          <input type="text" value={receiveNo} readOnly className="w-full p-3 rounded-lg bg-gray-100 text-gray-800 font-bold border border-gray-300" />
         </div>
         <div>
-          <label>Supplier:</label>
-          <select value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className="w-full p-2 border rounded" required>
+          <label className="block text-gray-600 font-semibold mb-2">Supplier:</label>
+          <select value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300">
             <option value="">Select Supplier</option>
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>{s.company_name}</option>
@@ -156,70 +169,100 @@ const ReceivingForm = () => {
           </select>
         </div>
         <div>
-          <label>Invoice No:</label>
-          <input type="text" value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} className="w-full p-2 border rounded" />
+          <label className="block text-gray-600 font-semibold mb-2">Invoice No:</label>
+          <input type="text" value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300" />
         </div>
         <div className="relative">
-          <label>Return Total Amount:</label>
-          <span className="absolute inset-y-8 left-3 flex text-black">₱</span>
-          <input
-            type="number"
-            value={form.return_total_amount}
-            onChange={(e) => handleReturnChange(e.target.value)}
-            className="w-full p-2 pl-7 border rounded"
-          />
+          <label className="block text-gray-600 font-semibold mb-2">Return Total Amount:</label>
+          <div className="relative">
+            <span className="absolute left-3 top-3 text-gray-500">₱</span>
+            <input
+              type="number"
+              disabled={!hasSelectedProduct}
+              value={form.return_total_amount}
+              onFocus={(e) => e.target.value === "0" ? e.target.value = "" : null}
+              onBlur={(e) => e.target.value === "" ? e.target.value = 0 : null}
+              onChange={(e) => handleReturnChange(e.target.value)}
+              className="w-full pl-8 p-3 rounded-lg bg-gray-100 border-gray-300 disabled:opacity-50"
+            />
+          </div>
         </div>
-        <div className="relative">
-          <label>Net Amount:</label>
-          <span className="absolute inset-y-8 left-3 flex text-black">₱</span>
-          <input type="number" value={form.net_amount} readOnly className="w-full p-2 pl-7 border rounded bg-white font-semibold" />
+        <div>
+          <label className="block text-gray-600 font-semibold mb-2">Net Amount:</label>
+          <div className="relative">
+            <span className="absolute left-3 top-3 text-gray-500">₱</span>
+            <input
+              type="text"
+              value={parseFloat(form.net_amount || 0).toFixed(2)}
+              readOnly
+              className="w-full pl-8 p-3 rounded-lg bg-gray-100 text-gray-800 font-bold"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Details Table */}
-      <table className="w-full border mt-6 text-sm text-center">
-        <thead className="bg-purple-200 text-gray-800">
-          <tr>
-            <th className="border p-2">Product</th>
-            <th className="border p-2">Shell</th>
-            <th className="border p-2">PCS</th>
-            <th className="border p-2">BO/PCs</th>
-            <th className="border p-2">Unit Cost</th>
-            <th className="border p-2">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          {form.details.map((row, index) => (
-            <tr key={index}>
-              <td className="border p-1">
-                <select value={row.product_id} onChange={(e) => handleRowChange(index, "product_id", e.target.value)} className="w-full border p-1">
-                  <option value="">Select Product</option>
-                  {products.map((p) => (
-                    <option key={p.id} value={p.id}>{p.product_name}</option>
-                  ))}
-                </select>
-              </td>
-              <td className="border p-1">
-                <input type="number" value={row.shell_qty} onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)} className="w-full text-center bg-white" />
-              </td>
-              <td className="border p-1">
-                <input type="number" value={row.pcs_qty} readOnly disabled className="w-full text-center bg-white text-gray-700" />
-              </td>
-              <td className="border p-1">
-                <input type="number" value={row.bad_order_pcs} onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)} className="w-full text-center" />
-              </td>
-              <td className="border p-1 text-right">₱{row.unit_cost}</td>
-              <td className="border p-1 font-bold text-right">₱{row.total}</td>
+      {/* Table */}
+      <div className="overflow-x-auto mt-8">
+        <table className="w-full rounded-xl border-collapse shadow-md">
+          <thead className="bg-[#0B1320] text-white">
+            <tr>
+              <th className="p-3">Product</th>
+              <th className="p-3">Shell</th>
+              <th className="p-3">PCS</th>
+              <th className="p-3">BO/PCs</th>
+              <th className="p-3">Unit Cost</th>
+              <th className="p-3">Total</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white">
+            {form.details.map((row, index) => (
+              <tr key={index} className="hover:bg-gray-50">
+                <td className="border-b p-2">
+                  <select value={row.product_id} onChange={(e) => handleRowChange(index, "product_id", e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 border-gray-300">
+                    <option value="">Select Product</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>{p.product_name}</option>
+                    ))}
+                  </select>
+                </td>
+                <td className="border-b p-2">
+                  <input
+                    type="number"
+                    disabled={!row.product_id}
+                    value={row.shell_qty}
+                    onFocus={(e) => e.target.value === "0" ? e.target.value = "" : null}
+                    onBlur={(e) => e.target.value === "" ? e.target.value = 0 : null}
+                    onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
+                    className="w-full p-2 text-center rounded-lg bg-gray-100 border-gray-300 disabled:opacity-50"
+                  />
+                </td>
+                <td className="border-b p-2">
+                  <input type="number" value={row.pcs_qty} readOnly disabled className="w-full p-2 text-center rounded-lg bg-gray-100 text-gray-700" />
+                </td>
+                <td className="border-b p-2">
+                  <input
+                    type="number"
+                    disabled={!row.product_id}
+                    value={row.bad_order_pcs}
+                    onFocus={(e) => e.target.value === "0" ? e.target.value = "" : null}
+                    onBlur={(e) => e.target.value === "" ? e.target.value = 0 : null}
+                    onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
+                    className="w-full p-2 text-center rounded-lg bg-gray-100 border-gray-300 disabled:opacity-50"
+                  />
+                </td>
+                <td className="border-b p-2 text-right text-gray-700">₱{parseFloat(row.unit_cost || 0).toFixed(2)}</td>
+                <td className="border-b p-2 text-right font-bold text-gray-700">₱{parseFloat(row.total || 0).toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
 
       {/* Footer */}
-      <div className="grid grid-cols-2 gap-4 mt-6">
+      <div className="grid md:grid-cols-2 gap-6 mt-10">
         <div>
-          <label>Received By:</label>
-          <select value={form.received_by} onChange={(e) => setForm({ ...form, received_by: e.target.value })} className="w-full p-2 border rounded" required>
+          <label className="block text-gray-600 font-semibold mb-2">Received By:</label>
+          <select value={form.received_by} onChange={(e) => setForm({ ...form, received_by: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300">
             <option value="">Select user</option>
             {users.map((u) => (
               <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
@@ -227,16 +270,16 @@ const ReceivingForm = () => {
           </select>
         </div>
         <div>
-          <label>Remarks:</label>
-          <textarea rows="3" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} className="w-full p-2 border rounded" />
+          <label className="block text-gray-600 font-semibold mb-2">Remarks:</label>
+          <textarea rows="3" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300" />
         </div>
       </div>
 
-      <div className="flex justify-end gap-4 mt-6">
-        <button type="button" onClick={() => navigate("/receiving")} className="bg-gray-500 text-white px-6 py-2 rounded">
+      <div className="flex justify-end gap-4 mt-10">
+        <button type="button" onClick={() => navigate("/receiving")} className="px-6 py-3 bg-[#fb2222] hover:bg-[#ff3e3e] text-white rounded-full transition">
           Cancel
         </button>
-        <button type="submit" className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700">
+        <button type="submit" className="px-6 py-3 bg-[#0B1320] hover:bg-[#1C2230] text-white rounded-full font-semibold transition">
           Save
         </button>
       </div>

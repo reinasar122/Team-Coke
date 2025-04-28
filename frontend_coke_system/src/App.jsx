@@ -25,6 +25,11 @@ import ReceivingList from "./pages/ReceivingList";
 import ReceivingForm from "./pages/ReceivingForm";
 
 
+import MerchandisingList from "./pages/MerchandisingList";
+import Merchandising from "./pages/Merchandising";
+import MerchandisingSale from "./pages/MerchandisingSale";
+
+
 
 import { 
   FaHome, FaClipboardCheck, FaChartLine, FaFileInvoice, FaBoxes, 
@@ -105,6 +110,10 @@ function App() {
 
               {/* Default Redirect */}
               <Route path="/" element={<Navigate to="/dashboard" />} />
+
+              <Route path="/trading" element={<MerchandisingList />} />
+              <Route path="/merchandising" element={<Merchandising />} />
+              <Route path="/merchandising-sale" element={<MerchandisingSale />} />
 
             </Routes>
           </div>
