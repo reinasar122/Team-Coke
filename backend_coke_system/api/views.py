@@ -1,4 +1,5 @@
-from rest_framework import generics, filters
+from rest_framework import generics
+from rest_framework.views import APIView
 from api.models import Warehouse
 from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
@@ -212,6 +213,34 @@ class MerchandisingListCreateView(generics.ListCreateAPIView):
 class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
+
+
+class NextMspNoView(APIView):
+    def get(self, request):
+        # Get transaction type from query parameters
+        transaction_type = request.query_params.get("transaction_type", "")
+        print(f"Received transaction type: {transaction_type}")  # Debug print
+
+        if not transaction_type:
+            return Response({"detail": "Transaction type is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Try to fetch the transaction type from the database using case-insensitive matching
+        try:
+            transaction_type_instance = TransactionType.objects.get(name__iexact=transaction_type)  # Case-insensitive check
+            print(f"Found transaction type: {transaction_type_instance.name}")  # Debug print
+        except TransactionType.DoesNotExist:
+            return Response({"detail": "Transaction type not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate the next MSP number based on the transaction type
+        last = Merchandising.objects.filter(transaction_type=transaction_type_instance).order_by('-id').first()
+        next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
+        prefix = "W" if transaction_type_instance.name.lower() == "warehouse" else "V" if transaction_type_instance.name.lower() == "van load" else "X"
+        msp_no = f"{prefix}-{next_number:04d}"
+
+        return Response({"msp_no": msp_no})
+
+
+
 
 # MerchandisingItem Views
 class MerchandisingItemListCreateView(generics.ListCreateAPIView):
