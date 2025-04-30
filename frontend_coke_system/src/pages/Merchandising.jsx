@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 const Merchandising = () => {
   const [transactionType, setTransactionType] = useState("");
+  const [mspNo, setMspNo] = useState("");  // State to hold MSP number
   const [vans, setVans] = useState([]);
   const [selectedVan, setSelectedVan] = useState("");
   const [products, setProducts] = useState([]);
@@ -37,6 +38,41 @@ const Merchandising = () => {
       .catch(err => console.error("Failed to fetch routes:", err));
   }, []);
 
+
+
+  
+  // Trigger fetching MSP number when the transaction type is selected
+  useEffect(() => {
+    if (transactionType) {
+      fetchMspNo(transactionType);  // Fetch MSP No when the transaction type is selected
+    }
+  }, [transactionType]);  // Only run when transactionType changes
+
+  // Fetch the next MSP number from the backend based on the transaction type
+  const fetchMspNo = async (transactionType) => {
+    
+    try {
+      // Send transaction_type as a query param to the backend API
+      const response = await axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
+        params: { transaction_type: transactionType } // Ensure correct value is passed here
+      });
+      setMspNo(response.data.msp_no);  // Set the fetched MSP number
+    } catch (err) {
+      console.error("Error fetching MSP:", err); // Ensure errors are logged for better debugging
+    }
+};
+
+
+
+  useEffect(() => {
+    console.log(transactionType);  // Log the transaction type
+    if (transactionType) {
+      fetchMspNo(transactionType);
+    }
+  }, [transactionType]);
+  
+
+
   useEffect(() => {
     if (transactionType === "Van Load") {
       axios.get("http://localhost:8080/api/vans/")
@@ -44,6 +80,7 @@ const Merchandising = () => {
         .catch(err => console.error("Failed to fetch vans:", err));
     }
   }, [transactionType]);
+
 
   // Handle product selection
   const handleProductChange = (index, productId) => {
@@ -109,7 +146,7 @@ const Merchandising = () => {
       alert("Please select a Transaction Type before proceeding.");
       return;
     }
-  
+
     // Then check based on transaction type
     if (transactionType === "Van Load") {
       if (!selectedVan) {
@@ -125,29 +162,29 @@ const Merchandising = () => {
         return;
       }
     }
-  
+
     if (transactionType === "Warehouse") {
       if (!selectedUser) {
         alert("Please select the Handled By user before proceeding.");
         return;
       }
     }
-  
+
     const validRows = rows.filter(
       (row) => row.productId && row.quantity && row.shellQty
     );
-  
+
     if (validRows.length === 0) {
       alert("Please complete at least one full product row before saving.");
       return;
     }
-  
+
     const confirmed = window.confirm("Do you want to proceed with saving?");
     if (!confirmed) return;
-  
+
     const user = users.find((u) => u.id.toString() === selectedUser.toString());
     const selectedUserName = user ? `${user.first_name} ${user.last_name}` : "N/A";
-  
+
     const selectedProductsRows = validRows.map((row) => {
       const product = products.find((p) => p.id.toString() === row.productId.toString());
       return {
@@ -157,7 +194,7 @@ const Merchandising = () => {
         dispatchedPcs: row.quantity,
       };
     });
-  
+
     navigate("/merchandising-sale", {
       state: {
         transactionType,
@@ -168,15 +205,14 @@ const Merchandising = () => {
       }
     });
   };
-  
-  
+
   return (
     <div className="min-h-screen bg-gray-700 text-white p-6">
       <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
           <div>
             <label className="block mb-1">MSP NO.</label>
-            <input className="w-64 p-2 rounded bg-gray-200 text-black" disabled />
+            <input className="w-64 p-2 rounded bg-gray-200 text-black" value={mspNo} disabled />
           </div>
 
           <div>
