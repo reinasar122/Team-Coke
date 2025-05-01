@@ -197,14 +197,12 @@ class ReceivingItem(models.Model):
 
 
     def save(self, *args, **kwargs):
-        # Get the content quantity from the product's unit type
         content_no = self.product.unit_type.content_no if self.product and self.product.unit_type else 1
 
-        # If shell is provided, calculate pcs
         if self.shell_qty > 0:
             self.pcs_qty = self.shell_qty * content_no
         elif self.pcs_qty > 0:
-            self.shell_qty = self.pcs_qty // content_no  # Integer division
+            self.shell_qty = self.pcs_qty // content_no
 
         self.bottle_qty = self.pcs_qty
 

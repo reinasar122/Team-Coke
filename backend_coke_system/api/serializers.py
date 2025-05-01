@@ -170,7 +170,7 @@ class ReceivingItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReceivingItem
         exclude = ['receiving']
-        read_only_fields = ['product_name']
+        read_only_fields = ['product_name', 'unit_cost', 'total']
 
     def create(self, validated_data):
         product_id = validated_data.pop('product_id')
@@ -179,11 +179,12 @@ class ReceivingItemSerializer(serializers.ModelSerializer):
         validated_data['product_name'] = product.product_name
         return ReceivingItem(**validated_data)
 
+
 class ReceivingSerializer(serializers.ModelSerializer):
     received_by_first_name = serializers.CharField(source='received_by.first_name', read_only=True)
     received_by_last_name = serializers.CharField(source='received_by.last_name', read_only=True)
-    details = ReceivingItemSerializer(many=True)
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    details = ReceivingItemSerializer(many=True)
 
     class Meta:
         model = Receiving
@@ -198,14 +199,14 @@ class ReceivingSerializer(serializers.ModelSerializer):
             detail_instance.receiving = receiving
             detail_instance.save()
 
+            # ✅ Update stock (based on saved ReceivingItem logic)
             try:
                 product = detail_instance.product
                 content_no = product.unit_type.content_no if product.unit_type else 1
-
-                pcs_qty = (detail_instance.shell_qty * content_no)
+                pcs_qty = detail_instance.shell_qty * content_no
                 adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
 
-                stock, created = Stock.objects.get_or_create(product=product)
+                stock, _ = Stock.objects.get_or_create(product=product)
                 stock.quantity_available += max(adjusted_pcs, 0)
                 stock.save()
             except Product.DoesNotExist:
@@ -215,17 +216,35 @@ class ReceivingSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         details_data = validated_data.pop('details', [])
+
+        # Update Receiving fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
+        # Clear old ReceivingItems
         instance.details.all().delete()
+
+        # Save updated items and update stock
         for detail in details_data:
             detail_instance = ReceivingItemSerializer().create(detail)
             detail_instance.receiving = instance
             detail_instance.save()
 
+            try:
+                product = detail_instance.product
+                content_no = product.unit_type.content_no if product.unit_type else 1
+                pcs_qty = detail_instance.shell_qty * content_no
+                adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
+
+                stock, _ = Stock.objects.get_or_create(product=product)
+                stock.quantity_available += max(adjusted_pcs, 0)
+                stock.save()
+            except Product.DoesNotExist:
+                continue
+
         return instance
+
     
 
 class StockSerializer(serializers.ModelSerializer):

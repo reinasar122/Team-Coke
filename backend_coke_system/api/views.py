@@ -240,6 +240,36 @@ class NextMspNoView(APIView):
         return Response({"msp_no": msp_no})
 
 
+class StockAvailabilityView(APIView):
+    def get(self, request, product_id):
+        try:
+            # Check if the stock for the selected product exists
+            stock = Stock.objects.get(product_id=product_id)
+            return Response({
+                "product_id": product_id,
+                "quantity_available": stock.quantity_available
+            })
+        except Stock.DoesNotExist:
+            return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+# views.py
+
+class UpdateStockView(APIView):
+    def put(self, request, product_id):
+        try:
+            # Fetch the product stock
+            stock = Stock.objects.get(product_id=product_id)
+            quantity_sold = request.data.get('quantity_available')
+            
+            # Update the stock quantity
+            stock.quantity_available -= quantity_sold
+            stock.save()
+
+            return Response({"message": "Stock updated successfully"}, status=status.HTTP_200_OK)
+        except Stock.DoesNotExist:
+            return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 # MerchandisingItem Views
