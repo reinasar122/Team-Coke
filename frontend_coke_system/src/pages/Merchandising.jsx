@@ -23,6 +23,14 @@ const Merchandising = () => {
 
   const navigate = useNavigate();
 
+  //Number 1 changes
+  //track available stock for each product
+  const [availableStock, setAvailableStock] = useState({});
+
+
+
+
+
   // Fetch initial data
   useEffect(() => {
     axios.get("http://localhost:8080/api/users/")
@@ -40,7 +48,27 @@ const Merchandising = () => {
 
 
 
+  useEffect(() => {
+    console.log(transactionType);  // Log the transaction type
+    if (transactionType) {
+      fetchMspNo(transactionType);
+    }
+  }, [transactionType]);
   
+
+
+  useEffect(() => {
+    if (transactionType === "Van Load") {
+      axios.get("http://localhost:8080/api/vans/")
+        .then(res => setVans(res.data))
+        .catch(err => console.error("Failed to fetch vans:", err));
+    }
+  }, [transactionType]);
+
+
+
+
+  // Number 2 changes
   // Trigger fetching MSP number when the transaction type is selected
   useEffect(() => {
     if (transactionType) {
@@ -64,56 +92,98 @@ const Merchandising = () => {
 
 
 
-  useEffect(() => {
-    console.log(transactionType);  // Log the transaction type
-    if (transactionType) {
-      fetchMspNo(transactionType);
-    }
-  }, [transactionType]);
-  
+
+  //Number 3 changes
+  // Fetch the stock quantity for a specific product
+const fetchStockQuantity = async (productId) => {
+  try {
+    const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`);
+    // Store the stock quantity in availableStock state
+    setAvailableStock((prevState) => ({
+      ...prevState,
+      [productId]: response.data.quantity_available,
+    }));
+  } catch (err) {
+    console.error("Error fetching stock:", err);
+  }
+};
 
 
-  useEffect(() => {
-    if (transactionType === "Van Load") {
-      axios.get("http://localhost:8080/api/vans/")
-        .then(res => setVans(res.data))
-        .catch(err => console.error("Failed to fetch vans:", err));
-    }
-  }, [transactionType]);
+
+  //Number 4 changes
+// Handle product selection
+const handleProductChange = (index, productId) => {
+  const updated = [...rows];
+  updated[index].productId = productId;
+
+  // Fetch selected product from products list to get the content_no
+  const selectedProduct = products.find(p => p.id === productId);
+  if (selectedProduct) {
+    updated[index].contentNo = selectedProduct.content_no;  // Store content_no for further calculations
+  }
+
+  setRows(updated);
+
+  // Fetch available stock for the selected product
+  if (productId) {
+    fetchStockQuantity(productId);
+  }
+
+  // Add a new empty row if it's the last row
+  if (index === rows.length - 1) {
+    setRows(prev => [...prev, { id: Date.now(), productId: "", quantity: "", shellQty: "" }]);
+  }
+};
 
 
-  // Handle product selection
-  const handleProductChange = (index, productId) => {
-    const updated = [...rows];
-    updated[index].productId = productId;
-    setRows(updated);
 
-    if (index === rows.length - 1) {
-      setRows(prev => [
-        ...prev,
-        { id: Date.now(), productId: "", quantity: "", shellQty: "" }
-      ]);
-    }
-  };
+  //Number 5 changes
+  // Update stock after the sale
+const updateStock = async (productId, quantitySold) => {
+  try {
+    await axios.put(`http://localhost:8080/api/stocks/${productId}/`, {
+      quantity_available: availableStock[productId] - quantitySold,
+    });
+  } catch (err) {
+    console.error("Error updating stock:", err);
+  }
+};
 
-  // Handle shell quantity input → auto calculate PCS
-  const handleShellQtyChange = (index, shellQtyValue) => {
-    const updated = [...rows];
-    updated[index].shellQty = shellQtyValue;
 
-    const selectedProduct = products.find(
-      (p) => p.id.toString() === updated[index].productId.toString()
-    );
 
-    if (selectedProduct) {
-      const contentNo = selectedProduct.content_no || 0;
-      updated[index].quantity = parseInt(shellQtyValue || 0) * contentNo;
-    } else {
-      updated[index].quantity = "";
-    }
 
-    setRows(updated);
-  };
+
+
+// Handle shell quantity input → auto calculate PCS
+const handleShellQtyChange = (index, shellQtyValue) => {
+  const updated = [...rows];
+  updated[index].shellQty = shellQtyValue;
+
+  // Calculate quantity (pcs) based on content_no (content per shell)
+  const contentNo = updated[index].contentNo || 0;  // Get content_no from selected product
+  updated[index].quantity = parseInt(shellQtyValue || 0) * contentNo;  // Multiply shell quantity by content_no to get pcs
+
+  setRows(updated);
+};
+
+
+
+
+  // Handle "Quantity (Pcs)" change
+const handleQuantityChange = (index, value) => {
+  const updated = [...rows];
+  updated[index].quantity = value;  // Update the quantity (pcs) state
+
+  // Automatically update Quantity (Shell) based on the content_no
+  const contentNo = updated[index].contentNo || 0;  // Get content_no from selected product
+  updated[index].shellQty = Math.floor(value / contentNo);  // Update the shell quantity (rounded down)
+
+  setRows(updated);
+};
+
+
+
+
 
   // Handle route typing (saving new route if needed)
   const handleRouteKeyDown = async (e) => {
@@ -140,51 +210,33 @@ const Merchandising = () => {
     }
   };
 
+
+
+  //Number 6 changes
   const handleSave = async () => {
     // Always check if Transaction Type is selected
     if (!transactionType) {
       alert("Please select a Transaction Type before proceeding.");
       return;
     }
-
-    // Then check based on transaction type
-    if (transactionType === "Van Load") {
-      if (!selectedVan) {
-        alert("Please select a Van before proceeding.");
-        return;
-      }
-      if (!selectedUser) {
-        alert("Please select the Handled By user before proceeding.");
-        return;
-      }
-      if (!route.trim()) {
-        alert("Please enter a Route before proceeding.");
+  
+    // Validate that sufficient stock is available for each row
+    const validRows = rows.filter((row) => row.productId && row.quantity && row.shellQty);
+  
+    for (let row of validRows) {
+      const stockQuantity = availableStock[row.productId]; // Fetch the available stock
+      if (row.quantity > stockQuantity) {
+        alert(`Not enough stock for ${row.productId}. Available: ${stockQuantity}, Requested: ${row.quantity}`);
         return;
       }
     }
-
-    if (transactionType === "Warehouse") {
-      if (!selectedUser) {
-        alert("Please select the Handled By user before proceeding.");
-        return;
-      }
-    }
-
-    const validRows = rows.filter(
-      (row) => row.productId && row.quantity && row.shellQty
-    );
-
-    if (validRows.length === 0) {
-      alert("Please complete at least one full product row before saving.");
-      return;
-    }
-
+  
     const confirmed = window.confirm("Do you want to proceed with saving?");
     if (!confirmed) return;
-
+  
     const user = users.find((u) => u.id.toString() === selectedUser.toString());
     const selectedUserName = user ? `${user.first_name} ${user.last_name}` : "N/A";
-
+  
     const selectedProductsRows = validRows.map((row) => {
       const product = products.find((p) => p.id.toString() === row.productId.toString());
       return {
@@ -194,6 +246,7 @@ const Merchandising = () => {
         dispatchedPcs: row.quantity,
       };
     });
+  
 
     navigate("/merchandising-sale", {
       state: {
@@ -333,12 +386,13 @@ const Merchandising = () => {
                   />
                 </td>
 
+                {/* Editable "Quantity (Pcs)" */}
                 <td className="border p-2">
                   <input
                     type="number"
                     className="w-full bg-gray-200 p-1 text-center"
                     value={row.quantity}
-                    disabled
+                    onChange={(e) => handleQuantityChange(index, e.target.value)} // Handle quantity change
                   />
                 </td>
               </tr>

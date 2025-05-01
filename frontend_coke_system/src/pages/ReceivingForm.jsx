@@ -23,9 +23,6 @@ const ReceivingForm = () => {
         shell_qty: 0,
         bottle_qty: 0,
         bad_order_pcs: 0,
-        unit_price: 0,
-        shell_price: 0,
-        bottle_price: 0,
         unit_cost: 0,
         total: 0,
       },
@@ -49,32 +46,26 @@ const ReceivingForm = () => {
     const newRows = [...form.details];
     const row = newRows[index];
 
-    if (field === "product_id") {
-      row[field] = value;
-    } else {
-      row[field] = value === "" ? "" : Number(value);
-    }
+    row[field] = value === "" ? "" : Number(value);
 
     const product = products.find((p) => p.id === Number(row.product_id));
     const content_no = product?.unit_type?.content_no || 1;
 
-    const shell_qty = row.shell_qty === "" ? 0 : Number(row.shell_qty);
-    const pcs_qty = row.pcs_qty === "" ? 0 : Number(row.pcs_qty);
-    const bad_order_pcs = row.bad_order_pcs === "" ? 0 : Number(row.bad_order_pcs);
+    const shell_qty = row.shell_qty === "" || isNaN(row.shell_qty) ? 0 : Number(row.shell_qty);
+    const bad_order_pcs = row.bad_order_pcs === "" || isNaN(row.bad_order_pcs) ? 0 : Number(row.bad_order_pcs);
 
-    if (field === "shell_qty" && value !== "") {
-      row.pcs_qty = shell_qty * content_no;
-      row.bottle_qty = row.pcs_qty;
+    const raw_pcs = shell_qty * content_no;
+    const adjusted_pcs = Math.max(0, raw_pcs - bad_order_pcs);
+
+    if (field === "shell_qty" || field === "bad_order_pcs") {
+      row.pcs_qty = adjusted_pcs;
+      row.bottle_qty = adjusted_pcs;
     }
 
-    const adjusted_pcs = Math.max(0, row.pcs_qty - bad_order_pcs);
-
     if (product?.price) {
-      const unit_price = product.price.purchase_price || 0;
-      const shell_price = product.price.shell_price || 0;
-      const bottle_price = product.price.bottle_price || 0;
-      const unit_cost = unit_price + bottle_price + (shell_price / content_no);
-      row.unit_price = unit_cost.toFixed(2);
+      const { purchase_price = 0, shell_price = 0, bottle_price = 0 } = product.price;
+      const unit_cost = purchase_price + bottle_price + (shell_price / content_no);
+      row.unit_cost = unit_cost.toFixed(2);
       row.total = (adjusted_pcs * unit_cost).toFixed(2);
     }
 
@@ -83,7 +74,7 @@ const ReceivingForm = () => {
     const net = total - returnAmount;
 
     const isLastRow = index === newRows.length - 1;
-    const rowFilled = row.product_id && (row.shell_qty !== "" && row.shell_qty !== 0);
+    const rowFilled = row.product_id && row.shell_qty;
 
     if (isLastRow && rowFilled) {
       newRows.push({
@@ -92,9 +83,6 @@ const ReceivingForm = () => {
         shell_qty: 0,
         bottle_qty: 0,
         bad_order_pcs: 0,
-        unit_price: 0,
-        shell_price: 0,
-        bottle_price: 0,
         unit_cost: 0,
         total: 0,
       });
@@ -107,7 +95,6 @@ const ReceivingForm = () => {
     const updatedReturnAmount = value === "" ? "" : Number(value);
     const total = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
     const net = total - (updatedReturnAmount === "" ? 0 : updatedReturnAmount);
-
     setForm({ ...form, return_total_amount: value, net_amount: net.toFixed(2) });
   };
 
@@ -135,14 +122,13 @@ const ReceivingForm = () => {
     }
   };
 
-  // Check if at least one product selected
   const hasSelectedProduct = form.details.some(row => row.product_id);
 
   return (
     <form onSubmit={handleSubmit} className="max-w-[98%] mx-auto p-10 bg-white rounded-3xl shadow-lg space-y-10">
-
-      {/* Remove spinner for all number fields */}
-      <style>{`
+      
+       {/* Remove spinner for all number fields */}
+       <style>{`
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button {
           -webkit-appearance: none;
@@ -152,8 +138,7 @@ const ReceivingForm = () => {
           -moz-appearance: textfield;
         }
       `}</style>
-
-      {/* Header Section */}
+      
       <div className="grid md:grid-cols-2 gap-6">
         <div>
           <label className="block text-gray-600 font-semibold mb-2">Receiving No:</label>
@@ -172,7 +157,7 @@ const ReceivingForm = () => {
           <label className="block text-gray-600 font-semibold mb-2">Invoice No:</label>
           <input type="text" value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300" />
         </div>
-        <div className="relative">
+        <div>
           <label className="block text-gray-600 font-semibold mb-2">Return Total Amount:</label>
           <div className="relative">
             <span className="absolute left-3 top-3 text-gray-500">₱</span>
@@ -201,7 +186,6 @@ const ReceivingForm = () => {
         </div>
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto mt-8">
         <table className="w-full rounded-xl border-collapse shadow-md">
           <thead className="bg-[#0B1320] text-white">
@@ -209,7 +193,7 @@ const ReceivingForm = () => {
               <th className="p-3">Product</th>
               <th className="p-3">Shell</th>
               <th className="p-3">PCS</th>
-              <th className="p-3">BO/PCs</th>
+              <th className="p-3">BAD ORDERS  (PCs)</th>
               <th className="p-3">Unit Cost</th>
               <th className="p-3">Total</th>
             </tr>
@@ -226,7 +210,7 @@ const ReceivingForm = () => {
                   </select>
                 </td>
                 <td className="border-b p-2">
-                  <input
+                <input
                     type="number"
                     disabled={!row.product_id}
                     value={row.shell_qty}
@@ -235,12 +219,13 @@ const ReceivingForm = () => {
                     onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
                     className="w-full p-2 text-center rounded-lg bg-gray-100 border-gray-300 disabled:opacity-50"
                   />
+
                 </td>
                 <td className="border-b p-2">
                   <input type="number" value={row.pcs_qty} readOnly disabled className="w-full p-2 text-center rounded-lg bg-gray-100 text-gray-700" />
                 </td>
                 <td className="border-b p-2">
-                  <input
+                <input
                     type="number"
                     disabled={!row.product_id}
                     value={row.bad_order_pcs}
@@ -258,7 +243,6 @@ const ReceivingForm = () => {
         </table>
       </div>
 
-      {/* Footer */}
       <div className="grid md:grid-cols-2 gap-6 mt-10">
         <div>
           <label className="block text-gray-600 font-semibold mb-2">Received By:</label>
