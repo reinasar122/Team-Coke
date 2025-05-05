@@ -28,7 +28,7 @@ from .views import (
     PaymentListCreateView, PaymentDetailView,
     ReturnableStockListCreateView, ReturnableStockDetailView,
     SupplierReturnListCreateView, SupplierReturnDetailView,
-    SupplierReturnItemListCreateView, SupplierReturnItemDetailView, NextMspNoView, StockAvailabilityView, UpdateStockView
+    SupplierReturnItemListCreateView, SupplierReturnItemDetailView, NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView
 
 
 
@@ -90,8 +90,9 @@ urlpatterns = [
     path('merchandisings/msp-next/', NextMspNoView.as_view(), name='next-msp-no'),
     path('stocks/<int:product_id>/', StockAvailabilityView.as_view(), name='stock-availability'),
     path('stocks/<int:product_id>/',UpdateStockView.as_view(), name='update-stock'),
+    path('api/stocks/<int:pk>/', StockDetailView.as_view()),
 
-
+    path('merchandising/', MerchandisingListView.as_view(), name='merchandising-list'),
     path('merchandising-items/', MerchandisingItemListCreateView.as_view(), name='merchandising-item-list'),
     path('merchandising-items/<int:pk>/', MerchandisingItemDetailView.as_view(), name='merchandising-item-detail'),
 

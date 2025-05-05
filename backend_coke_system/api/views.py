@@ -214,6 +214,10 @@ class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
+class MerchandisingListView(generics.ListAPIView):
+    queryset = Merchandising.objects.all()
+    serializer_class = MerchandisingSerializer
+
 
 class NextMspNoView(APIView):
     def get(self, request):
