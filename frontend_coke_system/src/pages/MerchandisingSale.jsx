@@ -7,6 +7,7 @@ const MerchandisingSale = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const state = location.state || {};
+  const mspNo = state.mspNo || "";
   const transactionType = state.transactionType || "";
   const selectedRoute = state.selectedRoute || "";
   const selectedUser = state.selectedUser || "";
@@ -135,7 +136,7 @@ const MerchandisingSale = () => {
     <div className="bg-sky-200 min-h-screen p-6 text-black">
       <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
-          <div><label className="block mb-1">MSP NO.</label><input className="w-64 p-2 rounded bg-gray-300" value="" disabled /></div>
+          <div><label className="block mb-1">MSP NO.</label><input className="w-64 p-2 rounded bg-gray-300" value={mspNo} disabled /></div>
           <div><label className="block mb-1">Transaction Type</label><input className="w-64 p-2 rounded bg-gray-300" value={transactionType} disabled /></div>
           <div><label className="block mb-1">Handled By</label><input className="w-64 p-2 rounded bg-gray-300" value={selectedUser} disabled /></div>
         </div>

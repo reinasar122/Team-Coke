@@ -269,6 +269,7 @@ const handleQuantityChange = (index, value) => {
     navigate("/merchandising-sale", {
       state: {
         transactionType,
+        mspNo, 
         selectedUser: selectedUserName,
         selectedRoute: route,
         dateTime,
