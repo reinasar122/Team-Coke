@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTachometerAlt, faShoppingCart, faBoxOpen, faCog, faSignOutAlt, faChevronDown, faChevronUp } from "@fortawesome/free-solid-svg-icons";
+import { faTachometerAlt, faShoppingCart, faBoxOpen, faCog, faSignOutAlt, faChevronDown, faChartBar, faChevronUp } from "@fortawesome/free-solid-svg-icons";
 
 const Sidebar = ({ isSidebarOpen }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -34,7 +34,7 @@ const Sidebar = ({ isSidebarOpen }) => {
             <ul className="ml-4 mt-2 space-y-2">
               <li><Link to="/receiving" className="block p-2 text-sm hover:bg-gray-600 rounded">Receiving</Link></li>
               <li><Link to="/trading" className="block p-2 text-sm hover:bg-gray-600 rounded">Trading</Link></li>
-              <li><Link to="/invoice" className="block p-2 text-sm hover:bg-gray-600 rounded">Invoice</Link></li>
+              <li><Link to="/supplier_return" className="block p-2 text-sm hover:bg-gray-600 rounded">Supplier Return</Link></li>
             </ul>
           )}
         </li>
@@ -57,6 +57,27 @@ const Sidebar = ({ isSidebarOpen }) => {
             </ul>
           )}
         </li>
+
+
+       {/* Report Dropdown */}
+       <li>
+          <button 
+            onClick={() => toggleDropdown("report")} 
+            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+          >
+            <span>
+              <FontAwesomeIcon icon={faChartBar} className="mr-2" /> Report
+            </span>
+            <FontAwesomeIcon icon={openDropdown === "report" ? faChevronUp : faChevronDown} />
+          </button>
+          {openDropdown === "report" && (
+            <ul className="ml-4 mt-2 space-y-2">
+              <li><Link to="/salesreport" className="block p-2 text-sm hover:bg-gray-600 rounded">Sales Report</Link></li>
+              <li><Link to="/inventoryreport" className="block p-2 text-sm hover:bg-gray-600 rounded">Inventory Report</Link></li>
+            </ul>
+          )}
+        </li>
+
 
         <li>
           <button 
@@ -92,6 +113,7 @@ const Sidebar = ({ isSidebarOpen }) => {
             <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" /> Log out
           </button>
         </li>
+
       </ul>
     </div>
   );

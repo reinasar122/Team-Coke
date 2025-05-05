@@ -170,7 +170,7 @@ const fetchStockQuantity = async (productId) => {
     }
   
     try {
-      await axios.put(`http://localhost:8080/api/stocks/${productId}/`, {
+      await axios.patch(`http://localhost:8080/api/stocks/${productId}/`, {
         quantity_available: newQuantity,
       });
     } catch (err) {
@@ -194,7 +194,15 @@ const handleShellQtyChange = (index, shellQtyValue) => {
     console.warn("Missing content_no for product:", product);
   }
 
-  updated[index].quantity = parseInt(shellQtyValue || 0) * contentNo;
+  const pcsQty = parseInt(shellQtyValue || 0) * contentNo;
+  const stockAvailable = availableStock[productId] || 0;
+
+  if (pcsQty > stockAvailable) {
+    alert(`Insufficient stock for ${product?.product_name}. Available: ${stockAvailable} pcs.`);
+    updated[index].quantity = 0; // Reset PCS if stock is not enough
+  } else {
+    updated[index].quantity = pcsQty;
+  }
 
   setRows(updated);
 };
