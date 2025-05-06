@@ -28,7 +28,9 @@ from .views import (
     PaymentListCreateView, PaymentDetailView,
     ReturnableStockListCreateView, ReturnableStockDetailView,
     SupplierReturnListCreateView, SupplierReturnDetailView,
-    SupplierReturnItemListCreateView, SupplierReturnItemDetailView, NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView
+    SupplierReturnItemListCreateView, SupplierReturnItemDetailView, 
+    NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
+    CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock
 
 
 
@@ -91,6 +93,8 @@ urlpatterns = [
     path('stocks/<int:product_id>/', StockAvailabilityView.as_view(), name='stock-availability'),
     path('stocks/<int:product_id>/',UpdateStockView.as_view(), name='update-stock'),
     path('api/stocks/<int:pk>/', StockDetailView.as_view()),
+    path('api/stocks/<int:pk>/restore/', restore_stock),
+
 
     path('merchandising/', MerchandisingListView.as_view(), name='merchandising-list'),
     path('merchandising-items/', MerchandisingItemListCreateView.as_view(), name='merchandising-item-list'),
@@ -110,4 +114,7 @@ urlpatterns = [
 
     path('supplier-return-items/', SupplierReturnItemListCreateView.as_view(), name='supplier-return-item-list'),
     path('supplier-return-items/<int:pk>/', SupplierReturnItemDetailView.as_view(), name='supplier-return-item-detail'),
+
+    path('customers/', CustomerListCreateView.as_view(), name='customer-list-create'),
+    path('customers/<int:pk>/', CustomerRetrieveUpdateDestroyView.as_view(), name='customer-detail'),
 ]

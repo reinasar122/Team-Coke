@@ -5,9 +5,9 @@ from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
 from django.db import connection
-from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem
+from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem, Customer
 
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
 
 
 from rest_framework.decorators import api_view
@@ -205,6 +205,15 @@ class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
 
+class CustomerListCreateView(generics.ListCreateAPIView):
+    queryset = Customer.objects.all().order_by('name')
+    serializer_class = CustomerSerializer
+
+class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSerializer
+
+
 # Merchandising Views
 class MerchandisingListCreateView(generics.ListCreateAPIView):
     queryset = Merchandising.objects.all()
@@ -273,6 +282,18 @@ class UpdateStockView(APIView):
             return Response({"message": "Stock updated successfully"}, status=status.HTTP_200_OK)
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PATCH'])
+def restore_stock(request, pk):
+    try:
+        stock = Stock.objects.get(product_id=pk)
+        stock.quantity_available += int(request.data.get('quantity', 0))
+        stock.save()
+        return Response({'status': 'restored', 'new_quantity': stock.quantity_available})
+    except Stock.DoesNotExist:
+        return Response({'error': 'Stock not found'}, status=404)
+
 
 
 

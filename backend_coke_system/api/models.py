@@ -239,14 +239,21 @@ class Route(models.Model):
         return self.route_name
 
     
-# 5. TransactionType
+    #   TransactionType
 class TransactionType(models.Model):
     name = models.CharField(max_length=100, unique=True)
 
     def __str__(self):
         return self.name
+    
+class Customer(models.Model):
+    name = models.CharField(max_length=255)
 
-# 6. Merchandising (Main Header)
+    def __str__(self):
+        return self.name
+
+
+    #   Merchandising (Main Header)
 class Merchandising(models.Model):
     msp_no = models.CharField(max_length=20, unique=True, editable=False)
     transaction_type = models.ForeignKey(TransactionType, on_delete=models.CASCADE)
