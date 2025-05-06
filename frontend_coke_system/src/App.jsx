@@ -9,12 +9,9 @@ import Suppliers from "./pages/Suppliers";
 import SupplierRegistrationForm from "./pages/SupplierRegistrationForm"; 
 import SupplierEditForm from "./pages/SupplierEditForm";  
 import Stocks from "./pages/Stocks";  
-<<<<<<< HEAD
-import StocksAdjustment from "./pages/StockAdjustment"; 
+// import StocksAdjustment from "./pages/StockAdjustment"; 
 import Dashboard from "./pages/Dashboard";
-=======
 
->>>>>>> 79a7a9abe558f41048dd6368b0b673ca224d1af7
 import UserList from "./pages/UserList";  
 import UserForm from "./pages/UserForm";  
 import RoleList from "./pages/RoleList";  
@@ -26,12 +23,9 @@ import ProductList from './pages/ProductList';
 
 import VanList from "./pages/VanList";
 
-<<<<<<< HEAD
 import Loadout from "./pages/Loadout"; 
-=======
 import ReceivingList from "./pages/ReceivingList";
 import ReceivingForm from "./pages/ReceivingForm";
->>>>>>> 79a7a9abe558f41048dd6368b0b673ca224d1af7
 
 
 import {
@@ -101,12 +95,9 @@ function App() {
               <Route path="/register-supplier" element={<SupplierRegistrationForm />} />
               <Route path="/edit-supplier/:id" element={<SupplierEditForm />} />
               <Route path="/Stocks" element={<Stocks />} />
-<<<<<<< HEAD
               <Route path="/loadout" element={<Loadout />} />
-              <Route path="/StocksAdjustment" element={<StocksAdjustment />} />
-=======
+              {/* <Route path="/StocksAdjustment" element={<StocksAdjustment />} /> */}
               
->>>>>>> 79a7a9abe558f41048dd6368b0b673ca224d1af7
 
               {/* ✅ Add User Routes */}
               <Route path="/users" element={<UserList />} />
