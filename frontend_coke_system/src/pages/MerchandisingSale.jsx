@@ -86,6 +86,12 @@ const MerchandisingSale = () => {
       updated[index].expectedReturnShellEmpty = soldShell;
       updated[index].expectedReturnPcsEmpty = soldShell * contentNo;
     }
+    if (field === "soldPcs") {
+      soldShell = Math.floor(soldPcs / contentNo); // approximate shells
+      updated[index].soldShell = soldShell;
+      updated[index].expectedReturnShellEmpty = soldShell;
+      updated[index].expectedReturnPcsEmpty = soldPcs;
+    }
 
     if (!updated[index].manuallyEditedNonemptyReturn) {
       updated[index].expectedReturnShellNonempty = dispatchedShell - soldShell;
@@ -158,9 +164,9 @@ const MerchandisingSale = () => {
               <th className="border border-gray-400 p-1 align-bottom">PRODUCT</th>
               <th className="border border-gray-400 p-1" colSpan={2}>DISPATCHED</th>
               <th className="border border-gray-400 p-1" colSpan={2}>SOLD</th>
-              <th className="border border-gray-400 p-1" colSpan={2}>EXPECTED RETURN (Empty)</th>
+              <th className="border border-gray-400 p-1" colSpan={2}>RETURNED (Empty)</th>
               <th className="border border-gray-400 p-1" colSpan={2}>DISCREPANCY (Empty)</th>
-              <th className="border border-gray-400 p-1" colSpan={2}>EXPECTED RETURN (Non-empty)</th>
+              <th className="border border-gray-400 p-1" colSpan={2}>RETURNED (With Content/s)</th>
               <th className="border border-gray-400 p-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
               <th className="border border-gray-400 p-1 align-bottom">DISCOUNT (%)</th>
               <th className="border border-gray-400 p-1 align-bottom">EXPECTED SALE</th>
@@ -197,7 +203,7 @@ const MerchandisingSale = () => {
                       type="number"
                       className={`w-full p-1 text-sm text-center ${
                         // Yellow if editable and related to return or sold
-                        ["soldShell", "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
+                        ["soldShell", "soldPcs", "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
                           ? "bg-yellow-100"
                           : "bg-gray-100"
                       } ${
@@ -207,7 +213,7 @@ const MerchandisingSale = () => {
                           : ""
                       } ${
                         // Hide arrows for non-shell fields
-                        !["soldShell", "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
+                        !["soldShell", "soldPcs", "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
                           ? "no-spinner"
                           : ""
                       }`}
@@ -215,7 +221,6 @@ const MerchandisingSale = () => {
                       onChange={(e) => handleRowChange(index, field, e.target.value)}
                       disabled={[
                         "dispatchedShell", "dispatchedPcs",
-                        "soldPcs",
                         "discrepancyShellEmpty", "discrepancyPcsEmpty",
                         "discrepancyShellNonempty", "discrepancyPcsNonempty"
                       ].includes(field)}

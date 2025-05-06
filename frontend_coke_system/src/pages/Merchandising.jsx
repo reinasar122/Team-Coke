@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 
 const Merchandising = () => {
   const [transactionType, setTransactionType] = useState("");
@@ -21,14 +22,52 @@ const Merchandising = () => {
     { id: Date.now(), productId: "", quantity: "", shellQty: "" }
   ]);
 
-  const navigate = useNavigate();
 
+  const navigate = useNavigate();
+  
+  const [customer, setCustomer] = useState("");
+  const [isAddingRoute, setIsAddingRoute] = useState(false);
+
+  const [customers, setCustomers] = useState([]);
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+
+  
   //Number 1 changes
   //track available stock for each product
   const [availableStock, setAvailableStock] = useState({});
 
+  const location = useLocation();
 
 
+  useEffect(() => {
+    if (location.state) {
+      const {
+        mspNo,
+        transactionType,
+        selectedUser,
+        selectedRoute,
+        dateTime,
+        products,
+      } = location.state;
+  
+      if (mspNo) setMspNo(mspNo);
+      if (transactionType) setTransactionType(transactionType);
+      if (selectedUser) setSelectedUser(selectedUser);
+      if (selectedRoute) setRoute(selectedRoute);
+      if (dateTime) setDateTime(dateTime);
+      if (products && products.length > 0) {
+        setRows(
+          products.map((product) => ({
+            id: Date.now() + Math.random(),
+            productId: product.productId,
+            quantity: product.dispatchedPcs,
+            shellQty: product.dispatchedShell,
+            contentNo: product.contentNo || 0,
+          }))
+        );
+      }
+    }
+  }, [location.state]);
 
 
   // Fetch initial data
@@ -44,6 +83,11 @@ const Merchandising = () => {
     axios.get("http://localhost:8080/api/routes/")
       .then(res => setRoutes(res.data))
       .catch(err => console.error("Failed to fetch routes:", err));
+
+    axios.get("http://localhost:8080/api/customers/")
+      .then(res => setCustomers(res.data))
+      .catch(err => console.error("Failed to fetch customers:", err));
+
   }, []);
 
 
@@ -91,7 +135,7 @@ const Merchandising = () => {
 
 
 
-   // Handle route typing (saving new route if needed)
+ /*  // Handle route typing (saving new route if needed)
    const handleRouteKeyDown = async (e) => {
     if (e.key === "Enter") {
       e.preventDefault();
@@ -114,7 +158,7 @@ const Merchandising = () => {
         }
       }
     }
-  };
+  };*/
 
 
   //Number 3 changes
@@ -229,42 +273,43 @@ const handleQuantityChange = (index, value) => {
 
 
 
-  const handleSave = async () => {
-    // Always check if Transaction Type is selected
-    if (!transactionType) {
-      alert("Please select a Transaction Type before proceeding.");
+const handleSave = async () => {
+  if (!transactionType) {
+    alert("Please select a Transaction Type before proceeding.");
+    return;
+  }
+
+  const validRows = rows.filter((row) => row.productId && row.quantity && row.shellQty);
+
+  const deductedStock = [];
+
+  for (let row of validRows) {
+    const stockQuantity = availableStock[row.productId];
+    if (row.quantity > stockQuantity) {
+      alert(`Not enough stock for ${row.productId}. Available: ${stockQuantity}, Requested: ${row.quantity}`);
       return;
     }
-  
-    const validRows = rows.filter((row) => row.productId && row.quantity && row.shellQty);
-  
-    for (let row of validRows) {
-      const stockQuantity = availableStock[row.productId]; // Fetch available stock
-      if (row.quantity > stockQuantity) {
-        alert(`Not enough stock for ${row.productId}. Available: ${stockQuantity}, Requested: ${row.quantity}`);
-        return;
-      }
-  
-      // Update stock after sale
-      await updateStock(row.productId, row.quantity);
-    }
-  
-    const confirmed = window.confirm("Do you want to proceed with saving?");
-    if (!confirmed) return;
-  
-    // Proceed with saving data
-    const user = users.find((u) => u.id.toString() === selectedUser.toString());
-    const selectedUserName = user ? `${user.first_name} ${user.last_name}` : "N/A";
-  
-    const selectedProductsRows = validRows.map((row) => {
-      const product = products.find((p) => p.id.toString() === row.productId.toString());
-      return {
-        productId: row.productId,
-        productName: product ? product.product_name : "",
-        dispatchedShell: row.shellQty,
-        dispatchedPcs: row.quantity,
-      };
-    });
+
+    await updateStock(row.productId, row.quantity);
+    deductedStock.push({ productId: row.productId, deducted: row.quantity });
+  }
+
+  const confirmed = window.confirm("Do you want to proceed with saving?");
+  if (!confirmed) return;
+
+  const user = users.find((u) => u.id.toString() === selectedUser.toString());
+  const selectedUserName = user ? `${user.first_name} ${user.last_name}` : "N/A";
+
+  const selectedProductsRows = validRows.map((row) => {
+    const product = products.find((p) => p.id.toString() === row.productId.toString());
+    return {
+      productId: row.productId,
+      productName: product ? product.product_name : "",
+      dispatchedShell: row.shellQty,
+      dispatchedPcs: row.quantity,
+    };
+  });
+
 
     navigate("/merchandising-sale", {
       state: {
@@ -273,7 +318,9 @@ const handleQuantityChange = (index, value) => {
         selectedUser: selectedUserName,
         selectedRoute: route,
         dateTime,
+        customer,
         products: selectedProductsRows,
+        deductedStock,  // ✅ pass it along
       }
     });
   };
@@ -348,23 +395,152 @@ const handleQuantityChange = (index, value) => {
             />
           </div>
 
-          {transactionType === "Van Load" && (
+
+          {(transactionType === "Warehouse") && (
             <div>
-              <label className="block mb-1">Route</label>
-              <input
-                list="route-options"
-                value={route}
-                onChange={(e) => setRoute(e.target.value)}
-                onKeyDown={handleRouteKeyDown}
-                className="w-64 p-2 rounded bg-gray-200 text-black"
-                placeholder="Type or select route"
-              />
-              <datalist id="route-options">
-                {routes.map((r) => (
-                  <option key={r.id} value={r.route_name} />
-                ))}
-              </datalist>
+              <label className="block mb-1">Customer</label>
+              {isAddingCustomer ? (
+                <input
+                  type="text"
+                  className="w-64 p-2 rounded bg-gray-200 text-black"
+                  placeholder="Enter new customer"
+                  value={customer}
+                  onChange={(e) => setCustomer(e.target.value)}
+                  onKeyDown={async (e) => {
+                    if (e.key === "Enter") {
+                      const newCustomer = customer.trim();
+                      if (!newCustomer) return;
+
+                      const exists = customers.some(
+                        (c) => c.name.toLowerCase() === newCustomer.toLowerCase()
+                      );
+
+                      if (exists) {
+                        alert(`Customer "${newCustomer}" already exists.`);
+                        setIsAddingCustomer(false);
+                        return;
+                      }
+
+                      try {
+                        const res = await axios.post("http://localhost:8080/api/customers/", {
+                          name: newCustomer,
+                        });
+                        setCustomers((prev) => [...prev, res.data]);
+                        setCustomer(res.data.name);
+                      } catch (error) {
+                        console.error("Error saving new customer:", error);
+                      }
+                      setIsAddingCustomer(false);
+                    }
+                  }}
+                />
+              ) : (
+                <select
+                  value={customer}
+                  onChange={(e) => {
+                    if (e.target.value === "add_new") {
+                      setIsAddingCustomer(true);
+                      setCustomer("");
+                    } else {
+                      setCustomer(e.target.value);
+                    }
+                  }}
+                  className="w-64 p-2 rounded bg-gray-200 text-black"
+                >
+                  <option value="" disabled hidden>Select a customer</option>
+                  {customers.map((c) => (
+                    <option key={c.id} value={c.name}>
+                      {c.name}
+                    </option>
+                  ))}
+                  <option value="add_new">+ Add a customer</option>
+                </select>
+              )}
             </div>
+          )}
+
+
+{transactionType === "Van Load" && (
+            <>
+              <div>
+                <label className="block mb-1">Van</label>
+                <select
+                  value={selectedVan}
+                  onChange={(e) => setSelectedVan(e.target.value)}
+                  className="w-64 p-2 rounded bg-gray-200 text-black"
+                >
+                  <option value="" disabled hidden>Select</option>
+                  {vans.map((van) => (
+                    <option key={van.id} value={van.id}>
+                      {van.van_id} - {van.plate_number}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block mb-1">Route</label>
+                {isAddingRoute ? (
+                  <input
+                    type="text"
+                    className="w-64 p-2 rounded bg-gray-200 text-black"
+                    placeholder="Enter new route"
+                    value={route}
+                    onChange={(e) => setRoute(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter") {
+                        const newRoute = route.trim();
+                        if (!newRoute) return;
+
+                        const exists = routes.some(
+                          (r) => r.route_name.toLowerCase() === newRoute.toLowerCase()
+                        );
+
+                        if (exists) {
+                          alert(`Route "${newRoute}" already exists.`);
+                          setIsAddingRoute(false);
+                          return;
+                        }
+                        
+                        try {
+                          const res = await axios.post("http://localhost:8080/api/routes/", {
+                            route_name: newRoute,
+                          });
+                          setRoutes((prev) => [...prev, res.data]);
+                          setRoute(res.data.route_name);
+                        } catch (error) {
+                          console.error("Error saving new route:", error);
+                        }
+                        setIsAddingRoute(false);                        
+                      }
+                    }}
+                  />
+                ) : (
+                  <select
+                    value={route}
+                    onChange={(e) => {
+                      if (e.target.value === "add_new") {
+                        setIsAddingRoute(true);
+                        setRoute(""); // clear any leftover value
+                      } else {
+                        setRoute(e.target.value);
+                      }
+                    }}
+                    className="w-64 p-2 rounded bg-gray-200 text-black"
+                  >
+                    <option value="" disabled hidden>Select a route</option>
+                    {routes.map((r) => (
+                      <option key={r.id} value={r.route_name}>
+                        {r.route_name}
+                      </option>
+                    ))}
+                    <option value="add_new">+ Add a new route</option>
+                  </select>
+                )}
+              </div>
+
+
+            </>
           )}
         </div>
       </div>
