@@ -154,6 +154,9 @@ const MerchandisingSale = () => {
           quantity_available: currentQty - item.deducted
         });
       }
+
+      // ✅ Clear the saved form after successful finalize
+    localStorage.removeItem("merchForm");
   
       alert("Sale finalized and stock updated!");
       navigate("/merchandising-list"); // or redirect where you want after finalizing
@@ -317,14 +320,28 @@ const MerchandisingSale = () => {
       </div>
 
       <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
-        <button className="bg-gray-500 text-white px-6 py-2 rounded"
-          onClick={() => {
-            const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
-            if (confirmBack) {
-              navigate("/merchandising");
-            }
-          }}
-        >BACK</button>
+      <button
+    className="bg-gray-500 text-white px-6 py-2 rounded"
+    onClick={() => {
+      const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
+      if (confirmBack) {
+        navigate("/merchandising", {
+          state: {
+            mspNo,
+            transactionType,
+            selectedUser,
+            selectedRoute,
+            dateTime,
+            customer,
+            products: rows
+          }
+        });
+      }
+    }}
+  >
+    BACK
+  </button>
+
         <button
   className="bg-blue-600 text-white px-6 py-2 rounded"
   onClick={finalizeSale} // 👈 link to the finalize logic

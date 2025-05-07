@@ -40,6 +40,8 @@ const Merchandising = () => {
 
 
   useEffect(() => {
+    const savedForm = localStorage.getItem("merchForm");
+  
     if (location.state) {
       const {
         mspNo,
@@ -47,6 +49,7 @@ const Merchandising = () => {
         selectedUser,
         selectedRoute,
         dateTime,
+        customer,
         products,
       } = location.state;
   
@@ -55,6 +58,7 @@ const Merchandising = () => {
       if (selectedUser) setSelectedUser(selectedUser);
       if (selectedRoute) setRoute(selectedRoute);
       if (dateTime) setDateTime(dateTime);
+      if (customer) setCustomer(customer);
       if (products && products.length > 0) {
         setRows(
           products.map((product) => ({
@@ -66,8 +70,26 @@ const Merchandising = () => {
           }))
         );
       }
+    } else if (savedForm) {
+      const data = JSON.parse(savedForm);
+      setMspNo(data.mspNo);
+      setTransactionType(data.transactionType);
+      setSelectedUser(data.selectedUser);
+      setRoute(data.selectedRoute);
+      setDateTime(data.dateTime);
+      setCustomer(data.customer);
+      setRows(
+        data.products.map((product) => ({
+          id: Date.now() + Math.random(),
+          productId: product.productId,
+          quantity: product.quantity,
+          shellQty: product.shellQty,
+          contentNo: product.contentNo || 0,
+        }))
+      );
     }
   }, [location.state]);
+  
 
 
   // Fetch initial data
@@ -204,7 +226,7 @@ const fetchStockQuantity = async (productId) => {
   };
   
 
-  //Number 5 changes
+  /*Number 5 changes
   const updateStock = async (productId, quantitySold) => {
     const newQuantity = availableStock[productId] - quantitySold;
   
@@ -220,7 +242,7 @@ const fetchStockQuantity = async (productId) => {
     } catch (err) {
       console.error("Error updating stock:", err);
     }
-  };
+  };*/
 
 
 
@@ -310,8 +332,12 @@ const handleSave = async () => {
       productName: product ? product.product_name : "",
       dispatchedShell: row.shellQty,
       dispatchedPcs: row.quantity,
+           
     };
   });
+
+
+
 
 
     navigate("/merchandising-sale", {
@@ -350,7 +376,7 @@ const handleSave = async () => {
             </select>
           </div>
 
-          {transactionType === "Van Load" && (
+           {transactionType === "Van Load" && (
             <div>
               <label className="block mb-1">Van</label>
               <select
