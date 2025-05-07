@@ -137,6 +137,33 @@ const MerchandisingSale = () => {
     const misc = parseFloat(miscCharges) || 0;
     setDiscrepancy((totalExpected - actualTotal + misc).toFixed(2));
   };
+
+
+  const finalizeSale = async () => {
+    if (!state.deductedStock || state.deductedStock.length === 0) {
+      alert("No stock deductions found.");
+      return;
+    }
+  
+    try {
+      for (let item of state.deductedStock) {
+        const stockRes = await axios.get(`http://localhost:8080/api/stocks/${item.productId}/`);
+        const currentQty = stockRes.data.quantity_available;
+  
+        await axios.patch(`http://localhost:8080/api/stocks/${item.productId}/`, {
+          quantity_available: currentQty - item.deducted
+        });
+      }
+  
+      alert("Sale finalized and stock updated!");
+      navigate("/merchandising-list"); // or redirect where you want after finalizing
+    } catch (err) {
+      console.error("Failed to finalize sale:", err);
+      alert("Failed to finalize sale. Try again.");
+    }
+  };
+  
+
   
   return (
     <div className="bg-sky-200 min-h-screen p-6 text-black">
@@ -298,7 +325,12 @@ const MerchandisingSale = () => {
             }
           }}
         >BACK</button>
-        <button className="bg-blue-600 text-white px-6 py-2 rounded">FINALIZE SALE</button>
+        <button
+  className="bg-blue-600 text-white px-6 py-2 rounded"
+  onClick={finalizeSale} // 👈 link to the finalize logic
+>
+  FINALIZE SALE
+</button>
       </div>
     </div>
   );

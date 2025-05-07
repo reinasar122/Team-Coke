@@ -2,9 +2,9 @@ import { useState } from "react";
 
 const MODULES = {
   "Sales Report": ["Dashboard"],
-  "Inventory": ["Stocks", "Stock Adjustment"],
-  "Transactions": ["Receiving", "Trading", "Invoice"],
-  "Manage": ["User", "Roles", "Supplier", "Warehouse"],
+  Inventory: ["Stocks", "Stock Adjustment"],
+  Transactions: ["Receiving", "Trading", "Invoice"],
+  Manage: ["User", "Roles", "Supplier", "Warehouse"],
 };
 
 const initializePermissions = (role) => {
@@ -30,20 +30,59 @@ const initializePermissions = (role) => {
       };
     });
   } else if (role === "Supervisor") {
-    ["Dashboard", "Stocks", "Stock Adjustment", "User", "Roles", "Supplier", "Warehouse"].forEach((submenu) => {
-      permissions[submenu] = { full_access: false, view: true, create: false, edit: false, delete: false };
+    [
+      "Dashboard",
+      "Stocks",
+      "Stock Adjustment",
+      "User",
+      "Roles",
+      "Supplier",
+      "Warehouse",
+    ].forEach((submenu) => {
+      permissions[submenu] = {
+        full_access: false,
+        view: true,
+        create: false,
+        edit: false,
+        delete: false,
+      };
     });
     ["Receiving", "Trading", "Invoice"].forEach((submenu) => {
-      permissions[submenu] = { full_access: true, view: true, create: true, edit: true, delete: true };
+      permissions[submenu] = {
+        full_access: true,
+        view: true,
+        create: true,
+        edit: true,
+        delete: true,
+      };
     });
   } else if (role === "Cashier") {
-    permissions["Stocks"] = { full_access: false, view: true, create: false, edit: false, delete: false };
-    permissions["Supplier"] = { full_access: false, view: true, create: false, edit: false, delete: false };
+    permissions["Stocks"] = {
+      full_access: false,
+      view: true,
+      create: false,
+      edit: false,
+      delete: false,
+    };
+    permissions["Supplier"] = {
+      full_access: false,
+      view: true,
+      create: false,
+      edit: false,
+      delete: false,
+    };
     ["Receiving", "Trading", "Invoice"].forEach((submenu) => {
-      permissions[submenu] = { full_access: true, view: true, create: true, edit: true, delete: true };
+      permissions[submenu] = {
+        full_access: true,
+        view: true,
+        create: true,
+        edit: true,
+        delete: true,
+      };
     });
   }
 
+  // Agent: default permissions remain unchecked
   return permissions;
 };
 
@@ -69,7 +108,10 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
   const togglePermission = (submenu, permission) => {
     setPermissions((prev) => ({
       ...prev,
-      [submenu]: { ...prev[submenu], [permission]: !prev[submenu][permission] },
+      [submenu]: {
+        ...prev[submenu],
+        [permission]: !prev[submenu][permission],
+      },
     }));
   };
 
@@ -93,60 +135,69 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg max-w-4xl w-full">
-        <h2 className="text-2xl font-bold mb-4">Role Accessibility Form</h2>
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+      <div className="bg-white p-8 rounded-xl shadow-xl max-w-6xl w-full">
+        <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">
+          🎯 Role Accessibility Settings
+        </h2>
 
-        {/* Role Type Selector */}
-        <div className="mb-4">
-          <label className="block font-medium mb-2">Role Type:</label>
+        <div className="mb-6">
+          <label className="block text-gray-700 font-medium mb-2">
+            Select Role Type:
+          </label>
           <select
-            className="border p-2 w-full rounded"
+            className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             value={roleName}
             onChange={handleRoleChange}
           >
             <option value="Admin">Admin</option>
             <option value="Supervisor">Supervisor</option>
             <option value="Cashier">Cashier</option>
+            <option value="Agent">Agent</option>
           </select>
         </div>
 
-        {/* Permissions Table */}
         <div className="overflow-x-auto">
-          <table className="w-full border-collapse border border-gray-300">
-            <thead>
-              <tr className="bg-gray-200">
-                <th className="border px-4 py-2">Menu</th>
-                <th className="border px-4 py-2">Submenu</th>
-                <th className="border px-4 py-2">Full Access</th>
-                <th className="border px-4 py-2">View</th>
-                <th className="border px-4 py-2">Create</th>
-                <th className="border px-4 py-2">Edit</th>
-                <th className="border px-4 py-2">Delete</th>
+          <table className="min-w-full text-sm border border-gray-300 rounded-md">
+            <thead className="bg-gray-100 text-gray-700 text-xs uppercase tracking-wide">
+              <tr>
+                <th className="px-4 py-2 text-left">Menu</th>
+                <th className="px-4 py-2 text-left">Submenu</th>
+                <th className="px-4 py-2 text-center">Full</th>
+                <th className="px-4 py-2 text-center">View</th>
+                <th className="px-4 py-2 text-center">Create</th>
+                <th className="px-4 py-2 text-center">Edit</th>
+                <th className="px-4 py-2 text-center">Delete</th>
               </tr>
             </thead>
             <tbody>
               {Object.entries(MODULES).map(([menu, submenus]) =>
                 submenus.map((submenu, index) => (
-                  <tr key={submenu} className="text-center">
+                  <tr
+                    key={submenu}
+                    className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                  >
                     {index === 0 && (
-                      <td rowSpan={submenus.length} className="border px-4 py-2 font-semibold bg-gray-100">
+                      <td
+                        rowSpan={submenus.length}
+                        className="px-4 py-2 font-semibold border-r border-gray-300 align-top"
+                      >
                         {menu}
                       </td>
                     )}
-                    <td className="border px-4 py-2 font-medium">{submenu}</td>
-                    <td className="border px-4 py-2">
+                    <td className="px-4 py-2 font-medium">{submenu}</td>
+                    <td className="px-2 py-2 text-center">
                       <input
                         type="checkbox"
-                        checked={permissions[submenu]?.full_access || false}
+                        checked={permissions[submenu]?.full_access}
                         onChange={() => handleFullAccessToggle(submenu)}
                       />
                     </td>
                     {["view", "create", "edit", "delete"].map((perm) => (
-                      <td key={perm} className="border px-4 py-2">
+                      <td key={perm} className="px-2 py-2 text-center">
                         <input
                           type="checkbox"
-                          checked={permissions[submenu]?.[perm] || false}
+                          checked={permissions[submenu]?.[perm]}
                           onChange={() => togglePermission(submenu, perm)}
                           disabled={permissions[submenu]?.full_access}
                         />
@@ -159,13 +210,15 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
           </table>
         </div>
 
-        {/* Form Actions */}
-        <div className="flex justify-end mt-4 gap-2">
-          <button className="bg-gray-500 text-white px-4 py-2 rounded" onClick={onClose}>
+        <div className="mt-6 flex justify-end gap-3">
+          <button
+            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
+            onClick={onClose}
+          >
             Cancel
           </button>
           <button
-            className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600"
+            className="px-6 py-2 bg-purple-600 text-white font-semibold rounded hover:bg-purple-700"
             onClick={handleSubmit}
           >
             Save Permissions

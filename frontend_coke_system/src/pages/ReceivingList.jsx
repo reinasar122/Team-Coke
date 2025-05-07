@@ -171,8 +171,7 @@ const ReceivingList = () => {
   return (
     <div className="p-8 min-h-screen bg-white">
       {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-[#041021]"></h1>
+      <div className="flex justify-end items-center mb-8">
         <Link
           to="/receiving/new"
           className="bg-[#0B1320] hover:bg-[#a7a7a7] text-white px-6 py-2 rounded-md font-semibold"

@@ -281,8 +281,13 @@ const handleSave = async () => {
 
   const validRows = rows.filter((row) => row.productId && row.quantity && row.shellQty);
 
-  const deductedStock = [];
+  // Prepare deduction data but DO NOT apply it yet
+  const deductedStock = validRows.map((row) => ({
+    productId: row.productId,
+    deducted: parseInt(row.quantity)
+  }));
 
+  
   for (let row of validRows) {
     const stockQuantity = availableStock[row.productId];
     if (row.quantity > stockQuantity) {
@@ -290,8 +295,6 @@ const handleSave = async () => {
       return;
     }
 
-    await updateStock(row.productId, row.quantity);
-    deductedStock.push({ productId: row.productId, deducted: row.quantity });
   }
 
   const confirmed = window.confirm("Do you want to proceed with saving?");
