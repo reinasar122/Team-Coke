@@ -58,16 +58,44 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
 
     def update(self, request, *args, **kwargs):
-        print("Incoming Data:", request.data)  # Log incoming data for debugging
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        instance = self.get_object()  # Retrieve the user instance
+        serializer = self.get_serializer(instance, data=request.data, partial=True)  # Validate data
 
+        # Ensure the incoming data is valid before saving
         if not serializer.is_valid():
-            print("Errors:", serializer.errors)  # Log serializer errors
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        # Handle role and warehouse assignment separately
+        role_id = request.data.get('role')  # Get the role ID from the incoming request
+        warehouse_id = request.data.get('warehouse')  # Get the warehouse ID from the incoming request
+
+        if role_id:
+            try:
+                # Ensure the role exists before assigning it
+                instance.role = Role.objects.get(id=role_id)
+            except Role.DoesNotExist:
+                return Response({"error": "Role not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if warehouse_id:
+            try:
+                # Ensure the warehouse exists before assigning it
+                instance.warehouse = Warehouse.objects.get(id=warehouse_id)
+            except Warehouse.DoesNotExist:
+                return Response({"error": "Warehouse not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Perform the update on the instance using the validated data
         self.perform_update(serializer)
-        return Response(serializer.data)
+
+        # Manually update role_name and warehouse_name after update
+        instance.role_name = instance.role.name if instance.role else None
+        instance.warehouse_name = instance.warehouse.name if instance.warehouse else None
+
+        # Return the updated user data with the related role and warehouse names
+        return Response({
+            **serializer.data,
+            "role_name": instance.role_name,
+            "warehouse_name": instance.warehouse_name
+        })
 
 
 

@@ -16,10 +16,10 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Updated UserSerializer to return role_name and warehouse_name instead of full objects"""
-    role_name = serializers.CharField(source='role.name', read_only=True)  # Only the role name
-    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)  # Only the warehouse name
-    
+    role_name = serializers.CharField(source='role.name', read_only=True)
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
+
+    # These are the fields that will receive the ID from the frontend when updating
     role_id = serializers.PrimaryKeyRelatedField(
         queryset=Role.objects.all(), source='role', write_only=True
     )
@@ -36,27 +36,27 @@ class UserSerializer(serializers.ModelSerializer):
         ]
         extra_kwargs = {'password': {'write_only': True}}  # Hide password from responses
 
-    def create(self, validated_data):
-        """Hash password before saving"""
-        if 'password' in validated_data:
-            validated_data['password'] = make_password(validated_data['password'])
-        return super().create(validated_data)
-
     def update(self, instance, validated_data):
-        """Hash password if it's being updated"""
-        if 'password' in validated_data:
-            validated_data['password'] = make_password(validated_data['password'])
-
-        # Set the role and warehouse based on their IDs
+        # Extract and update role and warehouse IDs
         role_id = validated_data.pop('role', None)
         warehouse_id = validated_data.pop('warehouse', None)
 
-        if role_id is not None:
+        if role_id:
+            # Ensure role exists before assigning
             instance.role = role_id
-        if warehouse_id is not None:
+        if warehouse_id:
+            # Ensure warehouse exists before assigning
             instance.warehouse = warehouse_id
 
-        return super().update(instance, validated_data)
+        # Update other fields as usual
+        instance = super().update(instance, validated_data)
+
+        # Manually update role_name and warehouse_name after update
+        instance.role_name = instance.role.name if instance.role else None
+        instance.warehouse_name = instance.warehouse.name if instance.warehouse else None
+
+        return instance
+
 
 
 
