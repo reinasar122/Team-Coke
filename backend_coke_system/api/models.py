@@ -300,17 +300,18 @@ class MerchandisingItem(models.Model):
     sold_pcs = models.PositiveIntegerField(default=0)
     sold_shell = models.PositiveIntegerField(default=0)
 
-    expected_return_pcs = models.PositiveIntegerField(default=0)
-    expected_return_shell = models.PositiveIntegerField(default=0)
+    empty_return_pcs = models.PositiveIntegerField(default=0)
+    empty_return_shell = models.PositiveIntegerField(default=0)
+
+    discrepancy_empties_pc = models.PositiveIntegerField(default=0)
+    discrepancy_empties_shell = models.PositiveIntegerField(default=0)
+
 
     actual_return_pcs = models.PositiveIntegerField(default=0)
     actual_return_shell = models.PositiveIntegerField(default=0)
 
-    discrepancy_pcs = models.PositiveIntegerField(default=0)
-    discrepancy_shell = models.PositiveIntegerField(default=0)
-
-    empty_return_pcs = models.PositiveIntegerField(default=0)
-    empty_return_shell = models.PositiveIntegerField(default=0)
+    discrepancy_full_pcs = models.PositiveIntegerField(default=0)
+    discrepancy_full_shell = models.PositiveIntegerField(default=0)
 
     discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -319,24 +320,18 @@ class MerchandisingItem(models.Model):
     def __str__(self):
         return f"{self.product.name} - {self.merchandising.msp_no}"
 
-# 8. MiscellaneousItem
-class MiscellaneousItem(models.Model):
-    merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
-    description = models.CharField(max_length=255)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-
-    def __str__(self):
-        return f"{self.description} - ₱{self.amount}"
 
 # 9. ReturnableStock
 class ReturnableStock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
     empty_bottle_qty = models.PositiveIntegerField(default=0)
     empty_shell_qty = models.PositiveIntegerField(default=0)
+    source = models.CharField(max_length=20, choices=[('customer', 'Customer'), ('supplier', 'Supplier')]),
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.product.name} Returnables"
+        return f"{self.product.name} Returnables from {self.source}"
+
 
 # 10. SupplierReturn
 class SupplierReturn(models.Model):
@@ -357,6 +352,15 @@ class SupplierReturnItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} returned"
+    
+
+class MiscellaneousItem(models.Model):
+    merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
+    description = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.description} - ₱{self.amount}"
 
 
 

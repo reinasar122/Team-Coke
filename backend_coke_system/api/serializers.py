@@ -324,15 +324,58 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         merchandising = Merchandising.objects.create(**validated_data)
 
         for item_data in items_data:
-            MerchandisingItem.objects.create(merchandising=merchandising, **item_data)
+            product_id = item_data.get("product")
+            product = Product.objects.get(id=product_id)
 
-        for misc_data in misc_items_data:
-            MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
+            merchandising_item = MerchandisingItem.objects.create(
+                merchandising=merchandising,
+                product=product,
+                dispatched_pcs=item_data.get("dispatched_pcs", 0),
+                dispatched_shell=item_data.get("dispatched_shell", 0),
+                sold_pcs=item_data.get("sold_pcs", 0),
+                sold_shell=item_data.get("sold_shell", 0),
+                empty_return_pcs=item_data.get("empty_return_pcs", 0),
+                empty_return_shell=item_data.get("empty_return_shell", 0),
+                actual_return_pcs=item_data.get("actual_return_pcs", 0),
+                actual_return_shell=item_data.get("actual_return_shell", 0),
+                discrepancy_empties_pc=item_data.get("discrepancy_empties_pc", 0),
+                discrepancy_empties_shell=item_data.get("discrepancy_empties_shell", 0),
+                discrepancy_full_pcs=item_data.get("discrepancy_full_pcs", 0),
+                discrepancy_full_shell=item_data.get("discrepancy_full_shell", 0),
+                discount_percent=item_data.get("discount_percent", 0),
+                expected_sale=item_data.get("expected_sale", 0),
+                actual_sale=item_data.get("actual_sale", 0),
+            )
 
-        for payment_data in payments_data:
-            Payment.objects.create(merchandising=merchandising, **payment_data)
+        # ✅ Handle returned empties (ReturnableStock)
+        if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
+            ReturnableStock.objects.create(
+                product=product,
+                empty_bottle_qty=merchandising_item.empty_return_pcs,
+                empty_shell_qty=merchandising_item.empty_return_shell,
+                source='customer'
+            )
 
-        return merchandising
+        # ✅ Handle returned full items (restock)
+        if merchandising_item.actual_return_pcs > 0:
+            stock, _ = Stock.objects.get_or_create(product=product)
+            stock.quantity_available += merchandising_item.actual_return_pcs
+            stock.save()
+
+        # ✅ Deduct sold quantity from stock
+        if merchandising_item.sold_pcs > 0:
+            stock, _ = Stock.objects.get_or_create(product=product)
+            stock.quantity_available -= merchandising_item.sold_pcs
+            stock.save()
+
+
+            for misc_data in misc_items_data:
+                MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
+
+            for payment_data in payments_data:
+                Payment.objects.create(merchandising=merchandising, **payment_data)
+
+            return merchandising
 
     def update(self, instance, validated_data):
         # Optional: we can add complex update logic if you need
