@@ -301,6 +301,11 @@ const handleSave = async () => {
     return;
   }
 
+  if (!users.length) {
+    alert("Users not loaded yet. Please wait and try again.");
+    return;
+  }
+
   const validRows = rows.filter((row) => row.productId && row.quantity && row.shellQty);
 
   // Prepare deduction data but DO NOT apply it yet
