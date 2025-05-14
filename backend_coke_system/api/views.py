@@ -8,7 +8,7 @@ from django.db import connection
 from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem, Customer
 
 from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
-
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -246,6 +246,7 @@ class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 class MerchandisingListCreateView(generics.ListCreateAPIView):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
+    parser_classes = (MultiPartParser, FormParser)
 
 class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Merchandising.objects.all()

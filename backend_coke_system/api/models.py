@@ -326,7 +326,7 @@ class ReturnableStock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
     empty_bottle_qty = models.PositiveIntegerField(default=0)
     empty_shell_qty = models.PositiveIntegerField(default=0)
-    source = models.CharField(max_length=20, choices=[('customer', 'Customer'), ('supplier', 'Supplier')]),
+    source = models.CharField(max_length=20, choices=[('customer', 'Customer'), ('supplier', 'Supplier')])
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -358,6 +358,7 @@ class MiscellaneousItem(models.Model):
     merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    receipt_file = models.FileField(upload_to='misc_receipts/', blank=True, null=True)  # <-- Add this line
 
     def __str__(self):
         return f"{self.description} - ₱{self.amount}"

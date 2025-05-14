@@ -347,35 +347,35 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 actual_sale=item_data.get("actual_sale", 0),
             )
 
-        # ✅ Handle returned empties (ReturnableStock)
-        if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
-            ReturnableStock.objects.create(
-                product=product,
-                empty_bottle_qty=merchandising_item.empty_return_pcs,
-                empty_shell_qty=merchandising_item.empty_return_shell,
-                source='customer'
-            )
+            # ✅ Handle returned empties (ReturnableStock)
+            if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
+                ReturnableStock.objects.create(
+                    product=product,
+                    empty_bottle_qty=merchandising_item.empty_return_pcs,
+                    empty_shell_qty=merchandising_item.empty_return_shell,
+                    source='customer'
+                )
 
-        # ✅ Handle returned full items (restock)
-        if merchandising_item.actual_return_pcs > 0:
-            stock, _ = Stock.objects.get_or_create(product=product)
-            stock.quantity_available += merchandising_item.actual_return_pcs
-            stock.save()
+            # ✅ Handle returned full items (restock)
+            if merchandising_item.actual_return_pcs > 0:
+                stock, _ = Stock.objects.get_or_create(product=product)
+                stock.quantity_available += merchandising_item.actual_return_pcs
+                stock.save()
 
-        # ✅ Deduct sold quantity from stock
-        if merchandising_item.sold_pcs > 0:
-            stock, _ = Stock.objects.get_or_create(product=product)
-            stock.quantity_available -= merchandising_item.sold_pcs
-            stock.save()
+            # ✅ Deduct sold quantity from stock
+            if merchandising_item.sold_pcs > 0:
+                stock, _ = Stock.objects.get_or_create(product=product)
+                stock.quantity_available -= merchandising_item.sold_pcs
+                stock.save()
 
 
-            for misc_data in misc_items_data:
-                MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
+        for misc_data in misc_items_data:
+            MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
 
-            for payment_data in payments_data:
-                Payment.objects.create(merchandising=merchandising, **payment_data)
+        for payment_data in payments_data:
+            Payment.objects.create(merchandising=merchandising, **payment_data)
 
-            return merchandising
+        return merchandising
 
     def update(self, instance, validated_data):
         # Optional: we can add complex update logic if you need
