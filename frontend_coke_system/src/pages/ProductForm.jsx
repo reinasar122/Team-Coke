@@ -27,6 +27,8 @@ const ProductForm = () => {
   const [contentTypes, setContentTypes] = useState([]);
   const [showModal, setShowModal] = useState({ type: null, rowIndex: null });
   const [newValue, setNewValue] = useState("");
+  const [suppliers, setSuppliers] = useState([]);
+
 
   useEffect(() => {
     fetchDropdowns();
@@ -37,6 +39,7 @@ const ProductForm = () => {
     axios.get("http://localhost:8080/api/product-categories/").then((res) => setCategories(res.data));
     axios.get("http://localhost:8080/api/shelltypes/").then((res) => setShellTypes(res.data));
     axios.get("http://localhost:8080/api/contenttypes/").then((res) => setContentTypes(res.data));
+    axios.get("http://localhost:8080/api/suppliers/").then((res) => setSuppliers(res.data));
   };
 
   const generateSystemCode = (index) => {
@@ -117,6 +120,7 @@ const ProductForm = () => {
         const newRows = [...prev, {
           system_code: `PROD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
           supplier_code: "",
+          supplier: "", 
           product_name: "",
           product_category: "",
           returnable: true,
@@ -160,6 +164,7 @@ const ProductForm = () => {
         await axios.post("http://localhost:8080/api/products/", {
           system_code: formData.system_code,
           supplier_code: formData.supplier_code,
+          supplier: formData.supplier, 
           product_name: formData.product_name,
           product_category: formData.product_category,
           unit_type: unitTypeRes.data.id,
@@ -180,7 +185,7 @@ const ProductForm = () => {
       <table className="min-w-full table-auto border-collapse">
         <thead className="bg-gray-400 text-black">
           <tr>
-            {["System Code", "Supplier Code", "Product Name", "Product Category", "Returnable", "Purchase Price", "Selling Price", "Shell Price", "Bottle Price", "Content No", "Shell Type", "Content Type"].map(header => (
+            {["System Code", "Supplier Code", "Supplier", "Product Name", "Product Category", "Returnable", "Purchase Price", "Selling Price", "Shell Price", "Bottle Price", "Content No", "Shell Type", "Content Type"].map(header => (
               <th key={header} className="px-4 py-2">{header}</th>
             ))}
           </tr>
@@ -190,6 +195,13 @@ const ProductForm = () => {
             <tr key={index}>
               <td className="px-2 py-2"><input name="system_code" value={row.system_code} readOnly className="border rounded px-2 py-1 w-full" /></td>
               <td className="px-2 py-2"><input ref={(el) => inputRefs.current[index] = el} name="supplier_code" value={row.supplier_code} onChange={(e) => handleChange(index, e)} className="border rounded px-2 py-1 w-full" /></td>
+              <td className="px-2 py-2"><select name="supplier" value={row.supplier || ""} onChange={(e) => handleChange(index, e)} className="border rounded px-2 py-1 w-full">
+                <option value="">--Supplier--</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.company_name}</option>
+                ))}
+              </select>
+            </td>
               <td className="px-2 py-2"><input name="product_name" value={row.product_name} onChange={(e) => handleChange(index, e)} className="border rounded px-2 py-1 w-full" /></td>
               <td className="px-2 py-2">
                 <select name="product_category" value={row.product_category} onChange={(e) => handleSelectChange(index, e, 'category')} className="border rounded px-2 py-1 w-full">
