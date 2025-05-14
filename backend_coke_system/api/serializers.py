@@ -353,7 +353,8 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                     product=product,
                     empty_bottle_qty=merchandising_item.empty_return_pcs,
                     empty_shell_qty=merchandising_item.empty_return_shell,
-                    source='customer'
+                    source='customer',
+                    supplier=product.supplier  # ✅ Link the return to the correct supplier
                 )
 
             # ✅ Handle returned full items (restock)

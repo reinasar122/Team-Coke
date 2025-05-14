@@ -143,6 +143,7 @@ class Product(models.Model):
     product_category = models.ForeignKey(ProductCategory, on_delete=models.SET_NULL, null=True)
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
+    supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.system_code:
@@ -322,16 +323,20 @@ class MerchandisingItem(models.Model):
 
 
 # 9. ReturnableStock
+# filepath: c:\Users\Lenizo.karenzoe\Desktop\Inventory 111\coke-POS-system\backend_coke_system\api\models.py
 class ReturnableStock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
     empty_bottle_qty = models.PositiveIntegerField(default=0)
     empty_shell_qty = models.PositiveIntegerField(default=0)
-    source = models.CharField(max_length=20, choices=[('customer', 'Customer'), ('supplier', 'Supplier')])
+    source = models.CharField(
+        max_length=20,
+        choices=[('customer', 'Customer'), ('supplier', 'Supplier')],
+        default='customer'  # Provide a default value here
+    )
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.product.name} Returnables from {self.source}"
-
 
 # 10. SupplierReturn
 class SupplierReturn(models.Model):
