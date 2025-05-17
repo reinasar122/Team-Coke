@@ -19,7 +19,7 @@ const MerchandisingSale = () => {
   const [remarks, setRemarks] = useState("");
   const [miscCharges, setMiscCharges] = useState("");
   const [expectedTotal, setExpectedTotal] = useState(0);
-  const actualTotal = 0;
+  const [actualTotal, setActualTotal] = useState(0);
   const [discrepancy, setDiscrepancy] = useState(0);
 
   useEffect(() => {
@@ -29,56 +29,73 @@ const MerchandisingSale = () => {
         res.data.forEach(price => {
           map[price.id] = {
             selling_price: price.selling_price,
+            shell_price: price.shell_price,
+            bottle_price: price.bottle_price, // ✅ Added bottle_price
             content_no: price.content_no || 0
           };
         });
         setPricingMap(map);
+
+        if (state.products) {
+          console.log("📦 Raw product from backend:", state.products);
+          const initialRows = state.products.map((product) => {
+            const priceId = product.price?.id || product.priceId || product.price_id || null;
+            const soldShell = transactionType === "Warehouse" ? product.dispatchedShell : 0;
+            const soldPcs = transactionType === "Warehouse" ? product.dispatchedPcs : 0;
+            return {
+              id: Date.now() + Math.random(),
+              productId: product.productId,
+              productName: product.productName,
+              priceId: priceId,
+              contentNo: product.contentNo || 0,
+              dispatchedShell: product.dispatchedShell || 0,
+              dispatchedPcs: product.dispatchedPcs || 0,
+              soldShell: soldShell,
+              soldPcs: soldPcs,
+              expectedReturnShellEmpty: soldShell,
+              expectedReturnPcsEmpty: soldShell * (product.contentNo || 0),
+              expectedReturnShellNonempty: 0,
+              expectedReturnPcsNonempty: 0,
+              discrepancyShellEmpty: 0,
+              discrepancyPcsEmpty: 0,
+              discrepancyShellNonempty: 0,
+              discrepancyPcsNonempty: 0,
+              discount: 0,
+              expectedSale: 0,
+              actualSale: 0,
+              manuallyEditedNonemptyReturn: false,
+            };
+          });
+
+          const recalculated = initialRows.map((row) => {
+            const pricing = map[row.priceId];
+            if (!pricing) return row;
+            const sellingPrice = parseFloat(pricing.selling_price) || 0;
+            const shellPrice = parseFloat(pricing.shell_price) || 0;
+            const discount = parseFloat(row.discount) || 0;
+
+            const expectedSale = (row.dispatchedPcs * sellingPrice) + (row.dispatchedShell * shellPrice);
+            row.expectedSale = parseFloat((expectedSale * (1 - discount / 100)).toFixed(2));
+            return row;
+          });
+
+          setRows(recalculated);
+        }
       })
       .catch(err => {
         console.error("Failed to fetch pricing:", err);
       });
-
-    if (state.products) {
-      const initialRows = state.products.map((product) => {
-        const soldShell = transactionType === "Warehouse" ? product.dispatchedShell : 0;
-        const soldPcs = transactionType === "Warehouse" ? product.dispatchedPcs : 0;
-        return {
-          id: Date.now() + Math.random(),
-          productId: product.productId,
-          productName: product.productName,
-          priceId: product.priceId,
-          contentNo: product.contentNo || 0,
-          dispatchedShell: product.dispatchedShell || 0,
-          dispatchedPcs: product.dispatchedPcs || 0,
-          soldShell: soldShell,
-          soldPcs: soldPcs,
-          expectedReturnShellEmpty: soldShell,
-          expectedReturnPcsEmpty: soldShell * (product.contentNo || 0),
-          expectedReturnShellNonempty: transactionType === "Warehouse" ? 0 : 0,
-          expectedReturnPcsNonempty: transactionType === "Warehouse" ? 0 : 0,
-          discrepancyShellEmpty: 0,
-          discrepancyPcsEmpty: 0,
-          discrepancyShellNonempty: 0,
-          discrepancyPcsNonempty: 0,
-          discount: 0,
-          expectedSale: 0,
-          actualSale: 0,
-          manuallyEditedNonemptyReturn: false,
-        };
-      });
-      setRows(initialRows);
-    }
   }, [state.products, transactionType]);
 
   const handleRowChange = (index, field, value) => {
     const updated = [...rows];
-    updated[index][field] = value;
+    updated[index][field] = value === "" ? "" : parseFloat(value);
 
-    const contentNo = parseInt(updated[index].contentNo) || 0;
-    const dispatchedShell = parseInt(updated[index].dispatchedShell) || 0;
-    const dispatchedPcs = parseInt(updated[index].dispatchedPcs) || 0;
-    let soldShell = parseInt(updated[index].soldShell) || 0;
-    let soldPcs = parseInt(updated[index].soldPcs) || 0;
+    const contentNo = parseFloat(updated[index].contentNo) || 0;
+    const dispatchedShell = parseFloat(updated[index].dispatchedShell) || 0;
+    const dispatchedPcs = parseFloat(updated[index].dispatchedPcs) || 0;
+    let soldShell = parseFloat(updated[index].soldShell) || 0;
+    let soldPcs = parseFloat(updated[index].soldPcs) || 0;
 
     if (field === "soldShell") {
       soldPcs = soldShell * contentNo;
@@ -87,7 +104,7 @@ const MerchandisingSale = () => {
       updated[index].expectedReturnPcsEmpty = soldShell * contentNo;
     }
     if (field === "soldPcs") {
-      soldShell = Math.floor(soldPcs / contentNo); // approximate shells
+      soldShell = Math.floor(soldPcs / contentNo);
       updated[index].soldShell = soldShell;
       updated[index].expectedReturnShellEmpty = soldShell;
       updated[index].expectedReturnPcsEmpty = soldPcs;
@@ -106,80 +123,89 @@ const MerchandisingSale = () => {
     }
 
     if (field === "expectedReturnShellNonempty") {
-      const shellVal = parseInt(value) || 0;
+      const shellVal = parseFloat(value) || 0;
       updated[index].expectedReturnPcsNonempty = shellVal * contentNo;
     }
 
     if (field === "expectedReturnShellEmpty") {
-      const expectedShell = parseInt(value) || 0;
+      const expectedShell = parseFloat(value) || 0;
       updated[index].expectedReturnPcsEmpty = expectedShell * contentNo;
     }
 
-    const returnShellEmpty = parseInt(updated[index].expectedReturnShellEmpty) || 0;
-    const returnPcsEmpty = parseInt(updated[index].expectedReturnPcsEmpty) || 0;
+    const returnShellEmpty = parseFloat(updated[index].expectedReturnShellEmpty) || 0;
+    const returnPcsEmpty = parseFloat(updated[index].expectedReturnPcsEmpty) || 0;
     updated[index].discrepancyShellEmpty = soldShell - returnShellEmpty;
     updated[index].discrepancyPcsEmpty = soldPcs - returnPcsEmpty;
 
-    const returnShellNonempty = parseInt(updated[index].expectedReturnShellNonempty) || 0;
-    const returnPcsNonempty = parseInt(updated[index].expectedReturnPcsNonempty) || 0;
+    const returnShellNonempty = parseFloat(updated[index].expectedReturnShellNonempty) || 0;
+    const returnPcsNonempty = parseFloat(updated[index].expectedReturnPcsNonempty) || 0;
     updated[index].discrepancyShellNonempty = dispatchedShell - soldShell - returnShellNonempty;
     updated[index].discrepancyPcsNonempty = dispatchedPcs - soldPcs - returnPcsNonempty;
 
-    const price = parseFloat(pricingMap[updated[index].priceId]?.selling_price) || 0;
+    const priceId = updated[index].priceId;
+    const pricing = pricingMap[priceId];
+
+    if (!pricing) {
+      console.warn(`No pricing found for priceId: ${priceId}`);
+      updated[index].expectedSale = 0;
+      setRows(updated);
+      return;
+    }
+
+    const sellingPrice = parseFloat(pricing.selling_price) || 0;
+    const shellPrice = parseFloat(pricing.shell_price) || 0;
+    const bottlePrice = parseFloat(pricing.bottle_price) || 0;
     const discount = parseFloat(updated[index].discount) || 0;
-    updated[index].expectedSale = (soldPcs * price * (1 - discount / 100)).toFixed(2);
+
+    const expectedSale = (dispatchedPcs * sellingPrice) + (dispatchedShell * shellPrice);
+    updated[index].expectedSale = parseFloat((expectedSale * (1 - discount / 100)).toFixed(2));
+
+    const discrepancyShellEmpty = updated[index].discrepancyShellEmpty;
+    const discrepancyPcsEmpty = updated[index].discrepancyPcsEmpty;
+
+    const actualSaleRaw = (soldPcs * sellingPrice)
+      + (discrepancyShellEmpty * shellPrice)
+      + (discrepancyPcsEmpty * bottlePrice);
+    const discountAmount = actualSaleRaw * (discount / 100);
+    const finalActualSale = actualSaleRaw - discountAmount;
+
+    updated[index].actualSale = parseFloat(finalActualSale.toFixed(2));
 
     setRows(updated);
 
     const totalExpected = updated.reduce((sum, r) => sum + parseFloat(r.expectedSale || 0), 0);
+    const totalActual = updated.reduce((sum, r) => sum + parseFloat(r.actualSale || 0), 0);
+
     setExpectedTotal(totalExpected);
+    setActualTotal(totalActual);
 
     const misc = parseFloat(miscCharges) || 0;
-    setDiscrepancy((totalExpected - actualTotal + misc).toFixed(2));
+    setDiscrepancy((totalExpected - totalActual + misc).toFixed(2));
   };
 
 
-  const finalizeSale = async () => {
-    if (!state.deductedStock || state.deductedStock.length === 0) {
-      alert("No stock deductions found.");
-      return;
-    }
-  
-    try {
-      for (let item of state.deductedStock) {
-        const stockRes = await axios.get(`http://localhost:8080/api/stocks/${item.productId}/`);
-        const currentQty = stockRes.data.quantity_available;
-  
-        await axios.patch(`http://localhost:8080/api/stocks/${item.productId}/`, {
-          quantity_available: currentQty - item.deducted
-        });
-      }
-
-      // ✅ Clear the saved form after successful finalize
-    localStorage.removeItem("merchForm");
-  
-      alert("Sale finalized and stock updated!");
-      navigate("/merchandising-list"); // or redirect where you want after finalizing
-    } catch (err) {
-      console.error("Failed to finalize sale:", err);
-      alert("Failed to finalize sale. Try again.");
-    }
-  };
-  
-
-  
   return (
     <div className="bg-sky-200 min-h-screen p-6 text-black">
       <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
-          <div><label className="block mb-1">MSP NO.</label><input className="w-64 p-2 rounded bg-gray-300" value={mspNo} disabled /></div>
+          <div>
+           <label className="block mb-1">MSP NO.</label>
+            <input
+              className="w-64 p-2 rounded bg-gray-300"
+              value={mspNo}
+              disabled
+            />
+          </div>
           <div><label className="block mb-1">Transaction Type</label><input className="w-64 p-2 rounded bg-gray-300" value={transactionType} disabled /></div>
           <div><label className="block mb-1">Handled By</label><input className="w-64 p-2 rounded bg-gray-300" value={selectedUser} disabled /></div>
         </div>
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
           <div><label className="block mb-1">Date and Time</label><input type="datetime-local" className="w-64 p-2 rounded bg-gray-300" value={dateTime} disabled /></div>
           {transactionType === "Warehouse" && (
-            <div><label className="block mb-1">Customer</label><input className="w-64 p-2 rounded bg-gray-300" value={customer} disabled /></div>
+            <div>
+              <label className="block mb-1">Customer</label>
+              <input className="w-64 p-2 rounded bg-gray-300" value={customer} disabled />
+            </div>
           )}
           {transactionType === "Van Load" && (
             <div><label className="block mb-1">Route</label><input className="w-64 p-2 rounded bg-gray-300" value={selectedRoute || ""} disabled /></div>
@@ -270,14 +296,31 @@ const MerchandisingSale = () => {
                   />
                 </td>
                 <td className="border border-gray-300 p-1">
-                  <input className="w-full p-1 bg-gray-100 text-center" disabled value={row.expectedSale === 0 ? "" : row.expectedSale} />
+                  <input
+                    className="w-full p-1 bg-gray-100 text-center"
+                    disabled
+                    value={
+                      row.expectedSale !== undefined && row.expectedSale !== null
+                        ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : ""
+                    }
+                  />
                 </td>
                 <td className="border border-gray-300 p-1">
                   <input
-                    type="number"
                     className="w-full p-1 bg-gray-100 text-center"
-                    value={row.actualSale === 0 ? "" : row.actualSale}
-                    onChange={(e) => handleRowChange(index, "actualSale", e.target.value)}
+                    disabled
+                    value={
+                      row.actualSale !== undefined && row.actualSale !== null
+                        ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`
+                        : ""
+                    }
                   />
                 </td>
               </tr>
@@ -320,34 +363,35 @@ const MerchandisingSale = () => {
       </div>
 
       <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
-      <button
-    className="bg-gray-500 text-white px-6 py-2 rounded"
-    onClick={() => {
-      const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
-      if (confirmBack) {
-        navigate("/merchandising", {
-          state: {
-            mspNo,
-            transactionType,
-            selectedUser,
-            selectedRoute,
-            dateTime,
-            customer,
-            products: rows
-          }
-        });
-      }
-    }}
-  >
-    BACK
-  </button>
+        <button className="bg-gray-500 text-white px-6 py-2 rounded"
+          onClick={() => {
+  const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
+  if (confirmBack) {
+    navigate("/merchandising", {
+      state: {
+        mspNo,
+        transactionType,
+        selectedUser,
+        selectedRoute,
+        selectedVan: state.selectedVan || "",
+        dateTime,
+        customer: customer,
+        customerId: state.customerId || "",
+        products: rows.map((row) => ({
+          productId: row.productId,
+          productName: row.productName,
+          dispatchedShell: row.dispatchedShell,
+          dispatchedPcs: row.dispatchedPcs,
+          contentNo: row.contentNo,
+          priceId: row.priceId,
+        })),
+      },
+    });
+  }
+}}
 
-        <button
-  className="bg-blue-600 text-white px-6 py-2 rounded"
-  onClick={finalizeSale} // 👈 link to the finalize logic
->
-  FINALIZE SALE
-</button>
+        >BACK</button>
+        <button className="bg-blue-600 text-white px-6 py-2 rounded">FINALIZE SALE</button>
       </div>
     </div>
   );
