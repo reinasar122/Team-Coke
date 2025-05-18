@@ -1,12 +1,13 @@
-from rest_framework import generics, filters
+from rest_framework import generics
+from rest_framework.views import APIView
 from api.models import Warehouse
 from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
 from django.db import connection
-from .models import Supplier, User, Role, Van, Receiving, Stock
+from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem, Customer
 
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
 
 
 from rest_framework.decorators import api_view
@@ -188,3 +189,164 @@ class StockListCreateView(generics.ListCreateAPIView):
 class StockDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Stock.objects.all()
     serializer_class = StockSerializer
+
+
+class RouteListCreateView(generics.ListCreateAPIView):
+    queryset = Route.objects.all()
+    serializer_class = RouteSerializer
+
+
+# TransactionType Views
+class TransactionTypeListCreateView(generics.ListCreateAPIView):
+    queryset = TransactionType.objects.all()
+    serializer_class = TransactionTypeSerializer
+
+class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = TransactionType.objects.all()
+    serializer_class = TransactionTypeSerializer
+
+class CustomerListCreateView(generics.ListCreateAPIView):
+    queryset = Customer.objects.all().order_by('name')
+    serializer_class = CustomerSerializer
+
+class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Customer.objects.all()
+    serializer_class = CustomerSerializer
+
+
+# Merchandising Views
+class MerchandisingListCreateView(generics.ListCreateAPIView):
+    queryset = Merchandising.objects.all()
+    serializer_class = MerchandisingSerializer
+
+class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Merchandising.objects.all()
+    serializer_class = MerchandisingSerializer
+
+class MerchandisingListView(generics.ListAPIView):
+    queryset = Merchandising.objects.all()
+    serializer_class = MerchandisingSerializer
+
+
+class NextMspNoView(APIView):
+    def get(self, request):
+        # Get transaction type from query parameters
+        transaction_type = request.query_params.get("transaction_type", "")
+        print(f"Received transaction type: {transaction_type}")  # Debug print
+
+        if not transaction_type:
+            return Response({"detail": "Transaction type is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Try to fetch the transaction type from the database using case-insensitive matching
+        try:
+            transaction_type_instance = TransactionType.objects.get(name__iexact=transaction_type)  # Case-insensitive check
+            print(f"Found transaction type: {transaction_type_instance.name}")  # Debug print
+        except TransactionType.DoesNotExist:
+            return Response({"detail": "Transaction type not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Generate the next MSP number based on the transaction type
+        last = Merchandising.objects.filter(transaction_type=transaction_type_instance).order_by('-id').first()
+        next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
+        prefix = "W" if transaction_type_instance.name.lower() == "warehouse" else "V" if transaction_type_instance.name.lower() == "van load" else "X"
+        msp_no = f"{prefix}-{next_number:04d}"
+
+        return Response({"msp_no": msp_no})
+
+
+class StockAvailabilityView(APIView):
+    def get(self, request, product_id):
+        try:
+            # Check if the stock for the selected product exists
+            stock = Stock.objects.get(product_id=product_id)
+            return Response({
+                "product_id": product_id,
+                "quantity_available": stock.quantity_available
+            })
+        except Stock.DoesNotExist:
+            return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+# views.py
+
+class UpdateStockView(APIView):
+    def put(self, request, product_id):
+        try:
+            # Fetch the product stock
+            stock = Stock.objects.get(product_id=product_id)
+            quantity_sold = request.data.get('quantity_available')
+            
+            # Update the stock quantity
+            stock.quantity_available -= quantity_sold
+            stock.save()
+
+            return Response({"message": "Stock updated successfully"}, status=status.HTTP_200_OK)
+        except Stock.DoesNotExist:
+            return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+@api_view(['PATCH'])
+def restore_stock(request, pk):
+    try:
+        stock = Stock.objects.get(product_id=pk)
+        stock.quantity_available += int(request.data.get('quantity', 0))
+        stock.save()
+        return Response({'status': 'restored', 'new_quantity': stock.quantity_available})
+    except Stock.DoesNotExist:
+        return Response({'error': 'Stock not found'}, status=404)
+
+
+
+
+# MerchandisingItem Views
+class MerchandisingItemListCreateView(generics.ListCreateAPIView):
+    queryset = MerchandisingItem.objects.all()
+    serializer_class = MerchandisingItemSerializer
+
+class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = MerchandisingItem.objects.all()
+    serializer_class = MerchandisingItemSerializer
+
+# MiscellaneousItem Views
+class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
+    queryset = MiscellaneousItem.objects.all()
+    serializer_class = MiscellaneousItemSerializer
+
+class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = MiscellaneousItem.objects.all()
+    serializer_class = MiscellaneousItemSerializer
+
+# Payment Views
+class PaymentListCreateView(generics.ListCreateAPIView):
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+
+class PaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Payment.objects.all()
+    serializer_class = PaymentSerializer
+
+# ReturnableStock Views
+class ReturnableStockListCreateView(generics.ListCreateAPIView):
+    queryset = ReturnableStock.objects.all()
+    serializer_class = ReturnableStockSerializer
+
+class ReturnableStockDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = ReturnableStock.objects.all()
+    serializer_class = ReturnableStockSerializer
+
+# SupplierReturn Views
+class SupplierReturnListCreateView(generics.ListCreateAPIView):
+    queryset = SupplierReturn.objects.all()
+    serializer_class = SupplierReturnSerializer
+
+class SupplierReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = SupplierReturn.objects.all()
+    serializer_class = SupplierReturnSerializer
+
+# SupplierReturnItem Views
+class SupplierReturnItemListCreateView(generics.ListCreateAPIView):
+    queryset = SupplierReturnItem.objects.all()
+    serializer_class = SupplierReturnItemSerializer
+
+class SupplierReturnItemDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = SupplierReturnItem.objects.all()
+    serializer_class = SupplierReturnItemSerializer

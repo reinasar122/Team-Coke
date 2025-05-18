@@ -20,8 +20,6 @@ const Stocks = () => {
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">📦 Product Stock List</h1>
-
       <table className="w-full border text-center">
         <thead>
           <tr className="bg-purple-200 text-gray-700">

@@ -20,7 +20,18 @@ from .views import (
     ReceivingListCreateView,
     ReceivingDetailView,
     StockListCreateView, 
-    StockDetailView
+    StockDetailView,
+     RouteListCreateView, TransactionTypeListCreateView, TransactionTypeDetailView,
+    MerchandisingListCreateView, MerchandisingDetailView,
+    MerchandisingItemListCreateView, MerchandisingItemDetailView,
+    MiscellaneousItemListCreateView, MiscellaneousItemDetailView,
+    PaymentListCreateView, PaymentDetailView,
+    ReturnableStockListCreateView, ReturnableStockDetailView,
+    SupplierReturnListCreateView, SupplierReturnDetailView,
+    SupplierReturnItemListCreateView, SupplierReturnItemDetailView, 
+    NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
+    CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock
+
 
 
 )
@@ -69,4 +80,41 @@ urlpatterns = [
     path('receiving/<int:pk>/', ReceivingDetailView.as_view(), name='receiving-detail'),
     path('stocks/', StockListCreateView.as_view(), name='stock-list'),
     path('stocks/<int:pk>/', StockDetailView.as_view(), name='stock-detail'),
+
+    path('routes/', RouteListCreateView.as_view(), name='route-list-create'),
+
+
+    path('transaction-types/', TransactionTypeListCreateView.as_view(), name='transaction-type-list'),
+    path('transaction-types/<int:pk>/', TransactionTypeDetailView.as_view(), name='transaction-type-detail'),
+
+    path('merchandisings/', MerchandisingListCreateView.as_view(), name='merchandising-list'),
+    path('merchandisings/<int:pk>/', MerchandisingDetailView.as_view(), name='merchandising-detail'),
+    path('merchandisings/msp-next/', NextMspNoView.as_view(), name='next-msp-no'),
+    path('stocks/<int:product_id>/', StockAvailabilityView.as_view(), name='stock-availability'),
+    path('stocks/<int:product_id>/',UpdateStockView.as_view(), name='update-stock'),
+    path('api/stocks/<int:pk>/', StockDetailView.as_view()),
+    path('api/stocks/<int:pk>/restore/', restore_stock),
+
+
+    path('merchandising/', MerchandisingListView.as_view(), name='merchandising-list'),
+    path('merchandising-items/', MerchandisingItemListCreateView.as_view(), name='merchandising-item-list'),
+    path('merchandising-items/<int:pk>/', MerchandisingItemDetailView.as_view(), name='merchandising-item-detail'),
+
+    path('miscellaneous-items/', MiscellaneousItemListCreateView.as_view(), name='miscellaneous-item-list'),
+    path('miscellaneous-items/<int:pk>/', MiscellaneousItemDetailView.as_view(), name='miscellaneous-item-detail'),
+
+    path('payments/', PaymentListCreateView.as_view(), name='payment-list'),
+    path('payments/<int:pk>/', PaymentDetailView.as_view(), name='payment-detail'),
+
+    path('returnable-stocks/', ReturnableStockListCreateView.as_view(), name='returnable-stock-list'),
+    path('returnable-stocks/<int:pk>/', ReturnableStockDetailView.as_view(), name='returnable-stock-detail'),
+
+    path('supplier-returns/', SupplierReturnListCreateView.as_view(), name='supplier-return-list'),
+    path('supplier-returns/<int:pk>/', SupplierReturnDetailView.as_view(), name='supplier-return-detail'),
+
+    path('supplier-return-items/', SupplierReturnItemListCreateView.as_view(), name='supplier-return-item-list'),
+    path('supplier-return-items/<int:pk>/', SupplierReturnItemDetailView.as_view(), name='supplier-return-item-detail'),
+
+    path('customers/', CustomerListCreateView.as_view(), name='customer-list-create'),
+    path('customers/<int:pk>/', CustomerRetrieveUpdateDestroyView.as_view(), name='customer-detail'),
 ]

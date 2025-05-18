@@ -4,7 +4,7 @@ from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
 from .models import User, Role
 from .models import Van
-from .models import ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock
+from .models import ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
 
 
 
@@ -170,7 +170,7 @@ class ReceivingItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReceivingItem
         exclude = ['receiving']
-        read_only_fields = ['product_name']
+        read_only_fields = ['product_name', 'unit_cost', 'total']
 
     def create(self, validated_data):
         product_id = validated_data.pop('product_id')
@@ -179,11 +179,12 @@ class ReceivingItemSerializer(serializers.ModelSerializer):
         validated_data['product_name'] = product.product_name
         return ReceivingItem(**validated_data)
 
+
 class ReceivingSerializer(serializers.ModelSerializer):
     received_by_first_name = serializers.CharField(source='received_by.first_name', read_only=True)
     received_by_last_name = serializers.CharField(source='received_by.last_name', read_only=True)
-    details = ReceivingItemSerializer(many=True)
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    details = ReceivingItemSerializer(many=True)
 
     class Meta:
         model = Receiving
@@ -198,14 +199,14 @@ class ReceivingSerializer(serializers.ModelSerializer):
             detail_instance.receiving = receiving
             detail_instance.save()
 
+            # ✅ Update stock (based on saved ReceivingItem logic)
             try:
                 product = detail_instance.product
                 content_no = product.unit_type.content_no if product.unit_type else 1
-
-                pcs_qty = (detail_instance.shell_qty * content_no)
+                pcs_qty = detail_instance.shell_qty * content_no
                 adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
 
-                stock, created = Stock.objects.get_or_create(product=product)
+                stock, _ = Stock.objects.get_or_create(product=product)
                 stock.quantity_available += max(adjusted_pcs, 0)
                 stock.save()
             except Product.DoesNotExist:
@@ -215,17 +216,35 @@ class ReceivingSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         details_data = validated_data.pop('details', [])
+
+        # Update Receiving fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
+        # Clear old ReceivingItems
         instance.details.all().delete()
+
+        # Save updated items and update stock
         for detail in details_data:
             detail_instance = ReceivingItemSerializer().create(detail)
             detail_instance.receiving = instance
             detail_instance.save()
 
+            try:
+                product = detail_instance.product
+                content_no = product.unit_type.content_no if product.unit_type else 1
+                pcs_qty = detail_instance.shell_qty * content_no
+                adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
+
+                stock, _ = Stock.objects.get_or_create(product=product)
+                stock.quantity_available += max(adjusted_pcs, 0)
+                stock.save()
+            except Product.DoesNotExist:
+                continue
+
         return instance
+
     
 
 class StockSerializer(serializers.ModelSerializer):
@@ -244,3 +263,113 @@ class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
         fields = '__all__'
+
+
+class RouteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Route
+        fields = '__all__'
+
+
+
+# TransactionType Serializer
+class TransactionTypeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TransactionType
+        fields = '__all__'
+
+
+class CustomerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Customer
+        fields = ['id', 'name']
+
+
+# MerchandisingItem Serializer
+class MerchandisingItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MerchandisingItem
+        fields = '__all__'
+
+
+# MiscellaneousItem Serializer
+class MiscellaneousItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MiscellaneousItem
+        fields = '__all__'
+
+
+# Payment Serializer
+class PaymentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Payment
+        fields = '__all__'
+
+
+# Merchandising Serializer (Main Transaction)
+class MerchandisingSerializer(serializers.ModelSerializer):
+    items = MerchandisingItemSerializer(many=True)
+    misc_items = MiscellaneousItemSerializer(many=True, required=False)
+    payments = PaymentSerializer(many=True, required=False)
+
+    class Meta:
+        model = Merchandising
+        fields = '__all__'
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        misc_items_data = validated_data.pop('misc_items', [])
+        payments_data = validated_data.pop('payments', [])
+
+        merchandising = Merchandising.objects.create(**validated_data)
+
+        for item_data in items_data:
+            MerchandisingItem.objects.create(merchandising=merchandising, **item_data)
+
+        for misc_data in misc_items_data:
+            MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
+
+        for payment_data in payments_data:
+            Payment.objects.create(merchandising=merchandising, **payment_data)
+
+        return merchandising
+
+    def update(self, instance, validated_data):
+        # Optional: we can add complex update logic if you need
+        return super().update(instance, validated_data)
+
+
+# ReturnableStock Serializer
+class ReturnableStockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ReturnableStock
+        fields = '__all__'
+
+
+# SupplierReturnItem Serializer
+class SupplierReturnItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupplierReturnItem
+        fields = '__all__'
+
+
+# SupplierReturn Serializer
+class SupplierReturnSerializer(serializers.ModelSerializer):
+    items = SupplierReturnItemSerializer(many=True)
+
+    class Meta:
+        model = SupplierReturn
+        fields = '__all__'
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        supplier_return = SupplierReturn.objects.create(**validated_data)
+
+        for item_data in items_data:
+            SupplierReturnItem.objects.create(supplier_return=supplier_return, **item_data)
+
+        return supplier_return
+
+    def update(self, instance, validated_data):
+        # Optional update logic
+        return super().update(instance, validated_data)
