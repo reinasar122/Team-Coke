@@ -272,6 +272,11 @@ class Merchandising(models.Model):
     status = models.CharField(max_length=50, default="PENDING")
     remarks = models.TextField(blank=True, null=True)
 
+    # 🔽 NEW FIELDS
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    cash_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
     def save(self, *args, **kwargs):
         if not self.msp_no:
             prefix = ''
@@ -280,13 +285,14 @@ class Merchandising(models.Model):
             elif self.transaction_type.name.lower() == 'van':
                 prefix = 'V'
             else:
-                prefix = 'X'  # default prefix if unknown type
+                prefix = 'X'
 
             last = Merchandising.objects.filter(transaction_type=self.transaction_type).order_by('-id').first()
             next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
             self.msp_no = f"{prefix}-{next_number:04d}"
 
         super().save(*args, **kwargs)
+
 
 
         

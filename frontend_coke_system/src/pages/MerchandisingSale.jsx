@@ -14,13 +14,35 @@ const MerchandisingSale = () => {
   const dateTime = state.dateTime || "";
   const customer = state.customer || "";
 
-  const [pricingMap, setPricingMap] = useState({});
-  const [rows, setRows] = useState([]);
   const [remarks, setRemarks] = useState("");
   const [miscCharges, setMiscCharges] = useState("");
   const [expectedTotal, setExpectedTotal] = useState(0);
   const [actualTotal, setActualTotal] = useState(0);
   const [discrepancy, setDiscrepancy] = useState(0);
+  const [change, setChange] = useState("");
+  const [showMiscDetails, setShowMiscDetails] = useState(false);
+  const [miscDescription, setMiscDescription] = useState("");
+  const [miscFiles, setMiscFiles] = useState([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState([]);
+  const [zoomed, setZoomed] = useState(null);
+  const [miscItems, setMiscItems] = useState([]);
+  const [miscAmounts, setMiscAmounts] = useState({});
+  const [rows, setRows] = useState([]);
+  const [pricingMap, setPricingMap] = useState({});
+  const [cashMismatch, setCashMismatch] = useState(false);
+  const [cashReceived, setCashReceived] = useState("");
+  const [userCashInput, setUserCashInput] = useState("");
+
+  useEffect(() => {
+  const userCash = parseFloat(userCashInput) || 0;
+  const misc = parseFloat(miscCharges) || 0;
+  const totalCash = userCash + misc;
+  const total = parseFloat(actualTotal) || 0;
+
+  setCashReceived(totalCash.toFixed(2));
+  setChange(!isNaN(totalCash - total) ? (totalCash - total).toFixed(2) : "");
+  setCashMismatch(totalCash.toFixed(2) !== total.toFixed(2));
+}, [userCashInput, miscCharges, actualTotal]);
 
   useEffect(() => {
     axios.get("http://localhost:8080/api/pricing/")
@@ -30,14 +52,13 @@ const MerchandisingSale = () => {
           map[price.id] = {
             selling_price: price.selling_price,
             shell_price: price.shell_price,
-            bottle_price: price.bottle_price, // ✅ Added bottle_price
+            bottle_price: price.bottle_price,
             content_no: price.content_no || 0
           };
         });
         setPricingMap(map);
 
         if (state.products) {
-          console.log("📦 Raw product from backend:", state.products);
           const initialRows = state.products.map((product) => {
             const priceId = product.price?.id || product.priceId || product.price_id || null;
             const soldShell = transactionType === "Warehouse" ? product.dispatchedShell : 0;
@@ -330,71 +351,237 @@ const MerchandisingSale = () => {
       </div>
 
     {/* Summary & Buttons */}
-      <div className="mt-6 max-w-7xl mx-auto flex flex-col md:flex-row gap-16">
-        <div className="w-full md:w-1/2">
-          <label className="block mb-1">Remarks:</label>
-          <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} className="w-full h-28 p-2 rounded"></textarea>
-        </div>
-        <div className="w-full md:w-1/2 space-y-2">
-          <div className="flex items-center gap-4">
-            <label className="w-40 text-right">Expected Sale:</label>
-            <input className="flex-1 p-1 rounded" value={expectedTotal.toFixed(2)} disabled />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="w-40 text-right">Actual Sale:</label>
-            <input className="flex-1 p-1 rounded" value={actualTotal.toFixed(2)} disabled />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="w-40 text-right">Miscellaneous Charges:</label>
-            <input
-              className="flex-1 p-1 rounded"
-              value={miscCharges}
-              onChange={(e) => {
-                setMiscCharges(e.target.value);
-                setDiscrepancy((expectedTotal - actualTotal + parseFloat(e.target.value || 0)).toFixed(2));
-              }}
-            />
-          </div>
-          <div className="flex items-center gap-4">
-            <label className="w-40 text-right">Overall Discrepancies:</label>
-            <input className="flex-1 p-1 rounded" value={discrepancy} disabled />
-          </div>
-        </div>
-      </div>
+        <div className="mt-6 max-w-7xl mx-auto flex flex-col md:flex-row gap-16">
+            <div className="w-full md:w-1/2">
+              <label className="block mb-1">Remarks:</label>
+              <textarea
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                className="w-full h-28 p-2 rounded"
+              />
+            </div>
 
-      <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
-        <button className="bg-gray-500 text-white px-6 py-2 rounded"
-          onClick={() => {
-  const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
-  if (confirmBack) {
-    navigate("/merchandising", {
-      state: {
-        mspNo,
-        transactionType,
-        selectedUser,
-        selectedRoute,
-        selectedVan: state.selectedVan || "",
-        dateTime,
-        customer: customer,
-        customerId: state.customerId || "",
-        products: rows.map((row) => ({
-          productId: row.productId,
-          productName: row.productName,
-          dispatchedShell: row.dispatchedShell,
-          dispatchedPcs: row.dispatchedPcs,
-          contentNo: row.contentNo,
-          priceId: row.priceId,
-        })),
-      },
-    });
-  }
-}}
+            <div className="w-full md:w-1/2 space-y-2">
+              <div className="flex items-center gap-4">
+                <label className="w-40 text-right">Expected Sale:</label>
+                <input className="flex-1 p-1 rounded" value={expectedTotal.toFixed(2)} disabled />
+              </div>
 
-        >BACK</button>
-        <button className="bg-blue-600 text-white px-6 py-2 rounded">FINALIZE SALE</button>
-      </div>
-    </div>
-  );
-};
+              <div className="flex items-center gap-4">
+                <label className="w-40 text-right">Actual Sale:</label>
+                <input className="flex-1 p-1 rounded" value={actualTotal.toFixed(2)} disabled />
+              </div>
+
+              {/* === Misc Charges Section === */}
+              <div className="flex items-start gap-4">
+                <label className="w-40 text-right pt-2">Miscellaneous Charges:</label>
+                <div className="flex-1">
+                  <div className="flex gap-2 items-center">
+                    <input
+                      className="w-full p-1 rounded"
+                      value={miscCharges}
+                      onChange={(e) => setMiscCharges(e.target.value)}
+                      disabled
+                    />
+                    <input
+                      type="checkbox"
+                      checked={showMiscDetails}
+                      onChange={(e) => setShowMiscDetails(e.target.checked)}
+                      className="scale-125"
+                    />
+                  </div>
+
+                  {showMiscDetails && (
+                    <div className="mt-3 space-y-2 bg-gray-100 p-3 rounded shadow">
+                      {/* Description */}
+                      <div>
+                        <label className="block mb-1 text-sm font-medium">Description</label>
+                        <input
+                          type="text"
+                          className="w-full p-2 rounded border"
+                          value={miscDescription}
+                          onChange={(e) => {
+                            const value = e.target.value;
+                            setMiscDescription(value);
+                            const parts = value
+                              .split(",")
+                              .map((item) => item.trim())
+                              .filter((item) => item !== "");
+                            setMiscItems(parts);
+                            const updated = { ...miscAmounts };
+                            parts.forEach((item) => {
+                              if (!(item in updated)) {
+                                updated[item] = "";
+                              }
+                            });
+                            setMiscAmounts(updated);
+                          }}
+                          placeholder="E.g. toll fee, repair, snacks"
+                        />
+                      </div>
+
+                      {/* Dynamic Inputs */}
+                      {miscItems.length > 0 && (
+                        <div className="space-y-1 mt-2">
+                          <label className="block text-sm font-medium mb-1">Amount per item:</label>
+                          {miscItems.map((item, index) => (
+                            <div key={index} className="flex items-center gap-2">
+                              <span className="w-32 text-right text-sm">{item}:</span>
+                              <input
+                                type="number"
+                                className="flex-1 p-1 rounded border"
+                                value={miscAmounts[item] || ""}
+                                onChange={(e) => {
+                                  const updated = { ...miscAmounts };
+                                  updated[item] = e.target.value;
+                                  setMiscAmounts(updated);
+                                  const total = Object.values(updated)
+                                    .map((val) => parseFloat(val) || 0)
+                                    .reduce((sum, val) => sum + val, 0);
+                                  setMiscCharges(total.toFixed(2));
+                                }}
+                                placeholder="₱"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Multiple File Upload */}
+                      <div className="mt-4">
+                        <label className="block mb-1 text-sm font-medium">Attach Files (Photos/Receipts)</label>
+                        <input
+                          type="file"
+                          className="w-full p-2 rounded border"
+                          accept="image/*"
+                          multiple
+                          onChange={(e) => {
+                            const files = Array.from(e.target.files);
+                            const previews = files.map((file) => ({
+                              file,
+                              url: URL.createObjectURL(file),
+                            }));
+                            setMiscFiles((prev) => [...prev, ...files]);
+                            setImagePreviewUrls((prev) => [...prev, ...previews]);
+                          }}
+                        />
+                        {imagePreviewUrls.length > 0 && (
+                          <div className="mt-2 flex gap-2 flex-wrap">
+                            {imagePreviewUrls.map((preview, index) => (
+                              <div key={index} className="relative">
+                                <img
+                                  src={preview.url}
+                                  alt={`Preview ${index}`}
+                                  className="h-24 border rounded cursor-zoom-in"
+                                  onClick={() => setZoomed(preview.url)}
+                                />
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const updatedPreviews = [...imagePreviewUrls];
+                                    const updatedFiles = [...miscFiles];
+                                    updatedPreviews.splice(index, 1);
+                                    updatedFiles.splice(index, 1);
+                                    setImagePreviewUrls(updatedPreviews);
+                                    setMiscFiles(updatedFiles);
+                                  }}
+                                  className="absolute top-0 right-0 text-red-600 text-xl w-5 h-5 flex items-center justify-center rounded-full hover:text-red-800"
+                                  title="Remove"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Totals */}
+              <div className="flex items-center gap-4">
+                <label className="w-40 text-right">Overall Discrepancies:</label>
+                <input className="flex-1 p-1 rounded" value={discrepancy} disabled />
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="w-40 text-right">Total Amount:</label>
+                <input className="flex-1 p-1 rounded" value={actualTotal.toFixed(2)} disabled />
+              </div>
+              <div className="flex items-center gap-4">
+                  <label className="w-40 text-right">Cash Received:</label>
+                  <input
+                    type="number"
+                    className={`flex-1 p-1 rounded border ${
+                      cashMismatch ? "bg-red-100 text-red-700 border-red-500 font-semibold" : ""
+                    }`}
+                    value={userCashInput}
+                    onChange={(e) => setUserCashInput(e.target.value)}
+                    placeholder="Enter cash amount"
+                  />
+                </div>
+
+
+
+              <div className="flex items-center gap-4">
+                <label className="w-40 text-right">Change:</label>
+                <input className="flex-1 p-1 rounded" value={change} disabled />
+              </div>
+            </div>
+          </div>
+
+
+            {/* Buttons */}
+            <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
+              <button
+                className="bg-gray-500 text-white px-6 py-2 rounded"
+                onClick={() => {
+                  const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
+                  if (confirmBack) {
+                    navigate("/merchandising", {
+                      state: {
+                        mspNo,
+                        transactionType,
+                        selectedUser,
+                        selectedRoute,
+                        selectedVan: state.selectedVan || "",
+                        dateTime,
+                        customer: customer,
+                        customerId: state.customerId || "",
+                        products: rows.map((row) => ({
+                          productId: row.productId,
+                          productName: row.productName,
+                          dispatchedShell: row.dispatchedShell,
+                          dispatchedPcs: row.dispatchedPcs,
+                          contentNo: row.contentNo,
+                          priceId: row.priceId,
+                        })),
+                      },
+                    });
+                  }
+                }}
+              >
+                BACK
+              </button>
+              <button className="bg-blue-600 text-white px-6 py-2 rounded">FINALIZE SALE</button>
+            </div>
+
+            {/* 🔍 Image Zoom Overlay */}
+            {zoomed && (
+              <div
+                className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50"
+                onClick={() => setZoomed(null)}
+              >
+                <img
+                  src={zoomed}
+                  alt="Zoomed"
+                  className="max-w-[90%] max-h-[90%] rounded shadow-lg"
+                />
+              </div>
+            )}
+          </div>
+        );
+      };
 
 export default MerchandisingSale;
