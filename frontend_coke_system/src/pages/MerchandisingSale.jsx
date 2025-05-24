@@ -30,8 +30,8 @@ const MerchandisingSale = () => {
   const [rows, setRows] = useState([]);
   const [pricingMap, setPricingMap] = useState({});
   const [cashMismatch, setCashMismatch] = useState(false);
-  const [cashReceived, setCashReceived] = useState("");
   const [userCashInput, setUserCashInput] = useState("");
+  const [cashReceived, setCashReceived] = useState("");
 
   useEffect(() => {
   const userCash = parseFloat(userCashInput) || 0;
@@ -235,120 +235,79 @@ const MerchandisingSale = () => {
       </div>
 
       <div className="overflow-x-auto mt-6">
-        <table className="w-full text-center border border-gray-300 border-collapse">
-          <thead className="bg-gray-300">
-            <tr>
-              <th className="border border-gray-400 p-1 align-bottom">PRODUCT</th>
-              <th className="border border-gray-400 p-1" colSpan={2}>DISPATCHED</th>
-              <th className="border border-gray-400 p-1" colSpan={2}>SOLD</th>
-              <th className="border border-gray-400 p-1" colSpan={2}>RETURNED (Empty)</th>
-              <th className="border border-gray-400 p-1" colSpan={2}>DISCREPANCY (Empty)</th>
-              <th className="border border-gray-400 p-1" colSpan={2}>RETURNED (With Content/s)</th>
-              <th className="border border-gray-400 p-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
-              <th className="border border-gray-400 p-1 align-bottom">DISCOUNT (%)</th>
-              <th className="border border-gray-400 p-1 align-bottom">EXPECTED SALE</th>
-              <th className="border border-gray-400 p-1 align-bottom">ACTUAL SALE</th>
-            </tr>
-            <tr className="bg-gray-200">
-              <td className="border border-gray-400 p-1"></td>
-              {[...Array(6)].map((_, i) => (
-                <React.Fragment key={i}>
-                  <td className="border border-gray-400 p-1 text-xs">Shell</td>
-                  <td className="border border-gray-400 p-1 text-xs">PCS</td>
-                </React.Fragment>
-              ))}
-              <td className="border border-gray-400 p-1"></td>
-              <td className="border border-gray-400 p-1"></td>
-              <td className="border border-gray-400 p-1"></td>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, index) => (
-              <tr key={row.id} className="bg-white">
-                <td className="border border-gray-300 p-1 bg-gray-100">
-                  <div className="w-full p-1 text-sm text-center">{row.productName}</div>
-                </td>
-                {["dispatchedShell", "dispatchedPcs",
-                  "soldShell", "soldPcs",
-                  "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
-                  "discrepancyShellEmpty", "discrepancyPcsEmpty",
-                  "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
-                  "discrepancyShellNonempty", "discrepancyPcsNonempty"
-                ].map((field, i) => (
-                  <td key={i} className="border p-1 w-[72px]">
-                    <input
-                      type="number"
-                      className={`w-full p-1 text-sm text-center ${
-                        // Yellow if editable and related to return or sold
-                        ["soldShell", "soldPcs", "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
-                          ? "bg-yellow-100"
-                          : "bg-gray-100"
-                      } ${
-                        // Red for discrepancy with non-zero
-                        field.includes("discrepancy") && parseInt(row[field]) !== 0
-                          ? "bg-red-100 text-red-700 font-bold"
-                          : ""
-                      } ${
-                        // Hide arrows for non-shell fields
-                        !["soldShell", "soldPcs", "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
-                          ? "no-spinner"
-                          : ""
-                      }`}
-                      value={row[field] === 0 ? "" : row[field]}
-                      onChange={(e) => handleRowChange(index, field, e.target.value)}
-                      disabled={[
-                        "dispatchedShell", "dispatchedPcs",
-                        "discrepancyShellEmpty", "discrepancyPcsEmpty",
-                        "discrepancyShellNonempty", "discrepancyPcsNonempty"
-                      ].includes(field)}
-                    />
-                  </td>
-                ))}
-                <td className="border p-1 w-[96px]">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    className={`w-full p-1 text-center no-spinner ${row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-100" : "bg-gray-200 cursor-not-allowed"}`}
-                    style={{ MozAppearance: "textfield", WebkitAppearance: "none", appearance: "textfield" }}
-                    value={row.discount === 0 ? "" : row.discount}
-                    onChange={(e) => handleRowChange(index, "discount", e.target.value)}
-                    disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
-                    title={row.soldShell > 0 || row.soldPcs > 0 ? "Enter discount percentage" : "Enter a sold quantity to enable discount"}
-                  />
-                </td>
-                <td className="border border-gray-300 p-1">
-                  <input
-                    className="w-full p-1 bg-gray-100 text-center"
-                    disabled
-                    value={
-                      row.expectedSale !== undefined && row.expectedSale !== null
-                        ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}`
-                        : ""
-                    }
-                  />
-                </td>
-                <td className="border border-gray-300 p-1">
-                  <input
-                    className="w-full p-1 bg-gray-100 text-center"
-                    disabled
-                    value={
-                      row.actualSale !== undefined && row.actualSale !== null
-                        ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}`
-                        : ""
-                    }
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+  <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
+    <thead className="bg-gray-100 text-gray-800">
+      <tr className="text-xs font-semibold">
+        <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
+        <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
+        <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
+        <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
+      </tr>
+      <tr className="bg-gray-200">
+        <td className="border border-gray-300 py-1"></td>
+        {[...Array(6)].map((_, i) => (
+          <React.Fragment key={i}>
+            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          </React.Fragment>
+        ))}
+        <td className="border border-gray-300 py-1"></td>
+        <td className="border border-gray-300 py-1"></td>
+        <td className="border border-gray-300 py-1"></td>
+      </tr>
+    </thead>
+    <tbody>
+      {rows.map((row, index) => (
+        <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
+          <td className="border border-gray-200 py-1 px-2 bg-gray-50 font-medium text-left">{row.productName}</td>
+          {["dispatchedShell", "dispatchedPcs", "soldShell", "soldPcs", "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "discrepancyShellEmpty", "discrepancyPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].map((field, i) => (
+            <td key={i} className="border border-gray-200 py-1 px-1 w-[72px]">
+              <input
+                type="number"
+                className={`w-full p-1 text-sm text-center rounded focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all duration-100 ${["soldShell", "soldPcs", "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field) ? "bg-yellow-50" : "bg-gray-100"} ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
+                value={row[field] === 0 ? "" : row[field]}
+                onChange={(e) => handleRowChange(index, field, e.target.value)}
+                disabled={["dispatchedShell", "dispatchedPcs", "discrepancyShellEmpty", "discrepancyPcsEmpty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].includes(field)}
+              />
+            </td>
+          ))}
+          <td className="border border-gray-200 py-1 px-1">
+            <input
+              type="number"
+              inputMode="decimal"
+              className={`w-full p-1 text-center rounded bg-white border ${row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
+              value={row.discount === 0 ? "" : row.discount}
+              onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+              disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+              title={row.soldShell > 0 || row.soldPcs > 0 ? "Enter discount percentage" : "Enter a sold quantity to enable discount"}
+            />
+          </td>
+          <td className="border border-gray-200 py-1 px-1">
+            <input
+              className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+              disabled
+              value={row.expectedSale ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
+            />
+          </td>
+          <td className="border border-gray-200 py-1 px-1">
+            <input
+              className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+              disabled
+              value={row.actualSale ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
+            />
+          </td>
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
+
 
     {/* Summary & Buttons */}
         <div className="mt-6 max-w-7xl mx-auto flex flex-col md:flex-row gap-16">
@@ -361,58 +320,70 @@ const MerchandisingSale = () => {
               />
             </div>
 
-            <div className="w-full md:w-1/2 space-y-2">
+            <div className="w-full md:w-1/2 space-y-4">
               <div className="flex items-center gap-4">
-                <label className="w-40 text-right">Expected Sale:</label>
-                <input className="flex-1 p-1 rounded" value={expectedTotal.toFixed(2)} disabled />
+                <label className="w-40 text-right text-sm font-medium text-gray-700">Expected Sale:</label>
+                <input
+                  className="flex-1 p-2 rounded border border-gray-300 bg-gray-100 text-right font-semibold text-gray-800 shadow-sm"
+                  value={`₱${expectedTotal.toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`}
+                  disabled
+                />
               </div>
 
               <div className="flex items-center gap-4">
-                <label className="w-40 text-right">Actual Sale:</label>
-                <input className="flex-1 p-1 rounded" value={actualTotal.toFixed(2)} disabled />
+                <label className="w-40 text-right text-sm font-medium text-gray-700">Actual Sale:</label>
+                <input
+                  className="flex-1 p-2 rounded border border-gray-300 bg-gray-100 text-right font-semibold text-gray-800 shadow-sm"
+                  value={`₱${actualTotal.toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`}
+                  disabled
+                />
               </div>
 
               {/* === Misc Charges Section === */}
               <div className="flex items-start gap-4">
-                <label className="w-40 text-right pt-2">Miscellaneous Charges:</label>
-                <div className="flex-1">
-                  <div className="flex gap-2 items-center">
+                <label className="w-40 text-right pt-2 font-medium text-gray-700">Miscellaneous Charges:</label>
+                <div className="flex-1 space-y-2">
+                  <div className="flex items-center gap-3">
                     <input
-                      className="w-full p-1 rounded"
+                      className="w-full p-2 border rounded shadow-sm bg-gray-100 text-right font-semibold text-gray-700"
                       value={miscCharges}
                       onChange={(e) => setMiscCharges(e.target.value)}
                       disabled
                     />
-                    <input
-                      type="checkbox"
-                      checked={showMiscDetails}
-                      onChange={(e) => setShowMiscDetails(e.target.checked)}
-                      className="scale-125"
-                    />
+                    <label className="flex items-center space-x-2 text-sm font-medium text-gray-600">
+                      <input
+                        type="checkbox"
+                        checked={showMiscDetails}
+                        onChange={(e) => setShowMiscDetails(e.target.checked)}
+                        className="scale-125 accent-blue-600"
+                      />
+                      <span>Details</span>
+                    </label>
                   </div>
 
                   {showMiscDetails && (
-                    <div className="mt-3 space-y-2 bg-gray-100 p-3 rounded shadow">
-                      {/* Description */}
+                    <div className="bg-white border rounded-lg shadow p-4 space-y-4">
+                      {/* Description Input */}
                       <div>
-                        <label className="block mb-1 text-sm font-medium">Description</label>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Descriptions (comma separated)</label>
                         <input
                           type="text"
-                          className="w-full p-2 rounded border"
+                          className="w-full p-2 border rounded shadow-sm"
                           value={miscDescription}
                           onChange={(e) => {
                             const value = e.target.value;
                             setMiscDescription(value);
-                            const parts = value
-                              .split(",")
-                              .map((item) => item.trim())
-                              .filter((item) => item !== "");
+                            const parts = value.split(",").map((item) => item.trim()).filter((item) => item !== "");
                             setMiscItems(parts);
                             const updated = { ...miscAmounts };
                             parts.forEach((item) => {
-                              if (!(item in updated)) {
-                                updated[item] = "";
-                              }
+                              if (!(item in updated)) updated[item] = "";
                             });
                             setMiscAmounts(updated);
                           }}
@@ -420,39 +391,41 @@ const MerchandisingSale = () => {
                         />
                       </div>
 
-                      {/* Dynamic Inputs */}
+                      {/* Amount per Item */}
                       {miscItems.length > 0 && (
-                        <div className="space-y-1 mt-2">
-                          <label className="block text-sm font-medium mb-1">Amount per item:</label>
-                          {miscItems.map((item, index) => (
-                            <div key={index} className="flex items-center gap-2">
-                              <span className="w-32 text-right text-sm">{item}:</span>
-                              <input
-                                type="number"
-                                className="flex-1 p-1 rounded border"
-                                value={miscAmounts[item] || ""}
-                                onChange={(e) => {
-                                  const updated = { ...miscAmounts };
-                                  updated[item] = e.target.value;
-                                  setMiscAmounts(updated);
-                                  const total = Object.values(updated)
-                                    .map((val) => parseFloat(val) || 0)
-                                    .reduce((sum, val) => sum + val, 0);
-                                  setMiscCharges(total.toFixed(2));
-                                }}
-                                placeholder="₱"
-                              />
-                            </div>
-                          ))}
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount per Item</label>
+                          <div className="space-y-2">
+                            {miscItems.map((item, index) => (
+                              <div key={index} className="flex items-center gap-3">
+                                <span className="w-32 text-right text-sm text-gray-600">{item}:</span>
+                                <input
+                                  type="number"
+                                  className="flex-1 p-2 border rounded shadow-sm text-right"
+                                  placeholder="₱"
+                                  value={miscAmounts[item] || ""}
+                                  onChange={(e) => {
+                                    const updated = { ...miscAmounts };
+                                    updated[item] = e.target.value;
+                                    setMiscAmounts(updated);
+                                    const total = Object.values(updated)
+                                      .map((val) => parseFloat(val) || 0)
+                                      .reduce((sum, val) => sum + val, 0);
+                                    setMiscCharges(total.toFixed(2));
+                                  }}
+                                />
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       )}
 
-                      {/* Multiple File Upload */}
-                      <div className="mt-4">
-                        <label className="block mb-1 text-sm font-medium">Attach Files (Photos/Receipts)</label>
+                      {/* File Upload Section */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-1">Attach Files (Photos/Receipts)</label>
                         <input
                           type="file"
-                          className="w-full p-2 rounded border"
+                          className="w-full p-2 border rounded"
                           accept="image/*"
                           multiple
                           onChange={(e) => {
@@ -466,13 +439,13 @@ const MerchandisingSale = () => {
                           }}
                         />
                         {imagePreviewUrls.length > 0 && (
-                          <div className="mt-2 flex gap-2 flex-wrap">
+                          <div className="mt-2 flex flex-wrap gap-2">
                             {imagePreviewUrls.map((preview, index) => (
-                              <div key={index} className="relative">
+                              <div key={index} className="relative group">
                                 <img
                                   src={preview.url}
                                   alt={`Preview ${index}`}
-                                  className="h-24 border rounded cursor-zoom-in"
+                                  className="h-24 w-24 object-cover border rounded shadow cursor-zoom-in"
                                   onClick={() => setZoomed(preview.url)}
                                 />
                                 <button
@@ -485,7 +458,7 @@ const MerchandisingSale = () => {
                                     setImagePreviewUrls(updatedPreviews);
                                     setMiscFiles(updatedFiles);
                                   }}
-                                  className="absolute top-0 right-0 text-red-600 text-xl w-5 h-5 flex items-center justify-center rounded-full hover:text-red-800"
+                                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-700"
                                   title="Remove"
                                 >
                                   ×
@@ -500,33 +473,63 @@ const MerchandisingSale = () => {
                 </div>
               </div>
 
+
               {/* Totals */}
               <div className="flex items-center gap-4">
-                <label className="w-40 text-right">Overall Discrepancies:</label>
-                <input className="flex-1 p-1 rounded" value={discrepancy} disabled />
-              </div>
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right">Total Amount:</label>
-                <input className="flex-1 p-1 rounded" value={actualTotal.toFixed(2)} disabled />
-              </div>
-              <div className="flex items-center gap-4">
-                  <label className="w-40 text-right">Cash Received:</label>
-                  <input
-                    type="number"
-                    className={`flex-1 p-1 rounded border ${
-                      cashMismatch ? "bg-red-100 text-red-700 border-red-500 font-semibold" : ""
-                    }`}
-                    value={userCashInput}
-                    onChange={(e) => setUserCashInput(e.target.value)}
-                    placeholder="Enter cash amount"
-                  />
+                <label className="w-40 text-right font-medium text-gray-700">Overall Discrepancy:</label>
+                <div className="flex-1 text-right pr-2 text-lg font-semibold bg-gray-50 border border-gray-300 rounded py-2 px-3 shadow-sm">
+                  ₱{parseFloat(discrepancy || 0).toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}
                 </div>
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="w-40 text-right font-medium">Total Amount:</label>
+                <input
+                  className="flex-1 p-2 border rounded bg-gray-50 text-right"
+                  value={`₱${parseFloat(actualTotal || 0).toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`}
+                  disabled
+                />
+              </div>
+              <div className="flex items-center gap-4">
+                <label className="w-40 text-right font-medium">User Cash:</label>
+                <input
+                  type="number"
+                  className="flex-1 p-2 rounded border"
+                  value={userCashInput}
+                  onChange={(e) => setUserCashInput(e.target.value)}
+                  placeholder="Enter user cash"
+                />
+              </div>
+
+              <div className="flex items-center gap-4">
+                <label className="w-40 text-right font-medium">Cash Received (with Misc):</label>
+                <div className="flex-1 text-right pr-2 font-semibold text-lg">
+                  <span className={cashMismatch ? "text-red-600" : "text-green-700"}>
+                    ₱{parseFloat(cashReceived || 0).toLocaleString("en-PH", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              </div>
 
 
 
               <div className="flex items-center gap-4">
-                <label className="w-40 text-right">Change:</label>
-                <input className="flex-1 p-1 rounded" value={change} disabled />
+                <label className="w-40 text-right font-medium">Change:</label>
+                <input
+                  className="flex-1 p-2 border rounded bg-gray-50 text-right"
+                  value={`₱${parseFloat(change || 0).toLocaleString("en-PH", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`}
+                  disabled
+                />
               </div>
             </div>
           </div>

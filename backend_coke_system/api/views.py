@@ -17,6 +17,8 @@ from django.db import connection
 from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
 from .serializers import ProductSerializer, ProductCategorySerializer
 
+from rest_framework import parsers
+
 
 class RoleListCreateView(generics.ListCreateAPIView):
     """View to list all roles or create a new one"""
@@ -339,6 +341,7 @@ class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
     queryset = MiscellaneousItem.objects.all()
     serializer_class = MiscellaneousItemSerializer
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
 class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MiscellaneousItem.objects.all()
