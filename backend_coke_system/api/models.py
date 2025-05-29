@@ -183,8 +183,8 @@ class Receiving(models.Model):
 
 
 class ReceivingItem(models.Model):
-    receiving = models.ForeignKey(Receiving, related_name="details", on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True)  # 👈 Add this
+    receiving = models.ForeignKey('Receiving', related_name="details", on_delete=models.CASCADE)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, null=True)
     product_name = models.CharField(max_length=255, blank=True, null=True)
     pcs_qty = models.PositiveIntegerField(default=0)
     shell_qty = models.PositiveIntegerField(default=0)
@@ -196,7 +196,6 @@ class ReceivingItem(models.Model):
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
-
     def save(self, *args, **kwargs):
         content_no = self.product.unit_type.content_no if self.product and self.product.unit_type else 1
 
@@ -207,10 +206,18 @@ class ReceivingItem(models.Model):
 
         self.bottle_qty = self.pcs_qty
 
-        self.unit_cost = self.unit_price + self.bottle_price + (self.shell_price / content_no)
-        self.total = self.pcs_qty * self.unit_cost
+        # Compute unit cost and total
+        self.unit_cost = (
+            self.unit_price +
+            self.bottle_price +
+            (self.shell_price / content_no if content_no else 0)
+        )
+
+        adjusted_pcs = max(self.pcs_qty - self.bad_order_pcs, 0)
+        self.total = self.unit_cost * adjusted_pcs
 
         super().save(*args, **kwargs)
+
 
 
 # === STOCK  ===

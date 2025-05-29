@@ -166,18 +166,57 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 class ReceivingItemSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField(write_only=True)
     product_name = serializers.CharField(source='product.product_name', read_only=True)
+    unit_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
         model = ReceivingItem
         exclude = ['receiving']
-        read_only_fields = ['product_name', 'unit_cost', 'total']
+
+    def validate(self, attrs):
+        product_id = attrs.get('product_id')
+        if not Product.objects.filter(id=product_id).exists():
+            raise serializers.ValidationError({'product_id': 'Invalid product ID'})
+        return attrs
 
     def create(self, validated_data):
         product_id = validated_data.pop('product_id')
         product = Product.objects.get(id=product_id)
         validated_data['product'] = product
         validated_data['product_name'] = product.product_name
-        return ReceivingItem(**validated_data)
+
+        # Extract pricing from related product.price
+        if hasattr(product, 'price'):
+            purchase_price = product.price.purchase_price or 0
+            bottle_price = product.price.bottle_price or 0
+            shell_price = product.price.shell_price or 0
+        else:
+            purchase_price = bottle_price = shell_price = 0
+
+        content_no = product.unit_type.content_no if product.unit_type else 1
+
+        pcs_qty = validated_data.get('pcs_qty', 0)
+        bad_order_pcs = validated_data.get('bad_order_pcs', 0)
+
+        unit_cost = purchase_price + bottle_price + (shell_price / content_no if content_no else 0)
+        adjusted_pcs = max(pcs_qty - bad_order_pcs, 0)
+        total = unit_cost * adjusted_pcs
+
+        validated_data.update({
+            'unit_price': purchase_price,
+            'bottle_price': bottle_price,
+            'shell_price': shell_price,
+            'unit_cost': unit_cost,
+            'total': total
+        })
+
+        receiving = self.context.get('receiving')
+        if not receiving:
+            raise serializers.ValidationError("Receiving context is missing.")
+
+        validated_data['receiving'] = receiving
+        return ReceivingItem.objects.create(**validated_data)
+
 
 
 class ReceivingSerializer(serializers.ModelSerializer):
@@ -194,57 +233,48 @@ class ReceivingSerializer(serializers.ModelSerializer):
         details_data = validated_data.pop('details')
         receiving = Receiving.objects.create(**validated_data)
 
-        for detail in details_data:
-            detail_instance = ReceivingItemSerializer().create(detail)
-            detail_instance.receiving = receiving
-            detail_instance.save()
+        for item_data in details_data:
+            item_serializer = ReceivingItemSerializer(data=item_data, context={'receiving': receiving})
+            item_serializer.is_valid(raise_exception=True)
+            item = item_serializer.save()
 
-            # ✅ Update stock (based on saved ReceivingItem logic)
-            try:
-                product = detail_instance.product
-                content_no = product.unit_type.content_no if product.unit_type else 1
-                pcs_qty = detail_instance.shell_qty * content_no
-                adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
+            # Stock logic
+            product = item.product
+            content_no = product.unit_type.content_no if product.unit_type else 1
+            pcs_qty = item.shell_qty * content_no
+            adjusted_pcs = pcs_qty - item.bad_order_pcs
 
-                stock, _ = Stock.objects.get_or_create(product=product)
-                stock.quantity_available += max(adjusted_pcs, 0)
-                stock.save()
-            except Product.DoesNotExist:
-                continue
+            stock, _ = Stock.objects.get_or_create(product=product)
+            stock.quantity_available += max(adjusted_pcs, 0)
+            stock.save()
 
         return receiving
 
     def update(self, instance, validated_data):
         details_data = validated_data.pop('details', [])
 
-        # Update Receiving fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # Clear old ReceivingItems
         instance.details.all().delete()
 
-        # Save updated items and update stock
-        for detail in details_data:
-            detail_instance = ReceivingItemSerializer().create(detail)
-            detail_instance.receiving = instance
-            detail_instance.save()
+        for item_data in details_data:
+            item_serializer = ReceivingItemSerializer(data=item_data, context={'receiving': instance})
+            item_serializer.is_valid(raise_exception=True)
+            item = item_serializer.save()
 
-            try:
-                product = detail_instance.product
-                content_no = product.unit_type.content_no if product.unit_type else 1
-                pcs_qty = detail_instance.shell_qty * content_no
-                adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
+            # Stock logic
+            product = item.product
+            content_no = product.unit_type.content_no if product.unit_type else 1
+            pcs_qty = item.shell_qty * content_no
+            adjusted_pcs = pcs_qty - item.bad_order_pcs
 
-                stock, _ = Stock.objects.get_or_create(product=product)
-                stock.quantity_available += max(adjusted_pcs, 0)
-                stock.save()
-            except Product.DoesNotExist:
-                continue
+            stock, _ = Stock.objects.get_or_create(product=product)
+            stock.quantity_available += max(adjusted_pcs, 0)
+            stock.save()
 
         return instance
-
     
 
 class StockSerializer(serializers.ModelSerializer):
