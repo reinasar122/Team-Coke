@@ -2,9 +2,11 @@ import { useState } from "react";
 
 const MODULES = {
   "Sales Report": ["Dashboard"],
-  Inventory: ["Stocks", "Stock Adjustment"],
-  Transactions: ["Receiving", "Trading", "Invoice"],
-  Manage: ["User", "Roles", "Supplier", "Warehouse"],
+  Transactions: ["Receiving", "Trading", "Supplier Return"],
+  Inventory: ["Stocks", "Product", "Returned Empties"],
+  Reports: ["Sales Report", "Inventory Report"],
+  Manage: ["User", "Roles", "Supplier", "Warehouse", "Van"],
+  Settings: ["Settings"],
 };
 
 const initializePermissions = (role) => {
@@ -32,12 +34,9 @@ const initializePermissions = (role) => {
   } else if (role === "Supervisor") {
     [
       "Dashboard",
-      "Stocks",
-      "Stock Adjustment",
-      "User",
-      "Roles",
-      "Supplier",
-      "Warehouse",
+      "Stocks", "Product", "Returned Empties",
+      "Sales Report", "Inventory Report",
+      "User", "Roles", "Supplier", "Warehouse", "Van",
     ].forEach((submenu) => {
       permissions[submenu] = {
         full_access: false,
@@ -47,7 +46,7 @@ const initializePermissions = (role) => {
         delete: false,
       };
     });
-    ["Receiving", "Trading", "Invoice"].forEach((submenu) => {
+    ["Receiving", "Trading", "Supplier Return"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: true,
         view: true,
@@ -57,13 +56,15 @@ const initializePermissions = (role) => {
       };
     });
   } else if (role === "Cashier") {
-    permissions["Stocks"] = {
-      full_access: false,
-      view: true,
-      create: false,
-      edit: false,
-      delete: false,
-    };
+    ["Stocks", "Product", "Returned Empties"].forEach((submenu) => {
+      permissions[submenu] = {
+        full_access: false,
+        view: true,
+        create: false,
+        edit: false,
+        delete: false,
+      };
+    });
     permissions["Supplier"] = {
       full_access: false,
       view: true,
@@ -71,7 +72,7 @@ const initializePermissions = (role) => {
       edit: false,
       delete: false,
     };
-    ["Receiving", "Trading", "Invoice"].forEach((submenu) => {
+    ["Receiving", "Trading"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: true,
         view: true,
@@ -82,7 +83,6 @@ const initializePermissions = (role) => {
     });
   }
 
-  // Agent: default permissions remain unchecked
   return permissions;
 };
 
@@ -118,19 +118,34 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://127.0.0.1:8080/api/roles/", {
+      const roleRes = await fetch("http://127.0.0.1:8080/api/roles/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: roleName, permissions }),
+        body: JSON.stringify({ name: roleName }),
+      });
+      if (!roleRes.ok) throw new Error("Failed to create role");
+      const newRole = await roleRes.json();
+
+      const accessList = Object.entries(permissions).map(([submenu, perms]) => ({
+        role: newRole.id,
+        submenu: submenu,
+        full: perms.full_access,
+        view: perms.view,
+        create: perms.create,
+        edit: perms.edit,
+        delete: perms.delete,
+      }));
+
+      await fetch("http://127.0.0.1:8080/api/role-access/bulk-create/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(accessList),
       });
 
-      if (!response.ok) throw new Error("Failed to create role");
-
-      const newRole = await response.json();
       onRoleAdded(newRole);
       onClose();
     } catch (error) {
-      console.error("Error creating role:", error);
+      console.error("Error saving role or permissions:", error);
     }
   };
 
@@ -142,9 +157,7 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
         </h2>
 
         <div className="mb-6">
-          <label className="block text-gray-700 font-medium mb-2">
-            Select Role Type:
-          </label>
+          <label className="block text-gray-700 font-medium mb-2">Select Role Type:</label>
           <select
             className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500"
             value={roleName}
@@ -173,15 +186,9 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
             <tbody>
               {Object.entries(MODULES).map(([menu, submenus]) =>
                 submenus.map((submenu, index) => (
-                  <tr
-                    key={submenu}
-                    className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                  >
+                  <tr key={submenu} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
                     {index === 0 && (
-                      <td
-                        rowSpan={submenus.length}
-                        className="px-4 py-2 font-semibold border-r border-gray-300 align-top"
-                      >
+                      <td rowSpan={submenus.length} className="px-4 py-2 font-semibold border-r border-gray-300 align-top">
                         {menu}
                       </td>
                     )}
@@ -211,16 +218,10 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
         </div>
 
         <div className="mt-6 flex justify-end gap-3">
-          <button
-            className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600"
-            onClick={onClose}
-          >
+          <button className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600" onClick={onClose}>
             Cancel
           </button>
-          <button
-            className="px-6 py-2 bg-purple-600 text-white font-semibold rounded hover:bg-purple-700"
-            onClick={handleSubmit}
-          >
+          <button className="px-6 py-2 bg-purple-600 text-white font-semibold rounded hover:bg-purple-700" onClick={handleSubmit}>
             Save Permissions
           </button>
         </div>

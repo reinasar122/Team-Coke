@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
+import { canCreate, canEdit, canDelete } from '../utils/accessControl';
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -32,39 +33,53 @@ const ProductList = () => {
         <h2 className="text-2xl font-bold">PRODUCT LIST</h2>
         <Link
           to="/products/new"
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+          className={`px-4 py-2 rounded ${
+            canCreate("Product")
+              ? "bg-blue-500 text-white hover:bg-blue-600"
+              : "bg-gray-300 text-gray-500 cursor-not-allowed"
+          }`}
+          onClick={(e) => {
+            if (!canCreate("Product")) e.preventDefault();
+          }}
         >
           Add Product
         </Link>
       </div>
 
-      <table className="w-full bg-white rounded shadow">
+      <table className="w-full bg-white rounded shadow text-sm">
         <thead>
-          <tr className="bg-gray-100">
-            <th className="p-2">System Code</th>
-            <th className="p-2">Supplier Code</th>
-            <th className="p-2">Product Name</th>
-            <th className="p-2">Category</th>
-            <th className="p-2">Actions</th>
+          <tr className="bg-gray-100 text-center">
+            <th className="p-3">System Code</th>
+            <th className="p-3">Supplier Code</th>
+            <th className="p-3">Product Name</th>
+            <th className="p-3">Category</th>
+            <th className="p-3 w-32">Actions</th>
           </tr>
         </thead>
         <tbody>
           {products.map(prod => (
-            <tr key={prod.id} className="text-center border-t">
-              <td className="p-2">{prod.system_code}</td>
-              <td className="p-2">{prod.supplier_code}</td>
-              <td className="p-2">{prod.product_name}</td>
-              <td className="p-2">
-                {prod.product_category?.name || "N/A"}
-              </td>
-              <td className="p-2">
-                <div className="flex justify-center gap-4">
-                  <Link to={`/products/${prod.id}/edit`} title="Edit">
-                    <FaEdit className="text-blue-600 hover:text-blue-800 cursor-pointer" />
-                  </Link>
-                  <button onClick={() => handleDelete(prod.id)} title="Delete">
-                    <FaTrash className="text-red-600 hover:text-red-800 cursor-pointer" />
-                  </button>
+            <tr key={prod.id} className="border-t text-center">
+              <td className="p-3">{prod.system_code}</td>
+              <td className="p-3">{prod.supplier_code}</td>
+              <td className="p-3">{prod.product_name}</td>
+              <td className="p-3">{prod.product_category?.name || "N/A"}</td>
+              <td className="p-3">
+                <div className="flex justify-center items-center gap-3">
+                  {canEdit("Product") ? (
+                    <Link to={`/products/${prod.id}/edit`} title="Edit">
+                      <FaEdit className="text-blue-600 hover:text-blue-800 cursor-pointer" />
+                    </Link>
+                  ) : (
+                    <FaEdit className="text-gray-400 cursor-not-allowed" title="No access" />
+                  )}
+
+                  {canDelete("Product") ? (
+                    <button onClick={() => handleDelete(prod.id)} title="Delete">
+                      <FaTrash className="text-red-600 hover:text-red-800 cursor-pointer" />
+                    </button>
+                  ) : (
+                    <FaTrash className="text-gray-400 cursor-not-allowed" title="No access" />
+                  )}
                 </div>
               </td>
             </tr>

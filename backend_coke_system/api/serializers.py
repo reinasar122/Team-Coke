@@ -4,9 +4,15 @@ from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
 from .models import User, Role
 from .models import Van
-from .models import ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
+from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
+from .models import User, RoleAccessibility
 
+class RoleAccessibilitySerializer(serializers.ModelSerializer):
+    role_name = serializers.CharField(source='role.name', read_only=True)
 
+    class Meta:
+        model = RoleAccessibility
+        fields = '__all__'
 
 class RoleSerializer(serializers.ModelSerializer):
     """Serializer for Role model"""
@@ -19,7 +25,6 @@ class UserSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
     warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
 
-    # These are the fields that will receive the ID from the frontend when updating
     role_id = serializers.PrimaryKeyRelatedField(
         queryset=Role.objects.all(), source='role', write_only=True
     )
@@ -34,27 +39,30 @@ class UserSerializer(serializers.ModelSerializer):
             'phone_number', 'role_name', 'role_id', 'warehouse_name', 'warehouse_id',
             'is_active', 'created_at', 'last_login'
         ]
-        extra_kwargs = {'password': {'write_only': True}}  # Hide password from responses
+        extra_kwargs = {'password': {'write_only': True}}
+
+    def create(self, validated_data):
+        password = validated_data.pop('password', None)
+        if password:
+            validated_data['password'] = make_password(password)
+        return super().create(validated_data)
 
     def update(self, instance, validated_data):
-        # Extract and update role and warehouse IDs
-        role_id = validated_data.pop('role', None)
-        warehouse_id = validated_data.pop('warehouse', None)
+        password = validated_data.pop('password', None)
+        role = validated_data.pop('role', None)
+        warehouse = validated_data.pop('warehouse', None)
 
-        if role_id:
-            # Ensure role exists before assigning
-            instance.role = role_id
-        if warehouse_id:
-            # Ensure warehouse exists before assigning
-            instance.warehouse = warehouse_id
+        if password:
+            instance.set_password(password)
+        if role:
+            instance.role = role
+        if warehouse:
+            instance.warehouse = warehouse
 
-        # Update other fields as usual
-        instance = super().update(instance, validated_data)
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
 
-        # Manually update role_name and warehouse_name after update
-        instance.role_name = instance.role.name if instance.role else None
-        instance.warehouse_name = instance.warehouse.name if instance.warehouse else None
-
+        instance.save()
         return instance
 
 
@@ -294,6 +302,13 @@ class RoleSerializer(serializers.ModelSerializer):
         model = Role
         fields = '__all__'
 
+class RoleAccessibilitySerializer(serializers.ModelSerializer):
+    role_name = serializers.CharField(source='role.name', read_only=True)
+
+    class Meta:
+        model = RoleAccessibility
+        fields = '__all__'
+
 
 class RouteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -447,3 +462,33 @@ class SupplierReturnSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Optional update logic
         return super().update(instance, validated_data)
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
+
+    def validate(self, data):
+        username = data.get('username')
+        password = data.get('password')
+
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found.")
+
+        if not user.check_password(password):
+            raise serializers.ValidationError("Incorrect password.")
+
+        # ✅ Make sure to fetch boolean fields (not access_type anymore)
+        access_list = RoleAccessibility.objects.filter(role=user.role).values(
+            'submenu', 'full', 'view', 'create', 'edit', 'delete'
+        )
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "role": user.role.name if user.role else None,
+            "warehouse": user.warehouse.name if user.warehouse else None,
+            "accessibilities": list(access_list)
+        }

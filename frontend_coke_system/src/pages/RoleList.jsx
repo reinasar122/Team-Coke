@@ -1,11 +1,19 @@
 import { useState, useEffect } from "react";
 import RoleForm from "./RoleForm";
+import EditRoleAccess from "./EditRoleAccess";
+import {
+  canView,
+  canCreate,
+  canEdit,
+  canDelete,
+} from "../utils/accessControl";
 
 const RoleList = () => {
   const [roles, setRoles] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [isRoleFormVisible, setIsRoleFormVisible] = useState(false);
-  const [editingRole, setEditingRole] = useState(null);
+  const [showEditAccessModal, setShowEditAccessModal] = useState(false);
+  const [selectedRoleId, setSelectedRoleId] = useState(null);
 
   useEffect(() => {
     fetchRoles();
@@ -25,15 +33,13 @@ const RoleList = () => {
   const handleRoleAdded = (newRole) => {
     const exists = roles.find((r) => r.id === newRole.id);
     if (exists) {
-      setRoles((prevRoles) =>
-        prevRoles.map((r) => (r.id === newRole.id ? newRole : r))
+      setRoles((prev) =>
+        prev.map((r) => (r.id === newRole.id ? newRole : r))
       );
     } else {
-      setRoles((prevRoles) => [...prevRoles, newRole]);
+      setRoles((prev) => [...prev, newRole]);
     }
-
     setIsRoleFormVisible(false);
-    setEditingRole(null);
   };
 
   const handleDelete = async (id) => {
@@ -43,41 +49,48 @@ const RoleList = () => {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete role");
-
-      setRoles((prevRoles) => prevRoles.filter((r) => r.id !== id));
+      setRoles((prev) => prev.filter((r) => r.id !== id));
     } catch (error) {
       console.error("Error deleting role:", error);
     }
   };
 
-  const handleEdit = (role) => {
-    setEditingRole(role);
-    setIsRoleFormVisible(true);
+  const handleEditAccess = (roleId) => {
+    setSelectedRoleId(roleId);
+    setShowEditAccessModal(true);
   };
 
   const filteredRoles = roles.filter((role) =>
     role.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (!canView("Roles")) {
+    return (
+      <div className="text-red-500 font-semibold p-6">
+        🚫 You don't have permission to view roles.
+      </div>
+    );
+  }
+
   return (
-    <div className="container mx-auto p-6">
+    <div className="relative container mx-auto p-6">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-        <div className="flex flex-col sm:flex-row items-center gap-4 mb-4 sm:mb-0">
-          <input
-            type="text"
-            placeholder="Search role..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-4 pr-6 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="Search role..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-4 pr-6 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60 mb-4 sm:mb-0"
+        />
 
         <button
-          onClick={() => {
-            setEditingRole(null);
-            setIsRoleFormVisible(true);
-          }}
-          className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600"
+          onClick={() => setIsRoleFormVisible(true)}
+          className={`px-4 py-2 rounded-lg ${
+            canCreate("Roles")
+              ? "bg-red-500 text-white hover:bg-red-600"
+              : "bg-gray-300 text-gray-500 cursor-not-allowed"
+          }`}
+          disabled={!canCreate("Roles")}
         >
           + Create Role
         </button>
@@ -98,14 +111,24 @@ const RoleList = () => {
                   <td className="py-3 px-4">{role.name}</td>
                   <td className="py-3 px-7 text-right space-x-2">
                     <button
-                      onClick={() => handleEdit(role)}
-                      className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
+                      onClick={() => canEdit("Roles") && handleEditAccess(role.id)}
+                      className={`px-3 py-1 rounded ${
+                        canEdit("Roles")
+                          ? "bg-blue-600 text-white hover:bg-blue-700"
+                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
+                      disabled={!canEdit("Roles")}
                     >
-                      Edit
+                      Edit Access
                     </button>
                     <button
-                      onClick={() => handleDelete(role.id)}
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                      onClick={() => canDelete("Roles") && handleDelete(role.id)}
+                      className={`px-3 py-1 rounded ${
+                        canDelete("Roles")
+                          ? "bg-red-500 text-white hover:bg-red-600"
+                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
+                      disabled={!canDelete("Roles")}
                     >
                       Delete
                     </button>
@@ -125,13 +148,20 @@ const RoleList = () => {
 
       {isRoleFormVisible && (
         <RoleForm
-          roleToEdit={editingRole}
           onRoleAdded={handleRoleAdded}
-          onClose={() => {
-            setIsRoleFormVisible(false);
-            setEditingRole(null);
-          }}
+          onClose={() => setIsRoleFormVisible(false)}
         />
+      )}
+
+      {showEditAccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-lg w-[90%] md:w-[50%] max-h-[90vh] overflow-auto p-6">
+            <EditRoleAccess
+              roleId={selectedRoleId}
+              onClose={() => setShowEditAccessModal(false)}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

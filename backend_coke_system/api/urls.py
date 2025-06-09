@@ -30,7 +30,8 @@ from .views import (
     SupplierReturnListCreateView, SupplierReturnDetailView,
     SupplierReturnItemListCreateView, SupplierReturnItemDetailView, 
     NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
-    CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock
+    CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock, LoginAPIView, RoleAccessibilityListView ,
+    RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView
 
 
 
@@ -42,6 +43,11 @@ urlpatterns = [
     path('users/<int:pk>/', UserDetailView.as_view(), name='user-detail'),
 
     # ✅ New Role URLs
+    path('role-access/', RoleAccessibilityListView.as_view(), name='role-access-list'),
+    path('role-access/<int:pk>/', RoleAccessibilityDetailView.as_view(), name='role-access-detail'),
+    path('role-access/bulk-create/', BulkRoleAccessibilityCreateView.as_view(), name='bulk-role-access-create'),
+
+
     path('roles/', RoleListCreateView.as_view(), name='role-list-create'),
     path('roles/<int:pk>/', RoleDetailView.as_view(), name='role-detail'),
 
@@ -117,4 +123,5 @@ urlpatterns = [
 
     path('customers/', CustomerListCreateView.as_view(), name='customer-list-create'),
     path('customers/<int:pk>/', CustomerRetrieveUpdateDestroyView.as_view(), name='customer-detail'),
+    path('login/', LoginAPIView.as_view(), name='login'),
 ]

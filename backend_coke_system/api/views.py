@@ -1,6 +1,6 @@
 from rest_framework import generics
 from rest_framework.views import APIView
-from api.models import Warehouse
+from api.models import Warehouse, RoleAccessibility
 from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
@@ -15,10 +15,31 @@ from rest_framework.response import Response
 
 from django.db import connection
 from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
-from .serializers import ProductSerializer, ProductCategorySerializer
+from .serializers import RoleAccessibilitySerializer, ProductSerializer, ProductCategorySerializer
 
 from rest_framework import parsers
+from .serializers import LoginSerializer
+from rest_framework.permissions import BasePermission
+from .serializers import RoleAccessibilitySerializer
 
+class HasAccessPermission(BasePermission):
+    """
+    Custom permission to check if the user's role has the required access for a submenu.
+    """
+
+    def has_permission(self, request, view):
+        role = getattr(request.user, 'role', None)
+        submenu_name = getattr(view, 'submenu_name', None)
+        required_access = getattr(view, 'required_access', 'VIEW')  # Default to VIEW
+
+        if not role or not submenu_name:
+            return False
+
+        # Get all access types for this role + submenu
+        access_qs = RoleAccessibility.objects.filter(role=role, submenu=submenu_name)
+        access_types = access_qs.values_list('access_type', flat=True)
+
+        return required_access.upper() in access_types or 'FULL' in access_types
 
 class RoleListCreateView(generics.ListCreateAPIView):
     """View to list all roles or create a new one"""
@@ -41,7 +62,42 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         return Response({"message": "Role deleted successfully and IDs reset"}, status=status.HTTP_204_NO_CONTENT)
 
+class RoleAccessibilityDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = RoleAccessibility.objects.all()
+    serializer_class = RoleAccessibilitySerializer
 
+class RoleAccessibilityListView(APIView):
+    def get(self, request):
+        role_id = request.query_params.get('role_id')
+        if not role_id:
+            return Response({"error": "role_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        access_entries = RoleAccessibility.objects.filter(role_id=role_id)
+
+        grouped_permissions = {}
+        for entry in access_entries:
+            grouped_permissions[entry.submenu] = {
+                "full": entry.full,
+                "view": entry.view,
+                "create": entry.create,
+                "edit": entry.edit,
+                "delete": entry.delete,
+            }
+
+        return Response(grouped_permissions, status=status.HTTP_200_OK)
+    
+class BulkRoleAccessibilityCreateView(APIView):
+    def post(self, request):
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"error": "Expected a list of permissions."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = RoleAccessibilitySerializer(data=data, many=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 class UserListCreateView(generics.ListCreateAPIView):
     """View to list all users or create a new one"""
     queryset = User.objects.all()
@@ -215,6 +271,9 @@ class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
 class StockListCreateView(generics.ListCreateAPIView):
     queryset = Stock.objects.select_related('product').all().order_by('product__product_name')
     serializer_class = StockSerializer
+    permission_classes = [HasAccessPermission]
+    submenu_name = "Stocks"
+    required_access = "VIEW"
 
 class StockDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Stock.objects.all()
@@ -382,3 +441,10 @@ class SupplierReturnItemListCreateView(generics.ListCreateAPIView):
 class SupplierReturnItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = SupplierReturnItem.objects.all()
     serializer_class = SupplierReturnItemSerializer
+
+class LoginAPIView(APIView):
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import UserForm from "./UserForm";
 import EditUser from "./EditUser";
+import { canCreate, canEdit, canDelete } from "../utils/accessControl";
 
 // Search Icon Component
 const SearchIcon = () => (
@@ -20,7 +21,7 @@ const SearchIcon = () => (
 
 const UserList = () => {
   const [users, setUsers] = useState([]);
-  const [roles, setRoles] = useState([]); // Store roles here
+  const [roles, setRoles] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -30,16 +31,14 @@ const UserList = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [isFocused, setIsFocused] = useState(false);
 
-  // Fetch users and roles
   useEffect(() => {
     fetchUsers();
-    fetchRoles(); // Fetch roles as well
+    fetchRoles();
   }, []);
 
   const fetchUsers = async () => {
     try {
       const response = await fetch("http://127.0.0.1:8080/api/users/");
-      if (!response.ok) throw new Error("Failed to fetch users");
       const data = await response.json();
       setUsers(data);
     } catch (error) {
@@ -49,10 +48,9 @@ const UserList = () => {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8080/api/roles/"); // Assuming your roles API is at /api/roles
-      if (!response.ok) throw new Error("Failed to fetch roles");
+      const response = await fetch("http://127.0.0.1:8080/api/roles/");
       const data = await response.json();
-      setRoles(data); // Set roles in state
+      setRoles(data);
     } catch (error) {
       console.error("Error fetching roles:", error);
     }
@@ -68,12 +66,9 @@ const UserList = () => {
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8080/api/users/${userToDelete.id}/`, {
+      await fetch(`http://127.0.0.1:8080/api/users/${userToDelete.id}/`, {
         method: "DELETE",
       });
-
-      if (!response.ok) throw new Error("Failed to delete user");
-
       setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete.id));
       setShowDeleteModal(false);
     } catch (error) {
@@ -81,10 +76,8 @@ const UserList = () => {
     }
   };
 
-  // Extract unique roles from roles state
-  const uniqueRoles = ["All Users", ...roles.map((role) => role.name)]; // Assuming roles have a 'name' property
+  const uniqueRoles = ["All Users", ...roles.map((role) => role.name)];
 
-  // Filter users based on selected role and search term
   const filteredUsers = users
     .filter((user) =>
       (selectedRole === "All Users" || user.role_name === selectedRole) &&
@@ -96,22 +89,20 @@ const UserList = () => {
   return (
     <div className="container mx-auto p-6">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-        {/* Left Section: Role Dropdown & Search Bar */}
         <div className="flex flex-col sm:flex-row items-center gap-4 mb-4 sm:mb-0">
-          {/* Dynamic Role Dropdown */}
           <div className="relative">
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
               className="text-2xl font-semibold flex items-center gap-2 bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
             >
               {selectedRole}
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
 
             {dropdownOpen && (
-              <div className="absolute left-0 mt-2 w-40 bg-white shadow-lg rounded-md border">
+              <div className="absolute left-0 mt-2 w-40 bg-white shadow-lg rounded-md border z-10">
                 {uniqueRoles.map((role) => (
                   <button
                     key={role}
@@ -128,7 +119,6 @@ const UserList = () => {
             )}
           </div>
 
-          {/* Search Bar */}
           <div className="relative flex-1">
             {!isFocused && <SearchIcon />}
             <input
@@ -138,25 +128,27 @@ const UserList = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(searchTerm.length > 0)}
-              className={`pl-10 pr-6 py-2 border rounded-lg transition-all duration-300 bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+              className={`pl-10 pr-6 py-2 border rounded-lg bg-gray-100 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
                 isFocused ? "pl-3 w-full sm:w-auto" : "w-60 sm:w-auto"
               }`}
-              autoComplete="off"
-              autoCorrect="off"
-              spellCheck="false"
             />
           </div>
         </div>
 
-        {/* Create User Button */}
-        <button className="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600" onClick={() => setShowForm(true)}>
+        <button
+          className={`px-4 py-2 rounded-lg ${
+            canCreate("User") ? "bg-red-500 text-white hover:bg-red-600" : "bg-gray-300 text-gray-500 cursor-not-allowed"
+          }`}
+          onClick={() => {
+            if (canCreate("User")) setShowForm(true);
+          }}
+        >
           + Create User
         </button>
       </div>
 
-      {/* User Table */}
       <div className="overflow-x-auto w-full bg-white shadow-md rounded-lg">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse text-sm">
           <thead className="bg-gray-200 text-left">
             <tr>
               <th className="py-3 px-4">USER DETAILS</th>
@@ -171,19 +163,9 @@ const UserList = () => {
               filteredUsers.map((user) => (
                 <tr key={user.id} className="border-t hover:bg-gray-100">
                   <td className="py-3 px-4 flex items-center">
-                    {/* Black Profile Icon */}
                     <div className="w-10 h-10 flex items-center justify-center rounded-full border-2 border-black bg-gray-100">
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        className="w-6 h-6 text-black"
-                        viewBox="0 0 24 24"
-                        fill="currentColor"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M12 2a5 5 0 015 5v1a5 5 0 01-10 0V7a5 5 0 015-5zm-7 17a7 7 0 0114 0v1a1 1 0 01-1 1H6a1 1 0 01-1-1v-1z"
-                          clipRule="evenodd"
-                        />
+                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-black" viewBox="0 0 24 24" fill="currentColor">
+                        <path fillRule="evenodd" d="M12 2a5 5 0 015 5v1a5 5 0 01-10 0V7a5 5 0 015-5zm-7 17a7 7 0 0114 0v1a1 1 0 01-1 1H6a1 1 0 01-1-1v-1z" clipRule="evenodd" />
                       </svg>
                     </div>
                     <div className="ml-3">
@@ -196,25 +178,34 @@ const UserList = () => {
                   <td className="py-3 px-4">{user.warehouse_name}</td>
                   <td className="py-3 px-4">
                     {user.is_active ? (
-                      <span className="bg-green-100 text-green-600 px-2 py-1 rounded-md text-sm font-medium">
-                        Active
-                      </span>
+                      <span className="bg-green-100 text-green-600 px-2 py-1 rounded-md text-sm font-medium">Active</span>
                     ) : (
-                      <span className="bg-red-100 text-red-600 px-2 py-1 rounded-md text-sm font-medium">
-                        Inactive
-                      </span>
+                      <span className="bg-red-100 text-red-600 px-2 py-1 rounded-md text-sm font-medium">Inactive</span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-center">
-                    <button onClick={() => setEditingUser(user)} className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600 mr-3">
+                  <td className="py-3 px-4 text-center space-x-2">
+                    <button
+                      onClick={() => canEdit("User") && setEditingUser(user)}
+                      className={`px-3 py-1 rounded ${
+                        canEdit("User")
+                          ? "bg-yellow-500 text-white hover:bg-yellow-600"
+                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
+                    >
                       Edit
                     </button>
                     <button
                       onClick={() => {
-                        setUserToDelete(user);
-                        setShowDeleteModal(true);
+                        if (canDelete("User")) {
+                          setUserToDelete(user);
+                          setShowDeleteModal(true);
+                        }
                       }}
-                      className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                      className={`px-3 py-1 rounded ${
+                        canDelete("User")
+                          ? "bg-red-500 text-white hover:bg-red-600"
+                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
+                      }`}
                     >
                       Delete
                     </button>
@@ -228,14 +219,12 @@ const UserList = () => {
         </table>
       </div>
 
-      {/* User Creation Form */}
       {showForm && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
           <UserForm onUserAdded={(newUser) => setUsers([...users, newUser])} onClose={() => setShowForm(false)} />
         </div>
       )}
 
-      {/* Edit User Modal */}
       {editingUser && (
         <EditUser
           userId={editingUser.id}
@@ -244,9 +233,8 @@ const UserList = () => {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
           <div className="bg-white p-6 rounded-lg shadow-lg w-100">
             <p className="text-lg font-semibold mb-9">Are you sure you want to delete this user?</p>
             <div className="flex justify-between">

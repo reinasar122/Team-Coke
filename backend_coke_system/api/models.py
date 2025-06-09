@@ -3,7 +3,8 @@ import uuid
 import string
 import random
 from django.utils import timezone
-from django.contrib.auth.hashers import make_password, check_password  # Use Django's secure hashers
+from django.contrib.auth.hashers import make_password, check_password
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class Warehouse(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -17,7 +18,7 @@ class Warehouse(models.Model):
 
     def __str__(self):
         return self.name
-    
+
 class Supplier(models.Model):
     company_name = models.CharField(max_length=255)
     registration_number = models.CharField(max_length=20, unique=True, editable=False)
@@ -37,7 +38,6 @@ class Supplier(models.Model):
 
     def __str__(self):
         return self.company_name
-    
 
 class SupplierContact(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="contacts")
@@ -47,28 +47,36 @@ class SupplierContact(models.Model):
 
     def __str__(self):
         return f"{self.contact_person} ({self.supplier.company_name})"
-    
 
 class Role(models.Model):
-    """Separate Role model to manage roles and optionally associate with warehouses."""
     name = models.CharField(max_length=50, unique=True)
 
     def __str__(self):
         return self.name
 
+class RoleAccessibility(models.Model):
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
+    submenu = models.CharField(max_length=100)
+
+    full = models.BooleanField(default=False)
+    view = models.BooleanField(default=False)
+    create = models.BooleanField(default=False)
+    edit = models.BooleanField(default=False)
+    delete = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('role', 'submenu')
+
+    def __str__(self):
+        return f"{self.role.name} - {self.submenu} (F:{self.full} V:{self.view} C:{self.create} E:{self.edit} D:{self.delete})"
+
 
 class User(models.Model):
-    """Updated User model with ForeignKey relationships."""
-    STATUS_CHOICES = [
-        (True, 'Active'),
-        (False, 'Inactive'),
-    ]
-
-    GENDER_CHOICES = [
-        ('Male', 'Male'),
-        ('Female', 'Female'),
-        ('Other', 'Other'),
-    ]
+    STATUS_CHOICES = [(True, 'Active'), (False, 'Inactive')]
+    GENDER_CHOICES = [('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')]
 
     id = models.AutoField(primary_key=True)
     password = models.CharField(max_length=255)
@@ -77,10 +85,8 @@ class User(models.Model):
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
     username = models.CharField(max_length=150, unique=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
-
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True)
-
     is_active = models.BooleanField(choices=STATUS_CHOICES, default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(blank=True, null=True)
@@ -92,30 +98,30 @@ class User(models.Model):
         return self.username
 
     def set_password(self, raw_password):
-        """Automatically hash password before saving."""
         self.password = make_password(raw_password)
         self.save()
 
     def check_password(self, raw_password):
-        """Check hashed password."""
         return check_password(raw_password, self.password)
-    
 
 class Van(models.Model):
-    van_id = models.CharField(max_length=50)
-    plate_number = models.CharField(max_length=20)
+    van_id = models.CharField(max_length=50, unique=True)
+    plate_number = models.CharField(max_length=20, unique=True)
 
     def __str__(self):
         return f"{self.van_id} - {self.plate_number}"
-    
-
-#Product and Pricing Models
 
 class ContentType(models.Model):
     description = models.TextField()
 
+    def __str__(self):
+        return self.description
+
 class ShellType(models.Model):
     description = models.TextField()
+
+    def __str__(self):
+        return self.description
 
 class ProductCategory(models.Model):
     name = models.CharField(max_length=100)
@@ -130,16 +136,22 @@ class UnitType(models.Model):
     content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
     content_returnable = models.BooleanField()
 
+    def __str__(self):
+        return f"{self.content_no} units - {self.shell_type}"
+
 class Pricing(models.Model):
     purchase_price = models.FloatField()
     selling_price = models.FloatField()
     shell_price = models.FloatField()
     bottle_price = models.FloatField()
 
+    def __str__(self):
+        return f"₱{self.selling_price:.2f}"
+
 class Product(models.Model):
-    system_code = models.TextField()
-    supplier_code = models.TextField()
-    product_name = models.TextField()
+    system_code = models.CharField(max_length=100, unique=True)  # ✅ Fixed from TextField
+    supplier_code = models.CharField(max_length=100, blank=True, null=True)
+    product_name = models.CharField(max_length=255)
     product_category = models.ForeignKey(ProductCategory, on_delete=models.SET_NULL, null=True)
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
@@ -151,6 +163,13 @@ class Product(models.Model):
             next_id = last.id + 1 if last else 1
             self.system_code = f"PROD-{next_id:04d}"
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.product_name
+
+
+# You can continue the remaining models following the same patterns...
+
 
 
 class Receiving(models.Model):
