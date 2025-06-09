@@ -1,0 +1,67 @@
+.invoice-container {
+  background-color: white;
+  color: black;
+  font-size: 0.875rem;
+  padding: 1.5rem;
+  max-width: 42rem;
+  margin-left: auto;
+  margin-right: auto;
+  font-family: monospace;
+}
+.invoice-container .header-container {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+.invoice-container .header-container .header-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.invoice-container .content-info-wrapper {
+  margin-bottom: 1rem;
+  font-size: 0.875rem;
+}
+.invoice-container .content-info-wrapper .content-info-container {
+  display: flex;
+  justify-content: space-between;
+}
+.invoice-container .sold-content-wrapper {
+  margin-bottom: 1rem;
+}
+.invoice-container .sold-content-wrapper .sold-title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.invoice-container .sold-content-wrapper .sold-table-container {
+  width: 100%;
+  border-width: 1px;
+  border-color: #D1D5DB;
+  font-size: 0.75rem;
+}
+.invoice-container .sold-content-wrapper .sold-table-container .sold-table-header {
+  background-color: #f3f4f6;
+}
+.invoice-container .empty-content-wrapper {
+  margin-bottom: 1rem;
+}
+.invoice-container .empty-content-wrapper .empty-title {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.invoice-container .empty-content-wrapper .empty-table-container {
+  width: 100%;
+  border-width: 1px;
+  border-color: #D1D5DB;
+  font-size: 0.75rem;
+}
+.invoice-container .empty-content-wrapper .empty-table-container .empty-table-header {
+  background-color: #f3f4f6;
+}
+.invoice-container .container-subtotal {
+  display: flex;
+  justify-content: space-between;
+  padding-top: 1rem;
+}
+
+/*# sourceMappingURL=styles.css.map */

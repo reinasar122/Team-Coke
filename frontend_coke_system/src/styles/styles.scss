@@ -1,1 +1,2 @@
-@import './invoice';
+@use './pages/invoice' as invoice;
+@use './components/sidebar';

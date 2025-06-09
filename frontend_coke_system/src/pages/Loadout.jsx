@@ -65,9 +65,9 @@ export default function LoadOutPage() {
       <div>
         <h1>Transaction no. </h1>
       </div>
-      <div>
+      {/* <div>
         <h1></h1>
-      </div>
+      </div> */}
       <h1 className="text-2xl font-bold mb-4">Product Load Out</h1>
 
       <div className="bg-white shadow-md rounded p-4 mb-6 grid grid-cols-1 md:grid-cols-4 gap-4">

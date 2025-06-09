@@ -1,5 +1,9 @@
 {
   "dependencies": {
-    "sass": "^1.89.0"
+    "sass": "^1.89.1"
+  },
+  "scripts": {
+    "sass": "sass --watch frontend_coke_system/src/styles/styles.scss frontend_coke_system/src/styles/styles.css"
   }
+  
 }

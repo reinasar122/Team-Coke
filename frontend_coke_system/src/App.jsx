@@ -31,7 +31,7 @@ import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
 import Merchandising from "./pages/Merchandising";
 import MerchandisingSale from "./pages/MerchandisingSale";
-
+import Invoice from "./pages/Invoice";
 
 
 import {
@@ -48,7 +48,7 @@ import {
   FaWarehouse,
 } from "react-icons/fa";
 
-import './styles/styles.scss';
+import './styles/styles.css';
 
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
@@ -134,6 +134,8 @@ function App() {
               <Route path="/merchandising"element={<><h1 className="text-2xl flex items-center gap-2 mb-4"><FaChartLine /> Create New Sale</h1><Merchandising /></>}/>
 
               <Route path="/merchandising-sale" element={<MerchandisingSale />} />
+
+              <Route path="/invoice" element={<Invoice />} />
 
             </Routes>
           </div>
