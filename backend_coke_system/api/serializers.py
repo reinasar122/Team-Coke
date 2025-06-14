@@ -6,6 +6,7 @@ from .models import User, Role
 from .models import Van
 from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
 from .models import User, RoleAccessibility
+import re
 
 class RoleAccessibilitySerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
@@ -35,7 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'password', 'first_name', 'last_name', 'gender',
+            'id', 'username', 'password', 'email', 'first_name', 'last_name', 'gender',
             'phone_number', 'role_name', 'role_id', 'warehouse_name', 'warehouse_id',
             'is_active', 'created_at', 'last_login'
         ]
@@ -45,7 +46,32 @@ class UserSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password', None)
         if password:
             validated_data['password'] = make_password(password)
-        return super().create(validated_data)
+
+        user = super().create(validated_data)
+
+        # ✅ Send email with username and password
+        from django.core.mail import send_mail
+        send_mail(
+            subject='Your Account Credentials',
+            message=f"""
+Hello {user.first_name},
+
+Your account has been created.
+
+Username: {user.username}
+Password: {self.initial_data.get('password')}
+
+Please log in and change your password as soon as possible.
+
+Best regards,
+Admin Team
+""",
+            from_email='your_email@gmail.com',  # Replace with your Gmail
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+
+        return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
@@ -64,6 +90,7 @@ class UserSerializer(serializers.ModelSerializer):
 
         instance.save()
         return instance
+
 
 
 
@@ -480,15 +507,56 @@ class LoginSerializer(serializers.Serializer):
         if not user.check_password(password):
             raise serializers.ValidationError("Incorrect password.")
 
-        # ✅ Make sure to fetch boolean fields (not access_type anymore)
         access_list = RoleAccessibility.objects.filter(role=user.role).values(
             'submenu', 'full', 'view', 'create', 'edit', 'delete'
         )
 
+        # ✅ Return must_change_password in login response
         return {
             "id": user.id,
             "username": user.username,
             "role": user.role.name if user.role else None,
             "warehouse": user.warehouse.name if user.warehouse else None,
+            "must_change_password": user.must_change_password,
             "accessibilities": list(access_list)
         }
+
+class ChangePasswordSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_new_password(self, value):
+        pattern = re.compile(
+            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?#&])[A-Za-z\d@$!%*?#&]{8,}$'
+        )
+        if not pattern.match(value):
+            raise serializers.ValidationError(
+                "Password must include at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character."
+            )
+        return value
+
+    def save(self):
+        user = User.objects.get(id=self.validated_data['user_id'])
+        user.set_password(self.validated_data['new_password'])
+        user.must_change_password = False
+        user.save()
+        return user
+
+class ForgotPasswordRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("User with this email does not exist.")
+        return value
+
+
+class OTPVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(min_length=6, max_length=6)
+
+    def validate(self, data):
+        if not User.objects.filter(email=data['email']).exists():
+            raise serializers.ValidationError("Email not found.")
+        return data
+

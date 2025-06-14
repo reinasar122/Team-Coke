@@ -1,12 +1,6 @@
 import { useState, useEffect } from "react";
 import RoleForm from "./RoleForm";
 import EditRoleAccess from "./EditRoleAccess";
-import {
-  canView,
-  canCreate,
-  canEdit,
-  canDelete,
-} from "../utils/accessControl";
 
 const RoleList = () => {
   const [roles, setRoles] = useState([]);
@@ -33,9 +27,7 @@ const RoleList = () => {
   const handleRoleAdded = (newRole) => {
     const exists = roles.find((r) => r.id === newRole.id);
     if (exists) {
-      setRoles((prev) =>
-        prev.map((r) => (r.id === newRole.id ? newRole : r))
-      );
+      setRoles((prev) => prev.map((r) => (r.id === newRole.id ? newRole : r)));
     } else {
       setRoles((prev) => [...prev, newRole]);
     }
@@ -64,14 +56,6 @@ const RoleList = () => {
     role.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (!canView("Roles")) {
-    return (
-      <div className="text-red-500 font-semibold p-6">
-        🚫 You don't have permission to view roles.
-      </div>
-    );
-  }
-
   return (
     <div className="relative container mx-auto p-6">
       <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
@@ -85,12 +69,7 @@ const RoleList = () => {
 
         <button
           onClick={() => setIsRoleFormVisible(true)}
-          className={`px-4 py-2 rounded-lg ${
-            canCreate("Roles")
-              ? "bg-red-500 text-white hover:bg-red-600"
-              : "bg-gray-300 text-gray-500 cursor-not-allowed"
-          }`}
-          disabled={!canCreate("Roles")}
+          className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600"
         >
           + Create Role
         </button>
@@ -111,24 +90,14 @@ const RoleList = () => {
                   <td className="py-3 px-4">{role.name}</td>
                   <td className="py-3 px-7 text-right space-x-2">
                     <button
-                      onClick={() => canEdit("Roles") && handleEditAccess(role.id)}
-                      className={`px-3 py-1 rounded ${
-                        canEdit("Roles")
-                          ? "bg-blue-600 text-white hover:bg-blue-700"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      }`}
-                      disabled={!canEdit("Roles")}
+                      onClick={() => handleEditAccess(role.id)}
+                      className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
                     >
                       Edit Access
                     </button>
                     <button
-                      onClick={() => canDelete("Roles") && handleDelete(role.id)}
-                      className={`px-3 py-1 rounded ${
-                        canDelete("Roles")
-                          ? "bg-red-500 text-white hover:bg-red-600"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      }`}
-                      disabled={!canDelete("Roles")}
+                      onClick={() => handleDelete(role.id)}
+                      className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600"
                     >
                       Delete
                     </button>

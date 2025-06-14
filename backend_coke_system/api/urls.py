@@ -31,7 +31,8 @@ from .views import (
     SupplierReturnItemListCreateView, SupplierReturnItemDetailView, 
     NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
     CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock, LoginAPIView, RoleAccessibilityListView ,
-    RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView
+    RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
+    VerifyOTPAPIView
 
 
 
@@ -41,6 +42,10 @@ urlpatterns = [
     # User URLs
     path('users/', UserListCreateView.as_view(), name='user-list-create'),
     path('users/<int:pk>/', UserDetailView.as_view(), name='user-detail'),
+    path('change-password/', ChangePasswordAPIView.as_view(), name='change-password'),
+    path('forgot-password/send-otp/', SendOTPAPIView.as_view(), name='send-otp'),
+    path('forgot-password/verify-otp/', VerifyOTPAPIView.as_view(), name='verify-otp'),
+
 
     # ✅ New Role URLs
     path('role-access/', RoleAccessibilityListView.as_view(), name='role-access-list'),

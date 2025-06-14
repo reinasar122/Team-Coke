@@ -79,7 +79,9 @@ class User(models.Model):
     GENDER_CHOICES = [('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')]
 
     id = models.AutoField(primary_key=True)
+    email = models.EmailField(unique=True, null=True, blank=True)  # ✅ REQUIRED for sending email
     password = models.CharField(max_length=255)
+    must_change_password = models.BooleanField(default=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
@@ -103,6 +105,7 @@ class User(models.Model):
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
 
 class Van(models.Model):
     van_id = models.CharField(max_length=50, unique=True)

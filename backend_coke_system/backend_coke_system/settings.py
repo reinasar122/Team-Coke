@@ -85,10 +85,10 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'new_schema',
-         'USER': 'kerk',
+         'NAME': 'inventory',
+         'USER': 'root',
          'PASSWORD': '@ctu7220957',
-         'HOST': '192.168.0.122',
+         'HOST': 'localhost',
          'PORT': '3306',
      }
  }
@@ -140,3 +140,12 @@ import os
 
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = 'jkcuevas4@gmail.com'         # replace with your actual Gmail
+EMAIL_HOST_PASSWORD = 'xtfzuvwtrdioxtex' 
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

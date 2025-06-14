@@ -15,12 +15,86 @@ from rest_framework.response import Response
 
 from django.db import connection
 from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
-from .serializers import RoleAccessibilitySerializer, ProductSerializer, ProductCategorySerializer
+from .serializers import RoleAccessibilitySerializer, ProductSerializer, ProductCategorySerializer, ChangePasswordSerializer
 
 from rest_framework import parsers
 from .serializers import LoginSerializer
 from rest_framework.permissions import BasePermission
 from .serializers import RoleAccessibilitySerializer
+import random
+from django.conf import settings
+from django.core.mail import send_mail
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import User
+from .serializers import ForgotPasswordRequestSerializer, OTPVerificationSerializer
+from django.core.cache import cache
+
+# Temporary OTP store (for demo; use cache or DB for production)
+# Temporary OTP storage (in production use cache like Redis or DB)
+otp_storage = {}
+
+class SendOTPAPIView(APIView):
+    def post(self, request):
+        email = request.data.get('email', '').lower().strip()
+        if not email:
+            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate 6-digit OTP
+        otp = str(random.randint(100000, 999999))
+        cache.set(f'otp_{email}', otp, timeout=300)  # Store for 5 minutes
+
+        # Send the OTP to the email
+        send_mail(
+            subject='Your OTP Code',
+            message=f'Your OTP code is: {otp}',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False
+        )
+
+        return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
+
+
+class VerifyOTPAPIView(APIView):
+    def post(self, request):
+        print("📨 VERIFY OTP DATA:", request.data)
+
+        email = request.data.get("email")
+        otp = request.data.get("otp")
+
+        if not email or not otp:
+            return Response({"error": "Email and OTP are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        email = str(email).lower().strip()
+        cached_otp = cache.get(f'otp_{email}')
+
+        if str(cached_otp) == str(otp):
+            try:
+                user = User.objects.get(email=email)
+                return Response({
+                    "user": {
+                        "id": user.id,
+                        "email": user.email,
+                        "username": user.username  # optional
+                    }
+                }, status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+
 
 class HasAccessPermission(BasePermission):
     """
@@ -102,12 +176,6 @@ class UserListCreateView(generics.ListCreateAPIView):
     """View to list all users or create a new one"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
-
-    def perform_create(self, serializer):
-        """Override to manually handle password hashing before user creation"""
-        password = self.request.data.get('password')
-        if password:
-            serializer.save(password=password)  # Pass password directly for hashing
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -447,4 +515,16 @@ class LoginAPIView(APIView):
         serializer = LoginSerializer(data=request.data)
         if serializer.is_valid():
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class ChangePasswordAPIView(APIView):
+    def post(self, request):
+        print("Request Data:", request.data)  # ✅ Add this
+
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Password updated successfully'}, status=status.HTTP_200_OK)
+        print("Serializer errors:", serializer.errors)  # ✅ Add this
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTachometerAlt,
@@ -15,9 +15,17 @@ import { canView } from "../utils/accessControl";
 
 const Sidebar = ({ isSidebarOpen }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
+  const navigate = useNavigate(); // ✅ added
 
   const toggleDropdown = (menu) => {
     setOpenDropdown(openDropdown === menu ? null : menu);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("user");
+    localStorage.removeItem("access");
+    localStorage.removeItem("resetEmail");
+    navigate("/login");
   };
 
   const DisabledItem = ({ icon, text }) => (
@@ -193,7 +201,10 @@ const Sidebar = ({ isSidebarOpen }) => {
 
         {/* Logout */}
         <li>
-          <button className="w-full text-left p-2 text-red-400 hover:bg-red-700 rounded flex items-center">
+          <button
+            onClick={handleLogout}
+            className="w-full text-left p-2 text-red-400 hover:bg-red-700 rounded flex items-center"
+          >
             <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" /> Log out
           </button>
         </li>
