@@ -16,7 +16,7 @@ const MerchandisingList = () => {
     <div className="p-6 bg-sky-200 min-h-screen">
       <div className="flex justify-end items-center mb-6">
         <Link
-          to="/merchandising"
+          to="/merchandising-sale"
           className="bg-gray-400 text-black px-4 py-2 rounded hover:bg-gray-500 text-sm"
         >
           + CREATE NEW SALE
@@ -33,29 +33,20 @@ const MerchandisingList = () => {
             <th className="p-2">HANDLED BY</th>
             <th className="p-2">TOTAL AMOUNT</th>
             <th className="p-2">STATUS</th>
-            <th className="p-2">ACTION</th>
+        
           </tr>
         </thead>
         <tbody>
           {sales.map((sale) => (
             <tr key={sale.id} className="text-center border-t bg-gray-100">
               <td className="p-2">{sale.msp_no}</td>
-              <td className="p-2">{sale.date}</td>
-              <td className="p-2">{sale.transaction_type}</td>
+              <td className="p-2">{sale.date_time}</td>
+              <td className="p-2">{sale.transaction_type_name}</td>
               <td className="p-2">{sale.customer_name}</td>
               <td className="p-2">{sale.handled_by}</td>
               <td className="p-2">₱{parseFloat(sale.total_amount).toLocaleString()}</td>
               <td className="p-2">{sale.status}</td>
-              <td className="p-2">
-                <div className="flex justify-center gap-3">
-                  <Link to={`/merchandising/${sale.id}/view`} title="View">
-                    <FaEye className="text-blue-600 hover:text-blue-800 cursor-pointer" />
-                  </Link>
-                  <button title="Print">
-                    <FaPrint className="text-gray-600 hover:text-black cursor-pointer" />
-                  </button>
-                </div>
-              </td>
+              
             </tr>
           ))}
           {sales.length === 0 && (
