@@ -8,7 +8,7 @@ from django.db import connection
 from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem, Customer
 
 from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
-from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -325,6 +325,7 @@ def next_product_code(request):
 
 
 
+
 # ===== RECEIVING MODULE =====
 class ReceivingListCreateView(generics.ListCreateAPIView):
     queryset = Receiving.objects.select_related('supplier').prefetch_related('details').order_by('-id')
@@ -339,9 +340,6 @@ class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
 class StockListCreateView(generics.ListCreateAPIView):
     queryset = Stock.objects.select_related('product').all().order_by('product__product_name')
     serializer_class = StockSerializer
-    permission_classes = [HasAccessPermission]
-    submenu_name = "Stocks"
-    required_access = "VIEW"
 
 class StockDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Stock.objects.all()
@@ -375,7 +373,7 @@ class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 class MerchandisingListCreateView(generics.ListCreateAPIView):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
-    parser_classes = (MultiPartParser, FormParser)
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
 class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Merchandising.objects.all()
@@ -388,24 +386,42 @@ class MerchandisingListView(generics.ListAPIView):
 
 class NextMspNoView(APIView):
     def get(self, request):
-        # Get transaction type from query parameters
-        transaction_type = request.query_params.get("transaction_type", "")
-        print(f"Received transaction type: {transaction_type}")  # Debug print
-
-        if not transaction_type:
+        # ✅ Get transaction type ID
+        transaction_type_id = request.query_params.get("transaction_type")
+        if not transaction_type_id:
             return Response({"detail": "Transaction type is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Try to fetch the transaction type from the database using case-insensitive matching
         try:
-            transaction_type_instance = TransactionType.objects.get(name__iexact=transaction_type)  # Case-insensitive check
-            print(f"Found transaction type: {transaction_type_instance.name}")  # Debug print
+            transaction_type = TransactionType.objects.get(id=int(transaction_type_id))
         except TransactionType.DoesNotExist:
             return Response({"detail": "Transaction type not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Generate the next MSP number based on the transaction type
-        last = Merchandising.objects.filter(transaction_type=transaction_type_instance).order_by('-id').first()
-        next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
-        prefix = "W" if transaction_type_instance.name.lower() == "warehouse" else "V" if transaction_type_instance.name.lower() == "van load" else "X"
+        # ✅ Determine prefix
+        type_name = transaction_type.name.strip().lower()
+        if type_name == "van load":
+            prefix = "V"
+        elif type_name == "warehouse":
+            prefix = "W"
+        else:
+            prefix = "X"
+
+        # ✅ Find latest used MSP number for this transaction type and prefix
+        # Always fallback to correct prefix ONLY
+        last_msp = Merchandising.objects.filter(
+            transaction_type=transaction_type,
+            msp_no__startswith=prefix  # ✅ Prefix match required
+        ).order_by('-id').first()
+
+
+        if last_msp and last_msp.msp_no:
+            try:
+                last_number = int(last_msp.msp_no.split("-")[-1])
+            except ValueError:
+                last_number = 0
+        else:
+            last_number = 0
+
+        next_number = last_number + 1
         msp_no = f"{prefix}-{next_number:04d}"
 
         return Response({"msp_no": msp_no})
@@ -451,6 +467,7 @@ def restore_stock(request, pk):
         return Response({'status': 'restored', 'new_quantity': stock.quantity_available})
     except Stock.DoesNotExist:
         return Response({'error': 'Stock not found'}, status=404)
+
 
 
 

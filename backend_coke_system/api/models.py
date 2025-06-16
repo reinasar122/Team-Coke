@@ -205,8 +205,8 @@ class Receiving(models.Model):
 
 
 class ReceivingItem(models.Model):
-    receiving = models.ForeignKey('Receiving', related_name="details", on_delete=models.CASCADE)
-    product = models.ForeignKey('Product', on_delete=models.CASCADE, null=True)
+    receiving = models.ForeignKey(Receiving, related_name="details", on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True)  # 👈 Add this
     product_name = models.CharField(max_length=255, blank=True, null=True)
     pcs_qty = models.PositiveIntegerField(default=0)
     shell_qty = models.PositiveIntegerField(default=0)
@@ -218,6 +218,7 @@ class ReceivingItem(models.Model):
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
+
     def save(self, *args, **kwargs):
         content_no = self.product.unit_type.content_no if self.product and self.product.unit_type else 1
 
@@ -228,18 +229,10 @@ class ReceivingItem(models.Model):
 
         self.bottle_qty = self.pcs_qty
 
-        # Compute unit cost and total
-        self.unit_cost = (
-            self.unit_price +
-            self.bottle_price +
-            (self.shell_price / content_no if content_no else 0)
-        )
-
-        adjusted_pcs = max(self.pcs_qty - self.bad_order_pcs, 0)
-        self.total = self.unit_cost * adjusted_pcs
+        self.unit_cost = self.unit_price + self.bottle_price + (self.shell_price / content_no)
+        self.total = self.pcs_qty * self.unit_cost
 
         super().save(*args, **kwargs)
-
 
 
 # === STOCK  ===
@@ -288,8 +281,9 @@ class Merchandising(models.Model):
     msp_no = models.CharField(max_length=20, unique=True, editable=False)
     transaction_type = models.ForeignKey(TransactionType, on_delete=models.CASCADE)
     handled_by = models.CharField(max_length=100)
-    route = models.ForeignKey('Route', on_delete=models.CASCADE)
-    van = models.ForeignKey('Van', on_delete=models.CASCADE)
+    route = models.ForeignKey(Route, on_delete=models.SET_NULL, null=True, blank=True)
+    van = models.ForeignKey(Van, on_delete=models.SET_NULL, null=True, blank=True)
+
     date_time = models.DateTimeField(default=timezone.now)
 
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -333,8 +327,15 @@ class MerchandisingItem(models.Model):
     dispatched_pcs = models.PositiveIntegerField(default=0)
     dispatched_shell = models.PositiveIntegerField(default=0)
 
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     sold_pcs = models.PositiveIntegerField(default=0)
     sold_shell = models.PositiveIntegerField(default=0)
+
+
+    empty_price_shell = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    empty_price_pc = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
 
     empty_return_pcs = models.PositiveIntegerField(default=0)
     empty_return_shell = models.PositiveIntegerField(default=0)
@@ -355,6 +356,16 @@ class MerchandisingItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.merchandising.msp_no}"
+    
+
+class MiscellaneousItem(models.Model):
+    merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
+    description = models.CharField(max_length=255)
+    amount = models.DecimalField(max_digits=10, decimal_places=2)
+    receipt_file = models.FileField(upload_to='misc_receipts/', blank=True, null=True)  # <-- Add this line
+
+    def __str__(self):
+        return f"{self.description} - ₱{self.amount}"
 
 
 # 9. ReturnableStock
@@ -368,6 +379,7 @@ class ReturnableStock(models.Model):
         choices=[('customer', 'Customer'), ('supplier', 'Supplier')],
         default='customer'  # Provide a default value here
     )
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True)  # ADD THIS
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
@@ -392,16 +404,6 @@ class SupplierReturnItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} returned"
-    
-
-class MiscellaneousItem(models.Model):
-    merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
-    description = models.CharField(max_length=255)
-    amount = models.DecimalField(max_digits=10, decimal_places=2)
-    receipt_file = models.FileField(upload_to='misc_receipts/', blank=True, null=True)  # <-- Add this line
-
-    def __str__(self):
-        return f"{self.description} - ₱{self.amount}"
 
 
 
