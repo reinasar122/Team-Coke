@@ -1,6 +1,6 @@
 from rest_framework import generics
 from rest_framework.views import APIView
-from api.models import Warehouse
+from api.models import Warehouse, RoleAccessibility
 from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
@@ -8,15 +8,112 @@ from django.db import connection
 from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem, Customer
 
 from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
-
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
 from django.db import connection
 from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
-from .serializers import ProductSerializer, ProductCategorySerializer
+from .serializers import RoleAccessibilitySerializer, ProductSerializer, ProductCategorySerializer, ChangePasswordSerializer
 
+from rest_framework import parsers
+from .serializers import LoginSerializer
+from rest_framework.permissions import BasePermission
+from .serializers import RoleAccessibilitySerializer
+import random
+from django.conf import settings
+from django.core.mail import send_mail
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import User
+from .serializers import ForgotPasswordRequestSerializer, OTPVerificationSerializer
+from django.core.cache import cache
+
+# Temporary OTP store (for demo; use cache or DB for production)
+# Temporary OTP storage (in production use cache like Redis or DB)
+otp_storage = {}
+
+class SendOTPAPIView(APIView):
+    def post(self, request):
+        email = request.data.get('email', '').lower().strip()
+        if not email:
+            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        # Generate 6-digit OTP
+        otp = str(random.randint(100000, 999999))
+        cache.set(f'otp_{email}', otp, timeout=300)  # Store for 5 minutes
+
+        # Send the OTP to the email
+        send_mail(
+            subject='Your OTP Code',
+            message=f'Your OTP code is: {otp}',
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[email],
+            fail_silently=False
+        )
+
+        return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
+
+
+class VerifyOTPAPIView(APIView):
+    def post(self, request):
+        print("📨 VERIFY OTP DATA:", request.data)
+
+        email = request.data.get("email")
+        otp = request.data.get("otp")
+
+        if not email or not otp:
+            return Response({"error": "Email and OTP are required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        email = str(email).lower().strip()
+        cached_otp = cache.get(f'otp_{email}')
+
+        if str(cached_otp) == str(otp):
+            try:
+                user = User.objects.get(email=email)
+                return Response({
+                    "user": {
+                        "id": user.id,
+                        "email": user.email,
+                        "username": user.username  # optional
+                    }
+                }, status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+
+
+class HasAccessPermission(BasePermission):
+    """
+    Custom permission to check if the user's role has the required access for a submenu.
+    """
+
+    def has_permission(self, request, view):
+        role = getattr(request.user, 'role', None)
+        submenu_name = getattr(view, 'submenu_name', None)
+        required_access = getattr(view, 'required_access', 'VIEW')  # Default to VIEW
+
+        if not role or not submenu_name:
+            return False
+
+        # Get all access types for this role + submenu
+        access_qs = RoleAccessibility.objects.filter(role=role, submenu=submenu_name)
+        access_types = access_qs.values_list('access_type', flat=True)
+
+        return required_access.upper() in access_types or 'FULL' in access_types
 
 class RoleListCreateView(generics.ListCreateAPIView):
     """View to list all roles or create a new one"""
@@ -39,17 +136,46 @@ class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
 
         return Response({"message": "Role deleted successfully and IDs reset"}, status=status.HTTP_204_NO_CONTENT)
 
+class RoleAccessibilityDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = RoleAccessibility.objects.all()
+    serializer_class = RoleAccessibilitySerializer
 
+class RoleAccessibilityListView(APIView):
+    def get(self, request):
+        role_id = request.query_params.get('role_id')
+        if not role_id:
+            return Response({"error": "role_id is required"}, status=status.HTTP_400_BAD_REQUEST)
+
+        access_entries = RoleAccessibility.objects.filter(role_id=role_id)
+
+        grouped_permissions = {}
+        for entry in access_entries:
+            grouped_permissions[entry.submenu] = {
+                "full": entry.full,
+                "view": entry.view,
+                "create": entry.create,
+                "edit": entry.edit,
+                "delete": entry.delete,
+            }
+
+        return Response(grouped_permissions, status=status.HTTP_200_OK)
+    
+class BulkRoleAccessibilityCreateView(APIView):
+    def post(self, request):
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"error": "Expected a list of permissions."}, status=status.HTTP_400_BAD_REQUEST)
+
+        serializer = RoleAccessibilitySerializer(data=data, many=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
 class UserListCreateView(generics.ListCreateAPIView):
     """View to list all users or create a new one"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
-
-    def perform_create(self, serializer):
-        """Override to manually handle password hashing before user creation"""
-        password = self.request.data.get('password')
-        if password:
-            serializer.save(password=password)  # Pass password directly for hashing
 
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
@@ -58,16 +184,44 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = UserSerializer
 
     def update(self, request, *args, **kwargs):
-        print("Incoming Data:", request.data)  # Log incoming data for debugging
-        instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        instance = self.get_object()  # Retrieve the user instance
+        serializer = self.get_serializer(instance, data=request.data, partial=True)  # Validate data
 
+        # Ensure the incoming data is valid before saving
         if not serializer.is_valid():
-            print("Errors:", serializer.errors)  # Log serializer errors
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        # Handle role and warehouse assignment separately
+        role_id = request.data.get('role')  # Get the role ID from the incoming request
+        warehouse_id = request.data.get('warehouse')  # Get the warehouse ID from the incoming request
+
+        if role_id:
+            try:
+                # Ensure the role exists before assigning it
+                instance.role = Role.objects.get(id=role_id)
+            except Role.DoesNotExist:
+                return Response({"error": "Role not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if warehouse_id:
+            try:
+                # Ensure the warehouse exists before assigning it
+                instance.warehouse = Warehouse.objects.get(id=warehouse_id)
+            except Warehouse.DoesNotExist:
+                return Response({"error": "Warehouse not found."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Perform the update on the instance using the validated data
         self.perform_update(serializer)
-        return Response(serializer.data)
+
+        # Manually update role_name and warehouse_name after update
+        instance.role_name = instance.role.name if instance.role else None
+        instance.warehouse_name = instance.warehouse.name if instance.warehouse else None
+
+        # Return the updated user data with the related role and warehouse names
+        return Response({
+            **serializer.data,
+            "role_name": instance.role_name,
+            "warehouse_name": instance.warehouse_name
+        })
 
 
 
@@ -171,6 +325,7 @@ def next_product_code(request):
 
 
 
+
 # ===== RECEIVING MODULE =====
 class ReceivingListCreateView(generics.ListCreateAPIView):
     queryset = Receiving.objects.select_related('supplier').prefetch_related('details').order_by('-id')
@@ -218,6 +373,7 @@ class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 class MerchandisingListCreateView(generics.ListCreateAPIView):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
 
 class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Merchandising.objects.all()
@@ -230,24 +386,42 @@ class MerchandisingListView(generics.ListAPIView):
 
 class NextMspNoView(APIView):
     def get(self, request):
-        # Get transaction type from query parameters
-        transaction_type = request.query_params.get("transaction_type", "")
-        print(f"Received transaction type: {transaction_type}")  # Debug print
-
-        if not transaction_type:
+        # ✅ Get transaction type ID
+        transaction_type_id = request.query_params.get("transaction_type")
+        if not transaction_type_id:
             return Response({"detail": "Transaction type is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Try to fetch the transaction type from the database using case-insensitive matching
         try:
-            transaction_type_instance = TransactionType.objects.get(name__iexact=transaction_type)  # Case-insensitive check
-            print(f"Found transaction type: {transaction_type_instance.name}")  # Debug print
+            transaction_type = TransactionType.objects.get(id=int(transaction_type_id))
         except TransactionType.DoesNotExist:
             return Response({"detail": "Transaction type not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Generate the next MSP number based on the transaction type
-        last = Merchandising.objects.filter(transaction_type=transaction_type_instance).order_by('-id').first()
-        next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
-        prefix = "W" if transaction_type_instance.name.lower() == "warehouse" else "V" if transaction_type_instance.name.lower() == "van load" else "X"
+        # ✅ Determine prefix
+        type_name = transaction_type.name.strip().lower()
+        if type_name == "van load":
+            prefix = "V"
+        elif type_name == "warehouse":
+            prefix = "W"
+        else:
+            prefix = "X"
+
+        # ✅ Find latest used MSP number for this transaction type and prefix
+        # Always fallback to correct prefix ONLY
+        last_msp = Merchandising.objects.filter(
+            transaction_type=transaction_type,
+            msp_no__startswith=prefix  # ✅ Prefix match required
+        ).order_by('-id').first()
+
+
+        if last_msp and last_msp.msp_no:
+            try:
+                last_number = int(last_msp.msp_no.split("-")[-1])
+            except ValueError:
+                last_number = 0
+        else:
+            last_number = 0
+
+        next_number = last_number + 1
         msp_no = f"{prefix}-{next_number:04d}"
 
         return Response({"msp_no": msp_no})
@@ -297,6 +471,7 @@ def restore_stock(request, pk):
 
 
 
+
 # MerchandisingItem Views
 class MerchandisingItemListCreateView(generics.ListCreateAPIView):
     queryset = MerchandisingItem.objects.all()
@@ -310,6 +485,7 @@ class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
 class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
     queryset = MiscellaneousItem.objects.all()
     serializer_class = MiscellaneousItemSerializer
+    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
 class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MiscellaneousItem.objects.all()
@@ -350,3 +526,22 @@ class SupplierReturnItemListCreateView(generics.ListCreateAPIView):
 class SupplierReturnItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = SupplierReturnItem.objects.all()
     serializer_class = SupplierReturnItemSerializer
+
+class LoginAPIView(APIView):
+    def post(self, request):
+        serializer = LoginSerializer(data=request.data)
+        if serializer.is_valid():
+            return Response(serializer.validated_data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class ChangePasswordAPIView(APIView):
+    def post(self, request):
+        print("Request Data:", request.data)  # ✅ Add this
+
+        serializer = ChangePasswordSerializer(data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({'message': 'Password updated successfully'}, status=status.HTTP_200_OK)
+        print("Serializer errors:", serializer.errors)  # ✅ Add this
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

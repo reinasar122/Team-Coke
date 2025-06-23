@@ -4,8 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
 
 const Merchandising = () => {
+  const [mspNo, setMspNo] = useState("");
   const [transactionType, setTransactionType] = useState("");
-  const [mspNo, setMspNo] = useState("");  // State to hold MSP number
   const [vans, setVans] = useState([]);
   const [selectedVan, setSelectedVan] = useState("");
   const [products, setProducts] = useState([]);
@@ -13,6 +13,11 @@ const Merchandising = () => {
   const [selectedUser, setSelectedUser] = useState("");
   const [route, setRoute] = useState("");
   const [routes, setRoutes] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [isAddingRoute, setIsAddingRoute] = useState(false);
+  const navigate = useNavigate();
   const [dateTime, setDateTime] = useState(() => {
     const date = new Date();
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
@@ -23,54 +28,77 @@ const Merchandising = () => {
   ]);
 
 
-  const navigate = useNavigate();
-  
-  const [customer, setCustomer] = useState("");
-  const [isAddingRoute, setIsAddingRoute] = useState(false);
+  //const [customer, setCustomer] = useState("");
 
-  const [customers, setCustomers] = useState([]);
-  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
 
-  
-  //Number 1 changes
-  //track available stock for each product
+  //Make changes for stock (track available stock for each product)
   const [availableStock, setAvailableStock] = useState({});
 
   const location = useLocation();
 
 
   useEffect(() => {
+    const savedForm = localStorage.getItem("merchForm");
+
     if (location.state) {
       const {
         mspNo,
         transactionType,
         selectedUser,
         selectedRoute,
+        selectedVan,
         dateTime,
         products,
       } = location.state;
-  
+
       if (mspNo) setMspNo(mspNo);
       if (transactionType) setTransactionType(transactionType);
       if (selectedUser) setSelectedUser(selectedUser);
       if (selectedRoute) setRoute(selectedRoute);
+      if (selectedVan) setSelectedVan(selectedVan);
       if (dateTime) setDateTime(dateTime);
+
       if (products && products.length > 0) {
-        setRows(
-          products.map((product) => ({
-            id: Date.now() + Math.random(),
-            productId: product.productId,
-            quantity: product.dispatchedPcs,
-            shellQty: product.dispatchedShell,
-            contentNo: product.contentNo || 0,
-          }))
-        );
-      }
+      const restoredRows = products.map((product) => ({
+        id: Date.now() + Math.random(),
+        productId: product.productId,
+        quantity: product.dispatchedPcs,
+        shellQty: product.dispatchedShell,
+        contentNo: product.contentNo || 0,
+      }));
+
+      setRows(restoredRows);
+
+      // ✅ Fetch stock for each restored product
+      products.forEach((product) => {
+        fetchStockQuantity(product.productId);
+      });
     }
-  }, [location.state]);
 
 
-  // Fetch initial data
+
+
+  } else if (savedForm) {
+    const data = JSON.parse(savedForm);
+    setMspNo(data.mspNo);
+    setTransactionType(data.transactionType);
+    setSelectedUser(data.selectedUser);
+    setRoute(data.selectedRoute);
+    setDateTime(data.dateTime);
+    setRows(
+      data.products.map((product) => ({
+        id: Date.now() + Math.random(),
+        productId: product.productId,
+        quantity: product.quantity,
+        shellQty: product.shellQty,
+        contentNo: product.contentNo || 0,
+      }))
+    );
+  }
+}, [location.state]);
+
+
+
   useEffect(() => {
     axios.get("http://localhost:8080/api/users/")
       .then(res => setUsers(res.data))
@@ -87,19 +115,7 @@ const Merchandising = () => {
     axios.get("http://localhost:8080/api/customers/")
       .then(res => setCustomers(res.data))
       .catch(err => console.error("Failed to fetch customers:", err));
-
   }, []);
-
-
-
-  useEffect(() => {
-    console.log(transactionType);  // Log the transaction type
-    if (transactionType) {
-      fetchMspNo(transactionType);
-    }
-  }, [transactionType]);
-  
-
 
   useEffect(() => {
     if (transactionType === "Van Load") {
@@ -108,10 +124,10 @@ const Merchandising = () => {
         .catch(err => console.error("Failed to fetch vans:", err));
     }
   }, [transactionType]);
-  
 
 
-  // Number 2 changes
+
+    // Number 2 changes
   // Trigger fetching MSP number when the transaction type is selected
   useEffect(() => {
     if (transactionType) {
@@ -134,51 +150,24 @@ const Merchandising = () => {
 };
 
 
-
- /*  // Handle route typing (saving new route if needed)
-   const handleRouteKeyDown = async (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      const trimmedRoute = route.trim();
-      if (!trimmedRoute) return;
-
-      const exists = routes.some(r =>
-        r.route_name.toLowerCase() === trimmedRoute.toLowerCase()
-      );
-
-      if (!exists) {
-        try {
-          const res = await axios.post("http://localhost:8080/api/routes/", {
-            route_name: trimmedRoute,
-          });
-          setRoutes(prev => [...prev, res.data]);
-          console.log("Route saved:", res.data.route_name);
-        } catch (error) {
-          console.error("Error saving route:", error);
-        }
-      }
+    //Number 3 changes
+    // Fetch the stock quantity for a specific product
+  const fetchStockQuantity = async (productId) => {
+    try {
+      const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`);
+      // Store the stock quantity in availableStock state
+      setAvailableStock((prevState) => ({
+        ...prevState,
+        [productId]: response.data.quantity_available,
+      }));
+    } catch (err) {
+      console.error("Error fetching stock:", err);
     }
-  };*/
-
-
-  //Number 3 changes
-  // Fetch the stock quantity for a specific product
-const fetchStockQuantity = async (productId) => {
-  try {
-    const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`);
-    // Store the stock quantity in availableStock state
-    setAvailableStock((prevState) => ({
-      ...prevState,
-      [productId]: response.data.quantity_available,
-    }));
-  } catch (err) {
-    console.error("Error fetching stock:", err);
-  }
-};
+  };
 
 
 
-  //Number 4 changes
+ //Number 4 changes
   const handleProductChange = (index, productId) => {
     const updated = [...rows];
     updated[index].productId = productId;
@@ -204,29 +193,8 @@ const fetchStockQuantity = async (productId) => {
   };
   
 
-  //Number 5 changes
-  const updateStock = async (productId, quantitySold) => {
-    const newQuantity = availableStock[productId] - quantitySold;
-  
-    if (newQuantity < 0 || isNaN(newQuantity)) {
-      console.error(`Invalid stock update for product ${productId}:`, newQuantity);
-      return;
-    }
-  
-    try {
-      await axios.patch(`http://localhost:8080/api/stocks/${productId}/`, {
-        quantity_available: newQuantity,
-      });
-    } catch (err) {
-      console.error("Error updating stock:", err);
-    }
-  };
 
-
-
-
-// Handle shell quantity input → auto calculate PCS
-const handleShellQtyChange = (index, shellQtyValue) => {
+  const handleShellQtyChange = (index, shellQtyValue) => {
   const updated = [...rows];
   updated[index].shellQty = shellQtyValue;
 
@@ -251,38 +219,65 @@ const handleShellQtyChange = (index, shellQtyValue) => {
   setRows(updated);
 };
 
+  // Handle "Quantity (Pcs)" change
+  const handleQuantityChange = (index, value) => {
+    const updated = [...rows];
+    updated[index].quantity = value;  // Update the quantity (PCS) state
 
+    // Ensure contentNo is fetched correctly
+    const contentNo = updated[index].contentNo || 0;
+    updated[index].shellQty = Math.floor(value / contentNo);  // Update shell quantity (rounded down)
 
+    console.log(`Updated Shell Qty: ${updated[index].shellQty}, Updated PCS: ${value}`);  // Log to check if it's calculating correctly
 
+    setRows(updated);  // Update the state
+  };
 
+  
 
-// Handle "Quantity (Pcs)" change
-const handleQuantityChange = (index, value) => {
-  const updated = [...rows];
-  updated[index].quantity = value;  // Update the quantity (PCS) state
+  const handleSave = async () => {
+    if (!transactionType) {
+      alert("Please select a Transaction Type before proceeding.");
+      return;
+    }
 
-  // Ensure contentNo is fetched correctly
-  const contentNo = updated[index].contentNo || 0;
-  updated[index].shellQty = Math.floor(value / contentNo);  // Update shell quantity (rounded down)
+    if (transactionType === "Van Load") {
+      if (!selectedVan) {
+        alert("Please select a Van before proceeding.");
+        return;
+      }
+      if (!selectedUser) {
+        alert("Please select the Handled By user before proceeding.");
+        return;
+      }
+      if (!route.trim()) {
+        alert("Please enter a Route before proceeding.");
+        return;
+      }
+    }
 
-  console.log(`Updated Shell Qty: ${updated[index].shellQty}, Updated PCS: ${value}`);  // Log to check if it's calculating correctly
+    if (transactionType === "Warehouse") {
+      if (!selectedUser) {
+        alert("Please select the Handled By user before proceeding.");
+        return;
+      }
+      if (!selectedCustomerId) {
+        alert("Please select a Customer before proceeding.");
+        return;
+      }
+    }
 
-  setRows(updated);  // Update the state
-};
-
-
-
-
-const handleSave = async () => {
-  if (!transactionType) {
-    alert("Please select a Transaction Type before proceeding.");
-    return;
-  }
 
   const validRows = rows.filter((row) => row.productId && row.quantity && row.shellQty);
 
-  const deductedStock = [];
+  // Prepare deduction data but DO NOT apply it yet
+  const deductedStock = validRows.map((row) => ({
+    productId: row.productId,
+    deducted: parseInt(row.quantity)
+  }));
 
+ 
+  
   for (let row of validRows) {
     const stockQuantity = availableStock[row.productId];
     if (row.quantity > stockQuantity) {
@@ -290,35 +285,49 @@ const handleSave = async () => {
       return;
     }
 
-    await updateStock(row.productId, row.quantity);
-    deductedStock.push({ productId: row.productId, deducted: row.quantity });
   }
 
-  const confirmed = window.confirm("Do you want to proceed with saving?");
-  if (!confirmed) return;
-
-  const user = users.find((u) => u.id.toString() === selectedUser.toString());
-  const selectedUserName = user ? `${user.first_name} ${user.last_name}` : "N/A";
-
-  const selectedProductsRows = validRows.map((row) => {
-    const product = products.find((p) => p.id.toString() === row.productId.toString());
-    return {
-      productId: row.productId,
-      productName: product ? product.product_name : "",
-      dispatchedShell: row.shellQty,
-      dispatchedPcs: row.quantity,
-    };
-  });
 
 
+
+    const confirmed = window.confirm("Do you want to proceed with saving?");
+    if (!confirmed) return;
+
+    let selectedUserName = selectedUser;
+
+    // If selectedUser is a number (i.e., an ID), resolve it to full name
+    if (!isNaN(selectedUser)) {
+      const user = users.find((u) => u.id.toString() === selectedUser.toString());
+      selectedUserName = user ? `${user.first_name} ${user.last_name}` : "N/A";
+    }
+
+
+    const selectedProductsRows = validRows.map((row) => {
+      const product = products.find((p) => p.id.toString() === row.productId.toString());
+      return {
+        productId: row.productId,
+        productName: product ? product.product_name : "",
+        dispatchedShell: row.shellQty,
+        dispatchedPcs: row.quantity,
+        priceId: product?.price?.id || product?.priceId || product?.price_id || null,
+        contentNo: product?.unit_type?.content_no || 0
+      };
+    });
+
+    // Ensure customer name is found for display
+      let customerObj = customers.find(c => c.id.toString() === selectedCustomerId.toString());
+
+    
     navigate("/merchandising-sale", {
       state: {
+        mspNo,
         transactionType,
-        mspNo, 
         selectedUser: selectedUserName,
         selectedRoute: route,
         dateTime,
-        customer,
+        customerId: selectedCustomerId,
+        customer: customerObj?.name || "",
+        selectedVan, // ✅ <-- add this line
         products: selectedProductsRows,
         deductedStock,  // ✅ pass it along
       }
@@ -331,9 +340,12 @@ const handleSave = async () => {
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
           <div>
             <label className="block mb-1">MSP NO.</label>
-            <input className="w-64 p-2 rounded bg-gray-200 text-black" value={mspNo} disabled />
+            <input
+              className="w-64 p-2 rounded bg-gray-200 text-black"
+              value={mspNo}
+              disabled
+            />
           </div>
-
           <div>
             <label className="block mb-1">Transaction Type</label>
             <select
@@ -346,24 +358,6 @@ const handleSave = async () => {
               <option value="Van Load">Van Load</option>
             </select>
           </div>
-
-          {transactionType === "Van Load" && (
-            <div>
-              <label className="block mb-1">Van</label>
-              <select
-                value={selectedVan}
-                onChange={(e) => setSelectedVan(e.target.value)}
-                className="w-64 p-2 rounded bg-gray-200 text-black"
-              >
-                <option value="" disabled hidden>Select</option>
-                {vans.map((van) => (
-                  <option key={van.id} value={van.id}>
-                    {van.van_id} - {van.plate_number}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
 
           {(transactionType === "Van Load" || transactionType === "Warehouse") && (
             <div>
@@ -395,7 +389,6 @@ const handleSave = async () => {
             />
           </div>
 
-
           {(transactionType === "Warehouse") && (
             <div>
               <label className="block mb-1">Customer</label>
@@ -404,15 +397,13 @@ const handleSave = async () => {
                   type="text"
                   className="w-64 p-2 rounded bg-gray-200 text-black"
                   placeholder="Enter new customer"
-                  value={customer}
-                  onChange={(e) => setCustomer(e.target.value)}
                   onKeyDown={async (e) => {
                     if (e.key === "Enter") {
-                      const newCustomer = customer.trim();
+                      const newCustomer = e.target.value.trim();
                       if (!newCustomer) return;
 
                       const exists = customers.some(
-                        (c) => c.name.toLowerCase() === newCustomer.toLowerCase()
+                        (c) => c.name?.toLowerCase() === newCustomer.toLowerCase()
                       );
 
                       if (exists) {
@@ -426,7 +417,7 @@ const handleSave = async () => {
                           name: newCustomer,
                         });
                         setCustomers((prev) => [...prev, res.data]);
-                        setCustomer(res.data.name);
+                        setSelectedCustomerId(res.data.id); // ⬅ use ID here
                       } catch (error) {
                         console.error("Error saving new customer:", error);
                       }
@@ -436,20 +427,20 @@ const handleSave = async () => {
                 />
               ) : (
                 <select
-                  value={customer}
+                  value={selectedCustomerId}
                   onChange={(e) => {
                     if (e.target.value === "add_new") {
                       setIsAddingCustomer(true);
-                      setCustomer("");
+                      setSelectedCustomerId(""); // reset if switching to input
                     } else {
-                      setCustomer(e.target.value);
+                      setSelectedCustomerId(e.target.value);
                     }
                   }}
                   className="w-64 p-2 rounded bg-gray-200 text-black"
                 >
                   <option value="" disabled hidden>Select a customer</option>
                   {customers.map((c) => (
-                    <option key={c.id} value={c.name}>
+                    <option key={c.id} value={c.id}>
                       {c.name}
                     </option>
                   ))}
@@ -459,8 +450,7 @@ const handleSave = async () => {
             </div>
           )}
 
-
-{transactionType === "Van Load" && (
+          {transactionType === "Van Load" && (
             <>
               <div>
                 <label className="block mb-1">Van</label>
@@ -539,12 +529,11 @@ const handleSave = async () => {
                 )}
               </div>
 
-
             </>
           )}
         </div>
       </div>
-
+      {/* Table Section */}
       <div className="overflow-x-auto bg-gray-100 rounded">
         <table className="table-auto w-full text-black">
           <thead>
@@ -575,19 +564,18 @@ const handleSave = async () => {
                 <td className="border p-2">
                   <input
                     type="number"
-                    className="w-full bg-white p-1"
+                    className="w-full bg-white p-1 text-center"
                     value={row.shellQty}
                     onChange={(e) => handleShellQtyChange(index, e.target.value)}
                   />
                 </td>
 
-                {/* Editable "Quantity (Pcs)" */}
                 <td className="border p-2">
                   <input
                     type="number"
-                    className="w-full bg-gray-200 p-1 text-center"
+                    className="w-full bg-white p-1 text-center"
                     value={row.quantity}
-                    onChange={(e) => handleQuantityChange(index, e.target.value)} // Handle quantity change
+                    onChange={(e) => handleQuantityChange(index, e.target.value)}
                   />
                 </td>
               </tr>
@@ -596,6 +584,7 @@ const handleSave = async () => {
         </table>
       </div>
 
+      {/* Save Button */}
       <div className="flex justify-end mt-6">
         <button
           onClick={handleSave}

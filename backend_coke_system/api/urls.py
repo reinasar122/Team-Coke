@@ -30,7 +30,9 @@ from .views import (
     SupplierReturnListCreateView, SupplierReturnDetailView,
     SupplierReturnItemListCreateView, SupplierReturnItemDetailView, 
     NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
-    CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock
+    CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock, LoginAPIView, RoleAccessibilityListView ,
+    RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
+    VerifyOTPAPIView
 
 
 
@@ -40,8 +42,17 @@ urlpatterns = [
     # User URLs
     path('users/', UserListCreateView.as_view(), name='user-list-create'),
     path('users/<int:pk>/', UserDetailView.as_view(), name='user-detail'),
+    path('change-password/', ChangePasswordAPIView.as_view(), name='change-password'),
+    path('forgot-password/send-otp/', SendOTPAPIView.as_view(), name='send-otp'),
+    path('forgot-password/verify-otp/', VerifyOTPAPIView.as_view(), name='verify-otp'),
+
 
     # ✅ New Role URLs
+    path('role-access/', RoleAccessibilityListView.as_view(), name='role-access-list'),
+    path('role-access/<int:pk>/', RoleAccessibilityDetailView.as_view(), name='role-access-detail'),
+    path('role-access/bulk-create/', BulkRoleAccessibilityCreateView.as_view(), name='bulk-role-access-create'),
+
+
     path('roles/', RoleListCreateView.as_view(), name='role-list-create'),
     path('roles/<int:pk>/', RoleDetailView.as_view(), name='role-detail'),
 
@@ -90,8 +101,8 @@ urlpatterns = [
     path('merchandisings/', MerchandisingListCreateView.as_view(), name='merchandising-list'),
     path('merchandisings/<int:pk>/', MerchandisingDetailView.as_view(), name='merchandising-detail'),
     path('merchandisings/msp-next/', NextMspNoView.as_view(), name='next-msp-no'),
-    path('stocks/<int:product_id>/', StockAvailabilityView.as_view(), name='stock-availability'),
-    path('stocks/<int:product_id>/',UpdateStockView.as_view(), name='update-stock'),
+    path('stocks/<int:product_id>/availability/', StockAvailabilityView.as_view(), name='stock-availability'),
+    path('stocks/<int:product_id>/update/', UpdateStockView.as_view(), name='update-stock'),
     path('api/stocks/<int:pk>/', StockDetailView.as_view()),
     path('api/stocks/<int:pk>/restore/', restore_stock),
 
@@ -117,4 +128,5 @@ urlpatterns = [
 
     path('customers/', CustomerListCreateView.as_view(), name='customer-list-create'),
     path('customers/<int:pk>/', CustomerRetrieveUpdateDestroyView.as_view(), name='customer-detail'),
+    path('login/', LoginAPIView.as_view(), name='login'),
 ]

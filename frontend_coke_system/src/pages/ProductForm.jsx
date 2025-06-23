@@ -1,103 +1,79 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const ProductForm = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    system_code: "",
-    supplier_code: "",
-    product_name: "",
-    product_category: "",
-    returnable: true,
-    purchase_price: "",
-    selling_price: "",
-    shell_price: "",
-    bottle_price: "",
-    content_no: "",
-    shell_type: "",
-    content_type: "",
-  });
+  const [rows, setRows] = useState([
+    {
+      system_code: "",
+      supplier_code: "",
+      product_name: "",
+      product_category: "",
+      returnable: true,
+      purchase_price: "",
+      selling_price: "",
+      shell_price: "",
+      bottle_price: "",
+      content_no: "",
+      shell_type: "",
+      content_type: "",
+    }
+  ]);
+  const inputRefs = useRef([]);
 
   const [categories, setCategories] = useState([]);
   const [shellTypes, setShellTypes] = useState([]);
   const [contentTypes, setContentTypes] = useState([]);
-
-  const [showModal, setShowModal] = useState({ type: null });
+  const [showModal, setShowModal] = useState({ type: null, rowIndex: null });
   const [newValue, setNewValue] = useState("");
+  const [suppliers, setSuppliers] = useState([]);
+
+
+  useEffect(() => {
+    fetchDropdowns();
+    generateSystemCode(0);
+  }, []);
 
   const fetchDropdowns = () => {
     axios.get("http://localhost:8080/api/product-categories/").then((res) => setCategories(res.data));
     axios.get("http://localhost:8080/api/shelltypes/").then((res) => setShellTypes(res.data));
     axios.get("http://localhost:8080/api/contenttypes/").then((res) => setContentTypes(res.data));
+    axios.get("http://localhost:8080/api/suppliers/").then((res) => setSuppliers(res.data));
   };
 
-  const fetchSystemCode = async () => {
-    try {
-      const res = await axios.get("http://localhost:8080/api/products/next-system-code/");
-      setFormData((prev) => ({ ...prev, system_code: res.data.system_code }));
-    } catch (err) {
-      console.error("Failed to fetch system code", err);
-    }
+  const generateSystemCode = (index) => {
+    const code = `PROD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    setRows(prev => {
+      const newRows = [...prev];
+      newRows[index].system_code = code;
+      return newRows;
+    });
   };
-  
 
-  useEffect(() => {
-    fetchSystemCode();
-    fetchDropdowns();
-  }, []);
-
-  const handleChange = (e) => {
+  const handleChange = (index, e) => {
     const { name, value, type, checked } = e.target;
-    let val = type === "checkbox" ? checked : value;
-
-    if (name === "returnable" && !checked) {
-      setFormData((prev) => ({
-        ...prev,
-        returnable: false,
-        shell_price: 0,
-        bottle_price: 0,
-      }));
-    } else {
-      setFormData((prev) => ({
-        ...prev,
-        [name]: val,
-      }));
-    }
+    setRows(prev => {
+      const newRows = [...prev];
+      if (name === "returnable") {
+        newRows[index][name] = checked;
+        if (!checked) {
+          newRows[index].shell_price = 0;
+          newRows[index].bottle_price = 0;
+        }
+      } else {
+        newRows[index][name] = type === "checkbox" ? checked : value;
+      }
+      return newRows;
+    });
+    checkAndAddRow(index); // Always check after any input change
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const pricingRes = await axios.post("http://localhost:8080/api/pricing/", {
-        purchase_price: formData.purchase_price,
-        selling_price: formData.selling_price,
-        shell_price: formData.shell_price,
-        bottle_price: formData.bottle_price,
-      });
-
-      const unitTypeRes = await axios.post("http://localhost:8080/api/unit-types/", {
-        content_no: formData.content_no,
-        returnable: formData.returnable,
-        shell_type: formData.shell_type,
-        content_type: formData.content_type,
-        content_returnable: formData.returnable,
-      });
-
-      await axios.post("http://localhost:8080/api/products/", {
-        system_code: formData.system_code,
-        supplier_code: formData.supplier_code,
-        product_name: formData.product_name,
-        product_category: formData.product_category,
-        unit_type: unitTypeRes.data.id,
-        price: pricingRes.data.id,
-      });
-
-      alert("✅ Product saved!");
-      navigate("/products/");
-    } catch (err) {
-      console.log("Form values when saving:", formData);
-      alert("❌ Error saving product");
+  const handleSelectChange = (index, e, type) => {
+    if (e.target.value === "add_new") {
+      setShowModal({ type, rowIndex: index });
+    } else {
+      handleChange(index, e);
     }
   };
 
@@ -105,7 +81,7 @@ const ProductForm = () => {
     let endpoint = "";
     let payload = {};
     let fieldName = "";
-  
+
     if (showModal.type === "category") {
       endpoint = "product-categories/";
       payload = { name: newValue };
@@ -119,108 +95,157 @@ const ProductForm = () => {
       payload = { description: newValue };
       fieldName = "content_type";
     }
-  
+
     try {
       const res = await axios.post(`http://localhost:8080/api/${endpoint}`, payload);
       fetchDropdowns();
-      setFormData((prev) => ({
-        ...prev,
-        [fieldName]: res.data.id,
-      }));
-      setShowModal({ type: null });
+      setRows(prev => {
+        const newRows = [...prev];
+        newRows[showModal.rowIndex][fieldName] = res.data.id;
+        return newRows;
+      });
+      setShowModal({ type: null, rowIndex: null });
       setNewValue("");
     } catch (err) {
       console.error("❌ Add New Error:", err.response?.data || err.message);
       alert("❌ Failed to add new item");
     }
   };
-  
-  
-  const renderDropdown = (label, name, options, modalType) => (
-    <div className="mb-4">
-      <label className="block font-medium mb-1">{label}</label>
-      <select
-        name={name}
-        value={formData[name]}
-        onChange={(e) => {
-          if (e.target.value === "add_new") {
-            setShowModal({ type: modalType });
-          } else {
-            handleChange(e);
-          }
-        }}
-        className="w-full px-3 py-2 border rounded"
-      >
-        <option value="">-- Select --</option>
-        {options.map((item) => (
-          <option key={item.id} value={item.id}>
-            {item.name || item.description}
-          </option>
-        ))}
-        <option value="add_new">+ Add New</option>
-      </select>
-    </div>
-  );
+
+  const checkAndAddRow = (index) => {
+    const current = rows[index];
+    const filled = current.supplier_code && current.product_name && current.product_category && current.purchase_price && current.selling_price && current.content_no;
+    if (filled && index === rows.length - 1) {
+      setRows(prev => {
+        const newRows = [...prev, {
+          system_code: `PROD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+          supplier_code: "",
+          supplier: "", 
+          product_name: "",
+          product_category: "",
+          returnable: true,
+          purchase_price: "",
+          selling_price: "",
+          shell_price: "",
+          bottle_price: "",
+          content_no: "",
+          shell_type: "",
+          content_type: "",
+        }];
+        setTimeout(() => {
+          inputRefs.current[newRows.length - 1]?.focus();
+        }, 100);
+        return newRows;
+      });
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      for (let formData of rows) {
+        if (!formData.product_name) continue;
+
+        const pricingRes = await axios.post("http://localhost:8080/api/pricing/", {
+          purchase_price: formData.purchase_price,
+          selling_price: formData.selling_price,
+          shell_price: formData.shell_price,
+          bottle_price: formData.bottle_price,
+        });
+
+        const unitTypeRes = await axios.post("http://localhost:8080/api/unit-types/", {
+          content_no: formData.content_no,
+          returnable: formData.returnable,
+          shell_type: formData.shell_type,
+          content_type: formData.content_type,
+          content_returnable: formData.returnable,
+        });
+
+        await axios.post("http://localhost:8080/api/products/", {
+          system_code: formData.system_code,
+          supplier_code: formData.supplier_code,
+          supplier: formData.supplier, 
+          product_name: formData.product_name,
+          product_category: formData.product_category,
+          unit_type: unitTypeRes.data.id,
+          price: pricingRes.data.id,
+        });
+      }
+      alert("✅ Products saved!");
+      navigate("/products/");
+    } catch (err) {
+      console.log("Form values when saving:", rows);
+      alert("❌ Error saving products");
+    }
+  };
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-md mx-auto mt-8 bg-gray-200 p-6 rounded-xl shadow-lg">
-      <h2 className="text-3xl font-bold mb-6">PRODUCT</h2>
-
-      {[
-        ["System Code", "system_code"],
-        ["Supplier Code", "supplier_code"],
-        ["Product Name", "product_name"],
-      ].map(([label, name]) => (
-        <div className="mb-4" key={name}>
-          <label className="block font-medium mb-1">{label}</label>
-          <input
-            name={name}
-            value={formData[name]}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border rounded"
-            readOnly={name === "system_code"}
-          />
-        </div>
-      ))}
-
-      {renderDropdown("Product Category", "product_category", categories, "category")}
-
-      <div className="mb-4 flex items-center">
-        <label className="font-medium mr-4">RETURNABLE</label>
-        <input type="checkbox" name="returnable" checked={formData.returnable} onChange={handleChange} />
-        <span className="ml-2">{formData.returnable ? "YES" : "NO"}</span>
-      </div>
-
-      {[
-        ["Purchased Price", "purchase_price"],
-        ["Selling Price", "selling_price"],
-        ["Shell Price", "shell_price"],
-        ["Bottle Price", "bottle_price"],
-        ["Content No", "content_no"],
-      ].map(([label, name]) => (
-        <div className="mb-4" key={name}>
-          <label className="block font-medium mb-1">{label}</label>
-          <input
-            name={name}
-            type="number"
-            value={formData[name]}
-            onChange={handleChange}
-            className="w-full px-3 py-2 border rounded"
-            readOnly={["shell_price", "bottle_price"].includes(name) && !formData.returnable}
-          />
-        </div>
-      ))}
-
-      {renderDropdown("Shell Type", "shell_type", shellTypes, "shell")}
-      {renderDropdown("Content Type", "content_type", contentTypes, "content")}
-
-      <div className="flex justify-between">
-        <button type="button" onClick={() => navigate("/products")} className="bg-gray-500 text-white px-4 py-2 rounded">
-          Cancel
-        </button>
-        <button type="submit" className="bg-blue-600 text-white px-4 py-2 rounded">
-          Save Product
-        </button>
+    <form onSubmit={handleSubmit} className="p-6 bg-blue-100 shadow-xl rounded-xl overflow-x-auto">
+      <h2 className="text-3xl font-bold text-center mb-4">PRODUCT FORM</h2>
+      <table className="min-w-full table-auto border-collapse">
+        <thead className="bg-gray-400 text-black">
+          <tr>
+            {["System Code", "Supplier Code", "Supplier", "Product Name", "Product Category", "Returnable", "Purchase Price", "Selling Price", "Shell Price", "Bottle Price", "Content No", "Shell Type", "Content Type"].map(header => (
+              <th key={header} className="px-4 py-2">{header}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="bg-gray-200">
+          {rows.map((row, index) => (
+            <tr key={index}>
+              <td className="px-2 py-2"><input name="system_code" value={row.system_code} readOnly className="border rounded px-2 py-1 w-full" /></td>
+              <td className="px-2 py-2"><input ref={(el) => inputRefs.current[index] = el} name="supplier_code" value={row.supplier_code} onChange={(e) => handleChange(index, e)} className="border rounded px-2 py-1 w-full" /></td>
+              <td className="px-2 py-2"><select name="supplier" value={row.supplier || ""} onChange={(e) => handleChange(index, e)} className="border rounded px-2 py-1 w-full">
+                <option value="">--Supplier--</option>
+                {suppliers.map(s => (
+                  <option key={s.id} value={s.id}>{s.company_name}</option>
+                ))}
+              </select>
+            </td>
+              <td className="px-2 py-2"><input name="product_name" value={row.product_name} onChange={(e) => handleChange(index, e)} className="border rounded px-2 py-1 w-full" /></td>
+              <td className="px-2 py-2">
+                <select name="product_category" value={row.product_category} onChange={(e) => handleSelectChange(index, e, 'category')} className="border rounded px-2 py-1 w-full">
+                  <option value="">-- Select --</option>
+                  {categories.map(cat => (<option key={cat.id} value={cat.id}>{cat.name}</option>))}
+                  <option value="add_new">+ Add New</option>
+                </select>
+              </td>
+              <td className="px-2 py-2 text-center">
+                <input type="checkbox" name="returnable" checked={row.returnable} onChange={(e) => handleChange(index, e)} />
+              </td>
+              {["purchase_price", "selling_price", "shell_price", "bottle_price", "content_no"].map(field => (
+                <td key={field} className="px-2 py-2">
+                  <input
+                    type="number"
+                    name={field}
+                    value={row[field]}
+                    onChange={(e) => handleChange(index, e)}
+                    className="border rounded px-2 py-1 w-full"
+                    disabled={!row.returnable && (field === "shell_price" || field === "bottle_price")}
+                  />
+                </td>
+              ))}
+              <td className="px-2 py-2">
+                <select name="shell_type" value={row.shell_type} onChange={(e) => handleSelectChange(index, e, 'shell')} className="border rounded px-2 py-1 w-full">
+                  <option value="">-- Select --</option>
+                  {shellTypes.map(shell => (<option key={shell.id} value={shell.id}>{shell.description}</option>))}
+                  <option value="add_new">+ Add New</option>
+                </select>
+              </td>
+              <td className="px-2 py-2">
+                <select name="content_type" value={row.content_type} onChange={(e) => handleSelectChange(index, e, 'content')} className="border rounded px-2 py-1 w-full">
+                  <option value="">-- Select --</option>
+                  {contentTypes.map(content => (<option key={content.id} value={content.id}>{content.description}</option>))}
+                  <option value="add_new">+ Add New</option>
+                </select>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="mt-4 text-right">
+        <button type="button" className="px-4 py-2 bg-gray-500 text-white rounded" onClick={() => navigate('/products')}>Cancel</button>
+        <button type="submit" className="px-4 py-2 ml-2 bg-blue-600 text-white rounded">Save Product</button>
       </div>
 
       {showModal.type && (
@@ -235,13 +260,12 @@ const ProductForm = () => {
               placeholder="Enter value"
             />
             <div className="flex justify-end gap-2">
-              <button onClick={() => setShowModal({ type: null })} className="px-3 py-1 bg-gray-400 text-white rounded">
+              <button onClick={() => setShowModal({ type: null, rowIndex: null })} className="px-3 py-1 bg-gray-400 text-white rounded">
                 Cancel
               </button>
               <button type="button" onClick={handleAddNew} className="px-3 py-1 bg-blue-600 text-white rounded">
                 Add
               </button>
-
             </div>
           </div>
         </div>

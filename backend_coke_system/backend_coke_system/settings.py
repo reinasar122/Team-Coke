@@ -85,13 +85,14 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'coke_db',
+         'NAME': 'inventory_system',
          'USER': 'root',
          'PASSWORD': 'yjh434ctuG@-@',
          'HOST': 'localhost',
          'PORT': '3306',
      }
  }
+
 
 
 # Password validation
@@ -134,3 +135,18 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+import os
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = 'jkcuevas4@gmail.com'         # replace with your actual Gmail
+EMAIL_HOST_PASSWORD = 'xtfzuvwtrdioxtex' 
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

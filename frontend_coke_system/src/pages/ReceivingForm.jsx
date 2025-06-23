@@ -42,6 +42,13 @@ const ReceivingForm = () => {
     setReceiveNo(generateJumbledCode());
   }, []);
 
+  const handleReturnChange = (value) => {
+    const updatedReturnAmount = value === "" ? "" : Number(value);
+    const total = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
+    const net = total - (updatedReturnAmount === "" ? 0 : updatedReturnAmount);
+    setForm({ ...form, return_total_amount: value, net_amount: net.toFixed(2) });
+  };
+
   const handleRowChange = (index, field, value) => {
     const newRows = [...form.details];
     const row = newRows[index];
@@ -89,13 +96,6 @@ const ReceivingForm = () => {
     }
 
     setForm({ ...form, details: newRows, net_amount: net.toFixed(2) });
-  };
-
-  const handleReturnChange = (value) => {
-    const updatedReturnAmount = value === "" ? "" : Number(value);
-    const total = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
-    const net = total - (updatedReturnAmount === "" ? 0 : updatedReturnAmount);
-    setForm({ ...form, return_total_amount: value, net_amount: net.toFixed(2) });
   };
 
   const handleSubmit = async (e) => {

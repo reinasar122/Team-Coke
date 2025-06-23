@@ -6,8 +6,9 @@ const UserForm = ({ onUserAdded, onClose }) => {
     last_name: "",
     gender: "",
     phone_number: "",
-    role_id: "", // Now sending ID instead of name
-    warehouse_id: "", // Now sending ID instead of name
+    email: "",             // ✅ new field
+    role_id: "",
+    warehouse_id: "",
     username: "",
     is_active: true,
     password: "",
@@ -17,18 +18,16 @@ const UserForm = ({ onUserAdded, onClose }) => {
   const [warehouses, setWarehouses] = useState([]);
 
   useEffect(() => {
-    // Fetch available roles
     const fetchRoles = async () => {
       try {
         const response = await fetch("http://127.0.0.1:8080/api/roles/");
         const data = await response.json();
-        setRoles(data); // Ensure API returns a list of roles with IDs
+        setRoles(data);
       } catch (error) {
         console.error("Error fetching roles:", error);
       }
     };
 
-    // Fetch warehouse list
     const fetchWarehouses = async () => {
       try {
         const response = await fetch("http://127.0.0.1:8080/api/warehouses/");
@@ -45,18 +44,17 @@ const UserForm = ({ onUserAdded, onClose }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData((prevData) => ({ ...prevData, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Prepare the final data with role_id and warehouse_id
     const userPayload = {
       ...formData,
-      role_id: Number(formData.role_id) || null, // Convert to number
-      warehouse_id: Number(formData.warehouse_id) || null, // Convert to number
-      is_active: Boolean(formData.is_active), // Ensure it's a boolean
+      role_id: Number(formData.role_id) || null,
+      warehouse_id: Number(formData.warehouse_id) || null,
+      is_active: Boolean(formData.is_active),
     };
 
     try {
@@ -67,13 +65,13 @@ const UserForm = ({ onUserAdded, onClose }) => {
       });
 
       const data = await response.json();
-      console.log("Response:", response.status, data); // Log full response
+      console.log("Response:", response.status, data);
 
       if (response.ok) {
         onUserAdded(data);
         onClose();
       } else {
-        alert(`Error: ${JSON.stringify(data)}`); // Show the actual error from Django
+        alert(`Error: ${JSON.stringify(data)}`);
       }
     } catch (error) {
       console.error("Error creating user:", error);
@@ -115,6 +113,12 @@ const UserForm = ({ onUserAdded, onClose }) => {
             </div>
           </div>
 
+          {/* Email */}
+          <div className="mb-5">
+            <label className="block font-medium">Email</label>
+            <input type="email" name="email" className="w-full border p-2 rounded" required onChange={handleChange} />
+          </div>
+
           {/* Role & Warehouse */}
           <div className="mb-5 flex gap-6">
             <div className="w-1/2">
@@ -122,9 +126,7 @@ const UserForm = ({ onUserAdded, onClose }) => {
               <select name="role_id" className="w-full border p-2 rounded" required onChange={handleChange}>
                 <option value="">Select Role</option>
                 {roles.map((role) => (
-                  <option key={role.id} value={role.id}>
-                    {role.name}
-                  </option>
+                  <option key={role.id} value={role.id}>{role.name}</option>
                 ))}
               </select>
             </div>
@@ -133,9 +135,7 @@ const UserForm = ({ onUserAdded, onClose }) => {
               <select name="warehouse_id" className="w-full border p-2 rounded" required onChange={handleChange}>
                 <option value="">Select Warehouse</option>
                 {warehouses.map((warehouse) => (
-                  <option key={warehouse.id} value={warehouse.id}>
-                    {warehouse.name}
-                  </option>
+                  <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
                 ))}
               </select>
             </div>
@@ -152,7 +152,6 @@ const UserForm = ({ onUserAdded, onClose }) => {
               <input type="password" name="password" className="w-full border p-2 rounded" required onChange={handleChange} />
             </div>
           </div>
-
 
           {/* Buttons */}
           <div className="flex justify-between">

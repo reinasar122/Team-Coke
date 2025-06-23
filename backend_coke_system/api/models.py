@@ -3,7 +3,8 @@ import uuid
 import string
 import random
 from django.utils import timezone
-from django.contrib.auth.hashers import make_password, check_password  # Use Django's secure hashers
+from django.contrib.auth.hashers import make_password, check_password
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 class Warehouse(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -17,7 +18,7 @@ class Warehouse(models.Model):
 
     def __str__(self):
         return self.name
-    
+
 class Supplier(models.Model):
     company_name = models.CharField(max_length=255)
     registration_number = models.CharField(max_length=20, unique=True, editable=False)
@@ -37,7 +38,6 @@ class Supplier(models.Model):
 
     def __str__(self):
         return self.company_name
-    
 
 class SupplierContact(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="contacts")
@@ -47,40 +47,48 @@ class SupplierContact(models.Model):
 
     def __str__(self):
         return f"{self.contact_person} ({self.supplier.company_name})"
-    
 
 class Role(models.Model):
-    """Separate Role model to manage roles and optionally associate with warehouses."""
     name = models.CharField(max_length=50, unique=True)
 
     def __str__(self):
         return self.name
 
+class RoleAccessibility(models.Model):
+    role = models.ForeignKey(Role, on_delete=models.CASCADE)
+    submenu = models.CharField(max_length=100)
+
+    full = models.BooleanField(default=False)
+    view = models.BooleanField(default=False)
+    create = models.BooleanField(default=False)
+    edit = models.BooleanField(default=False)
+    delete = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('role', 'submenu')
+
+    def __str__(self):
+        return f"{self.role.name} - {self.submenu} (F:{self.full} V:{self.view} C:{self.create} E:{self.edit} D:{self.delete})"
+
 
 class User(models.Model):
-    """Updated User model with ForeignKey relationships."""
-    STATUS_CHOICES = [
-        (True, 'Active'),
-        (False, 'Inactive'),
-    ]
-
-    GENDER_CHOICES = [
-        ('Male', 'Male'),
-        ('Female', 'Female'),
-        ('Other', 'Other'),
-    ]
+    STATUS_CHOICES = [(True, 'Active'), (False, 'Inactive')]
+    GENDER_CHOICES = [('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')]
 
     id = models.AutoField(primary_key=True)
+    email = models.EmailField(unique=True, null=True, blank=True)  # ✅ REQUIRED for sending email
     password = models.CharField(max_length=255)
+    must_change_password = models.BooleanField(default=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
     username = models.CharField(max_length=150, unique=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
-
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True)
-
     is_active = models.BooleanField(choices=STATUS_CHOICES, default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(blank=True, null=True)
@@ -92,30 +100,31 @@ class User(models.Model):
         return self.username
 
     def set_password(self, raw_password):
-        """Automatically hash password before saving."""
         self.password = make_password(raw_password)
         self.save()
 
     def check_password(self, raw_password):
-        """Check hashed password."""
         return check_password(raw_password, self.password)
-    
+
 
 class Van(models.Model):
-    van_id = models.CharField(max_length=50)
-    plate_number = models.CharField(max_length=20)
+    van_id = models.CharField(max_length=50, unique=True)
+    plate_number = models.CharField(max_length=20, unique=True)
 
     def __str__(self):
         return f"{self.van_id} - {self.plate_number}"
-    
-
-#Product and Pricing Models
 
 class ContentType(models.Model):
     description = models.TextField()
 
+    def __str__(self):
+        return self.description
+
 class ShellType(models.Model):
     description = models.TextField()
+
+    def __str__(self):
+        return self.description
 
 class ProductCategory(models.Model):
     name = models.CharField(max_length=100)
@@ -130,19 +139,26 @@ class UnitType(models.Model):
     content_type = models.ForeignKey(ContentType, on_delete=models.SET_NULL, null=True)
     content_returnable = models.BooleanField()
 
+    def __str__(self):
+        return f"{self.content_no} units - {self.shell_type}"
+
 class Pricing(models.Model):
     purchase_price = models.FloatField()
     selling_price = models.FloatField()
     shell_price = models.FloatField()
     bottle_price = models.FloatField()
 
+    def __str__(self):
+        return f"₱{self.selling_price:.2f}"
+
 class Product(models.Model):
-    system_code = models.TextField()
-    supplier_code = models.TextField()
-    product_name = models.TextField()
+    system_code = models.CharField(max_length=100, unique=True)  # ✅ Fixed from TextField
+    supplier_code = models.CharField(max_length=100, blank=True, null=True)
+    product_name = models.CharField(max_length=255)
     product_category = models.ForeignKey(ProductCategory, on_delete=models.SET_NULL, null=True)
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
+    supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         if not self.system_code:
@@ -150,6 +166,13 @@ class Product(models.Model):
             next_id = last.id + 1 if last else 1
             self.system_code = f"PROD-{next_id:04d}"
         super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.product_name
+
+
+# You can continue the remaining models following the same patterns...
+
 
 
 class Receiving(models.Model):
@@ -258,8 +281,9 @@ class Merchandising(models.Model):
     msp_no = models.CharField(max_length=20, unique=True, editable=False)
     transaction_type = models.ForeignKey(TransactionType, on_delete=models.CASCADE)
     handled_by = models.CharField(max_length=100)
-    route = models.ForeignKey('Route', on_delete=models.CASCADE)
-    van = models.ForeignKey('Van', on_delete=models.CASCADE)
+    route = models.ForeignKey(Route, on_delete=models.SET_NULL, null=True, blank=True)
+    van = models.ForeignKey(Van, on_delete=models.SET_NULL, null=True, blank=True)
+
     date_time = models.DateTimeField(default=timezone.now)
 
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -271,6 +295,11 @@ class Merchandising(models.Model):
     status = models.CharField(max_length=50, default="PENDING")
     remarks = models.TextField(blank=True, null=True)
 
+    # 🔽 NEW FIELDS
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    cash_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
     def save(self, *args, **kwargs):
         if not self.msp_no:
             prefix = ''
@@ -279,13 +308,14 @@ class Merchandising(models.Model):
             elif self.transaction_type.name.lower() == 'van':
                 prefix = 'V'
             else:
-                prefix = 'X'  # default prefix if unknown type
+                prefix = 'X'
 
             last = Merchandising.objects.filter(transaction_type=self.transaction_type).order_by('-id').first()
             next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
             self.msp_no = f"{prefix}-{next_number:04d}"
 
         super().save(*args, **kwargs)
+
 
 
         
@@ -297,20 +327,28 @@ class MerchandisingItem(models.Model):
     dispatched_pcs = models.PositiveIntegerField(default=0)
     dispatched_shell = models.PositiveIntegerField(default=0)
 
+    selling_price = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
     sold_pcs = models.PositiveIntegerField(default=0)
     sold_shell = models.PositiveIntegerField(default=0)
 
-    expected_return_pcs = models.PositiveIntegerField(default=0)
-    expected_return_shell = models.PositiveIntegerField(default=0)
+
+    empty_price_shell = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    empty_price_pc = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+
+
+    empty_return_pcs = models.PositiveIntegerField(default=0)
+    empty_return_shell = models.PositiveIntegerField(default=0)
+
+    discrepancy_empties_pc = models.PositiveIntegerField(default=0)
+    discrepancy_empties_shell = models.PositiveIntegerField(default=0)
+
 
     actual_return_pcs = models.PositiveIntegerField(default=0)
     actual_return_shell = models.PositiveIntegerField(default=0)
 
-    discrepancy_pcs = models.PositiveIntegerField(default=0)
-    discrepancy_shell = models.PositiveIntegerField(default=0)
-
-    empty_return_pcs = models.PositiveIntegerField(default=0)
-    empty_return_shell = models.PositiveIntegerField(default=0)
+    discrepancy_full_pcs = models.PositiveIntegerField(default=0)
+    discrepancy_full_shell = models.PositiveIntegerField(default=0)
 
     discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -318,25 +356,34 @@ class MerchandisingItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.merchandising.msp_no}"
+    
 
-# 8. MiscellaneousItem
 class MiscellaneousItem(models.Model):
     merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    receipt_file = models.FileField(upload_to='misc_receipts/', blank=True, null=True)  # <-- Add this line
 
     def __str__(self):
         return f"{self.description} - ₱{self.amount}"
 
+
 # 9. ReturnableStock
+# filepath: c:\Users\Lenizo.karenzoe\Desktop\Inventory 111\coke-POS-system\backend_coke_system\api\models.py
 class ReturnableStock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
     empty_bottle_qty = models.PositiveIntegerField(default=0)
     empty_shell_qty = models.PositiveIntegerField(default=0)
+    source = models.CharField(
+        max_length=20,
+        choices=[('customer', 'Customer'), ('supplier', 'Supplier')],
+        default='customer'  # Provide a default value here
+    )
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True)  # ADD THIS
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.product.name} Returnables"
+        return f"{self.product.name} Returnables from {self.source}"
 
 # 10. SupplierReturn
 class SupplierReturn(models.Model):

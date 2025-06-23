@@ -11,15 +11,14 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
       try {
         const response = await fetch(`http://127.0.0.1:8080/api/users/${userId}/`);
         const data = await response.json();
-
         setUser({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
           gender: data.gender || "",
           username: data.username || "",
           phone_number: data.phone_number || "",
-          role_id: data.role?.id || "",           // select value
-          warehouse_id: data.warehouse?.id || "", // select value
+          role_id: data.role?.id || data.role_id || "",
+          warehouse_id: data.warehouse?.id || data.warehouse_id || "",
           is_active: data.is_active ?? true,
         });
       } catch (err) {
@@ -54,7 +53,10 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setUser((prevUser) => ({ ...prevUser, [name]: value }));
+    setUser((prevUser) => ({
+      ...prevUser,
+      [name]: value,
+    }));
   };
 
   const handleSubmit = async (e) => {
@@ -70,7 +72,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
         phone_number: user.phone_number,
         role: parseInt(user.role_id),
         warehouse: parseInt(user.warehouse_id),
-        is_active: user.is_active === "true",
+        is_active: user.is_active === "true" || user.is_active === true,
       };
 
       const res = await fetch(`http://127.0.0.1:8080/api/users/${userId}/`, {
@@ -94,7 +96,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   if (!user) return <div>Loading user data...</div>;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40">
+    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
       <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
         <h2 className="text-2xl font-semibold mb-4 text-center">Edit User</h2>
 
@@ -106,7 +108,13 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
           <div>
             <label className="block font-medium">Gender:</label>
-            <select name="gender" value={user.gender} onChange={handleChange} className="w-full p-2 border rounded" required>
+            <select
+              name="gender"
+              value={user.gender}
+              onChange={handleChange}
+              className="w-full p-2 border rounded"
+              required
+            >
               <option value="">Select Gender</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
@@ -116,32 +124,57 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
           <div>
             <label className="block font-medium">Role:</label>
-            <select name="role_id" value={user.role_id} onChange={handleChange} className="w-full p-2 border rounded" required>
+            <select
+              name="role_id"
+              value={user.role_id}
+              onChange={handleChange}
+              className="w-full p-2 border rounded"
+              required
+            >
+              <option value="">Select Role</option>
               {roles.map((role) => (
-                <option key={role.id} value={role.id}>{role.name}</option>
+                <option key={role.id} value={role.id}>
+                  {role.name}
+                </option>
               ))}
             </select>
           </div>
 
           <div>
             <label className="block font-medium">Warehouse:</label>
-            <select name="warehouse_id" value={user.warehouse_id} onChange={handleChange} className="w-full p-2 border rounded" required>
+            <select
+              name="warehouse_id"
+              value={user.warehouse_id}
+              onChange={handleChange}
+              className="w-full p-2 border rounded"
+              required
+            >
+              <option value="">Select Warehouse</option>
               {warehouses.map((wh) => (
-                <option key={wh.id} value={wh.id}>{wh.name}</option>
+                <option key={wh.id} value={wh.id}>
+                  {wh.name}
+                </option>
               ))}
             </select>
           </div>
 
           <div>
             <label className="block font-medium">Status:</label>
-            <select name="is_active" value={user.is_active.toString()} onChange={handleChange} className="w-full p-2 border rounded">
+            <select
+              name="is_active"
+              value={user.is_active.toString()}
+              onChange={handleChange}
+              className="w-full p-2 border rounded"
+            >
               <option value="true">Active</option>
               <option value="false">Inactive</option>
             </select>
           </div>
 
           <div className="flex justify-between pt-2">
-            <button type="button" onClick={onClose} className="bg-red-500 text-white py-2 px-4 rounded">Cancel</button>
+            <button type="button" onClick={onClose} className="bg-red-500 text-white py-2 px-4 rounded">
+              Cancel
+            </button>
             <button type="submit" className="bg-blue-500 text-white py-2 px-4 rounded" disabled={loading}>
               {loading ? "Saving..." : "Save Changes"}
             </button>
@@ -152,7 +185,6 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   );
 };
 
-// Helper component for cleaner inputs
 const InputField = ({ label, name, value, onChange }) => (
   <div>
     <label className="block font-medium">{label}:</label>

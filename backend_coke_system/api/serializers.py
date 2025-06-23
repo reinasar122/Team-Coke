@@ -4,9 +4,16 @@ from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
 from .models import User, Role
 from .models import Van
-from .models import ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
+from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
+from .models import User, RoleAccessibility
+import re
 
+class RoleAccessibilitySerializer(serializers.ModelSerializer):
+    role_name = serializers.CharField(source='role.name', read_only=True)
 
+    class Meta:
+        model = RoleAccessibility
+        fields = '__all__'
 
 class RoleSerializer(serializers.ModelSerializer):
     """Serializer for Role model"""
@@ -16,10 +23,9 @@ class RoleSerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    """Updated UserSerializer to return role_name and warehouse_name instead of full objects"""
-    role_name = serializers.CharField(source='role.name', read_only=True)  # Only the role name
-    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)  # Only the warehouse name
-    
+    role_name = serializers.CharField(source='role.name', read_only=True)
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
+
     role_id = serializers.PrimaryKeyRelatedField(
         queryset=Role.objects.all(), source='role', write_only=True
     )
@@ -30,33 +36,62 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'password', 'first_name', 'last_name', 'gender',
+            'id', 'username', 'password', 'email', 'first_name', 'last_name', 'gender',
             'phone_number', 'role_name', 'role_id', 'warehouse_name', 'warehouse_id',
             'is_active', 'created_at', 'last_login'
         ]
-        extra_kwargs = {'password': {'write_only': True}}  # Hide password from responses
+        extra_kwargs = {'password': {'write_only': True}}
 
     def create(self, validated_data):
-        """Hash password before saving"""
-        if 'password' in validated_data:
-            validated_data['password'] = make_password(validated_data['password'])
-        return super().create(validated_data)
+        password = validated_data.pop('password', None)
+        if password:
+            validated_data['password'] = make_password(password)
+
+        user = super().create(validated_data)
+
+        # ✅ Send email with username and password
+        from django.core.mail import send_mail
+        send_mail(
+            subject='Your Account Credentials',
+            message=f"""
+Hello {user.first_name},
+
+Your account has been created.
+
+Username: {user.username}
+Password: {self.initial_data.get('password')}
+
+Please log in and change your password as soon as possible.
+
+Best regards,
+Admin Team
+""",
+            from_email='your_email@gmail.com',  # Replace with your Gmail
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+
+        return user
 
     def update(self, instance, validated_data):
-        """Hash password if it's being updated"""
-        if 'password' in validated_data:
-            validated_data['password'] = make_password(validated_data['password'])
+        password = validated_data.pop('password', None)
+        role = validated_data.pop('role', None)
+        warehouse = validated_data.pop('warehouse', None)
 
-        # Set the role and warehouse based on their IDs
-        role_id = validated_data.pop('role', None)
-        warehouse_id = validated_data.pop('warehouse', None)
+        if password:
+            instance.set_password(password)
+        if role:
+            instance.role = role
+        if warehouse:
+            instance.warehouse = warehouse
 
-        if role_id is not None:
-            instance.role = role_id
-        if warehouse_id is not None:
-            instance.warehouse = warehouse_id
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
 
-        return super().update(instance, validated_data)
+        instance.save()
+        return instance
+
+
 
 
 
@@ -259,9 +294,17 @@ class StockSerializer(serializers.ModelSerializer):
         return obj.stock_status()
 
 
+
 class RoleSerializer(serializers.ModelSerializer):
     class Meta:
         model = Role
+        fields = '__all__'
+
+class RoleAccessibilitySerializer(serializers.ModelSerializer):
+    role_name = serializers.CharField(source='role.name', read_only=True)
+
+    class Meta:
+        model = RoleAccessibility
         fields = '__all__'
 
 
@@ -290,6 +333,9 @@ class MerchandisingItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MerchandisingItem
         fields = '__all__'
+        extra_kwargs = {
+            'merchandising': {'required': False}  # ✅ make it optional
+        }
 
 
 # MiscellaneousItem Serializer
@@ -308,6 +354,7 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 # Merchandising Serializer (Main Transaction)
 class MerchandisingSerializer(serializers.ModelSerializer):
+    transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
     items = MerchandisingItemSerializer(many=True)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False)
@@ -324,7 +371,52 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         merchandising = Merchandising.objects.create(**validated_data)
 
         for item_data in items_data:
-            MerchandisingItem.objects.create(merchandising=merchandising, **item_data)
+            product = item_data.get("product")
+            if not isinstance(product, Product):
+                product = Product.objects.get(id=product)
+
+            merchandising_item = MerchandisingItem.objects.create(
+                merchandising=merchandising,
+                product=product,
+                dispatched_pcs=item_data.get("dispatched_pcs", 0),
+                dispatched_shell=item_data.get("dispatched_shell", 0),
+                sold_pcs=item_data.get("sold_pcs", 0),
+                sold_shell=item_data.get("sold_shell", 0),
+                empty_return_pcs=item_data.get("empty_return_pcs", 0),
+                empty_return_shell=item_data.get("empty_return_shell", 0),
+                actual_return_pcs=item_data.get("actual_return_pcs", 0),
+                actual_return_shell=item_data.get("actual_return_shell", 0),
+                discrepancy_empties_pc=item_data.get("discrepancy_empties_pc", 0),
+                discrepancy_empties_shell=item_data.get("discrepancy_empties_shell", 0),
+                discrepancy_full_pcs=item_data.get("discrepancy_full_pcs", 0),
+                discrepancy_full_shell=item_data.get("discrepancy_full_shell", 0),
+                discount_percent=item_data.get("discount_percent", 0),
+                expected_sale=item_data.get("expected_sale", 0),
+                actual_sale=item_data.get("actual_sale", 0),
+            )
+
+            # ✅ Handle returned empties (ReturnableStock)
+            if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
+                ReturnableStock.objects.create(
+                    product=product,
+                    empty_bottle_qty=merchandising_item.empty_return_pcs,
+                    empty_shell_qty=merchandising_item.empty_return_shell,
+                    source='customer',
+                    supplier=product.supplier  # ✅ Link the return to the correct supplier
+                )
+
+            # ✅ Handle returned full items (restock)
+            if merchandising_item.actual_return_pcs > 0:
+                stock, _ = Stock.objects.get_or_create(product=product)
+                stock.quantity_available += merchandising_item.actual_return_pcs
+                stock.save()
+
+            # ✅ Deduct sold quantity from stock
+            if merchandising_item.sold_pcs > 0:
+                stock, _ = Stock.objects.get_or_create(product=product)
+                stock.quantity_available -= merchandising_item.sold_pcs
+                stock.save()
+
 
         for misc_data in misc_items_data:
             MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
@@ -373,3 +465,73 @@ class SupplierReturnSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         # Optional update logic
         return super().update(instance, validated_data)
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
+
+    def validate(self, data):
+        username = data.get('username')
+        password = data.get('password')
+
+        try:
+            user = User.objects.get(username=username)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("User not found.")
+
+        if not user.check_password(password):
+            raise serializers.ValidationError("Incorrect password.")
+
+        access_list = RoleAccessibility.objects.filter(role=user.role).values(
+            'submenu', 'full', 'view', 'create', 'edit', 'delete'
+        )
+
+        # ✅ Return must_change_password in login response
+        return {
+            "id": user.id,
+            "username": user.username,
+            "role": user.role.name if user.role else None,
+            "warehouse": user.warehouse.name if user.warehouse else None,
+            "must_change_password": user.must_change_password,
+            "accessibilities": list(access_list)
+        }
+
+class ChangePasswordSerializer(serializers.Serializer):
+    user_id = serializers.IntegerField()
+    new_password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_new_password(self, value):
+        pattern = re.compile(
+            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?#&])[A-Za-z\d@$!%*?#&]{8,}$'
+        )
+        if not pattern.match(value):
+            raise serializers.ValidationError(
+                "Password must include at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character."
+            )
+        return value
+
+    def save(self):
+        user = User.objects.get(id=self.validated_data['user_id'])
+        user.set_password(self.validated_data['new_password'])
+        user.must_change_password = False
+        user.save()
+        return user
+
+class ForgotPasswordRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+    def validate_email(self, value):
+        if not User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("User with this email does not exist.")
+        return value
+
+
+class OTPVerificationSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+    otp = serializers.CharField(min_length=6, max_length=6)
+
+    def validate(self, data):
+        if not User.objects.filter(email=data['email']).exists():
+            raise serializers.ValidationError("Email not found.")
+        return data
+
