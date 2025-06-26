@@ -79,7 +79,7 @@ const Sidebar = ({ isSidebarOpen }) => {
                 <DisabledSubItem text="Trading" />
               )}
               {canView("Supplier Return") ? (
-                <li><Link to="/supplier_return" className="block p-2 text-sm hover:bg-gray-600 rounded">Supplier Return</Link></li>
+                <li><Link to="/supplier-returns" className="block p-2 text-sm hover:bg-gray-600 rounded">Supplier Return</Link></li>
               ) : (
                 <DisabledSubItem text="Supplier Return" />
               )}
@@ -88,8 +88,6 @@ const Sidebar = ({ isSidebarOpen }) => {
               ) : (
                 <DisabledSubItem text="Invoice" />
               )}
-
-
             </ul>
           )}
         </li>
@@ -118,9 +116,9 @@ const Sidebar = ({ isSidebarOpen }) => {
                 <DisabledSubItem text="Product" />
               )}
               {canView("Returned Empties") ? (
-                <li><Link to="/returns" className="block p-2 text-sm hover:bg-gray-600 rounded">Returned Empties</Link></li>
+                <li><Link to="/return-empties" className="block p-2 text-sm hover:bg-gray-600 rounded">Return Empties</Link></li>
               ) : (
-                <DisabledSubItem text="Returned Empties" />
+                <DisabledSubItem text="Return Empties" />
               )}
             </ul>
           )}

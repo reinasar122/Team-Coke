@@ -12,6 +12,16 @@ const MerchandisingList = () => {
       .catch(err => console.error(err));
   }, []);
 
+  const handleView = (sale) => {
+    // Add view functionality here
+    console.log('View sale:', sale);
+  };
+
+  const handlePrint = (sale) => {
+    // Add print functionality here
+    console.log('Print sale:', sale);
+  };
+
   return (
     <div className="p-6 bg-sky-200 min-h-screen">
       <div className="flex justify-end items-center mb-6">
@@ -33,7 +43,7 @@ const MerchandisingList = () => {
             <th className="p-2">HANDLED BY</th>
             <th className="p-2">TOTAL AMOUNT</th>
             <th className="p-2">STATUS</th>
-        
+            <th className="p-2">ACTIONS</th>
           </tr>
         </thead>
         <tbody>
@@ -46,7 +56,24 @@ const MerchandisingList = () => {
               <td className="p-2">{sale.handled_by}</td>
               <td className="p-2">₱{parseFloat(sale.total_amount).toLocaleString()}</td>
               <td className="p-2">{sale.status}</td>
-              
+              <td className="p-2">
+                <div className="flex justify-center gap-2">
+                  <button
+                    onClick={() => handleView(sale)}
+                    className="text-blue-600 hover:text-blue-800 p-1"
+                    title="View Details"
+                  >
+                    <FaEye />
+                  </button>
+                  <button
+                    onClick={() => handlePrint(sale)}
+                    className="text-gray-600 hover:text-gray-800 p-1"
+                    title="Print"
+                  >
+                    <FaPrint />
+                  </button>
+                </div>
+              </td>
             </tr>
           ))}
           {sales.length === 0 && (

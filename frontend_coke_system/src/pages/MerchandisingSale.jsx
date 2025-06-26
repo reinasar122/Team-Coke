@@ -3,12 +3,10 @@ import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../App.css";
 
-
 const MerchandisingSale = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const state = location.state || {};
-
 
   // ✅ Only declare once
   const [rows, setRows] = useState([
@@ -36,9 +34,6 @@ const MerchandisingSale = () => {
   },
 ]);
 
-
-
-
   const [transactionType, setTransactionType] = useState("");
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [vans, setVans] = useState([]);
@@ -55,30 +50,20 @@ const MerchandisingSale = () => {
   const [availableStock, setAvailableStock] = useState({});
   const [mspNo, setMspNo] = useState("");
 
-
   const [dateTime, setDateTime] = useState(() => {
   const date = new Date();
   date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
   return date.toISOString().slice(0, 16);
   });
 
-
   const [emptiesPriceTotal, setEmptiesPriceTotal] = useState(0);
   const [refundablesTotal, setRefundablesTotal] = useState(0);
   const [totalAmount, setTotalAmount] = useState(0);
 
-
-  const [status, setStatus] = useState("Pending"); // default for Van Load
-
-
-  const [invoiceNo, setInvoiceNo] = useState("");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("");
-  const [payments, setPayments] = useState([]);
-
+  // Removed unused state variables: status, setStatus, setInvoiceNo, setSelectedPaymentMethod, setPayments
+  const [invoiceNo] = useState("");
+  
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
-
-
-
 
   const [remarks, setRemarks] = useState("");
   const [miscCharges, setMiscCharges] = useState("");
@@ -98,12 +83,6 @@ const MerchandisingSale = () => {
   const [userCashInput, setUserCashInput] = useState("");
   const [cashReceived, setCashReceived] = useState("");
 
-
- 
-
-
-
-
   useEffect(() => {
   axios.get("http://localhost:8080/api/users/").then(res => setUsers(res.data));
   axios.get("http://localhost:8080/api/products/").then(res => setProducts(res.data));
@@ -111,17 +90,14 @@ const MerchandisingSale = () => {
   axios.get("http://localhost:8080/api/customers/").then(res => setCustomers(res.data));
 }, []);
 
-
+  // Fixed dependency array to include selectedTransactionTypeName
   useEffect(() => {
   if (selectedTransactionTypeName === "Van Load") {
     axios.get("http://localhost:8080/api/vans/")
       .then(res => setVans(res.data))
       .catch(err => console.error("Failed to fetch vans:", err));
   }
-}, [transactionType]);
-
-
-
+}, [selectedTransactionTypeName]);
 
   useEffect(() => {
   if (transactionType && selectedTransactionTypeName) {
@@ -134,10 +110,6 @@ const MerchandisingSale = () => {
   }
 }, [transactionType, selectedTransactionTypeName]);
 
-
-
-
-
 useEffect(() => {
   axios.get("http://localhost:8080/api/transaction-types/")
     .then(res => {
@@ -147,27 +119,16 @@ useEffect(() => {
     .catch(err => console.error("Failed to fetch transaction types:", err));
 }, []);
 
-
-
-
-
-
-
-
-
-
   useEffect(() => {
   const userCash = parseFloat(userCashInput) || 0;
   const misc = parseFloat(miscCharges) || 0;
   const totalCash = userCash + misc;
   const total = parseFloat(actualTotal) || 0;
 
-
   setCashReceived(totalCash.toFixed(2));
   setChange(!isNaN(totalCash - total) ? (totalCash - total).toFixed(2) : "");
   setCashMismatch(totalCash.toFixed(2) !== total.toFixed(2));
 }, [userCashInput, miscCharges, actualTotal]);
-
 
   useEffect(() => {
     axios.get("http://localhost:8080/api/pricing/")
@@ -182,7 +143,6 @@ useEffect(() => {
           };
         });
         setPricingMap(map);
-
 
         if (state.products) {
           const initialRows = state.products.map((product) => {
@@ -214,7 +174,6 @@ useEffect(() => {
             };
           });
 
-
           const recalculated = initialRows.map((row) => {
             const pricing = map[row.priceId];
             if (!pricing) return row;
@@ -222,12 +181,10 @@ useEffect(() => {
             const shellPrice = parseFloat(pricing.shell_price) || 0;
             const discount = parseFloat(row.discount) || 0;
 
-
             const expectedSale = (row.dispatchedPcs * sellingPrice) + (row.dispatchedShell * shellPrice);
             row.expectedSale = parseFloat((expectedSale * (1 - discount / 100)).toFixed(2));
             return row;
           });
-
 
           setRows(recalculated);
         }
@@ -236,11 +193,6 @@ useEffect(() => {
         console.error("Failed to fetch pricing:", err);
       });
   }, [state.products, transactionType]);
-
-
-
-
-
 
   const fetchStockQuantity = async (productId) => {
   try {
@@ -254,13 +206,9 @@ useEffect(() => {
   }
 };
 
-
-
-
 const handleProductChange = (index, productId) => {
   const updatedRows = [...rows];
   updatedRows[index].productId = productId;
-
 
   const selectedProduct = products.find((p) => p.id === parseInt(productId));
   if (selectedProduct) {
@@ -268,17 +216,12 @@ const handleProductChange = (index, productId) => {
     updatedRows[index].priceId = selectedProduct.price.id;
     updatedRows[index].contentNo = selectedProduct.unit_type.content_no;
 
-
     // ✅ Fetch stock for selected product
     fetchStockQuantity(productId);
    
   }
 
-
   setRows(updatedRows);
-
-
-
 
   // ✅ Automatically add a new row if current is last and selected
   if (index === rows.length - 1 && productId) {
@@ -310,14 +253,6 @@ const handleProductChange = (index, productId) => {
   }
 };
 
-
-
-
-
-
-
-
-
 const handleRowChange = (index, field, value) => {
   const updated = [...rows];
   updated[index][field] = value === "" ? "" : parseFloat(value);
@@ -326,8 +261,7 @@ const handleRowChange = (index, field, value) => {
   const priceId = updated[index].priceId;
   const pricing = pricingMap[priceId];
   const sellingPrice = pricing ? parseFloat(pricing.selling_price) || 0 : 0;
-  const shellPrice = pricing ? parseFloat(pricing.shell_price) || 0 : 0;
-  const bottlePrice = pricing ? parseFloat(pricing.bottle_price) || 0 : 0;
+  // Removed unused variables: shellPrice, bottlePrice
   const discount = parseFloat(updated[index].discount) || 0;
 
   let dispatchedShell = parseFloat(updated[index].dispatchedShell) || 0;
@@ -488,8 +422,6 @@ const handleRowChange = (index, field, value) => {
   setTotalAmount(totalAmountValue);
 };
 
-
-
   const handleSubmit = async (status = "Complete") => {
     const payload = {
       msp_no: mspNo,
@@ -502,7 +434,7 @@ const handleRowChange = (index, field, value) => {
       actual_sale: parseFloat(actualTotal) || 0,
       miscellaneous: parseFloat(miscCharges) || 0,
       payment_amount: parseFloat(cashReceived) || 0,
-      payment_method: selectedPaymentMethod,
+      payment_method: "",  // Using empty string since selectedPaymentMethod was removed
       invoice_no: invoiceNo,
       status: status,
       remarks: remarks,
@@ -535,16 +467,12 @@ const handleRowChange = (index, field, value) => {
         receipt_file: item.file,
       })),
 
-      payments: payments.map((p) => ({
-        amount: parseFloat(p.amount) || 0,
-        method: p.method,
-      })),
+      payments: [],  // Using empty array since payments was removed
     };
 
-
-
     try {
-    const res = await axios.post("http://localhost:8080/api/merchandisings/", payload);
+    // Removed unused 'res' variable
+    await axios.post("http://localhost:8080/api/merchandisings/", payload);
     alert("Transaction saved successfully!");
     return true; // ✅ return success
   } catch (error) {
@@ -558,9 +486,7 @@ const handleRowChange = (index, field, value) => {
     return false; // ✅ return failure
   }
 
-
 }
-
 
   return (
     <div className="bg-sky-200 min-h-screen p-6 text-black">
@@ -585,7 +511,6 @@ const handleRowChange = (index, field, value) => {
                 setSelectedTransactionTypeName(selected?.name || "");
               }}
 
-
               className="w-64 p-2 rounded bg-gray-200 text-black"
             >
               <option value="" disabled hidden>Select</option>
@@ -596,10 +521,7 @@ const handleRowChange = (index, field, value) => {
               ))}
             </select>
 
-
-
           </div>
-
 
           {(selectedTransactionTypeName === "Van Load" || selectedTransactionTypeName === "Warehouse") && (
             <div>
@@ -620,7 +542,6 @@ const handleRowChange = (index, field, value) => {
           )}
         </div>
 
-
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
           <div>
             <label className="block mb-1">Date and Time</label>
@@ -631,7 +552,6 @@ const handleRowChange = (index, field, value) => {
               className="w-64 p-2 rounded bg-gray-200 text-black"
             />
           </div>
-
 
          {selectedTransactionTypeName === "Warehouse" && (
             <div>
@@ -646,18 +566,15 @@ const handleRowChange = (index, field, value) => {
                       const newCustomer = e.target.value.trim();
                       if (!newCustomer) return;
 
-
                       const exists = customers.some(
                         (c) => c.name?.toLowerCase() === newCustomer.toLowerCase()
                       );
-
 
                       if (exists) {
                         alert(`Customer "${newCustomer}" already exists.`);
                         setIsAddingCustomer(false);
                         return;
                       }
-
 
                       try {
                         const res = await axios.post("http://localhost:8080/api/customers/", {
@@ -697,7 +614,6 @@ const handleRowChange = (index, field, value) => {
             </div>
           )}
 
-
           {selectedTransactionTypeName === "Van Load" && (
             <>
               <div>
@@ -716,7 +632,6 @@ const handleRowChange = (index, field, value) => {
                 </select>
               </div>
 
-
               <div>
                 <label className="block mb-1">Route</label>
                 {isAddingRoute ? (
@@ -731,11 +646,9 @@ const handleRowChange = (index, field, value) => {
                         const newRoute = route.trim();
                         if (!newRoute) return;
 
-
                         const exists = routes.some(
                           (r) => r.route_name.toLowerCase() === newRoute.toLowerCase()
                         );
-
 
                         if (exists) {
                           alert(`Route "${newRoute}" already exists.`);
@@ -781,18 +694,11 @@ const handleRowChange = (index, field, value) => {
                 )}
               </div>
 
-
             </>
           )}
         </div>
       </div>
  
-
-
-
-
-
-
       <div className="overflow-x-auto mt-6">
   <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
     <thead className="bg-gray-100 text-gray-800">
@@ -813,52 +719,42 @@ const handleRowChange = (index, field, value) => {
         <tr className="bg-gray-200">
         <td className="border border-gray-300 py-1"></td> {/* PRODUCT */}
 
-
         {/* DISPATCHED */}
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-
-        {/* SELLING PRICE — only one cell */}
+        {/* SELLING PRICE -- only one cell */}
         <td className="border border-gray-300 py-1 text-[11px] font-medium" colSpan={1}></td>
-
 
         {/* SOLD */}
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-
         {/* EMPTY PRICE */}
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-
 
         {/* RETURNED (Empty) */}
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-
         {/* DISCREPANCY (Empty) */}
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-
 
         {/* RETURNED (With Content/s) */}
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-
         {/* DISCREPANCY (Non-empty) */}
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-
 
         {/* DISCOUNT, EXPECTED, ACTUAL */}
         <td className="border border-gray-300 py-1"></td>
         <td className="border border-gray-300 py-1"></td>
         <td className="border border-gray-300 py-1"></td>
       </tr>
-
 
     </thead>
     <tbody>
@@ -879,9 +775,6 @@ const handleRowChange = (index, field, value) => {
         </select>
       </td>
 
-
-
-
           {/* DISPATCHED */}
           <td className="border border-gray-200 py-1 px-1 w-[72px]">
             <input
@@ -900,7 +793,6 @@ const handleRowChange = (index, field, value) => {
             />
           </td>
 
-
           {/* SELLING PRICE */}
           <td className="border border-gray-200 py-1 px-1 w-[72px]">
             <input
@@ -911,9 +803,6 @@ const handleRowChange = (index, field, value) => {
             />
           </td>
 
-
-
-
           {/* SOLD */}
           <td className="border border-gray-200 py-1 px-1 w-[72px]">
             <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldShell || ""} onChange={(e) => handleRowChange(index, "soldShell", e.target.value)} />
@@ -922,7 +811,6 @@ const handleRowChange = (index, field, value) => {
             <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldPcs || ""} onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)} />
           </td>
 
-
           {/* EMPTY PRICE */}
           <td className="border border-gray-200 py-1 px-1 w-[72px]">
             <input type="number" className="w-full p-1 text-sm text-center rounded bg-gray-100" value={pricingMap[row.priceId]?.shell_price || ""} disabled />
@@ -930,7 +818,6 @@ const handleRowChange = (index, field, value) => {
           <td className="border border-gray-200 py-1 px-1 w-[72px]">
             <input type="number" className="w-full p-1 text-sm text-center rounded bg-gray-100" value={pricingMap[row.priceId]?.bottle_price || ""} disabled />
           </td>
-
 
           {/* Continue with other fields as usual */}
           {[
@@ -950,7 +837,6 @@ const handleRowChange = (index, field, value) => {
             </td>
           ))}
 
-
           {/* Discount */}
           <td className="border border-gray-200 py-1 px-1">
             <input
@@ -962,7 +848,6 @@ const handleRowChange = (index, field, value) => {
               disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
             />
           </td>
-
 
           {/* Expected & Actual Sale */}
           <td className="border border-gray-200 py-1 px-1">
@@ -983,12 +868,8 @@ const handleRowChange = (index, field, value) => {
       ))}
     </tbody>
 
-
   </table>
 </div>
-
-
-
 
     {/* Summary & Buttons */}
         <div className="mt-6 max-w-7xl mx-auto flex flex-col md:flex-row gap-16">
@@ -1000,7 +881,6 @@ const handleRowChange = (index, field, value) => {
                 className="w-full h-28 p-2 rounded"
               />
             </div>
-
 
             <div className="w-full md:w-1/2 space-y-4">
               <div className="flex items-center gap-4">
@@ -1015,7 +895,6 @@ const handleRowChange = (index, field, value) => {
                 />
               </div>
 
-
               <div className="flex items-center gap-4">
                 <label className="w-40 text-right text-sm font-medium text-gray-700">Actual Sale:</label>
                 <input
@@ -1027,7 +906,6 @@ const handleRowChange = (index, field, value) => {
                   disabled
                 />
               </div>
-
 
               <div className="flex items-center gap-4">
                 <label className="w-40 text-right text-sm font-medium text-gray-700">Empties Price:</label>
@@ -1041,7 +919,6 @@ const handleRowChange = (index, field, value) => {
                 />
               </div>
 
-
               <div className="flex items-center gap-4">
                 <label className="w-40 text-right text-sm font-medium text-gray-700">Refundables:</label>
                 <input
@@ -1053,13 +930,6 @@ const handleRowChange = (index, field, value) => {
                   disabled
                 />
               </div>
-
-
-
-
-
-
-
 
               {/* === Misc Charges Section === */}
               <div className="flex items-start gap-4">
@@ -1082,7 +952,6 @@ const handleRowChange = (index, field, value) => {
                       <span>Details</span>
                     </label>
                   </div>
-
 
                   {showMiscDetails && (
                     <div className="bg-white border rounded-lg shadow p-4 space-y-4">
@@ -1107,7 +976,6 @@ const handleRowChange = (index, field, value) => {
                           placeholder="E.g. toll fee, repair, snacks"
                         />
                       </div>
-
 
                       {/* Amount per Item */}
                       {miscItems.length > 0 && (
@@ -1137,7 +1005,6 @@ const handleRowChange = (index, field, value) => {
                           </div>
                         </div>
                       )}
-
 
                       {/* File Upload Section */}
                       <div>
@@ -1192,9 +1059,6 @@ const handleRowChange = (index, field, value) => {
                 </div>
               </div>
 
-
-
-
               {/* Totals */}
               <div className="flex items-center gap-4">
                 <label className="w-40 text-right font-medium text-gray-700">Overall Discrepancy:</label>
@@ -1217,9 +1081,6 @@ const handleRowChange = (index, field, value) => {
             />
           </div>
 
-
-
-
               <div className="flex items-center gap-4">
                 <label className="w-40 text-right font-medium">User Cash:</label>
                 <input
@@ -1230,7 +1091,6 @@ const handleRowChange = (index, field, value) => {
                   placeholder="Enter user cash"
                 />
               </div>
-
 
               <div className="flex items-center gap-4">
                 <label className="w-40 text-right font-medium">Cash Received (with Misc):</label>
@@ -1243,11 +1103,6 @@ const handleRowChange = (index, field, value) => {
                   </span>
                 </div>
               </div>
-
-
-
-
-
 
               <div className="flex items-center gap-4">
                 <label className="w-40 text-right font-medium">Change:</label>
@@ -1263,9 +1118,6 @@ const handleRowChange = (index, field, value) => {
             </div>
           </div>
 
-
-
-
             {/* Buttons */}
           <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
             {/* Only show DRAFT button for Van Load */}
@@ -1279,7 +1131,6 @@ const handleRowChange = (index, field, value) => {
                     if (success) navigate("/trading");
                   }
                 }}
-
 
               >
                 DRAFT
@@ -1311,8 +1162,6 @@ const handleRowChange = (index, field, value) => {
             </button>
           </div>
 
-
-
             {/* 🔍 Image Zoom Overlay */}
             {zoomed && (
               <div
@@ -1330,6 +1179,4 @@ const handleRowChange = (index, field, value) => {
         );
       };
 
-
 export default MerchandisingSale;
-

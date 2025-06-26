@@ -37,7 +37,9 @@ import Merchandising from "./pages/Merchandising";
 import MerchandisingSale from "./pages/MerchandisingSale";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
-
+import SupplierReturnForm from "./pages/SupplierReturnForm";
+import SupplierReturnList from "./pages/SupplierReturnList";
+import ReturnEmpties from "./pages/ReturnEmpties";
 
 // Icons
 import {
@@ -52,6 +54,7 @@ import {
   FaUsers,
   FaUserShield,
   FaWarehouse,
+  FaUndoAlt,
 } from "react-icons/fa";
 
 // ✅ Layout wrapper for protected pages
@@ -87,6 +90,8 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 <Route path="/trading" element={<h1 className="text-2xl flex items-center gap-2"><FaChartLine /> Trading</h1>} />
                 <Route path="/invoice" element={<h1 className="text-2xl flex items-center gap-2"><FaFileInvoice /> Invoice</h1>} />
                 <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} />
+                <Route path="/supplier-returns" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Supplier Returns</h1>} />
+                <Route path="/return-empties" element={<h1 className="text-2xl flex items-center gap-2"><FaUndoAlt /> Return Empties</h1>} />
               </Routes>
             </div>
           )}
@@ -118,6 +123,9 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-otp" element={<VerifyOTP />} />
+            <Route path="/supplier-returns" element={<SupplierReturnList />} />
+            <Route path="/supplier-returns/new" element={<SupplierReturnForm />} />
+            <Route path="/return-empties" element={<ReturnEmpties />} />
           </Routes>
         </div>
       </div>

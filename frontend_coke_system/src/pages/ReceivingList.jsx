@@ -1,8 +1,9 @@
+// Complete React code for ReceivingList and ReceiptModal showing unit_cost and total
+
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { FaTrashAlt, FaEye } from "react-icons/fa";
-import { canCreate, canDelete, canView } from "../utils/accessControl";
 
 const ReceiptModal = ({ isOpen, onClose, receipt }) => {
   if (!isOpen || !receipt) return null;
@@ -51,19 +52,21 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
             </tr>
           </thead>
           <tbody>
-            {receipt.details && receipt.details.map((item, index) => (
-              <tr key={index} className="text-center">
-                <td className="border p-2">{item.product_name || item.item_name}</td>
-                <td className="border p-2">{item.shell_qty}</td>
-                <td className="border p-2">{item.pcs_qty}</td>
-                <td className="border p-2">{item.bad_order_pcs}</td>
-                <td className="border p-2">₱{parseFloat(item.unit_price).toFixed(2)}</td>
-                <td className="border p-2">₱{parseFloat(item.shell_price).toFixed(2)}</td>
-                <td className="border p-2">₱{parseFloat(item.bottle_price).toFixed(2)}</td>
-                <td className="border p-2">₱{parseFloat(item.unit_cost).toFixed(2)}</td>
-                <td className="border p-2 font-bold">₱{parseFloat(item.total).toFixed(2)}</td>
-              </tr>
-            ))}
+            {receipt.details && receipt.details.map((item, index) => {
+              return (
+                <tr key={index} className="text-center">
+                  <td className="border p-2">{item.product_name || item.item_name}</td>
+                  <td className="border p-2">{item.shell_qty}</td>
+                  <td className="border p-2">{item.pcs_qty}</td>
+                  <td className="border p-2">{item.bad_order_pcs}</td>
+                  <td className="border p-2">₱{parseFloat(item.unit_price).toFixed(2)}</td>
+                  <td className="border p-2">₱{parseFloat(item.shell_price).toFixed(2)}</td>
+                  <td className="border p-2">₱{parseFloat(item.bottle_price).toFixed(2)}</td>
+                  <td className="border p-2">₱{parseFloat(item.unit_cost).toFixed(2)}</td>
+                  <td className="border p-2 font-bold">₱{parseFloat(item.total).toFixed(2)}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
@@ -147,17 +150,7 @@ const ReceivingList = () => {
   return (
     <div className="p-8 min-h-screen bg-white">
       <div className="flex justify-end items-center mb-8">
-        <Link
-          to="/receiving/new"
-          className={`px-6 py-2 rounded-md font-semibold ${
-            canCreate("Receiving")
-              ? "bg-[#0B1320] hover:bg-[#a7a7a7] text-white"
-              : "bg-gray-300 text-gray-500 cursor-not-allowed"
-          }`}
-          onClick={(e) => {
-            if (!canCreate("Receiving")) e.preventDefault();
-          }}
-        >
+        <Link to="/receiving/new" className="bg-[#0B1320] hover:bg-[#a7a7a7] text-white px-6 py-2 rounded-md font-semibold">
           + New Receiving
         </Link>
       </div>
@@ -175,49 +168,23 @@ const ReceivingList = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-300">
-            {canView("Receiving") ? (
-              receivings.map((item) => (
-                <tr key={item.id} className="hover:bg-[#f8f9fa]">
-                  <td className="p-3">{item.receive_no}</td>
-                  <td className="p-3">{new Date(item.date_time).toLocaleString()}</td>
-                  <td className="p-3">{item.supplier_name}</td>
-                  <td className="p-3">{item.invoice_no}</td>
-                  <td className="p-3">₱{parseFloat(item.net_amount).toFixed(2)}</td>
-                  <td className="p-3 flex justify-center space-x-4">
-                    <button
-                      onClick={() => canView("Receiving") && handleViewReceipt(item.id)}
-                      disabled={!canView("Receiving")}
-                      title="View Receipt"
-                      className={`text-lg ${
-                        canView("Receiving")
-                          ? "text-[#0047ad] hover:text-blue-700"
-                          : "text-gray-400 cursor-not-allowed"
-                      }`}
-                    >
-                      <FaEye />
-                    </button>
-                    <button
-                      onClick={() => canDelete("Receiving") && handleDelete(item.id)}
-                      disabled={!canDelete("Receiving")}
-                      title="Delete"
-                      className={`text-lg ${
-                        canDelete("Receiving")
-                          ? "text-[#a50000] hover:text-red-700"
-                          : "text-gray-400 cursor-not-allowed"
-                      }`}
-                    >
-                      <FaTrashAlt />
-                    </button>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="text-center py-8 text-gray-400">
-                  You don’t have permission to view receiving records.
+            {receivings.map((item) => (
+              <tr key={item.id} className="hover:bg-[#f8f9fa]">
+                <td className="p-3">{item.receive_no}</td>
+                <td className="p-3">{new Date(item.date_time).toLocaleString()}</td>
+                <td className="p-3">{item.supplier_name}</td>
+                <td className="p-3">{item.invoice_no}</td>
+                <td className="p-3">₱{parseFloat(item.net_amount).toFixed(2)}</td>
+                <td className="p-3 flex justify-center space-x-4">
+                  <button onClick={() => handleViewReceipt(item.id)} className="text-[#0047ad] hover:text-blue-700 text-lg" title="View Receipt">
+                    <FaEye />
+                  </button>
+                  <button onClick={() => handleDelete(item.id)} className="text-[#a50000] hover:text-red-700 text-lg" title="Delete">
+                    <FaTrashAlt />
+                  </button>
                 </td>
               </tr>
-            )}
+            ))}
           </tbody>
         </table>
       </div>
