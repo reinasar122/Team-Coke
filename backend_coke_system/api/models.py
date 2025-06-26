@@ -205,8 +205,8 @@ class Receiving(models.Model):
 
 
 class ReceivingItem(models.Model):
-    receiving = models.ForeignKey(Receiving, related_name="details", on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True)  # 👈 Add this
+    receiving = models.ForeignKey('Receiving', related_name="details", on_delete=models.CASCADE)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, null=True)
     product_name = models.CharField(max_length=255, blank=True, null=True)
     pcs_qty = models.PositiveIntegerField(default=0)
     shell_qty = models.PositiveIntegerField(default=0)
@@ -218,7 +218,6 @@ class ReceivingItem(models.Model):
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
-
     def save(self, *args, **kwargs):
         content_no = self.product.unit_type.content_no if self.product and self.product.unit_type else 1
 
@@ -229,8 +228,15 @@ class ReceivingItem(models.Model):
 
         self.bottle_qty = self.pcs_qty
 
-        self.unit_cost = self.unit_price + self.bottle_price + (self.shell_price / content_no)
-        self.total = self.pcs_qty * self.unit_cost
+        # Compute unit cost and total
+        self.unit_cost = (
+            self.unit_price +
+            self.bottle_price +
+            (self.shell_price / content_no if content_no else 0)
+        )
+
+        adjusted_pcs = max(self.pcs_qty - self.bad_order_pcs, 0)
+        self.total = self.unit_cost * adjusted_pcs
 
         super().save(*args, **kwargs)
 
@@ -416,3 +422,26 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"{self.method} - ₱{self.amount}"
+
+class SupplierReturnForm(models.Model):  # ✅ NOT SupplierReturn
+    sup_no = models.CharField(max_length=20, unique=True)
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
+    date = models.DateTimeField()
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return self.sup_no
+
+
+class SupplierReturnFormItem(models.Model):
+    supplier_return = models.ForeignKey(SupplierReturnForm, related_name='items', on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    qty_shell = models.PositiveIntegerField()
+    qty_pcs = models.PositiveIntegerField()
+    # Add defaults for the new fields
+    bottle_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    shell_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    line_total = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.product.product_name} ({self.qty_shell} shell)"

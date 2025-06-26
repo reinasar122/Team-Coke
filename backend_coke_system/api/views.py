@@ -30,6 +30,9 @@ from rest_framework import status
 from .models import User
 from .serializers import ForgotPasswordRequestSerializer, OTPVerificationSerializer
 from django.core.cache import cache
+from .models import SupplierReturnForm
+from .serializers import SupplierReturnFormSerializer
+
 
 # Temporary OTP store (for demo; use cache or DB for production)
 # Temporary OTP storage (in production use cache like Redis or DB)
@@ -299,8 +302,12 @@ class ProductListCreateView(generics.ListCreateAPIView):
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Product.objects.all()
-    serializer_class = ProductDetailSerializer
-
+    
+    def get_serializer_class(self):
+        if self.request.method == 'GET':
+            return ProductDetailSerializer  # Return nested data on GET
+        return ProductSerializer  # For PUT/PATCH/DELETE - accept flat references
+    
     def perform_destroy(self, instance):
         unit = instance.unit_type
         price = instance.price
@@ -326,6 +333,7 @@ def next_product_code(request):
 
 
 
+
 # ===== RECEIVING MODULE =====
 class ReceivingListCreateView(generics.ListCreateAPIView):
     queryset = Receiving.objects.select_related('supplier').prefetch_related('details').order_by('-id')
@@ -334,6 +342,7 @@ class ReceivingListCreateView(generics.ListCreateAPIView):
 class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Receiving.objects.all()
     serializer_class = ReceivingSerializer
+
 
 
 # ===== STOCKS =====
@@ -545,3 +554,137 @@ class ChangePasswordAPIView(APIView):
             return Response({'message': 'Password updated successfully'}, status=status.HTTP_200_OK)
         print("Serializer errors:", serializer.errors)  # ✅ Add this
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
+    queryset = SupplierReturnForm.objects.all().order_by('-date')
+    serializer_class = SupplierReturnFormSerializer
+
+class SupplierReturnFormDetailView(generics.RetrieveDestroyAPIView):
+    queryset = SupplierReturnForm.objects.all()
+    serializer_class = SupplierReturnFormSerializer
+
+class ProcessEmptiesReturnView(APIView):
+    """
+    API endpoint to process returned empties from merchandising and add them to ReturnableStock
+    """
+    
+    def get(self, request):
+        """
+        GET method for testing - returns endpoint information
+        """
+        return Response({
+            "message": "Process Empties Return API Endpoint",
+            "method": "POST only",
+            "description": "This endpoint processes returned empties from merchandising transactions",
+            "required_fields": {
+                "return_date": "ISO datetime string",
+                "items": "Array of items with merchandising_id, item_id, product_id, etc."
+            },
+            "example_payload": {
+                "return_date": "2025-06-26T15:05:13.000Z",
+                "items": [
+                    {
+                        "merchandising_id": 1,
+                        "item_id": 1,
+                        "product_id": 1,
+                        "supplier_id": 1,
+                        "product_name": "Coca Cola 1.5L",
+                        "empty_return_shell": 2,
+                        "empty_return_pcs": 24
+                    }
+                ]
+            }
+        }, status=status.HTTP_200_OK)
+    
+    def post(self, request):
+        try:
+            return_date = request.data.get('return_date')
+            items = request.data.get('items', [])
+            
+            if not items:
+                return Response(
+                    {"error": "No items provided"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            processed_items = []
+            
+            # Process each returned empty item
+            for item in items:
+                merchandising_id = item.get('merchandising_id')
+                item_id = item.get('item_id')
+                product_id = item.get('product_id')
+                supplier_id = item.get('supplier_id')
+                empty_return_shell = item.get('empty_return_shell', 0)
+                empty_return_pcs = item.get('empty_return_pcs', 0)
+                
+                # Validate required fields
+                if not all([merchandising_id, item_id, product_id]):
+                    continue
+                
+                try:
+                    # Get the merchandising item
+                    merchandising_item = MerchandisingItem.objects.get(
+                        id=item_id,
+                        merchandising_id=merchandising_id
+                    )
+                    
+                    # Get the product and supplier
+                    product = Product.objects.get(id=product_id)
+                    supplier = None
+                    if supplier_id:
+                        supplier = Supplier.objects.get(id=supplier_id)
+                    
+                    # Add to ReturnableStock or update existing
+                    if empty_return_shell > 0 or empty_return_pcs > 0:
+                        returnable_stock, created = ReturnableStock.objects.get_or_create(
+                            product=product,
+                            source='customer',
+                            supplier=supplier,
+                            defaults={
+                                'empty_bottle_qty': empty_return_pcs,
+                                'empty_shell_qty': empty_return_shell
+                            }
+                        )
+                        
+                        if not created:
+                            # Update existing returnable stock
+                            returnable_stock.empty_bottle_qty += empty_return_pcs
+                            returnable_stock.empty_shell_qty += empty_return_shell
+                            returnable_stock.save()
+                    
+                    # Clear the empty returns from merchandising item to mark as processed
+                    merchandising_item.empty_return_pcs = 0
+                    merchandising_item.empty_return_shell = 0
+                    merchandising_item.save()
+                    
+                    processed_items.append({
+                        'merchandising_id': merchandising_id,
+                        'item_id': item_id,
+                        'product_name': item.get('product_name'),
+                        'empty_return_shell': empty_return_shell,
+                        'empty_return_pcs': empty_return_pcs,
+                        'status': 'processed'
+                    })
+                    
+                except (MerchandisingItem.DoesNotExist, Product.DoesNotExist, Supplier.DoesNotExist) as e:
+                    processed_items.append({
+                        'merchandising_id': merchandising_id,
+                        'item_id': item_id,
+                        'status': 'error',
+                        'error': str(e)
+                    })
+                    continue
+            
+            return Response({
+                "message": "Empties returned to stock successfully",
+                "return_date": return_date,
+                "processed_items": processed_items,
+                "total_processed": len([item for item in processed_items if item['status'] == 'processed'])
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response(
+                {"error": f"Failed to process empties return: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
