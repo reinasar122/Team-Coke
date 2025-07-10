@@ -4,6 +4,7 @@ import axios from "axios";
 const ReturnEmpties = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [pricing, setPricing] = useState([]);
   const [selectedSupplier, setSelectedSupplier] = useState("");
   const [returnedEmpties, setReturnedEmpties] = useState([]);
   const [filteredEmpties, setFilteredEmpties] = useState([]);
@@ -46,6 +47,24 @@ const ReturnEmpties = () => {
     }
   }, []);
 
+  const fetchPricing = useCallback(async () => {
+    try {
+      const response = await axios.get("http://localhost:8080/api/pricing/");
+      console.log("Raw pricing response:", response.data);
+      
+      let pricingData = response.data;
+      if (pricingData.results) pricingData = pricingData.results;
+      if (pricingData.data) pricingData = pricingData.data;
+      
+      console.log("Processed pricing:", pricingData);
+      setPricing(Array.isArray(pricingData) ? pricingData : []);
+    } catch (error) {
+      console.error("Error fetching pricing:", error);
+      setError("Failed to load pricing data");
+      setPricing([]);
+    }
+  }, []);
+
   const fetchReturnedEmptiesFromMerchandising = useCallback(async () => {
     setLoading(true);
     try {
@@ -81,9 +100,36 @@ const ReturnEmpties = () => {
                 // Find the product in the products array
                 const product = products.find(p => p.id === productId);
                 if (product) {
+                  // Find pricing for this product
+                  const productPricing = pricing.find(p => p.id === productId);
+                  
+                  if (!productPricing) {
+                    console.log("No pricing found for product:", product.product_name);
+                    return; // Skip if no pricing data
+                  }
+                  
+                  // Check if product has shell_price or bottle_price in pricing table
+                  const hasShellPrice = productPricing.shell_price && 
+                                      productPricing.shell_price > 0 && 
+                                      productPricing.shell_price !== null;
+                  
+                  const hasBottlePrice = productPricing.bottle_price && 
+                                       productPricing.bottle_price > 0 && 
+                                       productPricing.bottle_price !== null;
+                  
+                  if (!hasShellPrice && !hasBottlePrice) {
+                    console.log("Skipping product with no shell/bottle price:", product.product_name, 
+                              "Shell price:", productPricing.shell_price, 
+                              "Bottle price:", productPricing.bottle_price);
+                    return; // Skip this item - no shell or bottle price means no returnable empties
+                  }
+                  
                   productName = product.product_name;
                   supplierId = product.supplier; // This is the supplier ID
-                  console.log("Found product:", productName, "Supplier ID:", supplierId);
+                  console.log("Found product with shell/bottle price:", productName, 
+                            "Shell price:", productPricing.shell_price,
+                            "Bottle price:", productPricing.bottle_price,
+                            "Supplier ID:", supplierId);
                   
                   // Find the supplier in the suppliers array
                   const supplier = suppliers.find(s => s.id === supplierId);
@@ -91,6 +137,10 @@ const ReturnEmpties = () => {
                     supplierName = supplier.company_name;
                     console.log("Found supplier:", supplierName);
                   }
+                } else {
+                  // If product not found, skip this item since we can't verify pricing
+                  console.log("Product not found, skipping item with product ID:", productId);
+                  return;
                 }
                 
                 // Final fallback values
@@ -104,6 +154,8 @@ const ReturnEmpties = () => {
 
                 console.log("Final Names - Product:", productName, "Supplier:", supplierName);
 
+                const productPricing = pricing.find(p => p.id === productId);
+
                 emptyReturns.push({
                   id: `${merchandising.id}-${item.id}`,
                   msp_no: merchandising.msp_no,
@@ -115,7 +167,9 @@ const ReturnEmpties = () => {
                   product_id: productId,
                   date: merchandising.date_time ? merchandising.date_time.split('T')[0] : "N/A",
                   merchandising_id: merchandising.id,
-                  item_id: item.id
+                  item_id: item.id,
+                  shell_price: productPricing ? productPricing.shell_price : 0,
+                  bottle_price: productPricing ? productPricing.bottle_price : 0
                 });
               }
             });
@@ -123,8 +177,39 @@ const ReturnEmpties = () => {
         });
       }
       
-      console.log("Processed empty returns:", emptyReturns);
-      setReturnedEmpties(emptyReturns);
+      // Group and aggregate empty returns by product
+      const groupedReturns = {};
+      
+      emptyReturns.forEach(item => {
+        const key = item.product_id;
+        
+        if (groupedReturns[key]) {
+          // Combine with existing product
+          groupedReturns[key].empty_return_shell += item.empty_return_shell;
+          groupedReturns[key].empty_return_pcs += item.empty_return_pcs;
+          groupedReturns[key].msp_numbers.push(item.msp_no);
+          groupedReturns[key].transaction_count += 1;
+          // Keep track of all dates, take the most recent
+          if (item.date > groupedReturns[key].date) {
+            groupedReturns[key].date = item.date;
+          }
+        } else {
+          // Create new entry
+          groupedReturns[key] = {
+            ...item,
+            msp_numbers: [item.msp_no],
+            transaction_count: 1,
+            id: `grouped-${key}` // New ID for grouped item
+          };
+        }
+      });
+      
+      // Convert back to array
+      const aggregatedReturns = Object.values(groupedReturns);
+      
+      console.log("Processed empty returns (with shell/bottle pricing only):", emptyReturns);
+      console.log("Aggregated empty returns:", aggregatedReturns);
+      setReturnedEmpties(aggregatedReturns);
       setError(null);
     } catch (error) {
       console.error("Error fetching merchandising returns:", error);
@@ -132,18 +217,19 @@ const ReturnEmpties = () => {
       setReturnedEmpties([]);
     }
     setLoading(false);
-  }, [products, suppliers]);
+  }, [products, suppliers, pricing]);
 
   useEffect(() => {
     fetchSuppliers();
     fetchProducts();
-  }, [fetchSuppliers, fetchProducts]);
+    fetchPricing();
+  }, [fetchSuppliers, fetchProducts, fetchPricing]);
 
   useEffect(() => {
-    if (suppliers.length > 0 && products.length > 0) {
+    if (suppliers.length > 0 && products.length > 0 && pricing.length > 0) {
       fetchReturnedEmptiesFromMerchandising();
     }
-  }, [suppliers, products, fetchReturnedEmptiesFromMerchandising]);
+  }, [suppliers, products, pricing, fetchReturnedEmptiesFromMerchandising]);
 
   useEffect(() => {
     if (selectedSupplier) {
@@ -155,39 +241,6 @@ const ReturnEmpties = () => {
       setFilteredEmpties(returnedEmpties);
     }
   }, [selectedSupplier, returnedEmpties]);
-
-  const handleReturnStock = async () => {
-    if (filteredEmpties.length === 0) {
-      alert("No items to return.");
-      return;
-    }
-
-    const confirmed = window.confirm("Are you sure you want to return these empties to stock?");
-    if (!confirmed) return;
-
-    try {
-      const payload = {
-        return_date: new Date().toISOString(),
-        items: filteredEmpties.map(item => ({
-          merchandising_id: item.merchandising_id,
-          item_id: item.item_id,
-          product_id: item.product_id,
-          supplier_id: item.supplier_id,
-          product_name: item.product_name,
-          empty_return_shell: item.empty_return_shell,
-          empty_return_pcs: item.empty_return_pcs
-        }))
-      };
-
-      console.log("Sending payload:", payload);
-      await axios.post("http://localhost:8080/api/process-empties-return/", payload);
-      alert("Empties returned to stock successfully!");
-      fetchReturnedEmptiesFromMerchandising();
-    } catch (error) {
-      console.error("Error returning empties:", error);
-      alert("Failed to return empties to stock: " + (error.response?.data?.message || error.message));
-    }
-  };
 
   if (loading) {
     return (
@@ -220,14 +273,8 @@ const ReturnEmpties = () => {
               </option>
             ))}
           </select>
-          
-          <button
-            onClick={handleReturnStock}
-            className="ml-auto px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 font-medium"
-            disabled={filteredEmpties.length === 0}
-          >
-            RETURN STOCK
-          </button>
+        </div>
+        <div className="text-sm text-gray-600">
         </div>
       </div>
 
@@ -235,30 +282,67 @@ const ReturnEmpties = () => {
         <table className="w-full">
           <thead className="bg-gray-100">
             <tr>
-              <th className="px-4 py-3 text-left text-gray-700 font-medium border-b">MSP No.</th>
+              <th className="px-4 py-3 text-left text-gray-700 font-medium border-b">MSP No(s).</th>
               <th className="px-4 py-3 text-left text-gray-700 font-medium border-b">Product</th>
-              <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Empty Returns</th>
+              <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Total Empty Returns</th>
               <th className="px-4 py-3 text-left text-gray-700 font-medium border-b">Supplier</th>
-              <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Date</th>
+              <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Transactions</th>
+              <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Latest Date</th>
             </tr>
           </thead>
           <tbody>
             {filteredEmpties.length > 0 ? (
               filteredEmpties.map((item, index) => (
                 <tr key={item.id} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                  <td className="px-4 py-3 border-b text-gray-800 font-medium">{item.msp_no}</td>
-                  <td className="px-4 py-3 border-b text-gray-800">{item.product_name}</td>
+                  <td className="px-4 py-3 border-b text-gray-800 font-medium">
+                    {item.msp_numbers ? (
+                      <div className="space-y-1">
+                        {item.msp_numbers.slice(0, 2).map((msp, i) => (
+                          <div key={i} className="text-sm">{msp}</div>
+                        ))}
+                        {item.msp_numbers.length > 2 && (
+                          <div className="text-xs text-gray-500">
+                            +{item.msp_numbers.length - 2} more
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      item.msp_no
+                    )}
+                  </td>
+                  <td className="px-4 py-3 border-b text-gray-800">
+                    <div className="flex flex-col gap-1">
+                      <div>{item.product_name}</div>
+                      <div className="flex gap-1">
+                        {item.shell_price > 0 && (
+                          <span className="bg-blue-100 text-blue-600 text-xs px-2 py-1 rounded">
+                            Shell: ₱{item.shell_price}
+                          </span>
+                        )}
+                        {item.bottle_price > 0 && (
+                          <span className="bg-green-100 text-green-600 text-xs px-2 py-1 rounded">
+                            Bottle: ₱{item.bottle_price}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </td>
                   <td className="px-4 py-3 border-b text-center text-gray-800">
-                    <div>{item.empty_return_shell} Shell</div>
+                    <div className="font-semibold">{item.empty_return_shell} Shell</div>
                     <div className="text-sm text-gray-600">{item.empty_return_pcs} PCs</div>
                   </td>
                   <td className="px-4 py-3 border-b text-gray-800">{item.supplier_name}</td>
+                  <td className="px-4 py-3 border-b text-center text-gray-800">
+                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full text-sm">
+                      {item.transaction_count || 1}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 border-b text-center text-gray-800">{item.date}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="5" className="px-4 py-8 text-center text-gray-500">
+                <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
                   No returned empties available
                 </td>
               </tr>
@@ -269,10 +353,14 @@ const ReturnEmpties = () => {
 
       {filteredEmpties.length > 0 && (
         <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
+            <div>
+              <span className="font-medium">Unique Products: </span>
+              {filteredEmpties.length}
+            </div>
             <div>
               <span className="font-medium">Total Transactions: </span>
-              {filteredEmpties.length}
+              {filteredEmpties.reduce((sum, item) => sum + (item.transaction_count || 1), 0)}
             </div>
             <div>
               <span className="font-medium">Total Shells: </span>

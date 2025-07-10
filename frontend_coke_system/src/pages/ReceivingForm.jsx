@@ -6,6 +6,7 @@ const ReceivingForm = () => {
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [users, setUsers] = useState([]);
   const [receiveNo, setReceiveNo] = useState("");
   const [supplierReturns, setSupplierReturns] = useState([]);
@@ -44,6 +45,35 @@ const ReceivingForm = () => {
 
     setReceiveNo(generateJumbledCode());
   }, []);
+
+  // Filter products when supplier changes
+  useEffect(() => {
+    if (form.supplier && products.length > 0) {
+      const supplierProducts = products.filter(product => 
+        String(product.supplier_id) === String(form.supplier) || 
+        String(product.supplier) === String(form.supplier)
+      );
+      setFilteredProducts(supplierProducts);
+      
+      // Clear existing product selections when supplier changes
+      setForm(prev => ({
+        ...prev,
+        details: [
+          {
+            product_id: "",
+            pcs_qty: 0,
+            shell_qty: 0,
+            bottle_qty: 0,
+            bad_order_pcs: 0,
+            unit_cost: 0,
+            total: 0,
+          }
+        ]
+      }));
+    } else {
+      setFilteredProducts([]);
+    }
+  }, [form.supplier, products]);
 
   // Function to update form with return amount calculation
   const updateFormWithReturnAmount = useCallback((returnAmount) => {
@@ -110,13 +140,71 @@ const ReceivingForm = () => {
     }
   }, [form.supplier, fetchSupplierReturns, updateFormWithReturnAmount]);
 
+  // Function to remove supplier returns after receiving is processed
+  const removeProcessedSupplierReturns = async (supplierId) => {
+    try {
+      console.log("🧹 Removing processed supplier returns for supplier:", supplierId);
+      
+      // Get all supplier returns for this supplier
+      const response = await axios.get("http://localhost:8080/api/supplier-return-form/");
+      const supplierReturns = response.data.filter(returnItem => 
+        String(returnItem.supplier) === String(supplierId)
+      );
+      
+      console.log("📋 Found supplier returns to process:", supplierReturns);
+      
+      // Track deletions
+      let deletedCount = 0;
+      
+      // Remove ALL supplier returns for this supplier since the receiving processes them
+      for (const returnItem of supplierReturns) {
+        try {
+          console.log(`🗑️ Removing processed supplier return: ${returnItem.sup_no} (ID: ${returnItem.id})`);
+          await axios.delete(`http://localhost:8080/api/supplier-return-form/${returnItem.id}/`);
+          console.log(`✅ Successfully removed return: ${returnItem.sup_no}`);
+          deletedCount++;
+        } catch (error) {
+          console.error(`❌ Error removing return ${returnItem.id}:`, error);
+          // Continue with other returns even if one fails
+        }
+      }
+      
+      console.log(`🏁 Finished removing processed supplier returns. Removed ${deletedCount} returns.`);
+      
+      // Return the count for user feedback
+      return deletedCount;
+    } catch (error) {
+      console.error("❌ Error removing processed supplier returns:", error);
+      // Don't throw error - this shouldn't prevent the main operation
+      return 0;
+    }
+  };
+
+  const handleSupplierChange = (supplierId) => {
+    setForm(prev => ({
+      ...prev,
+      supplier: supplierId,
+      details: [
+        {
+          product_id: "",
+          pcs_qty: 0,
+          shell_qty: 0,
+          bottle_qty: 0,
+          bad_order_pcs: 0,
+          unit_cost: 0,
+          total: 0,
+        }
+      ]
+    }));
+  };
+
   const handleRowChange = (index, field, value) => {
     const newRows = [...form.details];
     const row = newRows[index];
 
     row[field] = value === "" ? "" : Number(value);
 
-    const product = products.find((p) => p.id === Number(row.product_id));
+    const product = filteredProducts.find((p) => p.id === Number(row.product_id));
     const content_no = product?.unit_type?.content_no || 1;
 
     const shell_qty = row.shell_qty === "" || isNaN(row.shell_qty) ? 0 : Number(row.shell_qty);
@@ -188,11 +276,26 @@ const ReceivingForm = () => {
     };
 
     try {
+      // Save the receiving first
+      console.log("💾 Saving receiving...");
       await axios.post("http://localhost:8080/api/receiving/", dataToSubmit);
-      alert("Receiving saved successfully!");
+      console.log("✅ Receiving saved successfully");
+      
+      // After successful save, remove ALL supplier returns for this supplier
+      // since the receiving process handles the empty returns
+      console.log("🧹 Starting removal of processed supplier returns...");
+      const deletedCount = await removeProcessedSupplierReturns(form.supplier);
+      
+      // Provide appropriate feedback
+      let message = "Receiving saved successfully!";
+      if (deletedCount > 0) {
+        message += ` ${deletedCount} supplier return(s) have been processed and removed.`;
+      }
+      
+      alert(message);
       navigate("/receiving");
     } catch (error) {
-      console.error("Save failed:", error);
+      console.error("❌ Save failed:", error);
       alert("Save failed! " + (error.response?.data?.message || "See console for details."));
     }
   };
@@ -230,7 +333,7 @@ const ReceivingForm = () => {
           <label className="block text-gray-600 font-semibold mb-2">Supplier:</label>
           <select 
             value={form.supplier} 
-            onChange={(e) => setForm({ ...form, supplier: e.target.value })} 
+            onChange={(e) => handleSupplierChange(e.target.value)} 
             className="w-full p-3 rounded-lg bg-gray-100 border-gray-300"
           >
             <option value="">Select Supplier</option>
@@ -240,6 +343,16 @@ const ReceivingForm = () => {
           </select>
           {isLoadingReturns && (
             <p className="text-blue-600 text-sm mt-1">Loading supplier returns...</p>
+          )}
+          {form.supplier && filteredProducts.length > 0 && (
+            <p className="text-green-600 text-sm mt-1">
+              {filteredProducts.length} products available from this supplier
+            </p>
+          )}
+          {form.supplier && filteredProducts.length === 0 && (
+            <p className="text-orange-600 text-sm mt-1">
+              No products found for this supplier
+            </p>
           )}
         </div>
         <div>
@@ -299,7 +412,7 @@ const ReceivingForm = () => {
       {/* Return Details Section (shown only when returns exist) */}
       {supplierReturns.length > 0 && (
         <div className="bg-red-50 p-6 rounded-xl border border-red-200 shadow-sm">
-          <h3 className="text-lg font-semibold text-red-700 mb-4">Supplier Return Details</h3>
+          <h3 className="text-lg font-semibold text-red-700 mb-4">Supplier Return Details (Will be processed)</h3>
           <div className="overflow-x-auto mt-2">
             <table className="w-full rounded-xl border-collapse shadow-sm">
               <thead className="bg-red-700 text-white">
@@ -335,6 +448,10 @@ const ReceivingForm = () => {
               </tfoot>
             </table>
           </div>
+          <p className="text-sm text-red-600 mt-2">
+            ⚠️ Note: These supplier returns will be automatically removed when this receiving is saved, 
+            as they represent empty returns that are being processed through this receiving.
+          </p>
         </div>
       )}
 
@@ -358,9 +475,12 @@ const ReceivingForm = () => {
                     value={row.product_id || ""} 
                     onChange={(e) => handleRowChange(index, "product_id", e.target.value)} 
                     className="w-full p-2 rounded-lg bg-gray-100 border-gray-300"
+                    disabled={!form.supplier}
                   >
-                    <option value="">Select Product</option>
-                    {products.map((p) => (
+                    <option value="">
+                      {!form.supplier ? "Select Supplier First" : "Select Product"}
+                    </option>
+                    {filteredProducts.map((p) => (
                       <option key={p.id} value={p.id}>{p.product_name}</option>
                     ))}
                   </select>

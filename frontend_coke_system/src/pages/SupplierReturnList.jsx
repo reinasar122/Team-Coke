@@ -40,6 +40,68 @@ const SupplierReturnList = () => {
     });
   }, []);
 
+  // ✅ COMPLETELY FIXED helper function to format date correctly
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    
+    try {
+      console.log("Original date string from server:", dateString);
+      
+      // Handle different date string formats
+      let date;
+      
+      if (dateString.includes('T')) {
+        // This is an ISO-like datetime string
+        // Remove any timezone info and treat as local time
+        let cleanDateString = dateString;
+        
+        // Remove Z, +XX:XX, or -XX:XX timezone suffixes
+        cleanDateString = cleanDateString.replace(/Z$/, '');
+        cleanDateString = cleanDateString.replace(/[+-]\d{2}:\d{2}$/, '');
+        
+        // If it doesn't have seconds, add them
+        if (cleanDateString.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)) {
+          cleanDateString += ':00';
+        }
+        
+        console.log("Cleaned date string:", cleanDateString);
+        
+        // Parse as local datetime by manually creating the date
+        const parts = cleanDateString.split('T');
+        const dateParts = parts[0].split('-');
+        const timeParts = parts[1].split(':');
+        
+        // Create date using local timezone (month is 0-based)
+        date = new Date(
+          parseInt(dateParts[0]),     // year
+          parseInt(dateParts[1]) - 1, // month (0-based)
+          parseInt(dateParts[2]),     // day
+          parseInt(timeParts[0]),     // hour
+          parseInt(timeParts[1]),     // minute
+          parseInt(timeParts[2] || 0) // second
+        );
+      } else {
+        // Fallback for other formats
+        date = new Date(dateString);
+      }
+      
+      console.log("Parsed date object:", date);
+      console.log("Formatted time:", date.toLocaleString("en-PH"));
+      
+      return date.toLocaleString("en-PH", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      });
+    } catch (error) {
+      console.error("Error formatting date:", error);
+      return "Invalid Date";
+    }
+  };
+
   const handleDelete = async (id) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this supplier return?");
     if (!confirmDelete) return;
@@ -215,19 +277,7 @@ const SupplierReturnList = () => {
                   className="border-b hover:bg-gray-100"
                 >
                   <td className="px-4 py-3">{item.sup_no}</td>
-                  <td className="px-4 py-3">
-                    {item.date
-                      ? new Date(item.date).toLocaleString("en-PH", {
-                          timeZone: "Asia/Manila",
-                          year: "numeric",
-                          month: "numeric",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: true,
-                        })
-                      : "N/A"}
-                  </td>
+                  <td className="px-4 py-3">{formatDate(item.date)}</td>
                   <td className="px-4 py-3">
                     {item.supplier_name || item.supplier || "N/A"}
                   </td>
@@ -284,17 +334,7 @@ const SupplierReturnList = () => {
               </div>
               <div>
                 <p className="text-gray-600 text-sm">Date & Time</p>
-                <p className="font-medium">
-                  {new Date(selectedReturn.date).toLocaleString("en-PH", {
-                    timeZone: "Asia/Manila",
-                    year: "numeric",
-                    month: "numeric",
-                    day: "numeric",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                    hour12: true,
-                  })}
-                </p>
+                <p className="font-medium">{formatDate(selectedReturn.date)}</p>
               </div>
               <div>
                 <p className="text-gray-600 text-sm">Supplier</p>
@@ -345,7 +385,7 @@ const SupplierReturnList = () => {
                         No items found for this return.
                       </td>
                     </tr>
-                  )}
+                    )}
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-100">
