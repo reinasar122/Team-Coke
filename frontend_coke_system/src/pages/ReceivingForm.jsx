@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from "react";
+// Updated ReceivingForm.jsx - Fixed ESLint warnings
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -12,6 +13,15 @@ const ReceivingForm = () => {
   const [supplierReturns, setSupplierReturns] = useState([]);
   const [isLoadingReturns, setIsLoadingReturns] = useState(false);
   const [error, setError] = useState("");
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
+  const [debugInfo, setDebugInfo] = useState("");
+  const [isLoadingWarehouse, setIsLoadingWarehouse] = useState(true);
+  
+  // NEW: State to track the selected warehouse from localStorage
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
+  
+  // Use ref to track if we've already fetched for this supplier
+  const lastFetchedSupplier = useRef(null);
 
   const [form, setForm] = useState({
     supplier: "",
@@ -33,10 +43,204 @@ const ReceivingForm = () => {
     ],
   });
 
+  // NEW: Reset form when warehouse changes
+  const resetForm = useCallback(() => {
+    console.log("🔄 Resetting form data...");
+    setForm({
+      supplier: "",
+      invoice_no: "",
+      return_total_amount: 0,
+      net_amount: 0,
+      received_by: "",
+      remarks: "",
+      details: [
+        {
+          product_id: "",
+          pcs_qty: 0,
+          shell_qty: 0,
+          bottle_qty: 0,
+          bad_order_pcs: 0,
+          unit_cost: 0,
+          total: 0,
+        },
+      ],
+    });
+    setSuppliers([]);
+    setProducts([]);
+    setUsers([]);
+    setSupplierReturns([]);
+    setFilteredProducts([]);
+    lastFetchedSupplier.current = null;
+  }, []);
+
+  // NEW: Monitor localStorage for warehouse changes - this runs constantly
   useEffect(() => {
-    axios.get("http://localhost:8080/api/suppliers/").then((res) => setSuppliers(res.data));
-    axios.get("http://localhost:8080/api/products/").then((res) => setProducts(res.data));
-    axios.get("http://localhost:8080/api/users/").then((res) => setUsers(res.data));
+    const checkWarehouseChanges = () => {
+      const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      const newWarehouseId = selectedWarehouse?.id || null;
+      
+      console.log("🔍 Checking warehouse changes:", selectedWarehouseId, "->", newWarehouseId);
+      
+      if (newWarehouseId !== selectedWarehouseId) {
+        console.log("🚨 WAREHOUSE CHANGE DETECTED:", selectedWarehouseId, "->", newWarehouseId);
+        setSelectedWarehouseId(newWarehouseId);
+      }
+    };
+
+    // Check immediately
+    checkWarehouseChanges();
+    
+    // Check every 300ms for changes
+    const interval = setInterval(checkWarehouseChanges, 300);
+    
+    return () => clearInterval(interval);
+  }, [selectedWarehouseId]);
+
+  // FIXED: Enhanced warehouse detection - triggers when selectedWarehouseId changes
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    console.log("🔍 Debug - Full user data:", user);
+    console.log("🔍 Debug - Selected warehouse:", selectedWarehouse);
+    console.log("🔍 Debug - Trigger warehouse ID:", selectedWarehouseId);
+    
+    // Function to fetch warehouse ID by name
+    const fetchWarehouseByName = async (warehouseName) => {
+      try {
+        const response = await axios.get("http://localhost:8080/api/warehouses/");
+        const warehouse = response.data.find(w => w.name === warehouseName);
+        return warehouse || null;
+      } catch (error) {
+        console.error("❌ Error fetching warehouses:", error);
+        return null;
+      }
+    };
+
+    const setupWarehouse = async () => {
+      console.log("🏗️ Setting up warehouse...");
+      setIsLoadingWarehouse(true);
+      let warehouse = null;
+      let debugMsg = "";
+      
+      if (user.role?.toLowerCase() === "admin") {
+        // For admin: use selected warehouse OR their enrolled warehouse
+        if (selectedWarehouse && selectedWarehouse.id) {
+          warehouse = selectedWarehouse;
+          debugMsg = `Admin using selected warehouse: ${warehouse.name} (ID: ${warehouse.id})`;
+        } else if (user.warehouse_id) {
+          warehouse = { name: user.warehouse, id: user.warehouse_id };
+          debugMsg = `Admin using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`;
+        } else if (user.warehouse) {
+          // Try to get warehouse ID from name
+          const foundWarehouse = await fetchWarehouseByName(user.warehouse);
+          if (foundWarehouse) {
+            warehouse = { name: foundWarehouse.name, id: foundWarehouse.id };
+            debugMsg = `Admin warehouse mapped: ${warehouse.name} (ID: ${warehouse.id})`;
+          } else {
+            debugMsg = `⚠️ Admin warehouse "${user.warehouse}" not found in database`;
+          }
+        } else {
+          debugMsg = "⚠️ Admin has no warehouse assigned";
+        }
+      } else {
+        // For non-admin: ALWAYS use their enrolled warehouse, ignore selectedWarehouse
+        if (user.warehouse_id) {
+          warehouse = { name: user.warehouse, id: user.warehouse_id };
+          debugMsg = `User using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`;
+        } else if (user.warehouse) {
+          // Try to get warehouse ID from name
+          console.log(`🔄 Looking up warehouse ID for: "${user.warehouse}"`);
+          const foundWarehouse = await fetchWarehouseByName(user.warehouse);
+          if (foundWarehouse) {
+            warehouse = { name: foundWarehouse.name, id: foundWarehouse.id };
+            debugMsg = `✅ User warehouse mapped: ${warehouse.name} (ID: ${warehouse.id})`;
+            
+            // IMPORTANT: Update localStorage to include warehouse_id for future use
+            const updatedUser = { ...user, warehouse_id: foundWarehouse.id };
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+            console.log("💾 Updated user data with warehouse_id:", updatedUser);
+          } else {
+            debugMsg = `❌ User warehouse "${user.warehouse}" not found in database`;
+          }
+        } else {
+          debugMsg = "❌ User has no warehouse assigned";
+        }
+      }
+      
+      console.log("🔍 Final result:", debugMsg);
+      setDebugInfo(debugMsg);
+      
+      // Only update if warehouse actually changed
+      const hasChanged = !currentWarehouse || currentWarehouse?.id !== warehouse?.id;
+      if (hasChanged) {
+        console.log("🔄 Warehouse changed, updating data and resetting form...");
+        setCurrentWarehouse(warehouse);
+        resetForm();
+      } else {
+        console.log("📍 Warehouse same, no changes needed");
+      }
+      
+      // Clear any previous errors if we found a warehouse
+      if (warehouse?.id) {
+        setError("");
+      } else {
+        setError(`User warehouse not found. ${debugMsg}`);
+      }
+      
+      setIsLoadingWarehouse(false);
+    };
+
+    setupWarehouse();
+  }, [selectedWarehouseId, resetForm, currentWarehouse]); // FIXED: Added currentWarehouse to dependencies
+
+  // Create axios instance with warehouse header and debugging
+  const getAxiosConfig = useCallback(() => {
+    const config = {};
+    if (currentWarehouse?.id) {
+      config.headers = {
+        'X-Warehouse-ID': currentWarehouse.id
+      };
+      console.log(`📡 Making API call with warehouse header: ${currentWarehouse.id}`);
+    } else {
+      console.log("⚠️ No warehouse ID for API call!");
+    }
+    return config;
+  }, [currentWarehouse?.id]);
+
+  // Load data when warehouse changes
+  useEffect(() => {
+    if (!currentWarehouse?.id || isLoadingWarehouse) {
+      console.log("❌ Skipping API calls - no warehouse ID or still loading");
+      return;
+    }
+
+    const config = getAxiosConfig();
+    console.log(`🔄 Loading data for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
+    
+    // Load suppliers
+    axios.get("http://localhost:8080/api/suppliers/", config)
+      .then((res) => {
+        console.log(`✅ Loaded ${res.data.length} suppliers for warehouse ${currentWarehouse.id}`);
+        setSuppliers(res.data);
+      })
+      .catch(err => console.error("❌ Error loading suppliers:", err));
+    
+    // Load products
+    axios.get("http://localhost:8080/api/products/", config)
+      .then((res) => {
+        console.log(`✅ Loaded ${res.data.length} products for warehouse ${currentWarehouse.id}`);
+        setProducts(res.data);
+      })
+      .catch(err => console.error("❌ Error loading products:", err));
+    
+    // Load users
+    axios.get("http://localhost:8080/api/users/", config)
+      .then((res) => {
+        console.log(`✅ Loaded ${res.data.length} users for warehouse ${currentWarehouse.id}`);
+        setUsers(res.data);
+      })
+      .catch(err => console.error("❌ Error loading users:", err));
 
     const generateJumbledCode = () => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -44,7 +248,7 @@ const ReceivingForm = () => {
     };
 
     setReceiveNo(generateJumbledCode());
-  }, []);
+  }, [currentWarehouse?.id, currentWarehouse?.name, getAxiosConfig, isLoadingWarehouse]); // FIXED: Added currentWarehouse.name to dependencies
 
   // Filter products when supplier changes
   useEffect(() => {
@@ -55,7 +259,6 @@ const ReceivingForm = () => {
       );
       setFilteredProducts(supplierProducts);
       
-      // Clear existing product selections when supplier changes
       setForm(prev => ({
         ...prev,
         details: [
@@ -77,110 +280,116 @@ const ReceivingForm = () => {
 
   // Function to update form with return amount calculation
   const updateFormWithReturnAmount = useCallback((returnAmount) => {
-    const total = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
-    const netAmount = Math.max(0, total - returnAmount);
-    
-    setForm(prev => ({
-      ...prev,
-      return_total_amount: returnAmount,
-      net_amount: netAmount.toFixed(2)
-    }));
-  }, [form.details]);
+    setForm(prev => {
+      const total = prev.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
+      const netAmount = Math.max(0, total - returnAmount);
+      
+      return {
+        ...prev,
+        return_total_amount: returnAmount,
+        net_amount: netAmount.toFixed(2)
+      };
+    });
+  }, []);
 
-  // Fetch supplier returns from API
+  // Fetch supplier returns from API (filtered by warehouse)
   const fetchSupplierReturns = useCallback(async (supplierId) => {
+    if (!currentWarehouse?.id || !supplierId) return;
+    
+    if (lastFetchedSupplier.current === supplierId) return;
+    lastFetchedSupplier.current = supplierId;
+    
     setIsLoadingReturns(true);
     setError("");
     
     try {
-      console.log("Fetching returns for supplier:", supplierId);
+      console.log("🔄 Fetching returns for supplier:", supplierId, "in warehouse:", currentWarehouse.name);
       
-      // Get all supplier returns
-      const response = await axios.get("http://localhost:8080/api/supplier-return-form/");
-      console.log("All supplier returns:", response.data);
+      const config = getAxiosConfig();
+      const response = await axios.get("http://localhost:8080/api/supplier-return-form/", config);
+      console.log("📊 All supplier returns for warehouse:", response.data);
       
-      // Filter returns for the selected supplier (handle both string and number comparison)
       const filteredReturns = response.data.filter(returnItem => 
         String(returnItem.supplier) === String(supplierId)
       );
       
-      console.log("Filtered returns for supplier", supplierId, ":", filteredReturns);
+      console.log("🎯 Filtered returns for supplier", supplierId, ":", filteredReturns);
       
       if (filteredReturns.length > 0) {
         setSupplierReturns(filteredReturns);
         
-        // Calculate total amount from all returns for this supplier
         const totalReturnAmount = filteredReturns.reduce((sum, returnItem) => 
           sum + parseFloat(returnItem.total_amount || 0), 0);
         
-        console.log("Total return amount calculated:", totalReturnAmount);
+        console.log("💰 Total return amount calculated:", totalReturnAmount);
         updateFormWithReturnAmount(totalReturnAmount);
       } else {
         setSupplierReturns([]);
         updateFormWithReturnAmount(0);
       }
     } catch (error) {
-      console.error("Error fetching supplier returns:", error);
-      console.error("Error details:", error.response?.data || error.message);
+      console.error("❌ Error fetching supplier returns:", error);
+      console.error("❌ Error details:", error.response?.data || error.message);
       setSupplierReturns([]);
       updateFormWithReturnAmount(0);
       setError("Failed to fetch supplier return data. Please try again.");
     } finally {
       setIsLoadingReturns(false);
     }
-  }, [updateFormWithReturnAmount]);
+  }, [currentWarehouse, getAxiosConfig, updateFormWithReturnAmount]);
 
-  // Fetch supplier return items whenever supplier changes
+  // FIXED: Fetch supplier return items whenever supplier changes
   useEffect(() => {
-    if (form.supplier) {
+    lastFetchedSupplier.current = null;
+    
+    if (form.supplier && currentWarehouse?.id) {
       fetchSupplierReturns(form.supplier);
     } else {
       setSupplierReturns([]);
       updateFormWithReturnAmount(0);
     }
-  }, [form.supplier, fetchSupplierReturns, updateFormWithReturnAmount]);
+  }, [form.supplier, currentWarehouse?.id, fetchSupplierReturns, updateFormWithReturnAmount]);
 
   // Function to remove supplier returns after receiving is processed
-  const removeProcessedSupplierReturns = async (supplierId) => {
+  const removeProcessedSupplierReturns = useCallback(async (supplierId) => {
+    if (!currentWarehouse?.id) return 0;
+    
     try {
-      console.log("🧹 Removing processed supplier returns for supplier:", supplierId);
+      console.log("🧹 Removing processed supplier returns for supplier:", supplierId, "in warehouse:", currentWarehouse.name);
       
-      // Get all supplier returns for this supplier
-      const response = await axios.get("http://localhost:8080/api/supplier-return-form/");
+      const config = getAxiosConfig();
+      const response = await axios.get("http://localhost:8080/api/supplier-return-form/", config);
       const supplierReturns = response.data.filter(returnItem => 
         String(returnItem.supplier) === String(supplierId)
       );
       
       console.log("📋 Found supplier returns to process:", supplierReturns);
       
-      // Track deletions
       let deletedCount = 0;
       
-      // Remove ALL supplier returns for this supplier since the receiving processes them
       for (const returnItem of supplierReturns) {
         try {
           console.log(`🗑️ Removing processed supplier return: ${returnItem.sup_no} (ID: ${returnItem.id})`);
-          await axios.delete(`http://localhost:8080/api/supplier-return-form/${returnItem.id}/`);
+          await axios.delete(`http://localhost:8080/api/supplier-return-form/${returnItem.id}/`, config);
           console.log(`✅ Successfully removed return: ${returnItem.sup_no}`);
           deletedCount++;
         } catch (error) {
           console.error(`❌ Error removing return ${returnItem.id}:`, error);
-          // Continue with other returns even if one fails
         }
       }
       
       console.log(`🏁 Finished removing processed supplier returns. Removed ${deletedCount} returns.`);
       
-      // Return the count for user feedback
       return deletedCount;
     } catch (error) {
       console.error("❌ Error removing processed supplier returns:", error);
-      // Don't throw error - this shouldn't prevent the main operation
       return 0;
     }
-  };
+  }, [currentWarehouse, getAxiosConfig]);
 
   const handleSupplierChange = (supplierId) => {
+    lastFetchedSupplier.current = null;
+    
     setForm(prev => ({
       ...prev,
       supplier: supplierId,
@@ -250,6 +459,11 @@ const ReceivingForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!currentWarehouse?.id) {
+      alert("❌ No warehouse selected. Please contact your administrator. Debug: " + debugInfo);
+      return;
+    }
+
     const filteredRows = form.details.filter(row =>
       row.product_id && (row.shell_qty !== "" && row.shell_qty !== 0)
     );
@@ -276,18 +490,19 @@ const ReceivingForm = () => {
     };
 
     try {
-      // Save the receiving first
-      console.log("💾 Saving receiving...");
-      await axios.post("http://localhost:8080/api/receiving/", dataToSubmit);
-      console.log("✅ Receiving saved successfully");
+      console.log("💾 Saving receiving for warehouse:", currentWarehouse.name, "ID:", currentWarehouse.id);
+      console.log("💾 Data to submit:", dataToSubmit);
       
-      // After successful save, remove ALL supplier returns for this supplier
-      // since the receiving process handles the empty returns
+      const config = getAxiosConfig();
+      console.log("💾 Config headers:", config.headers);
+      
+      const response = await axios.post("http://localhost:8080/api/receiving/", dataToSubmit, config);
+      console.log("✅ Receiving saved successfully", response.data);
+      
       console.log("🧹 Starting removal of processed supplier returns...");
       const deletedCount = await removeProcessedSupplierReturns(form.supplier);
       
-      // Provide appropriate feedback
-      let message = "Receiving saved successfully!";
+      let message = `✅ Receiving saved successfully in ${currentWarehouse.name}!`;
       if (deletedCount > 0) {
         message += ` ${deletedCount} supplier return(s) have been processed and removed.`;
       }
@@ -296,17 +511,59 @@ const ReceivingForm = () => {
       navigate("/receiving");
     } catch (error) {
       console.error("❌ Save failed:", error);
-      alert("Save failed! " + (error.response?.data?.message || "See console for details."));
+      console.error("❌ Error details:", error.response?.data);
+      
+      let errorMessage = "❌ Save failed! ";
+      if (error.response?.data?.detail) {
+        errorMessage += error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMessage += error.response.data.message;
+      } else if (error.response?.data) {
+        errorMessage += JSON.stringify(error.response.data);
+      } else {
+        errorMessage += "Please check console for details.";
+      }
+      
+      alert(errorMessage);
     }
   };
 
   const totalReceiving = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
 
+  if (isLoadingWarehouse) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading warehouse information...</p>
+          <p className="text-sm text-gray-500 mt-2">Mapping warehouse data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentWarehouse) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center max-w-md">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-red-600 mb-2">Warehouse Setup Required</h2>
+          <p className="text-gray-600 mb-4">{debugInfo}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="max-w-[98%] mx-auto p-10 bg-white rounded-3xl shadow-lg space-y-10">
-      
-       {/* Remove spinner for all number fields */}
-       <style>{`
+      {/* Remove spinner for all number fields */}
+      <style>{`
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button {
           -webkit-appearance: none;
@@ -316,6 +573,18 @@ const ReceivingForm = () => {
           -moz-appearance: textfield;
         }
       `}</style>
+
+      {/* Enhanced Warehouse Info Header with Debug */}
+      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+        <h3 className="text-lg font-semibold text-blue-800 mb-2">📦 Current Warehouse</h3>
+        <p className="text-blue-700">
+          All receiving data will be saved to: <strong>{currentWarehouse.name}</strong> (ID: {currentWarehouse.id})
+        </p>
+        {debugInfo && (
+          <p className="text-xs text-gray-600 mt-1">🔍 Debug: {debugInfo}</p>
+        )}
+        <p className="text-xs text-gray-500 mt-1">🔍 Monitoring ID: {selectedWarehouseId}</p>
+      </div>
       
       {error && (
         <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded mb-6">
@@ -545,7 +814,7 @@ const ReceivingForm = () => {
           Cancel
         </button>
         <button type="submit" className="px-6 py-3 bg-[#0B1320] hover:bg-[#1C2230] text-white rounded-full font-semibold transition">
-          Save
+          Save to {currentWarehouse.name}
         </button>
       </div>
     </form>
