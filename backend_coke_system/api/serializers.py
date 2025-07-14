@@ -8,6 +8,7 @@ from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing,
 from .models import User, RoleAccessibility
 import re
 from .models import SupplierReturnForm, SupplierReturnFormItem, Product
+from .models import *
 
 class RoleAccessibilitySerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
@@ -60,7 +61,7 @@ Hello {user.first_name},
 Your account has been created.
 
 Username: {user.username}
-Password: {self.initial_data.get('password')}
+Password: {self.initial_data.get('password')}F
 
 Please log in and change your password as soon as possible.
 
@@ -259,6 +260,7 @@ class ReceivingSerializer(serializers.ModelSerializer):
     received_by_first_name = serializers.CharField(source='received_by.first_name', read_only=True)
     received_by_last_name = serializers.CharField(source='received_by.last_name', read_only=True)
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
     details = ReceivingItemSerializer(many=True)
 
     class Meta:
@@ -274,13 +276,27 @@ class ReceivingSerializer(serializers.ModelSerializer):
             item_serializer.is_valid(raise_exception=True)
             item = item_serializer.save()
 
-            # Stock logic
+            # Stock logic - Handle warehouse filtering
             product = item.product
             content_no = product.unit_type.content_no if product.unit_type else 1
             pcs_qty = item.shell_qty * content_no
             adjusted_pcs = pcs_qty - item.bad_order_pcs
 
-            stock, _ = Stock.objects.get_or_create(product=product)
+            # Get or create stock for this warehouse (or general stock if no warehouse)
+            if receiving.warehouse:
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse=receiving.warehouse,
+                    defaults={'quantity_available': 0}
+                )
+            else:
+                # Fallback: get or create stock without warehouse for existing data
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse__isnull=True,
+                    defaults={'quantity_available': 0}
+                )
+            
             stock.quantity_available += max(adjusted_pcs, 0)
             stock.save()
 
@@ -300,18 +316,29 @@ class ReceivingSerializer(serializers.ModelSerializer):
             item_serializer.is_valid(raise_exception=True)
             item = item_serializer.save()
 
-            # Stock logic
+            # Stock logic - Handle warehouse filtering
             product = item.product
             content_no = product.unit_type.content_no if product.unit_type else 1
             pcs_qty = item.shell_qty * content_no
             adjusted_pcs = pcs_qty - item.bad_order_pcs
 
-            stock, _ = Stock.objects.get_or_create(product=product)
+            if instance.warehouse:
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse=instance.warehouse,
+                    defaults={'quantity_available': 0}
+                )
+            else:
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse__isnull=True,
+                    defaults={'quantity_available': 0}
+                )
+            
             stock.quantity_available += max(adjusted_pcs, 0)
             stock.save()
 
         return instance
-
     
 
 class StockSerializer(serializers.ModelSerializer):

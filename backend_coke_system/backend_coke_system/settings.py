@@ -56,6 +56,7 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React frontend URL
+     "http://127.0.0.1:3000",
 ]
 
 ROOT_URLCONF = 'backend_coke_system.urls'
@@ -85,7 +86,7 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'new_project',
+         'NAME': 'coke_project',
          'USER': 'root',
          'PASSWORD': 'Ctugmarc@2003',
          'HOST': 'localhost',
@@ -150,3 +151,22 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'jkcuevas4@gmail.com'         # replace with your actual Gmail
 EMAIL_HOST_PASSWORD = 'xtfzuvwtrdioxtex' 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-warehouse-id',  # Add this custom header
+]
+
+# Or if you want to allow all origins during development (not recommended for production):
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Make sure CORS is enabled
+CORS_ALLOW_CREDENTIALS = True

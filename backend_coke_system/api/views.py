@@ -32,7 +32,13 @@ from .serializers import ForgotPasswordRequestSerializer, OTPVerificationSeriali
 from django.core.cache import cache
 from .models import SupplierReturnForm
 from .serializers import SupplierReturnFormSerializer
-
+from django.core.exceptions import ValidationError
+from rest_framework import generics, serializers, status
+from rest_framework.response import Response
+from .models import Receiving, Warehouse, Stock, Product
+from .serializers import ReceivingSerializer
+import traceback  # Add this import
+from django.db.models import Q
 
 # Temporary OTP store (for demo; use cache or DB for production)
 # Temporary OTP storage (in production use cache like Redis or DB)
@@ -336,14 +342,51 @@ def next_product_code(request):
 
 # ===== RECEIVING MODULE =====
 class ReceivingListCreateView(generics.ListCreateAPIView):
-    queryset = Receiving.objects.select_related('supplier').prefetch_related('details').order_by('-id')
     serializer_class = ReceivingSerializer
 
+    def get_queryset(self):
+        warehouse_id = self.request.headers.get('X-Warehouse-ID')
+        if warehouse_id:
+            return Receiving.objects.select_related('supplier', 'warehouse').prefetch_related('details').filter(warehouse_id=warehouse_id).order_by('-id')
+        return Receiving.objects.select_related('supplier', 'warehouse').prefetch_related('details').order_by('-id')
+
+    def perform_create(self, serializer):
+        warehouse_id = self.request.headers.get('X-Warehouse-ID')
+        print(f"Received warehouse_id: {warehouse_id}")  # Debug log
+        
+        if warehouse_id:
+            try:
+                warehouse = Warehouse.objects.get(id=warehouse_id)
+                print(f"Found warehouse: {warehouse}")  # Debug log
+                serializer.save(warehouse=warehouse)
+            except Warehouse.DoesNotExist:
+                print(f"Warehouse {warehouse_id} not found")  # Debug log
+                # Save without warehouse for now
+                serializer.save()
+        else:
+            print("No warehouse_id provided")  # Debug log
+            serializer.save()
+
+    def create(self, request, *args, **kwargs):
+        try:
+            print(f"Request data: {request.data}")  # Debug log
+            print(f"Request headers: {dict(request.headers)}")  # Debug log
+            return super().create(request, *args, **kwargs)
+        except Exception as e:
+            print(f"Error creating receiving: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
+            return Response(
+                {"detail": f"Error creating receiving: {str(e)}"}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Receiving.objects.all()
     serializer_class = ReceivingSerializer
-
-
+    
+    def get_queryset(self):
+        warehouse_id = self.request.headers.get('X-Warehouse-ID')
+        if warehouse_id:
+            return Receiving.objects.filter(warehouse_id=warehouse_id)
+        return Receiving.objects.all()
 
 # ===== STOCKS =====
 class StockListCreateView(generics.ListCreateAPIView):
@@ -688,3 +731,5 @@ class ProcessEmptiesReturnView(APIView):
                 {"error": f"Failed to process empties return: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+     
+    

@@ -180,6 +180,7 @@ class Receiving(models.Model):
     date_time = models.DateTimeField(default=timezone.now)
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     invoice_no = models.CharField(max_length=100, blank=True, null=True)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
 
     return_total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     receive_total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -201,7 +202,6 @@ class Receiving(models.Model):
 
     def __str__(self):
         return self.receive_no
-
 
 
 class ReceivingItem(models.Model):
@@ -244,10 +244,16 @@ class ReceivingItem(models.Model):
 # === STOCK  ===
 class Stock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
     quantity_available = models.PositiveIntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        unique_together = ['product', 'warehouse']  # Ensure unique stock per product per warehouse
+
     def __str__(self):
+        if self.warehouse:
+            return f"{self.product.product_name} - {self.warehouse.name} - {self.quantity_available} pcs"
         return f"{self.product.product_name} - {self.quantity_available} pcs"
 
     def stock_status(self):
@@ -259,7 +265,6 @@ class Stock(models.Model):
             return "Moderate"
         else:
             return "High"
-        
 
 class Route(models.Model):
     route_name = models.CharField(max_length=100, unique=True)
