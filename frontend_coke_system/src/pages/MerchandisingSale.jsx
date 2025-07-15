@@ -1,40 +1,48 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../App.css";
-
 
 const MerchandisingSale = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const state = location.state || {};
+  const editMode = state.editMode || false;
+  const saleData = state.data || {};
 
+  const [activeTab, setActiveTab] = useState("Trading");
+  const [newDesc, setNewDesc] = useState("");
+  const [newAmt, setNewAmt] = useState("");
+  
 
-  // ✅ Only declare once
+  const [customer, setCustomer] = useState("");
+  const [transactionDate, setTransactionDate] = useState("");
+  const [expenses, setExpenses] = useState([]);
   const [rows, setRows] = useState([
-  {
-    id: Date.now(),
-    productId: "",
-    productName: "",
-    priceId: "",
-    dispatchedShell: "",
-    dispatchedPcs: "",
-    soldShell: "",
-    soldPcs: "",
-    expectedReturnShellEmpty: "",
-    expectedReturnPcsEmpty: "",
-    expectedReturnShellNonempty: "",
-    expectedReturnPcsNonempty: "",
-    discrepancyShellEmpty: "",
-    discrepancyPcsEmpty: "",
-    discrepancyShellNonempty: "",
-    discrepancyPcsNonempty: "",
-    discount: "",
-    expectedSale: "",
-    actualSale: "",
-    contentNo: "",
-  },
-]);
+    {
+      id: Date.now(),
+      productId: "",
+      productName: "",
+      priceId: "",
+      dispatchedShell: "",
+      dispatchedPcs: "",
+      soldShell: "",
+      soldPcs: "",
+      expectedReturnShellEmpty: "",
+      expectedReturnPcsEmpty: "",
+      expectedReturnShellNonempty: "",
+      expectedReturnPcsNonempty: "",
+      discrepancyShellEmpty: "",
+      discrepancyPcsEmpty: "",
+      discrepancyShellNonempty: "",
+      discrepancyPcsNonempty: "",
+      discount: "",
+      expectedSale: "",
+      actualSale: "",
+      contentNo: "",
+    },
+  ]);
+
 
 
 
@@ -85,7 +93,7 @@ const MerchandisingSale = () => {
   const [expectedTotal, setExpectedTotal] = useState(0);
   const [actualTotal, setActualTotal] = useState(0);
   const [discrepancy, setDiscrepancy] = useState(0);
-  const [change, setChange] = useState("");
+  // const [change, setChange] = useState("");
   const [showMiscDetails, setShowMiscDetails] = useState(false);
   const [miscDescription, setMiscDescription] = useState("");
   const [miscFiles, setMiscFiles] = useState([]);
@@ -94,9 +102,9 @@ const MerchandisingSale = () => {
   const [miscItems, setMiscItems] = useState([]);
   const [miscAmounts, setMiscAmounts] = useState({});
   const [pricingMap, setPricingMap] = useState({});
-  const [cashMismatch, setCashMismatch] = useState(false);
-  const [userCashInput, setUserCashInput] = useState("");
-  const [cashReceived, setCashReceived] = useState("");
+  // const [cashMismatch, setCashMismatch] = useState(false);
+  // const [userCashInput, setUserCashInput] = useState("");
+  // const [cashReceived, setCashReceived] = useState("");
 
 
  
@@ -147,6 +155,20 @@ useEffect(() => {
     .catch(err => console.error("Failed to fetch transaction types:", err));
 }, []);
 
+useEffect(() => {
+  if (editMode && saleData) {
+    setCustomer(saleData.customer || "");
+    setRoute(saleData.route || "");
+    setTransactionDate(saleData.date_time || "");
+    setTransactionType(saleData.transaction_type || ""); // 🛑 This must match the backend key!
+    setSelectedTransactionTypeName(saleData.transaction_type_name || "");
+    setRows(saleData.products || []);
+    setMiscItems(saleData.expenses || []);
+    setNewDesc(saleData.remarks || "");
+    setMspNo(saleData.msp_no || "");
+    setSelectedUser(saleData.handled_by_id || ""); // ✅ If this exists
+  }
+}, [editMode, saleData]);
 
 
 
@@ -154,19 +176,17 @@ useEffect(() => {
 
 
 
+//   useEffect(() => {
+//   const userCash = parseFloat(userCashInput) || 0;
+//   const misc = parseFloat(miscCharges) || 0;
+//   const totalCash = userCash + misc;
+//   const total = parseFloat(actualTotal) || 0;
 
 
-  useEffect(() => {
-  const userCash = parseFloat(userCashInput) || 0;
-  const misc = parseFloat(miscCharges) || 0;
-  const totalCash = userCash + misc;
-  const total = parseFloat(actualTotal) || 0;
-
-
-  setCashReceived(totalCash.toFixed(2));
-  setChange(!isNaN(totalCash - total) ? (totalCash - total).toFixed(2) : "");
-  setCashMismatch(totalCash.toFixed(2) !== total.toFixed(2));
-}, [userCashInput, miscCharges, actualTotal]);
+//   // setCashReceived(totalCash.toFixed(2));
+//   // setChange(!isNaN(totalCash - total) ? (totalCash - total).toFixed(2) : "");
+//   // setCashMismatch(totalCash.toFixed(2) !== total.toFixed(2));
+// }, [userCashInput, miscCharges, actualTotal]);
 
 
   useEffect(() => {
@@ -376,22 +396,41 @@ const handleRowChange = (index, field, value) => {
     updated[index].expectedSale = 0;
   }
 
-  let soldShell = parseFloat(updated[index].soldShell) || 0;
-  let soldPcs = parseFloat(updated[index].soldPcs) || 0;
+let soldShell = parseFloat(updated[index].soldShell) || 0;
+let soldPcs = parseFloat(updated[index].soldPcs) || 0;
+let emptyPrice = parseFloat(updated[index].emptyPrice);
+if (isNaN(emptyPrice)) {
+  emptyPrice = shellPrice + bottlePrice;
+}
 
-  if (field === "soldShell") {
-    soldPcs = soldShell * contentNo;
-    updated[index].soldPcs = soldPcs;
+
+if (field === "soldShell") {
+  soldPcs = soldShell * contentNo;
+  updated[index].soldPcs = soldPcs;
+
+  if (emptyPrice > 0) {
     updated[index].expectedReturnShellEmpty = soldShell;
     updated[index].expectedReturnPcsEmpty = soldShell * contentNo;
+  } else {
+    updated[index].expectedReturnShellEmpty = 0;
+    updated[index].expectedReturnPcsEmpty = 0;
   }
+}
 
-  if (field === "soldPcs") {
-    soldShell = Math.floor(soldPcs / contentNo);
-    updated[index].soldShell = soldShell;
+if (field === "soldPcs") {
+  soldShell = Math.floor(soldPcs / contentNo);
+  updated[index].soldShell = soldShell;
+
+  if (emptyPrice > 0) {
     updated[index].expectedReturnShellEmpty = soldShell;
     updated[index].expectedReturnPcsEmpty = soldPcs;
+  } else {
+    updated[index].expectedReturnShellEmpty = 0;
+    updated[index].expectedReturnPcsEmpty = 0;
   }
+}
+
+
 
   // ✅ Only auto-compute return if not manually edited
   if (
@@ -419,10 +458,17 @@ const handleRowChange = (index, field, value) => {
     updated[index].expectedReturnPcsEmpty = expectedShell * contentNo;
   }
 
-  const returnShellEmpty = parseFloat(updated[index].expectedReturnShellEmpty) || 0;
-  const returnPcsEmpty = parseFloat(updated[index].expectedReturnPcsEmpty) || 0;
+ const returnShellEmpty = parseFloat(updated[index].expectedReturnShellEmpty) || 0;
+const returnPcsEmpty = parseFloat(updated[index].expectedReturnPcsEmpty) || 0;
+
+if (emptyPrice > 0) {
   updated[index].discrepancyShellEmpty = soldShell - returnShellEmpty;
   updated[index].discrepancyPcsEmpty = soldPcs - returnPcsEmpty;
+} else {
+  updated[index].discrepancyShellEmpty = 0;
+  updated[index].discrepancyPcsEmpty = 0;
+}
+
 
   const returnShellNonempty = parseFloat(updated[index].expectedReturnShellNonempty) || 0;
   const returnPcsNonempty = parseFloat(updated[index].expectedReturnPcsNonempty) || 0;
@@ -496,19 +542,26 @@ const handleRowChange = (index, field, value) => {
       transaction_type: parseInt(transactionType),
       route: route ? parseInt(route) : null,
       van: selectedVan ? parseInt(selectedVan) : null,
-      handled_by: selectedUser ? parseInt(selectedUser) : null,
+      handled_by: (() => {
+        const user = users.find((u) => u.id === parseInt(selectedUser));
+        return user ? `${user.first_name} ${user.last_name}` : null;
+      })(),
+
       date_time: new Date().toISOString(),
       expected_sale: parseFloat(expectedTotal) || 0,
       actual_sale: parseFloat(actualTotal) || 0,
       miscellaneous: parseFloat(miscCharges) || 0,
-      payment_amount: parseFloat(cashReceived) || 0,
       payment_method: selectedPaymentMethod,
       invoice_no: invoiceNo,
       status: status,
       remarks: remarks,
-      total_amount: parseFloat(totalAmount) || 0,
-      cash_received: parseFloat(cashReceived) || 0,
-      change: parseFloat(change) || 0,
+
+      total_trading_amount: parseFloat(totalTradingAmount) || 0,
+      total_expenses_amount: parseFloat(totalExpensesAmount) || 0, // ✅ Add this
+
+
+      // cash_received: parseFloat(cashReceived) || 0,
+      // change: parseFloat(change) || 0,
 
       items: rows.filter(r => r.productId).map((row) => ({
         product: parseInt(row.productId),
@@ -560,10 +613,161 @@ const handleRowChange = (index, field, value) => {
 
 
 }
+const totalExpenses = miscItems.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+const calculateTotalExpenses = () => {
+  const miscTotal = miscItems.reduce((sum, item) => {
+    const amt = parseFloat(item.amount);
+    return sum + (isNaN(amt) ? 0 : amt);
+  }, 0);
 
+  const extra = parseFloat(newAmt);
+  return miscTotal + (isNaN(extra) ? 0 : extra);
+};
+
+const totalDispatchedShell = useMemo(() => rows.reduce((sum, row) => sum + Number(row.dispatchedShell || 0), 0), [rows]);
+const totalDispatchedPcs = useMemo(() => rows.reduce((sum, row) => sum + Number(row.dispatchedPcs || 0), 0), [rows]);
+const totalSoldShell = useMemo(() => rows.reduce((sum, row) => sum + Number(row.soldShell || 0), 0), [rows]);
+const totalSoldPcs = useMemo(() => rows.reduce((sum, row) => sum + Number(row.soldPcs || 0), 0), [rows]);
+
+const totalExpectedReturnShellEmpty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedReturnShellEmpty || 0), 0), [rows]);
+const totalExpectedReturnPcsEmpty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedReturnPcsEmpty || 0), 0), [rows]);
+const totalDiscrepancyShellEmpty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.discrepancyShellEmpty || 0), 0), [rows]);
+const totalDiscrepancyPcsEmpty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.discrepancyPcsEmpty || 0), 0), [rows]);
+
+const totalExpectedReturnShellNonempty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedReturnShellNonempty || 0), 0), [rows]);
+const totalExpectedReturnPcsNonempty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedReturnPcsNonempty || 0), 0), [rows]);
+const totalDiscrepancyShellNonempty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.discrepancyShellNonempty || 0), 0), [rows]);
+const totalDiscrepancyPcsNonempty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.discrepancyPcsNonempty || 0), 0), [rows]);
+
+const totalExpectedSale = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0), [rows]);
+const totalActualSale = useMemo(() => rows.reduce((sum, row) => sum + Number(row.actualSale || 0), 0), [rows]);
+
+const totalExpensesAmount = useMemo(() => calculateTotalExpenses(), [miscItems]);
+const totalTradingAmount = useMemo(() => {
+  return rows.reduce((sum, row) => sum + parseFloat(row.actualSale || 0), 0);
+}, [rows]);
 
   return (
-    <div className="bg-sky-200 min-h-screen p-6 text-black">
+    <div className="bg-sky-300 min-h-screen p-3 text-black">
+       <div className="p-6">
+          <h1 className="text-xl font-bold mb-4">
+            {editMode ? "View/Edit Merchandising Sale" : "New Merchandising Sale"}
+          </h1>
+          </div>
+    <div className="expenses-tab-container flex justify-end gap-2.5">
+  {/* TABS: Trading | Expenses */}
+        <div className="w-full mb-4">
+          <div className="flex justify-end gap-2.5 border-b border-gray-300">
+            {["Trading", "Expenses"].map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setActiveTab(tab)}
+                className={`px-4 py-2 font-semibold text-sm rounded-t-md
+                  ${
+                    activeTab === tab
+                      ? "bg-white text-blue-600 border border-b-white border-gray-300"
+                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent"
+                  }`}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+    {/* Expenses Table */}
+   {activeTab === "Expenses" && (
+  <div className="w-full bg-white p-4 rounded-b-md shadow mt-1">
+    <h2 className="text-lg font-semibold mb-4 text-gray-700">Expenses</h2>
+
+    <table className="w-full text-sm text-left border border-gray-300 rounded shadow">
+      <thead className="bg-gray-100 text-gray-800">
+        <tr>
+          <th className="border border-gray-300 px-3 py-2 text-center">No.</th>
+          <th className="border border-gray-300 px-3 py-2">Description</th>
+          <th className="border border-gray-300 px-3 py-2 text-right">Amount (₱)</th>
+        </tr>
+      </thead>
+      <tbody>
+        {miscItems.map((item, index) => (
+          <tr key={index} className="bg-white hover:bg-gray-50">
+            <td className="border border-gray-300 px-3 py-2 text-center">{index + 1}</td>
+            <td className="border border-gray-300 px-3 py-2">
+              <input
+                type="text"
+                value={item.description}
+                onChange={(e) => {
+                  const newItems = [...miscItems];
+                  newItems[index].description = e.target.value;
+                  setMiscItems(newItems);
+                }}
+                className="w-full px-2 py-1 rounded border border-gray-300"
+              />
+            </td>
+            <td className="border border-gray-300 px-3 py-2 text-right">
+              <input
+                type="number"
+                value={item.amount}
+                onChange={(e) => {
+                  const newItems = [...miscItems];
+                  newItems[index].amount = e.target.value;
+                  setMiscItems(newItems);
+                }}
+                className="w-full text-right px-2 py-1 rounded border border-gray-300"
+              />
+            </td>
+          </tr>
+        ))}
+        {/* Add New Row */}
+        <tr className="bg-gray-50">
+          <td className="border border-gray-300 px-3 py-2 text-center">+</td>
+          <td className="border border-gray-300 px-3 py-2">
+            <input
+              type="text"
+              placeholder="New description"
+              value={newDesc}
+              onChange={(e) => setNewDesc(e.target.value)}
+              className="w-full px-2 py-1 rounded border border-gray-300"
+            />
+          </td>
+          <td className="border border-gray-300 px-3 py-2 text-right">
+            <input
+              type="number"
+              placeholder="0.00"
+              value={newAmt}
+              onChange={(e) => setNewAmt(e.target.value)}
+              className="w-full text-right px-2 py-1 rounded border border-gray-300"
+            />
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    {/* 🧮 Total Expenses */}
+    <div className="mt-2 text-right text-sm font-medium text-gray-700">
+      Total: <span className="text-lg font-bold">₱{totalExpensesAmount.toFixed(2)}</span>
+    </div>
+
+
+    <div className="flex justify-end mt-3">
+      <button
+        onClick={() => {
+          if (newDesc && newAmt) {
+            setMiscItems([...miscItems, { description: newDesc, amount: newAmt }]);
+            setNewDesc("");
+            setNewAmt("");
+          }
+        }}
+        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+      >
+        + Add Expense
+      </button>
+    </div>
+    
+  </div>
+)}
+  </div>
+</div>
+
       <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
           <div>
@@ -793,498 +997,186 @@ const handleRowChange = (index, field, value) => {
 
 
 
-      <div className="overflow-x-auto mt-6">
-  <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
-    <thead className="bg-gray-100 text-gray-800">
-      <tr className="text-xs font-semibold">
-        <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
-        <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>EMPTY PRICE</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
-        <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
-        <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
-        <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
-      </tr>
+<div className="overflow-x-auto mt-6">
+      <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
+      <thead className="bg-gray-100 text-gray-800">
+        <tr className="text-xs font-semibold">
+          <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
+          <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>EMPTY PRICE</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
+          <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
+          <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
+          <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
+        </tr>
         <tr className="bg-gray-200">
-        <td className="border border-gray-300 py-1"></td> {/* PRODUCT */}
+          <td className="border border-gray-300 py-1"></td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          <td className="border border-gray-300 py-1"></td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          <td className="border border-gray-300 py-1"></td>
+          <td className="border border-gray-300 py-1"></td>
+          <td className="border border-gray-300 py-1"></td>
+        </tr>
+      </thead>
 
+  <tbody>
+    {rows.map((row, index) => (
+      <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
+        {/* PRODUCT SELECT */}
+        <td className="border border-gray-200 py-1 px-1 w-[120px]">
+          <select
+            className="w-full p-1 text-sm text-center rounded bg-white border"
+            value={row.productId}
+            onChange={(e) => handleProductChange(index, e.target.value)}
+          >
+            <option value="">Select Product</option>
+            {products.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.product_name}
+              </option>
+            ))}
+          </select>
+        </td>
 
         {/* DISPATCHED */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+        <td className="border border-gray-200 py-1 px-1">
+          <input type="number" className="w-full p-1 text-sm text-center rounded bg-white" value={row.dispatchedShell || ""} onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)} />
+        </td>
+        <td className="border border-gray-200 py-1 px-1">
+          <input type="number" className="w-full p-1 text-sm text-center rounded bg-white" value={row.dispatchedPcs || ""} onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)} />
+        </td>
 
-
-        {/* SELLING PRICE — only one cell */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium" colSpan={1}></td>
-
+        {/* SELLING PRICE */}
+        <td className="border border-gray-200 py-1 px-1">
+          <input type="number" disabled className="w-full p-1 text-sm text-center bg-gray-100" value={pricingMap[row.priceId]?.selling_price || ""} />
+        </td>
 
         {/* SOLD */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-
+        <td className="border border-gray-200 py-1 px-1">
+          <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldShell || ""} onChange={(e) => handleRowChange(index, "soldShell", e.target.value)} />
+        </td>
+        <td className="border border-gray-200 py-1 px-1">
+          <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldPcs || ""} onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)} />
+        </td>
 
         {/* EMPTY PRICE */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+        <td className="border border-gray-200 py-1 px-1">
+          <input type="number" className="w-full p-1 text-sm text-center bg-gray-100" value={pricingMap[row.priceId]?.shell_price || ""} disabled />
+        </td>
+        <td className="border border-gray-200 py-1 px-1">
+          <input type="number" className="w-full p-1 text-sm text-center bg-gray-100" value={pricingMap[row.priceId]?.bottle_price || ""} disabled />
+        </td>
 
+        {/* Returned/Discrepancy fields */}
+        {[
+          "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
+          "discrepancyShellEmpty", "discrepancyPcsEmpty",
+          "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
+          "discrepancyShellNonempty", "discrepancyPcsNonempty"
+        ].map((field, i) => (
+          <td key={i} className="border border-gray-200 py-1 px-1">
+            <input
+              type="number"
+              value={row[field] === 0 ? "" : row[field]}
+              onChange={(e) => handleRowChange(index, field, e.target.value)}
+              disabled={["discrepancyShellEmpty", "discrepancyPcsEmpty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].includes(field)}
+              className={`w-full p-1 text-sm text-center rounded
+                ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field) ? "bg-yellow-50" : "bg-gray-100"}
+                ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
+            />
+          </td>
+        ))}
 
-        {/* RETURNED (Empty) */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+        {/* DISCOUNT */}
+        <td className="border border-gray-200 py-1 px-1">
+          <input
+            type="number"
+            className={`w-full p-1 text-sm text-center rounded bg-white border ${row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
+            value={row.discount === 0 ? "" : row.discount}
+            onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+            disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+          />
+        </td>
 
-
-        {/* DISCREPANCY (Empty) */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-
-
-        {/* RETURNED (With Content/s) */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-
-
-        {/* DISCREPANCY (Non-empty) */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-
-
-        {/* DISCOUNT, EXPECTED, ACTUAL */}
-        <td className="border border-gray-300 py-1"></td>
-        <td className="border border-gray-300 py-1"></td>
-        <td className="border border-gray-300 py-1"></td>
+        {/* Expected & Actual Sale */}
+        <td className="border border-gray-200 py-1 px-1">
+          <input
+            className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+            disabled
+            value={row.expectedSale ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : ""}
+          />
+        </td>
+        <td className="border border-gray-200 py-1 px-1">
+          <input
+            className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+            disabled
+            value={row.actualSale ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : ""}
+          />
+        </td>
       </tr>
+    ))}
 
-
-    </thead>
-    <tbody>
-      {rows.map((row, index) => (
-        <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
-      <td className="border border-gray-200 py-1 px-1 w-[120px]">
-        <select
-          className="w-full p-1 text-sm text-center rounded bg-white border"
-          value={row.productId}
-          onChange={(e) => handleProductChange(index, e.target.value)}
-        >
-          <option value="">Select Product</option>
-          {products.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.product_name}
-            </option>
-          ))}
-        </select>
-      </td>
-
-
-
-
-          {/* DISPATCHED */}
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input
-              type="number"
-              className="w-full p-1 text-sm text-center rounded bg-white"
-              value={row.dispatchedShell || ""}
-              onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
-/>
-          </td>
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input
-              type="number"
-              className="w-full p-1 text-sm text-center rounded bg-white"
-              value={row.dispatchedPcs || ""}
-              onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
-            />
-          </td>
-
-
-          {/* SELLING PRICE */}
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input
-              type="number"
-              className="w-full p-1 text-sm text-center rounded bg-gray-100"
-              value={pricingMap[row.priceId]?.selling_price || ""}
-              disabled
-            />
-          </td>
-
-
-
-
-          {/* SOLD */}
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldShell || ""} onChange={(e) => handleRowChange(index, "soldShell", e.target.value)} />
-          </td>
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldPcs || ""} onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)} />
-          </td>
-
-
-          {/* EMPTY PRICE */}
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input type="number" className="w-full p-1 text-sm text-center rounded bg-gray-100" value={pricingMap[row.priceId]?.shell_price || ""} disabled />
-          </td>
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input type="number" className="w-full p-1 text-sm text-center rounded bg-gray-100" value={pricingMap[row.priceId]?.bottle_price || ""} disabled />
-          </td>
-
-
-          {/* Continue with other fields as usual */}
-          {[
-            "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
-            "discrepancyShellEmpty", "discrepancyPcsEmpty",
-            "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
-            "discrepancyShellNonempty", "discrepancyPcsNonempty"
-          ].map((field, i) => (
-            <td key={i} className="border border-gray-200 py-1 px-1 w-[72px]">
-              <input
-                type="number"
-                className={`w-full p-1 text-sm text-center rounded focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all duration-100 ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field) ? "bg-yellow-50" : "bg-gray-100"} ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
-                value={row[field] === 0 ? "" : row[field]}
-                onChange={(e) => handleRowChange(index, field, e.target.value)}
-                disabled={["discrepancyShellEmpty", "discrepancyPcsEmpty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].includes(field)}
-              />
-            </td>
-          ))}
-
-
-          {/* Discount */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              type="number"
-              inputMode="decimal"
-              className={`w-full p-1 text-center rounded bg-white border ${row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
-              value={row.discount === 0 ? "" : row.discount}
-              onChange={(e) => handleRowChange(index, "discount", e.target.value)}
-              disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
-            />
-          </td>
-
-
-          {/* Expected & Actual Sale */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-              disabled
-              value={row.expectedSale ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
-            />
-          </td>
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-              disabled
-              value={row.actualSale ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
-            />
-          </td>
-        </tr>
+    {/* ✅ TOTAL ROW */}
+    <tr className="bg-gray-200 font-semibold text-[13px] text-right">
+      <td className="border border-gray-300 py-2 px-1 text-center">TOTAL</td>
+      <td className="border border-gray-300 py-2 px-1 text-center"></td>
+      <td className="border border-gray-300 py-2 px-1 text-center"></td>
+      <td className="border border-gray-300 py-2 px-1 text-center"></td>
+      <td className="border border-gray-300 py-2 px-1 text-center"></td>
+      <td className="border border-gray-300 py-2 px-1 text-center"></td>
+      {Array(10).fill(null).map((_, i) => (
+        <td key={i} className="border border-gray-300 py-2 px-1"></td>
       ))}
-    </tbody>
+      <td className="border border-gray-300 py-2 px-1"></td>
+      <td className="border border-gray-300 py-2 px-1 text-green-700">₱{totalExpectedSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
+      <td className="border border-gray-300 py-2 px-1 text-blue-700">₱{totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
+    </tr>
+  </tbody>
+</table>
 
-
-  </table>
 </div>
 
 
 
 
-    {/* Summary & Buttons */}
-        <div className="mt-6 max-w-7xl mx-auto flex flex-col md:flex-row gap-16">
-            <div className="w-full md:w-1/2">
-              <label className="block mb-1">Remarks:</label>
-              <textarea
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                className="w-full h-28 p-2 rounded"
-              />
-            </div>
+  {/* Summary & Buttons */}
+    <div className="mt-6 max-w-7xl mx-auto flex flex-col md:flex-row gap-16">
+      <div className="w-full md:w-1/2">
+        <label className="block mb-1">Remarks:</label>
+        <textarea
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+          className="w-full h-28 p-2 rounded"
+        />
+      </div>
 
-
-            <div className="w-full md:w-1/2 space-y-4">
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right text-sm font-medium text-gray-700">Expected Sale:</label>
-                <input
-                  className="flex-1 p-2 rounded border border-gray-300 bg-gray-100 text-right font-semibold text-gray-800 shadow-sm"
-                  value={`₱${expectedTotal.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right text-sm font-medium text-gray-700">Actual Sale:</label>
-                <input
-                  className="flex-1 p-2 rounded border border-gray-300 bg-gray-100 text-right font-semibold text-gray-800 shadow-sm"
-                  value={`₱${actualTotal.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right text-sm font-medium text-gray-700">Empties Price:</label>
-                <input
-                  className="flex-1 p-2 rounded border border-gray-300 bg-blue-100 text-right font-semibold text-gray-800 shadow-sm"
-                  value={`₱${emptiesPriceTotal.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right text-sm font-medium text-gray-700">Refundables:</label>
-                <input
-                  className="flex-1 p-2 rounded border border-gray-300 bg-blue-100 text-right font-semibold text-gray-800 shadow-sm"
-                  value={`₱-${refundablesTotal.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-
-
-
-
-
-
-
-
-              {/* === Misc Charges Section === */}
-              <div className="flex items-start gap-4">
-                <label className="w-40 text-right pt-2 font-medium text-gray-700">Miscellaneous Charges:</label>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <input
-                      className="w-full p-2 border rounded shadow-sm bg-gray-100 text-right font-semibold text-gray-700"
-                      value={miscCharges}
-                      onChange={(e) => setMiscCharges(e.target.value)}
-                      disabled
-                    />
-                    <label className="flex items-center space-x-2 text-sm font-medium text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={showMiscDetails}
-                        onChange={(e) => setShowMiscDetails(e.target.checked)}
-                        className="scale-125 accent-blue-600"
-                      />
-                      <span>Details</span>
-                    </label>
-                  </div>
-
-
-                  {showMiscDetails && (
-                    <div className="bg-white border rounded-lg shadow p-4 space-y-4">
-                      {/* Description Input */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Descriptions (comma separated)</label>
-                        <input
-                          type="text"
-                          className="w-full p-2 border rounded shadow-sm"
-                          value={miscDescription}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setMiscDescription(value);
-                            const parts = value.split(",").map((item) => item.trim()).filter((item) => item !== "");
-                            setMiscItems(parts);
-                            const updated = { ...miscAmounts };
-                            parts.forEach((item) => {
-                              if (!(item in updated)) updated[item] = "";
-                            });
-                            setMiscAmounts(updated);
-                          }}
-                          placeholder="E.g. toll fee, repair, snacks"
-                        />
-                      </div>
-
-
-                      {/* Amount per Item */}
-                      {miscItems.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount per Item</label>
-                          <div className="space-y-2">
-                            {miscItems.map((item, index) => (
-                              <div key={index} className="flex items-center gap-3">
-                                <span className="w-32 text-right text-sm text-gray-600">{item}:</span>
-                                <input
-                                  type="number"
-                                  className="flex-1 p-2 border rounded shadow-sm text-right"
-                                  placeholder="₱"
-                                  value={miscAmounts[item] || ""}
-                                  onChange={(e) => {
-                                    const updated = { ...miscAmounts };
-                                    updated[item] = e.target.value;
-                                    setMiscAmounts(updated);
-                                    const total = Object.values(updated)
-                                      .map((val) => parseFloat(val) || 0)
-                                      .reduce((sum, val) => sum + val, 0);
-                                    setMiscCharges(total.toFixed(2));
-                                  }}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-
-                      {/* File Upload Section */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Attach Files (Photos/Receipts)</label>
-                        <input
-                          type="file"
-                          className="w-full p-2 border rounded"
-                          accept="image/*"
-                          multiple
-                          onChange={(e) => {
-                            const files = Array.from(e.target.files);
-                            const previews = files.map((file) => ({
-                              file,
-                              url: URL.createObjectURL(file),
-                            }));
-                            setMiscFiles((prev) => [...prev, ...files]);
-                            setImagePreviewUrls((prev) => [...prev, ...previews]);
-                          }}
-                        />
-                        {imagePreviewUrls.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {imagePreviewUrls.map((preview, index) => (
-                              <div key={index} className="relative group">
-                                <img
-                                  src={preview.url}
-                                  alt={`Preview ${index}`}
-                                  className="h-24 w-24 object-cover border rounded shadow cursor-zoom-in"
-                                  onClick={() => setZoomed(preview.url)}
-                                />
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const updatedPreviews = [...imagePreviewUrls];
-                                    const updatedFiles = [...miscFiles];
-                                    updatedPreviews.splice(index, 1);
-                                    updatedFiles.splice(index, 1);
-                                    setImagePreviewUrls(updatedPreviews);
-                                    setMiscFiles(updatedFiles);
-                                  }}
-                                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-700"
-                                  title="Remove"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-
-
-
-              {/* Totals */}
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right font-medium text-gray-700">Overall Discrepancy:</label>
-                <div className="flex-1 text-right pr-2 text-lg font-semibold bg-gray-50 border border-gray-300 rounded py-2 px-3 shadow-sm">
-                  ₱{parseFloat(discrepancy || 0).toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </div>
-              </div>
-             <div className="flex items-center gap-4">
-            <label className="w-40 text-right font-medium">Total Amount:</label>
-            <input
-              className="flex-1 p-2 border rounded bg-gray-50 text-right"
-              value={`₱${parseFloat(totalAmount || 0).toLocaleString("en-PH", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}`}
-              disabled
-            />
-          </div>
-
-
-
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right font-medium">User Cash:</label>
-                <input
-                  type="number"
-                  className="flex-1 p-2 rounded border"
-                  value={userCashInput}
-                  onChange={(e) => setUserCashInput(e.target.value)}
-                  placeholder="Enter user cash"
-                />
-              </div>
-
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right font-medium">Cash Received (with Misc):</label>
-                <div className="flex-1 text-right pr-2 font-semibold text-lg">
-                  <span className={cashMismatch ? "text-red-600" : "text-green-700"}>
-                    ₱{parseFloat(cashReceived || 0).toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-              </div>
-
-
-
-
-
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right font-medium">Change:</label>
-                <input
-                  className="flex-1 p-2 border rounded bg-gray-50 text-right"
-                  value={`₱${parseFloat(change || 0).toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-            </div>
-          </div>
+    
+</div>
 
 
 
 
             {/* Buttons */}
           <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
-            {/* Only show DRAFT button for Van Load */}
-            {selectedTransactionTypeName === "Van Load" && (
-              <button
-                className="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600"
-                onClick={async () => {
-                  const confirmDraft = window.confirm("Save this sale as draft?");
-                  if (confirmDraft) {
-                    const success = await handleSubmit("Pending"); // save as draft
-                    if (success) navigate("/trading");
-                  }
-                }}
-
-
-              >
-                DRAFT
-              </button>
-            )}
+            
 
             {/* Back button */}
             <button
@@ -1297,18 +1189,23 @@ const handleRowChange = (index, field, value) => {
               BACK
             </button>
 
-            {/* Finalize button for all */}
-            <button
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-              onClick={() => {
-                const confirmFinalize = window.confirm("Are you sure you want to finalize this sale?");
-                if (confirmFinalize) {
-                  handleSubmit("Complete");
+           <button
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 mt-4"
+            onClick={async () => {
+              const confirmed = window.confirm("Are you sure you want to finalize this sale?");
+              if (confirmed) {
+                const success = await handleSubmit("Complete");
+                if (success) {
+                  // Only redirect if save was successful
+                  navigate("/trading");
                 }
-              }}
+              }
+            }}
             >
               FINALIZE SALE
-            </button>
+          </button>
+
+
           </div>
 
 

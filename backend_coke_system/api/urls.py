@@ -1,4 +1,5 @@
 from django.urls import path
+from rest_framework.routers import DefaultRouter
 from .views import (
     WarehouseListCreateView, WarehouseDetailView,
     SupplierListCreateView, SupplierRetrieveUpdateDestroyView,
@@ -32,7 +33,7 @@ from .views import (
     NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
     CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock, LoginAPIView, RoleAccessibilityListView ,
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
-    VerifyOTPAPIView
+    VerifyOTPAPIView, MerchandisingViewSet
 
 
 
@@ -130,3 +131,8 @@ urlpatterns = [
     path('customers/<int:pk>/', CustomerRetrieveUpdateDestroyView.as_view(), name='customer-detail'),
     path('login/', LoginAPIView.as_view(), name='login'),
 ]
+
+router = DefaultRouter()
+router.register(r'merchandising-set', MerchandisingViewSet, basename='merchandising-set')
+
+urlpatterns += router.urls

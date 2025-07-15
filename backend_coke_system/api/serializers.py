@@ -7,6 +7,7 @@ from .models import Van
 from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
 from .models import User, RoleAccessibility
 import re
+from .models import MerchandisingSale
 
 class RoleAccessibilitySerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
@@ -337,12 +338,19 @@ class MerchandisingItemSerializer(serializers.ModelSerializer):
             'merchandising': {'required': False}  # ✅ make it optional
         }
 
+class MerchandisingSaleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MerchandisingSale
+        fields = '__all__'  # or specify fields if you prefer: ['msp_no', 'date_time', ...]
 
 # MiscellaneousItem Serializer
 class MiscellaneousItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MiscellaneousItem
         fields = '__all__'
+        extra_kwargs = {
+            'merchandising': {'required': False}  # ✅ make it optional
+        }
 
 
 # Payment Serializer
@@ -359,9 +367,18 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False)
 
+    total_trading_amount = serializers.SerializerMethodField()
+    total_expenses_amount = serializers.SerializerMethodField()
+
     class Meta:
         model = Merchandising
         fields = '__all__'
+
+    def get_total_trading_amount(self, obj):
+        return sum([item.actual_sale or 0 for item in obj.items.all()])
+
+    def get_total_expenses_amount(self, obj):
+        return sum([item.amount for item in obj.misc_items.all()])
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')

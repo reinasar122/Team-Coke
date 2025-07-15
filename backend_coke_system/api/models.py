@@ -274,7 +274,20 @@ class Customer(models.Model):
 
     def __str__(self):
         return self.name
+    
+class MerchandisingSale(models.Model):
+    msp_no = models.CharField(max_length=100)
+    date_time = models.DateTimeField()
+    transaction_type_name = models.CharField(max_length=100)
+    customer_name = models.CharField(max_length=255)
+    handled_by = models.CharField(max_length=100)
+    total_trading_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    total_expenses_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    status = models.CharField(max_length=50)
+    # etc...
 
+    def __str__(self):
+        return f"{self.msp_no} - {self.customer_name}"
 
     #   Merchandising (Main Header)
 class Merchandising(models.Model):

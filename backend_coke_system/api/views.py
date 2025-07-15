@@ -1,3 +1,4 @@
+from rest_framework import viewsets
 from rest_framework import generics
 from rest_framework.views import APIView
 from api.models import Warehouse, RoleAccessibility
@@ -6,6 +7,7 @@ from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
 from django.db import connection
 from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem, Customer
+
 
 from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -16,6 +18,8 @@ from rest_framework.response import Response
 from django.db import connection
 from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductCategory
 from .serializers import RoleAccessibilitySerializer, ProductSerializer, ProductCategorySerializer, ChangePasswordSerializer
+from .serializers import MerchandisingSaleSerializer
+from .models import MerchandisingSale
 
 from rest_framework import parsers
 from .serializers import LoginSerializer
@@ -92,7 +96,9 @@ class VerifyOTPAPIView(APIView):
 
 
 
-
+class MerchandisingViewSet(viewsets.ModelViewSet):
+    queryset = Merchandising.objects.all().order_by('-id')
+    serializer_class = MerchandisingSerializer
 
 
 
@@ -370,6 +376,33 @@ class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
 
 # Merchandising Views
+class MerchandisingSaleViewSet(viewsets.ModelViewSet):
+    queryset = MerchandisingSale.objects.all()
+    serializer_class = MerchandisingSaleSerializer
+
+    def perform_create(self, serializer):
+        # You can compute the totals here if needed
+        data = self.request.data
+
+        trading_total = data.get("total_trading_amount", 0)
+        expenses_total = data.get("total_expenses_amount", 0)
+
+        serializer.save(
+            total_trading_amount=trading_total,
+            total_expenses_amount=expenses_total
+        )
+
+    def perform_update(self, serializer):
+        data = self.request.data
+
+        trading_total = data.get("total_trading_amount", 0)
+        expenses_total = data.get("total_expenses_amount", 0)
+
+        serializer.save(
+            total_trading_amount=trading_total,
+            total_expenses_amount=expenses_total
+        )
+
 class MerchandisingListCreateView(generics.ListCreateAPIView):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
@@ -383,6 +416,11 @@ class MerchandisingListView(generics.ListAPIView):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
+@api_view(['GET'])
+def merchandising_sales_list(request):
+    sales = MerchandisingSale.objects.all().order_by('-created_at')  # type: ignore # Optional: filter by user or status
+    serializer = MerchandisingSaleSerializer(sales, many=True)
+    return Response(serializer.data)
 
 class NextMspNoView(APIView):
     def get(self, request):

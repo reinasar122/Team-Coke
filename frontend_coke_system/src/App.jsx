@@ -10,6 +10,8 @@ import {
 // Layout Components
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
+// src/index.js or src/main.jsx
+import './index.css';
 
 // Pages
 import Login from "./pages/Login";
@@ -37,6 +39,7 @@ import Merchandising from "./pages/Merchandising";
 import MerchandisingSale from "./pages/MerchandisingSale";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
+import Expences from "./pages/Expences";
 
 
 // Icons
@@ -114,10 +117,14 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/merchandising" element={<><h1 className="text-2xl flex items-center gap-2 mb-4"><FaChartLine /> Create New Sale</h1><Merchandising /></>} />
             <Route path="/merchandising-sale" element={<MerchandisingSale />} />
+            <Route path="/merchandising-sale/:id" element={<MerchandisingSale viewOnly={true} />} />
+            <Route path="/merchandising-sale/edit/:id" element={<MerchandisingSale editMode={true} />} />
+
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-otp" element={<VerifyOTP />} />
+            <Route path="/expences" element={<Expences />} />
           </Routes>
         </div>
       </div>
