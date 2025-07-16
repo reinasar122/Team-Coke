@@ -39,7 +39,9 @@ from .models import Receiving, Warehouse, Stock, Product
 from .serializers import ReceivingSerializer
 import traceback  # Add this import
 from django.db.models import Q
-
+from .models import *
+from .serializers import *
+from datetime import datetime
 # Temporary OTP store (for demo; use cache or DB for production)
 # Temporary OTP storage (in production use cache like Redis or DB)
 otp_storage = {}
@@ -255,13 +257,21 @@ class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class VanListCreateView(generics.ListCreateAPIView):
-    queryset = Van.objects.all()
     serializer_class = VanSerializer
+
+    def get_queryset(self):
+        warehouse_id = self.request.query_params.get('warehouse')
+        if warehouse_id:
+            return Van.objects.filter(warehouse_id=warehouse_id)
+        return Van.objects.all()
+
+    def perform_create(self, serializer):
+        # The warehouse will be included in the request data
+        serializer.save()
 
 class VanRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Van.objects.all()
     serializer_class = VanSerializer
-
 
 #Products
 
@@ -299,33 +309,39 @@ class PricingDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 
 class ProductListCreateView(generics.ListCreateAPIView):
-    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+
+    def get_queryset(self):
+        warehouse_id = self.request.query_params.get('warehouse_id')
+        if warehouse_id:
+            return Product.objects.filter(warehouse_id=warehouse_id)
+        return Product.objects.all()
 
     def get_serializer_class(self):
         if self.request.method == 'GET':
-            return ProductDetailSerializer  # ✅ return full nested data on GET
-        return ProductSerializer  # ✅ for POST
+            return ProductDetailSerializer
+        return ProductSerializer
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Product.objects.all()
+    serializer_class = ProductSerializer
+    
+    def get_queryset(self):
+        warehouse_id = self.request.query_params.get('warehouse_id')
+        if warehouse_id:
+            return Product.objects.filter(warehouse_id=warehouse_id)
+        return Product.objects.all()
     
     def get_serializer_class(self):
         if self.request.method == 'GET':
-            return ProductDetailSerializer  # Return nested data on GET
-        return ProductSerializer  # For PUT/PATCH/DELETE - accept flat references
+            return ProductDetailSerializer
+        return ProductSerializer
     
     def perform_destroy(self, instance):
         unit = instance.unit_type
         price = instance.price
-
-        # Delete the product first
         super().perform_destroy(instance)
-
-        # 🧹 Delete unit_type if not used by any other product
         if unit and not Product.objects.filter(unit_type=unit).exists():
             unit.delete()
-
-        # 🧹 Delete pricing if not used by any other product
         if price and not Product.objects.filter(price=price).exists():
             price.delete()
 
@@ -390,9 +406,27 @@ class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 # ===== STOCKS =====
 class StockListCreateView(generics.ListCreateAPIView):
-    queryset = Stock.objects.select_related('product').all().order_by('product__product_name')
     serializer_class = StockSerializer
 
+    def get_queryset(self):
+        warehouse_id = self.request.query_params.get('warehouse', None)
+        
+        queryset = Stock.objects.select_related('product', 'warehouse').all()
+        
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        return queryset.order_by('product__product_name')
+
+    def perform_create(self, serializer):
+        # Get warehouse from request data or user's warehouse
+        warehouse_id = self.request.data.get('warehouse')
+        
+        # If no warehouse specified, use user's warehouse
+        if not warehouse_id:
+            warehouse_id = getattr(self.request.user, 'warehouse_id', None)
+        
+        serializer.save(warehouse_id=warehouse_id)
 class StockDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Stock.objects.all()
     serializer_class = StockSerializer
@@ -404,6 +438,18 @@ class RouteListCreateView(generics.ListCreateAPIView):
 
 
 # TransactionType Views
+def get_user_warehouse(request):
+    """Helper function to get current warehouse from request"""
+    warehouse_id = request.query_params.get('warehouse')
+    if warehouse_id:
+        return warehouse_id
+    
+    # Fallback to user's enrolled warehouse
+    user = request.user
+    if hasattr(user, 'warehouse_id'):
+        return user.warehouse_id
+    return None
+
 class TransactionTypeListCreateView(generics.ListCreateAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
@@ -413,42 +459,71 @@ class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = TransactionTypeSerializer
 
 class CustomerListCreateView(generics.ListCreateAPIView):
-    queryset = Customer.objects.all().order_by('name')
     serializer_class = CustomerSerializer
+
+    def get_queryset(self):
+        warehouse_id = get_user_warehouse(self.request)
+        if warehouse_id:
+            return Customer.objects.filter(warehouse=warehouse_id).order_by('name')
+        return Customer.objects.all().order_by('name')
+
+    def perform_create(self, serializer):
+        warehouse_id = get_user_warehouse(self.request)
+        if warehouse_id:
+            serializer.save(warehouse_id=warehouse_id)
+        else:
+            serializer.save()
 
 class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
 
-
-# Merchandising Views
 class MerchandisingListCreateView(generics.ListCreateAPIView):
-    queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
+
+    def get_queryset(self):
+        warehouse_id = get_user_warehouse(self.request)
+        if warehouse_id:
+            return Merchandising.objects.filter(warehouse=warehouse_id)
+        return Merchandising.objects.all()
+
+    def perform_create(self, serializer):
+        warehouse_id = get_user_warehouse(self.request)
+        if warehouse_id:
+            serializer.save(warehouse_id=warehouse_id)
+        else:
+            serializer.save()
 
 class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
 class MerchandisingListView(generics.ListAPIView):
-    queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
+    def get_queryset(self):
+        warehouse_id = get_user_warehouse(self.request)
+        if warehouse_id:
+            return Merchandising.objects.filter(warehouse=warehouse_id)
+        return Merchandising.objects.all()
 
 class NextMspNoView(APIView):
     def get(self, request):
-        # ✅ Get transaction type ID
         transaction_type_id = request.query_params.get("transaction_type")
+        warehouse_id = get_user_warehouse(request)
+        
         if not transaction_type_id:
             return Response({"detail": "Transaction type is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not warehouse_id:
+            return Response({"detail": "Warehouse is required."}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             transaction_type = TransactionType.objects.get(id=int(transaction_type_id))
         except TransactionType.DoesNotExist:
             return Response({"detail": "Transaction type not found."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # ✅ Determine prefix
         type_name = transaction_type.name.strip().lower()
         if type_name == "van load":
             prefix = "V"
@@ -457,13 +532,12 @@ class NextMspNoView(APIView):
         else:
             prefix = "X"
 
-        # ✅ Find latest used MSP number for this transaction type and prefix
-        # Always fallback to correct prefix ONLY
+        # Find latest used MSP number for this transaction type, warehouse, and prefix
         last_msp = Merchandising.objects.filter(
             transaction_type=transaction_type,
-            msp_no__startswith=prefix  # ✅ Prefix match required
+            warehouse=warehouse_id,
+            msp_no__startswith=prefix
         ).order_by('-id').first()
-
 
         if last_msp and last_msp.msp_no:
             try:
@@ -478,12 +552,16 @@ class NextMspNoView(APIView):
 
         return Response({"msp_no": msp_no})
 
-
 class StockAvailabilityView(APIView):
     def get(self, request, product_id):
+        warehouse_id = get_user_warehouse(request)
+        
         try:
-            # Check if the stock for the selected product exists
-            stock = Stock.objects.get(product_id=product_id)
+            if warehouse_id:
+                stock = Stock.objects.get(product_id=product_id, warehouse=warehouse_id)
+            else:
+                stock = Stock.objects.get(product_id=product_id)
+                
             return Response({
                 "product_id": product_id,
                 "quantity_available": stock.quantity_available
@@ -491,17 +569,17 @@ class StockAvailabilityView(APIView):
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
 
-
-# views.py
-
 class UpdateStockView(APIView):
     def put(self, request, product_id):
+        warehouse_id = get_user_warehouse(request)
+        
         try:
-            # Fetch the product stock
-            stock = Stock.objects.get(product_id=product_id)
+            if warehouse_id:
+                stock = Stock.objects.get(product_id=product_id, warehouse=warehouse_id)
+            else:
+                stock = Stock.objects.get(product_id=product_id)
+                
             quantity_sold = request.data.get('quantity_available')
-            
-            # Update the stock quantity
             stock.quantity_available -= quantity_sold
             stock.save()
 
@@ -509,22 +587,23 @@ class UpdateStockView(APIView):
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
 
-
 @api_view(['PATCH'])
 def restore_stock(request, pk):
+    warehouse_id = get_user_warehouse(request)
+    
     try:
-        stock = Stock.objects.get(product_id=pk)
+        if warehouse_id:
+            stock = Stock.objects.get(product_id=pk, warehouse=warehouse_id)
+        else:
+            stock = Stock.objects.get(product_id=pk)
+            
         stock.quantity_available += int(request.data.get('quantity', 0))
         stock.save()
         return Response({'status': 'restored', 'new_quantity': stock.quantity_available})
     except Stock.DoesNotExist:
         return Response({'error': 'Stock not found'}, status=404)
 
-
-
-
-
-# MerchandisingItem Views
+# Keep all other views the same...
 class MerchandisingItemListCreateView(generics.ListCreateAPIView):
     queryset = MerchandisingItem.objects.all()
     serializer_class = MerchandisingItemSerializer
@@ -533,7 +612,6 @@ class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MerchandisingItem.objects.all()
     serializer_class = MerchandisingItemSerializer
 
-# MiscellaneousItem Views
 class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
     queryset = MiscellaneousItem.objects.all()
     serializer_class = MiscellaneousItemSerializer
@@ -543,7 +621,6 @@ class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MiscellaneousItem.objects.all()
     serializer_class = MiscellaneousItemSerializer
 
-# Payment Views
 class PaymentListCreateView(generics.ListCreateAPIView):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
@@ -552,25 +629,32 @@ class PaymentDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
 
-# ReturnableStock Views
 class ReturnableStockListCreateView(generics.ListCreateAPIView):
-    queryset = ReturnableStock.objects.all()
     serializer_class = ReturnableStockSerializer
+
+    def get_queryset(self):
+        warehouse_id = get_user_warehouse(self.request)
+        if warehouse_id:
+            return ReturnableStock.objects.filter(warehouse=warehouse_id)
+        return ReturnableStock.objects.all()
 
 class ReturnableStockDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = ReturnableStock.objects.all()
     serializer_class = ReturnableStockSerializer
 
-# SupplierReturn Views
 class SupplierReturnListCreateView(generics.ListCreateAPIView):
-    queryset = SupplierReturn.objects.all()
     serializer_class = SupplierReturnSerializer
+
+    def get_queryset(self):
+        warehouse_id = get_user_warehouse(self.request)
+        if warehouse_id:
+            return SupplierReturn.objects.filter(warehouse=warehouse_id)
+        return SupplierReturn.objects.all()
 
 class SupplierReturnDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = SupplierReturn.objects.all()
     serializer_class = SupplierReturnSerializer
 
-# SupplierReturnItem Views
 class SupplierReturnItemListCreateView(generics.ListCreateAPIView):
     queryset = SupplierReturnItem.objects.all()
     serializer_class = SupplierReturnItemSerializer
@@ -599,12 +683,30 @@ class ChangePasswordAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
-    queryset = SupplierReturnForm.objects.all().order_by('-date')
     serializer_class = SupplierReturnFormSerializer
 
+    def get_queryset(self):
+        queryset = SupplierReturnForm.objects.all().order_by('-date')
+        
+        # Filter by warehouse if warehouse_id is provided in query params
+        warehouse_id = self.request.query_params.get('warehouse_id', None)
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        return queryset
+
 class SupplierReturnFormDetailView(generics.RetrieveDestroyAPIView):
-    queryset = SupplierReturnForm.objects.all()
     serializer_class = SupplierReturnFormSerializer
+    
+    def get_queryset(self):
+        queryset = SupplierReturnForm.objects.all()
+        
+        # Optional: Filter by warehouse for additional security
+        warehouse_id = self.request.query_params.get('warehouse_id', None)
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        return queryset
 
 class ProcessEmptiesReturnView(APIView):
     """
@@ -621,10 +723,12 @@ class ProcessEmptiesReturnView(APIView):
             "description": "This endpoint processes returned empties from merchandising transactions",
             "required_fields": {
                 "return_date": "ISO datetime string",
+                "warehouse_id": "ID of the warehouse",
                 "items": "Array of items with merchandising_id, item_id, product_id, etc."
             },
             "example_payload": {
-                "return_date": "2025-06-26T15:05:13.000Z",
+                "return_date": "2025-01-26T15:05:13.000Z",
+                "warehouse_id": 1,
                 "items": [
                     {
                         "merchandising_id": 1,
@@ -633,7 +737,8 @@ class ProcessEmptiesReturnView(APIView):
                         "supplier_id": 1,
                         "product_name": "Coca Cola 1.5L",
                         "empty_return_shell": 2,
-                        "empty_return_pcs": 24
+                        "empty_return_pcs": 24,
+                        "warehouse_id": 1
                     }
                 ]
             }
@@ -642,7 +747,14 @@ class ProcessEmptiesReturnView(APIView):
     def post(self, request):
         try:
             return_date = request.data.get('return_date')
+            warehouse_id = request.data.get('warehouse_id')
             items = request.data.get('items', [])
+            
+            if not warehouse_id:
+                return Response(
+                    {"error": "Warehouse ID is required"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             
             if not items:
                 return Response(
@@ -650,7 +762,17 @@ class ProcessEmptiesReturnView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # Verify warehouse exists
+            try:
+                warehouse = Warehouse.objects.get(id=warehouse_id)
+            except Warehouse.DoesNotExist:
+                return Response(
+                    {"error": "Invalid warehouse ID"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             processed_items = []
+            errors = []
             
             # Process each returned empty item
             for item in items:
@@ -658,35 +780,49 @@ class ProcessEmptiesReturnView(APIView):
                 item_id = item.get('item_id')
                 product_id = item.get('product_id')
                 supplier_id = item.get('supplier_id')
-                empty_return_shell = item.get('empty_return_shell', 0)
-                empty_return_pcs = item.get('empty_return_pcs', 0)
+                empty_return_shell = int(item.get('empty_return_shell', 0))
+                empty_return_pcs = int(item.get('empty_return_pcs', 0))
+                item_warehouse_id = item.get('warehouse_id', warehouse_id)
                 
                 # Validate required fields
                 if not all([merchandising_id, item_id, product_id]):
+                    errors.append(f"Missing required fields for item {item_id}")
+                    continue
+                
+                # Ensure item belongs to the specified warehouse
+                if int(item_warehouse_id) != int(warehouse_id):
+                    errors.append(f"Item {item_id} does not belong to warehouse {warehouse_id}")
                     continue
                 
                 try:
-                    # Get the merchandising item
-                    merchandising_item = MerchandisingItem.objects.get(
+                    # Get the merchandising item and verify it belongs to the correct warehouse
+                    merchandising_item = MerchandisingItem.objects.select_related('merchandising').get(
                         id=item_id,
-                        merchandising_id=merchandising_id
+                        merchandising_id=merchandising_id,
+                        merchandising__warehouse_id=warehouse_id
                     )
                     
                     # Get the product and supplier
                     product = Product.objects.get(id=product_id)
                     supplier = None
                     if supplier_id:
-                        supplier = Supplier.objects.get(id=supplier_id)
+                        try:
+                            supplier = Supplier.objects.get(id=supplier_id)
+                        except Supplier.DoesNotExist:
+                            pass  # Continue without supplier if not found
                     
-                    # Add to ReturnableStock or update existing
+                    # Add to ReturnableStock or update existing (warehouse-specific)
                     if empty_return_shell > 0 or empty_return_pcs > 0:
                         returnable_stock, created = ReturnableStock.objects.get_or_create(
                             product=product,
                             source='customer',
                             supplier=supplier,
+                            warehouse_id=warehouse_id,
                             defaults={
                                 'empty_bottle_qty': empty_return_pcs,
-                                'empty_shell_qty': empty_return_shell
+                                'empty_shell_qty': empty_return_shell,
+                                'created_date': datetime.now().date(),
+                                'last_updated': datetime.now()
                             }
                         )
                         
@@ -694,6 +830,7 @@ class ProcessEmptiesReturnView(APIView):
                             # Update existing returnable stock
                             returnable_stock.empty_bottle_qty += empty_return_pcs
                             returnable_stock.empty_shell_qty += empty_return_shell
+                            returnable_stock.last_updated = datetime.now()
                             returnable_stock.save()
                     
                     # Clear the empty returns from merchandising item to mark as processed
@@ -707,29 +844,36 @@ class ProcessEmptiesReturnView(APIView):
                         'product_name': item.get('product_name'),
                         'empty_return_shell': empty_return_shell,
                         'empty_return_pcs': empty_return_pcs,
+                        'warehouse_id': warehouse_id,
+                        'warehouse_name': warehouse.name,
                         'status': 'processed'
                     })
                     
-                except (MerchandisingItem.DoesNotExist, Product.DoesNotExist, Supplier.DoesNotExist) as e:
-                    processed_items.append({
-                        'merchandising_id': merchandising_id,
-                        'item_id': item_id,
-                        'status': 'error',
-                        'error': str(e)
-                    })
+                except MerchandisingItem.DoesNotExist:
+                    errors.append(f"Merchandising item {item_id} not found or does not belong to warehouse {warehouse_id}")
+                except Product.DoesNotExist:
+                    errors.append(f"Product {product_id} not found")
+                except Exception as e:
+                    errors.append(f"Error processing item {item_id}: {str(e)}")
                     continue
             
-            return Response({
-                "message": "Empties returned to stock successfully",
+            response_data = {
+                "message": f"Empties returned to stock successfully for {warehouse.name}",
+                "warehouse_id": warehouse_id,
+                "warehouse_name": warehouse.name,
                 "return_date": return_date,
                 "processed_items": processed_items,
-                "total_processed": len([item for item in processed_items if item['status'] == 'processed'])
-            }, status=status.HTTP_200_OK)
+                "total_processed": len(processed_items),
+                "total_errors": len(errors)
+            }
+            
+            if errors:
+                response_data["errors"] = errors
+            
+            return Response(response_data, status=status.HTTP_200_OK)
             
         except Exception as e:
             return Response(
                 {"error": f"Failed to process empties return: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-     
-    

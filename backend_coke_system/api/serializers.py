@@ -343,11 +343,13 @@ class ReceivingSerializer(serializers.ModelSerializer):
 
 class StockSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.product_name', read_only=True)
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
     stock_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Stock
-        fields = ['id', 'product', 'product_name', 'quantity_available', 'last_updated', 'stock_status']  # ← ✅ include stock_status
+        fields = ['id', 'product', 'product_name', 'warehouse', 'warehouse_name', 
+                 'quantity_available', 'last_updated', 'stock_status']
 
     def get_stock_status(self, obj):
         return obj.stock_status()
@@ -366,54 +368,42 @@ class RoleAccessibilitySerializer(serializers.ModelSerializer):
         model = RoleAccessibility
         fields = '__all__'
 
-
 class RouteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Route
         fields = '__all__'
 
-
-
-# TransactionType Serializer
 class TransactionTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransactionType
         fields = '__all__'
 
-
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'warehouse']
 
-
-# MerchandisingItem Serializer
 class MerchandisingItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MerchandisingItem
         fields = '__all__'
         extra_kwargs = {
-            'merchandising': {'required': False}  # ✅ make it optional
+            'merchandising': {'required': False}
         }
 
-
-# MiscellaneousItem Serializer
 class MiscellaneousItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MiscellaneousItem
         fields = '__all__'
 
-
-# Payment Serializer
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = '__all__'
 
-
-# Merchandising Serializer (Main Transaction)
 class MerchandisingSerializer(serializers.ModelSerializer):
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
+    customer_name = serializers.SerializerMethodField()
     items = MerchandisingItemSerializer(many=True)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False)
@@ -421,6 +411,10 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Merchandising
         fields = '__all__'
+
+    def get_customer_name(self, obj):
+        # You might need to add customer field to Merchandising model
+        return "N/A"  # Placeholder
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
@@ -454,28 +448,34 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 actual_sale=item_data.get("actual_sale", 0),
             )
 
-            # ✅ Handle returned empties (ReturnableStock)
+            # Handle returned empties (ReturnableStock)
             if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
                 ReturnableStock.objects.create(
                     product=product,
                     empty_bottle_qty=merchandising_item.empty_return_pcs,
                     empty_shell_qty=merchandising_item.empty_return_shell,
                     source='customer',
-                    supplier=product.supplier  # ✅ Link the return to the correct supplier
+                    supplier=product.supplier,
+                    warehouse=merchandising.warehouse  # ADD THIS
                 )
 
-            # ✅ Handle returned full items (restock)
+            # Handle returned full items (restock)
             if merchandising_item.actual_return_pcs > 0:
-                stock, _ = Stock.objects.get_or_create(product=product)
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse=merchandising.warehouse
+                )
                 stock.quantity_available += merchandising_item.actual_return_pcs
                 stock.save()
 
-            # ✅ Deduct sold quantity from stock
+            # Deduct sold quantity from stock
             if merchandising_item.sold_pcs > 0:
-                stock, _ = Stock.objects.get_or_create(product=product)
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse=merchandising.warehouse
+                )
                 stock.quantity_available -= merchandising_item.sold_pcs
                 stock.save()
-
 
         for misc_data in misc_items_data:
             MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
@@ -486,25 +486,18 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         return merchandising
 
     def update(self, instance, validated_data):
-        # Optional: we can add complex update logic if you need
         return super().update(instance, validated_data)
 
-
-# ReturnableStock Serializer
 class ReturnableStockSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReturnableStock
         fields = '__all__'
 
-
-# SupplierReturnItem Serializer
 class SupplierReturnItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierReturnItem
         fields = '__all__'
 
-
-# SupplierReturn Serializer
 class SupplierReturnSerializer(serializers.ModelSerializer):
     items = SupplierReturnItemSerializer(many=True)
 
@@ -522,7 +515,6 @@ class SupplierReturnSerializer(serializers.ModelSerializer):
         return supplier_return
 
     def update(self, instance, validated_data):
-        # Optional update logic
         return super().update(instance, validated_data)
 
 class LoginSerializer(serializers.Serializer):
@@ -602,11 +594,12 @@ class SupplierReturnFormItemSerializer(serializers.ModelSerializer):
 
 class SupplierReturnFormSerializer(serializers.ModelSerializer):
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)  # ADD THIS
     items = SupplierReturnFormItemSerializer(many=True)
 
     class Meta:
         model = SupplierReturnForm
-        fields = ['id', 'sup_no', 'supplier', 'supplier_name', 'date', 'total_amount', 'items']
+        fields = ['id', 'sup_no', 'supplier', 'supplier_name', 'warehouse', 'warehouse_name', 'date', 'total_amount', 'items']  # ADD warehouse fields
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
