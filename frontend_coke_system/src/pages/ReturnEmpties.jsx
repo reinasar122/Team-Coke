@@ -10,10 +10,54 @@ const ReturnEmpties = () => {
   const [filteredEmpties, setFilteredEmpties] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
+
+  // Get current warehouse information
+  const getCurrentWarehouse = useCallback(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    // For admin users, prioritize selected warehouse, fallback to enrolled warehouse
+    if (user.role?.toLowerCase() === "admin") {
+      if (selectedWarehouse) {
+        return { id: selectedWarehouse.id, name: selectedWarehouse.name };
+      }
+    }
+    
+    // For non-admin users or admin without selected warehouse, use enrolled warehouse
+    if (user.warehouse_id && user.warehouse) {
+      return { id: user.warehouse_id, name: user.warehouse };
+    }
+    
+    return null;
+  }, []);
+
+  // Update current warehouse when component mounts or warehouse changes
+  useEffect(() => {
+    const updateWarehouse = () => {
+      const warehouse = getCurrentWarehouse();
+      setCurrentWarehouse(warehouse);
+    };
+    
+    updateWarehouse();
+    
+    // Listen for warehouse changes
+    const handleWarehouseChange = () => {
+      updateWarehouse();
+    };
+    
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+    
+    return () => {
+      window.removeEventListener('warehouseChanged', handleWarehouseChange);
+    };
+  }, [getCurrentWarehouse]);
 
   const fetchSuppliers = useCallback(async () => {
+    if (!currentWarehouse) return;
+    
     try {
-      const response = await axios.get("http://localhost:8080/api/suppliers/");
+      const response = await axios.get(`http://localhost:8080/api/suppliers/?warehouse=${currentWarehouse.id}`);
       console.log("Raw suppliers response:", response.data);
       
       let suppliersData = response.data;
@@ -27,11 +71,13 @@ const ReturnEmpties = () => {
       setError("Failed to load suppliers");
       setSuppliers([]);
     }
-  }, []);
+  }, [currentWarehouse]);
 
   const fetchProducts = useCallback(async () => {
+    if (!currentWarehouse) return;
+    
     try {
-      const response = await axios.get("http://localhost:8080/api/products/");
+      const response = await axios.get(`http://localhost:8080/api/products/?warehouse=${currentWarehouse.id}`);
       console.log("Raw products response:", response.data);
       
       let productsData = response.data;
@@ -45,11 +91,13 @@ const ReturnEmpties = () => {
       setError("Failed to load products");
       setProducts([]);
     }
-  }, []);
+  }, [currentWarehouse]);
 
   const fetchPricing = useCallback(async () => {
+    if (!currentWarehouse) return;
+    
     try {
-      const response = await axios.get("http://localhost:8080/api/pricing/");
+      const response = await axios.get(`http://localhost:8080/api/pricing/?warehouse=${currentWarehouse.id}`);
       console.log("Raw pricing response:", response.data);
       
       let pricingData = response.data;
@@ -63,12 +111,17 @@ const ReturnEmpties = () => {
       setError("Failed to load pricing data");
       setPricing([]);
     }
-  }, []);
+  }, [currentWarehouse]);
 
   const fetchReturnedEmptiesFromMerchandising = useCallback(async () => {
+    if (!currentWarehouse) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
     try {
-      const response = await axios.get("http://localhost:8080/api/merchandisings/");
+      const response = await axios.get(`http://localhost:8080/api/merchandisings/?warehouse=${currentWarehouse.id}`);
       console.log("Raw merchandising response:", response.data);
       
       let merchandisingData = response.data;
@@ -169,7 +222,9 @@ const ReturnEmpties = () => {
                   merchandising_id: merchandising.id,
                   item_id: item.id,
                   shell_price: productPricing ? productPricing.shell_price : 0,
-                  bottle_price: productPricing ? productPricing.bottle_price : 0
+                  bottle_price: productPricing ? productPricing.bottle_price : 0,
+                  warehouse_id: currentWarehouse.id,
+                  warehouse_name: currentWarehouse.name
                 });
               }
             });
@@ -217,19 +272,63 @@ const ReturnEmpties = () => {
       setReturnedEmpties([]);
     }
     setLoading(false);
-  }, [products, suppliers, pricing]);
+  }, [products, suppliers, pricing, currentWarehouse]);
+
+  // Process return empties to stock
+  const processReturnEmpties = async () => {
+    if (!currentWarehouse || filteredEmpties.length === 0) {
+      setError("No warehouse selected or no empties to process");
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      const processData = {
+        return_date: new Date().toISOString(),
+        warehouse_id: currentWarehouse.id,
+        items: filteredEmpties.map(item => ({
+          merchandising_id: item.merchandising_id,
+          item_id: item.item_id,
+          product_id: item.product_id,
+          supplier_id: item.supplier_id,
+          product_name: item.product_name,
+          empty_return_shell: item.empty_return_shell,
+          empty_return_pcs: item.empty_return_pcs,
+          warehouse_id: currentWarehouse.id
+        }))
+      };
+
+      const response = await axios.post('http://localhost:8080/api/process-empties-return/', processData);
+      
+      if (response.data.message) {
+        // Refresh the data after processing
+        await fetchReturnedEmptiesFromMerchandising();
+        setError(null);
+        // You might want to show a success message here
+        console.log("Successfully processed empties return:", response.data);
+      }
+    } catch (error) {
+      console.error("Error processing empties return:", error);
+      setError("Failed to process empties return");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchSuppliers();
-    fetchProducts();
-    fetchPricing();
-  }, [fetchSuppliers, fetchProducts, fetchPricing]);
+    if (currentWarehouse) {
+      fetchSuppliers();
+      fetchProducts();
+      fetchPricing();
+    }
+  }, [currentWarehouse, fetchSuppliers, fetchProducts, fetchPricing]);
 
   useEffect(() => {
-    if (suppliers.length > 0 && products.length > 0 && pricing.length > 0) {
+    if (currentWarehouse && suppliers.length > 0 && products.length > 0 && pricing.length > 0) {
       fetchReturnedEmptiesFromMerchandising();
     }
-  }, [suppliers, products, pricing, fetchReturnedEmptiesFromMerchandising]);
+  }, [currentWarehouse, suppliers, products, pricing, fetchReturnedEmptiesFromMerchandising]);
 
   useEffect(() => {
     if (selectedSupplier) {
@@ -242,10 +341,21 @@ const ReturnEmpties = () => {
     }
   }, [selectedSupplier, returnedEmpties]);
 
+  if (!currentWarehouse) {
+    return (
+      <div className="min-h-screen bg-white p-6 flex items-center justify-center">
+        <div className="text-red-600 text-center">
+          <h2 className="text-xl font-bold mb-2">No Warehouse Selected</h2>
+          <p>Please select a warehouse to view return empties.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-white p-6 flex items-center justify-center">
-        <div className="text-gray-600">Loading returned empties...</div>
+        <div className="text-gray-600">Loading returned empties for {currentWarehouse.name}...</div>
       </div>
     );
   }
@@ -257,6 +367,12 @@ const ReturnEmpties = () => {
           {error}
         </div>
       )}
+      
+      {/* Warehouse Info Header */}
+      <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+        <h2 className="text-lg font-bold text-blue-800">Return Empties - {currentWarehouse.name}</h2>
+        <p className="text-sm text-blue-600">Showing return empties data for this warehouse only</p>
+      </div>
       
       <div className="mb-6">
         <div className="flex items-center gap-4 mb-4">
@@ -273,8 +389,16 @@ const ReturnEmpties = () => {
               </option>
             ))}
           </select>
-        </div>
-        <div className="text-sm text-gray-600">
+          
+          {filteredEmpties.length > 0 && (
+            <button
+              onClick={processReturnEmpties}
+              className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors"
+              disabled={loading}
+            >
+              {loading ? "Processing..." : "Process Return to Stock"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -343,7 +467,7 @@ const ReturnEmpties = () => {
             ) : (
               <tr>
                 <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
-                  No returned empties available
+                  No returned empties available for {currentWarehouse.name}
                 </td>
               </tr>
             )}

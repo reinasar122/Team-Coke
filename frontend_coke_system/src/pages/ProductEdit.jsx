@@ -22,6 +22,7 @@ const ProductEdit = () => {
     content_type: "",
     price_id: null,
     unit_type_id: null,
+    warehouse: null,
   });
   
   const [loading, setLoading] = useState(true);
@@ -31,6 +32,19 @@ const ProductEdit = () => {
   const [showModal, setShowModal] = useState({ type: null });
   const [newValue, setNewValue] = useState("");
   const [suppliers, setSuppliers] = useState([]);
+
+  // Get current warehouse from user session
+  const getCurrentWarehouse = () => {
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    // For admin users, use selected warehouse if available, otherwise use enrolled warehouse
+    if (userData.role?.toLowerCase() === "admin") {
+      return selectedWarehouse?.id || userData.warehouse_id;
+    }
+    // For non-admin users, always use their enrolled warehouse
+    return userData.warehouse_id;
+  };
 
   const fetchDropdowns = async () => {
     try {
@@ -43,8 +57,6 @@ const ProductEdit = () => {
       setShellTypes(shellTypesRes.data);
       setContentTypes(contentTypesRes.data);
       setSuppliers(suppliersRes.data);
-      
-      console.log("Categories data:", JSON.stringify(categoriesRes.data));
     } catch (err) {
       console.error("Error fetching dropdowns:", err);
     }
@@ -56,13 +68,19 @@ const ProductEdit = () => {
       await fetchDropdowns();
       
       try {
-        const res = await axios.get(`http://localhost:8080/api/products/${id}/`);
+        const warehouseId = getCurrentWarehouse();
+        const res = await axios.get(`http://localhost:8080/api/products/${id}/?warehouse_id=${warehouseId}`);
         const product = res.data;
         
         console.log("Full product data:", JSON.stringify(product));
-        console.log("Original product_category value:", JSON.stringify(product.product_category));
         
-        // Extract category ID - Handle both object format and direct ID
+        // Check if product belongs to current warehouse
+        if (product.warehouse !== warehouseId) {
+          alert("⚠️ You don't have access to edit this product from another warehouse.");
+          navigate("/products");
+          return;
+        }
+        
         const categoryId = product.product_category?.id || product.product_category;
         
         setFormData({
@@ -81,17 +99,19 @@ const ProductEdit = () => {
           content_type: product.unit_type?.content_type || "",
           price_id: product.price?.id || null,
           unit_type_id: product.unit_type?.id || null,
+          warehouse: product.warehouse || warehouseId,
         });
       } catch (err) {
         console.error("❌ Failed to load product:", err);
         alert("Failed to load product data");
+        navigate("/products");
       } finally {
         setLoading(false);
       }
     };
 
     fetchData();
-  }, [id]);
+  }, [id, navigate]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -115,7 +135,7 @@ const ProductEdit = () => {
     try {
       console.log("Updating product with form data:", JSON.stringify(formData));
       
-      // 1. First update the pricing
+      // 1. Update pricing
       await axios.put(`http://localhost:8080/api/pricing/${formData.price_id}/`, {
         purchase_price: parseFloat(formData.purchase_price) || 0,
         selling_price: parseFloat(formData.selling_price) || 0,
@@ -123,7 +143,7 @@ const ProductEdit = () => {
         bottle_price: parseFloat(formData.bottle_price) || 0,
       });
 
-      // 2. Then update the unit type
+      // 2. Update unit type
       await axios.put(`http://localhost:8080/api/unit-types/${formData.unit_type_id}/`, {
         content_no: formData.content_no,
         returnable: formData.returnable,
@@ -132,39 +152,25 @@ const ProductEdit = () => {
         content_returnable: formData.returnable,
       });
 
-      // 3. Create the product update payload
-      // CRITICAL FIX: Send product_category as just the ID, not as an object 
+      // 3. Update product (including warehouse)
       const productUpdatePayload = {
         system_code: formData.system_code,
         supplier_code: formData.supplier_code,
         supplier: formData.supplier,
         product_name: formData.product_name,
-        // Send product_category as just the ID
         product_category: formData.product_category,
         unit_type: formData.unit_type_id,
-        price: formData.price_id
+        price: formData.price_id,
+        warehouse: formData.warehouse,
       };
       
       console.log("Final product update payload:", JSON.stringify(productUpdatePayload));
       
-      // 3. Update the product
-      await axios.put(
-        `http://localhost:8080/api/products/${id}/`, 
-        productUpdatePayload
-      );
+      await axios.put(`http://localhost:8080/api/products/${id}/`, productUpdatePayload);
 
       alert("✅ Product updated successfully!");
       
-      // Force immediate refresh of global product data
-      try {
-        // Add timestamp to prevent caching
-        const timestamp = new Date().getTime();
-        await axios.get(`http://localhost:8080/api/products/?_t=${timestamp}`);
-      } catch (refreshErr) {
-        console.error("Product list refresh failed:", refreshErr);
-      }
-
-      // Navigate with refresh state parameter
+      // Navigate back to products list
       navigate("/products", { 
         state: { 
           refresh: true, 
@@ -205,7 +211,7 @@ const ProductEdit = () => {
       const res = await axios.post(`http://localhost:8080/api/${endpoint}`, payload);
       console.log(`Added new ${showModal.type}:`, JSON.stringify(res.data));
       
-      await fetchDropdowns(); // Re-fetch all dropdowns to get updated data
+      await fetchDropdowns();
       
       setFormData((prev) => ({
         ...prev,

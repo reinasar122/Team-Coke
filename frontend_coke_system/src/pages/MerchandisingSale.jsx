@@ -49,6 +49,7 @@ const MerchandisingSale = () => {
   const [isAddingRoute, setIsAddingRoute] = useState(false);
   const [availableStock, setAvailableStock] = useState({});
   const [mspNo, setMspNo] = useState("");
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
   const [dateTime, setDateTime] = useState(() => {
   const date = new Date();
@@ -60,7 +61,6 @@ const MerchandisingSale = () => {
   const [refundablesTotal, setRefundablesTotal] = useState(0);
   const [totalAmount, setTotalAmount] = useState(0);
 
-  // Removed unused state variables: status, setStatus, setInvoiceNo, setSelectedPaymentMethod, setPayments
   const [invoiceNo] = useState("");
   
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
@@ -83,358 +83,406 @@ const MerchandisingSale = () => {
   const [userCashInput, setUserCashInput] = useState("");
   const [cashReceived, setCashReceived] = useState("");
 
+  // Get current warehouse from location state or localStorage
   useEffect(() => {
-  axios.get("http://localhost:8080/api/users/").then(res => setUsers(res.data));
-  axios.get("http://localhost:8080/api/products/").then(res => setProducts(res.data));
-  axios.get("http://localhost:8080/api/routes/").then(res => setRoutes(res.data));
-  axios.get("http://localhost:8080/api/customers/").then(res => setCustomers(res.data));
-}, []);
+    if (state.warehouse) {
+      setCurrentWarehouse(state.warehouse);
+    } else {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      
+      if (user.role?.toLowerCase() === "admin") {
+        setCurrentWarehouse(selectedWarehouse || { id: user.warehouse_id, name: user.warehouse });
+      } else {
+        setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
+      }
+    }
+
+    // Listen for warehouse changes
+    const handleWarehouseChange = (event) => {
+      const { warehouse } = event.detail;
+      if (warehouse) {
+        setCurrentWarehouse(warehouse);
+      } else {
+        const user = JSON.parse(localStorage.getItem("user") || "{}");
+        setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
+      }
+    };
+
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+    return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
+  }, [state.warehouse]);
+
+  // Fetch warehouse-specific data
+  useEffect(() => {
+    if (!currentWarehouse?.id) return;
+
+    const warehouseId = currentWarehouse.id;
+
+    axios.get(`http://localhost:8080/api/users/?warehouse=${warehouseId}`).then(res => setUsers(res.data));
+    axios.get(`http://localhost:8080/api/products/?warehouse=${warehouseId}`).then(res => setProducts(res.data));
+    axios.get(`http://localhost:8080/api/routes/?warehouse=${warehouseId}`).then(res => setRoutes(res.data));
+    axios.get(`http://localhost:8080/api/customers/?warehouse=${warehouseId}`).then(res => setCustomers(res.data));
+  }, [currentWarehouse]);
 
   // Fixed dependency array to include selectedTransactionTypeName
   useEffect(() => {
-  if (selectedTransactionTypeName === "Van Load") {
-    axios.get("http://localhost:8080/api/vans/")
-      .then(res => setVans(res.data))
-      .catch(err => console.error("Failed to fetch vans:", err));
-  }
-}, [selectedTransactionTypeName]);
+    if (selectedTransactionTypeName === "Van Load" && currentWarehouse?.id) {
+      axios.get(`http://localhost:8080/api/vans/?warehouse=${currentWarehouse.id}`)
+        .then(res => setVans(res.data))
+        .catch(err => console.error("Failed to fetch vans:", err));
+    }
+  }, [selectedTransactionTypeName, currentWarehouse]);
 
   useEffect(() => {
-  if (transactionType && selectedTransactionTypeName) {
-    axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
-      params: { transaction_type: transactionType }
-    }).then(res => {
-      console.log("✅ MSP Prefix check:", selectedTransactionTypeName, res.data.msp_no);
-      setMspNo(res.data.msp_no);
-    });
-  }
-}, [transactionType, selectedTransactionTypeName]);
-
-useEffect(() => {
-  axios.get("http://localhost:8080/api/transaction-types/")
-    .then(res => {
-      console.log("Transaction Types:", res.data); // 👈 add this
-      setTransactionTypes(res.data);
-    })
-    .catch(err => console.error("Failed to fetch transaction types:", err));
-}, []);
+    if (transactionType && selectedTransactionTypeName && currentWarehouse?.id) {
+      axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
+        params: { 
+          transaction_type: transactionType,
+          warehouse: currentWarehouse.id
+        }
+      }).then(res => {
+        console.log("✅ MSP Prefix check:", selectedTransactionTypeName, res.data.msp_no);
+        setMspNo(res.data.msp_no);
+      });
+    }
+  }, [transactionType, selectedTransactionTypeName, currentWarehouse]);
 
   useEffect(() => {
-  const userCash = parseFloat(userCashInput) || 0;
-  const misc = parseFloat(miscCharges) || 0;
-  const totalCash = userCash + misc;
-  const total = parseFloat(actualTotal) || 0;
-
-  setCashReceived(totalCash.toFixed(2));
-  setChange(!isNaN(totalCash - total) ? (totalCash - total).toFixed(2) : "");
-  setCashMismatch(totalCash.toFixed(2) !== total.toFixed(2));
-}, [userCashInput, miscCharges, actualTotal]);
+    if (currentWarehouse?.id) {
+      axios.get(`http://localhost:8080/api/transaction-types/?warehouse=${currentWarehouse.id}`)
+        .then(res => {
+          console.log("Transaction Types:", res.data);
+          setTransactionTypes(res.data);
+        })
+        .catch(err => console.error("Failed to fetch transaction types:", err));
+    }
+  }, [currentWarehouse]);
 
   useEffect(() => {
-    axios.get("http://localhost:8080/api/pricing/")
-      .then(res => {
-        const map = {};
-        res.data.forEach(price => {
-          map[price.id] = {
-            selling_price: price.selling_price,
-            shell_price: price.shell_price,
-            bottle_price: price.bottle_price,
-            content_no: price.content_no || 0
-          };
-        });
-        setPricingMap(map);
+    const userCash = parseFloat(userCashInput) || 0;
+    const misc = parseFloat(miscCharges) || 0;
+    const totalCash = userCash + misc;
+    const total = parseFloat(actualTotal) || 0;
 
-        if (state.products) {
-          const initialRows = state.products.map((product) => {
-            const priceId = product.price?.id || product.priceId || product.price_id || null;
-            const soldShell = transactionType === "Warehouse" ? product.dispatchedShell : 0;
-            const soldPcs = transactionType === "Warehouse" ? product.dispatchedPcs : 0;
-            return {
-              id: Date.now() + Math.random(),
-              productId: product.productId,
-              productName: product.productName,
-              priceId: priceId,
-              contentNo: product.contentNo || 0,
-              dispatchedShell: product.dispatchedShell || 0,
-              dispatchedPcs: product.dispatchedPcs || 0,
-              soldShell: soldShell,
-              soldPcs: soldPcs,
-              expectedReturnShellEmpty: soldShell,
-              expectedReturnPcsEmpty: soldShell * (product.contentNo || 0),
-              expectedReturnShellNonempty: 0,
-              expectedReturnPcsNonempty: 0,
-              discrepancyShellEmpty: 0,
-              discrepancyPcsEmpty: 0,
-              discrepancyShellNonempty: 0,
-              discrepancyPcsNonempty: 0,
-              discount: 0,
-              expectedSale: 0,
-              actualSale: 0,
-              manuallyEditedNonemptyReturn: false,
+    setCashReceived(totalCash.toFixed(2));
+    setChange(!isNaN(totalCash - total) ? (totalCash - total).toFixed(2) : "");
+    setCashMismatch(totalCash.toFixed(2) !== total.toFixed(2));
+  }, [userCashInput, miscCharges, actualTotal]);
+
+  useEffect(() => {
+    if (currentWarehouse?.id) {
+      axios.get(`http://localhost:8080/api/pricing/?warehouse=${currentWarehouse.id}`)
+        .then(res => {
+          const map = {};
+          res.data.forEach(price => {
+            map[price.id] = {
+              selling_price: price.selling_price,
+              shell_price: price.shell_price,
+              bottle_price: price.bottle_price,
+              content_no: price.content_no || 0
             };
           });
+          setPricingMap(map);
 
-          const recalculated = initialRows.map((row) => {
-            const pricing = map[row.priceId];
-            if (!pricing) return row;
-            const sellingPrice = parseFloat(pricing.selling_price) || 0;
-            const shellPrice = parseFloat(pricing.shell_price) || 0;
-            const discount = parseFloat(row.discount) || 0;
+          if (state.products) {
+            const initialRows = state.products.map((product) => {
+              const priceId = product.price?.id || product.priceId || product.price_id || null;
+              const soldShell = transactionType === "Warehouse" ? product.dispatchedShell : 0;
+              const soldPcs = transactionType === "Warehouse" ? product.dispatchedPcs : 0;
+              return {
+                id: Date.now() + Math.random(),
+                productId: product.productId,
+                productName: product.productName,
+                priceId: priceId,
+                contentNo: product.contentNo || 0,
+                dispatchedShell: product.dispatchedShell || 0,
+                dispatchedPcs: product.dispatchedPcs || 0,
+                soldShell: soldShell,
+                soldPcs: soldPcs,
+                expectedReturnShellEmpty: soldShell,
+                expectedReturnPcsEmpty: soldShell * (product.contentNo || 0),
+                expectedReturnShellNonempty: 0,
+                expectedReturnPcsNonempty: 0,
+                discrepancyShellEmpty: 0,
+                discrepancyPcsEmpty: 0,
+                discrepancyShellNonempty: 0,
+                discrepancyPcsNonempty: 0,
+                discount: 0,
+                expectedSale: 0,
+                actualSale: 0,
+                manuallyEditedNonemptyReturn: false,
+              };
+            });
 
-            const expectedSale = (row.dispatchedPcs * sellingPrice) + (row.dispatchedShell * shellPrice);
-            row.expectedSale = parseFloat((expectedSale * (1 - discount / 100)).toFixed(2));
-            return row;
-          });
+            const recalculated = initialRows.map((row) => {
+              const pricing = map[row.priceId];
+              if (!pricing) return row;
+              const sellingPrice = parseFloat(pricing.selling_price) || 0;
+              const shellPrice = parseFloat(pricing.shell_price) || 0;
+              const discount = parseFloat(row.discount) || 0;
 
-          setRows(recalculated);
-        }
-      })
-      .catch(err => {
-        console.error("Failed to fetch pricing:", err);
-      });
-  }, [state.products, transactionType]);
+              const expectedSale = (row.dispatchedPcs * sellingPrice) + (row.dispatchedShell * shellPrice);
+              row.expectedSale = parseFloat((expectedSale * (1 - discount / 100)).toFixed(2));
+              return row;
+            });
+
+            setRows(recalculated);
+          }
+        })
+        .catch(err => {
+          console.error("Failed to fetch pricing:", err);
+        });
+    }
+  }, [state.products, transactionType, currentWarehouse]);
 
   const fetchStockQuantity = async (productId) => {
-  try {
-    const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`);
-    setAvailableStock((prev) => ({
-      ...prev,
-      [productId]: response.data.quantity_available,
-    }));
-  } catch (err) {
-    console.error("Error fetching stock:", err);
-  }
-};
-
-const handleProductChange = (index, productId) => {
-  const updatedRows = [...rows];
-  updatedRows[index].productId = productId;
-
-  const selectedProduct = products.find((p) => p.id === parseInt(productId));
-  if (selectedProduct) {
-    updatedRows[index].productName = selectedProduct.product_name;
-    updatedRows[index].priceId = selectedProduct.price.id;
-    updatedRows[index].contentNo = selectedProduct.unit_type.content_no;
-
-    // ✅ Fetch stock for selected product
-    fetchStockQuantity(productId);
-   
-  }
-
-  setRows(updatedRows);
-
-  // ✅ Automatically add a new row if current is last and selected
-  if (index === rows.length - 1 && productId) {
-    setRows((prev) => [
-      ...prev,
-      {
-        id: Date.now(),
-        productId: "",
-        productName: "",
-        priceId: "",
-        dispatchedShell: "",
-        dispatchedPcs: "",
-        soldShell: "",
-        soldPcs: "",
-        expectedReturnShellEmpty: "",
-        expectedReturnPcsEmpty: "",
-        expectedReturnShellNonempty: "",
-        expectedReturnPcsNonempty: "",
-        discrepancyShellEmpty: "",
-        discrepancyPcsEmpty: "",
-        discrepancyShellNonempty: "",
-        discrepancyPcsNonempty: "",
-        discount: "",
-        expectedSale: "",
-        actualSale: "",
-        contentNo: "",
-      },
-    ]);
-  }
-};
-
-const handleRowChange = (index, field, value) => {
-  const updated = [...rows];
-  updated[index][field] = value === "" ? "" : parseFloat(value);
-
-  const contentNo = parseFloat(updated[index].contentNo) || 0;
-  const priceId = updated[index].priceId;
-  const pricing = pricingMap[priceId];
-  const sellingPrice = pricing ? parseFloat(pricing.selling_price) || 0 : 0;
-  // Removed unused variables: shellPrice, bottlePrice
-  const discount = parseFloat(updated[index].discount) || 0;
-
-  let dispatchedShell = parseFloat(updated[index].dispatchedShell) || 0;
-  let dispatchedPcs = parseFloat(updated[index].dispatchedPcs) || 0;
-
-  // 🔁 SMART DISPATCHED LOGIC
-  if (field === "dispatchedShell") {
-    dispatchedShell = parseFloat(value) || 0;
-    dispatchedPcs = dispatchedShell * contentNo;
-    updated[index].dispatchedPcs = dispatchedPcs;
-
-    const productId = updated[index].productId;
-    const stockAvailable = availableStock[productId] || 0;
-    if (dispatchedPcs > stockAvailable) {
-      alert(`Insufficient stock for ${updated[index].productName}. Available: ${stockAvailable} PCS`);
-      updated[index].dispatchedShell = "";
-      updated[index].dispatchedPcs = "";
-      setRows(updated);
-      return;
+    try {
+      const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`, {
+        params: { warehouse: currentWarehouse?.id }
+      });
+      setAvailableStock((prev) => ({
+        ...prev,
+        [productId]: response.data.quantity_available,
+      }));
+    } catch (err) {
+      console.error("Error fetching stock:", err);
     }
-  }
+  };
 
-  if (field === "dispatchedPcs") {
-    dispatchedPcs = parseFloat(value) || 0;
-    dispatchedShell = contentNo ? parseFloat((dispatchedPcs / contentNo).toFixed(2)) : 0;
-    updated[index].dispatchedShell = dispatchedShell;
+  const handleProductChange = (index, productId) => {
+    const updatedRows = [...rows];
+    updatedRows[index].productId = productId;
 
-    const productId = updated[index].productId;
-    const stockAvailable = availableStock[productId] || 0;
-    if (dispatchedPcs > stockAvailable) {
-      alert(`Insufficient stock for ${updated[index].productName}. Available: ${stockAvailable} PCS`);
-      updated[index].dispatchedShell = "";
-      updated[index].dispatchedPcs = "";
-      setRows(updated);
-      return;
+    const selectedProduct = products.find((p) => p.id === parseInt(productId));
+    if (selectedProduct) {
+      updatedRows[index].productName = selectedProduct.product_name;
+      updatedRows[index].priceId = selectedProduct.price.id;
+      updatedRows[index].contentNo = selectedProduct.unit_type.content_no;
+
+      // ✅ Fetch stock for selected product
+      fetchStockQuantity(productId);
     }
-  }
 
-  // ✅ Calculate Expected Sale
-  if (pricing) {
-    const rawExpected = dispatchedPcs * sellingPrice;
-    const discounted = rawExpected * (1 - discount / 100);
-    updated[index].expectedSale = parseFloat(discounted.toFixed(2));
-  } else {
-    console.warn(`No pricing found for priceId: ${priceId}`);
-    updated[index].expectedSale = 0;
-  }
+    setRows(updatedRows);
 
-  let soldShell = parseFloat(updated[index].soldShell) || 0;
-  let soldPcs = parseFloat(updated[index].soldPcs) || 0;
+    // ✅ Automatically add a new row if current is last and selected
+    if (index === rows.length - 1 && productId) {
+      setRows((prev) => [
+        ...prev,
+        {
+          id: Date.now(),
+          productId: "",
+          productName: "",
+          priceId: "",
+          dispatchedShell: "",
+          dispatchedPcs: "",
+          soldShell: "",
+          soldPcs: "",
+          expectedReturnShellEmpty: "",
+          expectedReturnPcsEmpty: "",
+          expectedReturnShellNonempty: "",
+          expectedReturnPcsNonempty: "",
+          discrepancyShellEmpty: "",
+          discrepancyPcsEmpty: "",
+          discrepancyShellNonempty: "",
+          discrepancyPcsNonempty: "",
+          discount: "",
+          expectedSale: "",
+          actualSale: "",
+          contentNo: "",
+        },
+      ]);
+    }
+  };
 
-  if (field === "soldShell") {
-    soldPcs = soldShell * contentNo;
-    updated[index].soldPcs = soldPcs;
-    updated[index].expectedReturnShellEmpty = soldShell;
-    updated[index].expectedReturnPcsEmpty = soldShell * contentNo;
-  }
+  const handleRowChange = (index, field, value) => {
+    const updated = [...rows];
+    updated[index][field] = value === "" ? "" : parseFloat(value);
 
-  if (field === "soldPcs") {
-    soldShell = Math.floor(soldPcs / contentNo);
-    updated[index].soldShell = soldShell;
-    updated[index].expectedReturnShellEmpty = soldShell;
-    updated[index].expectedReturnPcsEmpty = soldPcs;
-  }
+    const contentNo = parseFloat(updated[index].contentNo) || 0;
+    const priceId = updated[index].priceId;
+    const pricing = pricingMap[priceId];
+    const sellingPrice = pricing ? parseFloat(pricing.selling_price) || 0 : 0;
+    const discount = parseFloat(updated[index].discount) || 0;
 
-  // ✅ Only auto-compute return if not manually edited
-  if (
-    !updated[index].manuallyEditedNonemptyReturn &&
-    (soldShell > 0 || soldPcs > 0)
-  ) {
-    updated[index].expectedReturnShellNonempty = dispatchedShell - soldShell;
-    updated[index].expectedReturnPcsNonempty = dispatchedPcs - soldPcs;
-  }
+    let dispatchedShell = parseFloat(updated[index].dispatchedShell) || 0;
+    let dispatchedPcs = parseFloat(updated[index].dispatchedPcs) || 0;
 
-  if (
-    field === "expectedReturnShellNonempty" ||
-    field === "expectedReturnPcsNonempty"
-  ) {
-    updated[index].manuallyEditedNonemptyReturn = true;
-  }
+    // 🔁 SMART DISPATCHED LOGIC
+    if (field === "dispatchedShell") {
+      dispatchedShell = parseFloat(value) || 0;
+      dispatchedPcs = dispatchedShell * contentNo;
+      updated[index].dispatchedPcs = dispatchedPcs;
 
-  if (field === "expectedReturnShellNonempty") {
-    const shellVal = parseFloat(value) || 0;
-    updated[index].expectedReturnPcsNonempty = shellVal * contentNo;
-  }
+      const productId = updated[index].productId;
+      const stockAvailable = availableStock[productId] || 0;
+      if (dispatchedPcs > stockAvailable) {
+        alert(`Insufficient stock for ${updated[index].productName}. Available: ${stockAvailable} PCS`);
+        updated[index].dispatchedShell = "";
+        updated[index].dispatchedPcs = "";
+        setRows(updated);
+        return;
+      }
+    }
 
-  if (field === "expectedReturnShellEmpty") {
-    const expectedShell = parseFloat(value) || 0;
-    updated[index].expectedReturnPcsEmpty = expectedShell * contentNo;
-  }
+    if (field === "dispatchedPcs") {
+      dispatchedPcs = parseFloat(value) || 0;
+      dispatchedShell = contentNo ? parseFloat((dispatchedPcs / contentNo).toFixed(2)) : 0;
+      updated[index].dispatchedShell = dispatchedShell;
 
-  const returnShellEmpty = parseFloat(updated[index].expectedReturnShellEmpty) || 0;
-  const returnPcsEmpty = parseFloat(updated[index].expectedReturnPcsEmpty) || 0;
-  updated[index].discrepancyShellEmpty = soldShell - returnShellEmpty;
-  updated[index].discrepancyPcsEmpty = soldPcs - returnPcsEmpty;
+      const productId = updated[index].productId;
+      const stockAvailable = availableStock[productId] || 0;
+      if (dispatchedPcs > stockAvailable) {
+        alert(`Insufficient stock for ${updated[index].productName}. Available: ${stockAvailable} PCS`);
+        updated[index].dispatchedShell = "";
+        updated[index].dispatchedPcs = "";
+        setRows(updated);
+        return;
+      }
+    }
 
-  const returnShellNonempty = parseFloat(updated[index].expectedReturnShellNonempty) || 0;
-  const returnPcsNonempty = parseFloat(updated[index].expectedReturnPcsNonempty) || 0;
-  updated[index].discrepancyShellNonempty = dispatchedShell - soldShell - returnShellNonempty;
-  updated[index].discrepancyPcsNonempty = dispatchedPcs - soldPcs - returnPcsNonempty;
+    // ✅ Calculate Expected Sale
+    if (pricing) {
+      const rawExpected = dispatchedPcs * sellingPrice;
+      const discounted = rawExpected * (1 - discount / 100);
+      updated[index].expectedSale = parseFloat(discounted.toFixed(2));
+    } else {
+      console.warn(`No pricing found for priceId: ${priceId}`);
+      updated[index].expectedSale = 0;
+    }
 
-  const actualSaleRaw = soldPcs * sellingPrice;
-  const discountAmount = actualSaleRaw * (discount / 100);
-  const finalActualSale = actualSaleRaw - discountAmount;
-  updated[index].actualSale = parseFloat(finalActualSale.toFixed(2));
+    let soldShell = parseFloat(updated[index].soldShell) || 0;
+    let soldPcs = parseFloat(updated[index].soldPcs) || 0;
 
-  // ✅ Update table rows
-  setRows(updated);
+    if (field === "soldShell") {
+      soldPcs = soldShell * contentNo;
+      updated[index].soldPcs = soldPcs;
+      updated[index].expectedReturnShellEmpty = soldShell;
+      updated[index].expectedReturnPcsEmpty = soldShell * contentNo;
+    }
 
-  // ✅ Compute totals
-  const totalExpected = updated.reduce((sum, r) => sum + parseFloat(r.expectedSale || 0), 0);
-  const totalActual = updated.reduce((sum, r) => sum + parseFloat(r.actualSale || 0), 0);
-  setExpectedTotal(totalExpected);
-  setActualTotal(totalActual);
+    if (field === "soldPcs") {
+      soldShell = Math.floor(soldPcs / contentNo);
+      updated[index].soldShell = soldShell;
+      updated[index].expectedReturnShellEmpty = soldShell;
+      updated[index].expectedReturnPcsEmpty = soldPcs;
+    }
 
-  const misc = parseFloat(miscCharges) || 0;
+    // ✅ Only auto-compute return if not manually edited
+    if (
+      !updated[index].manuallyEditedNonemptyReturn &&
+      (soldShell > 0 || soldPcs > 0)
+    ) {
+      updated[index].expectedReturnShellNonempty = dispatchedShell - soldShell;
+      updated[index].expectedReturnPcsNonempty = dispatchedPcs - soldPcs;
+    }
 
-  const totalEmpties = updated.reduce((sum, r) => {
-    const price = pricingMap[r.priceId] || {};
-    const sp = parseFloat(price.shell_price) || 0;
-    const bp = parseFloat(price.bottle_price) || 0;
-    return sum + (r.soldShell * sp) + (r.soldPcs * bp);
-  }, 0);
+    if (
+      field === "expectedReturnShellNonempty" ||
+      field === "expectedReturnPcsNonempty"
+    ) {
+      updated[index].manuallyEditedNonemptyReturn = true;
+    }
 
-  const totalRefundables = updated.reduce((sum, r) => {
-    const price = pricingMap[r.priceId] || {};
-    const sp = parseFloat(price.shell_price) || 0;
-    const bp = parseFloat(price.bottle_price) || 0;
-    return sum + (r.expectedReturnShellEmpty * sp) + (r.expectedReturnPcsEmpty * bp);
-  }, 0);
+    if (field === "expectedReturnShellNonempty") {
+      const shellVal = parseFloat(value) || 0;
+      updated[index].expectedReturnPcsNonempty = shellVal * contentNo;
+    }
 
-  setEmptiesPriceTotal(totalEmpties);
-  setRefundablesTotal(totalRefundables);
+    if (field === "expectedReturnShellEmpty") {
+      const expectedShell = parseFloat(value) || 0;
+      updated[index].expectedReturnPcsEmpty = expectedShell * contentNo;
+    }
 
-  const totalDiscrepancyEmpty = updated.reduce((sum, r) => {
-    const price = pricingMap[r.priceId] || {};
-    const sp = parseFloat(price.shell_price) || 0;
-    const bp = parseFloat(price.bottle_price) || 0;
-    return sum + ((r.discrepancyShellEmpty || 0) * sp) + ((r.discrepancyPcsEmpty || 0) * bp);
-  }, 0);
+    const returnShellEmpty = parseFloat(updated[index].expectedReturnShellEmpty) || 0;
+    const returnPcsEmpty = parseFloat(updated[index].expectedReturnPcsEmpty) || 0;
+    updated[index].discrepancyShellEmpty = soldShell - returnShellEmpty;
+    updated[index].discrepancyPcsEmpty = soldPcs - returnPcsEmpty;
 
-  const totalDiscrepancyNonEmpty = updated.reduce((sum, r) => {
-    const price = pricingMap[r.priceId] || {};
-    const sp = parseFloat(price.selling_price) || 0;
-    return sum + ((r.discrepancyPcsNonempty || 0) * sp);
-  }, 0);
+    const returnShellNonempty = parseFloat(updated[index].expectedReturnShellNonempty) || 0;
+    const returnPcsNonempty = parseFloat(updated[index].expectedReturnPcsNonempty) || 0;
+    updated[index].discrepancyShellNonempty = dispatchedShell - soldShell - returnShellNonempty;
+    updated[index].discrepancyPcsNonempty = dispatchedPcs - soldPcs - returnPcsNonempty;
 
-  const overallDiscrepancy = totalDiscrepancyEmpty + totalDiscrepancyNonEmpty;
-  setDiscrepancy(overallDiscrepancy.toFixed(2));
+    const actualSaleRaw = soldPcs * sellingPrice;
+    const discountAmount = actualSaleRaw * (discount / 100);
+    const finalActualSale = actualSaleRaw - discountAmount;
+    updated[index].actualSale = parseFloat(finalActualSale.toFixed(2));
 
-  let totalAmountValue;
-  if (transactionType === "Van Load") {
-    totalAmountValue = (totalActual - misc) + overallDiscrepancy;
-  } else {
-    totalAmountValue = (totalEmpties - totalRefundables + totalActual);
-  }
+    // ✅ Update table rows
+    setRows(updated);
 
-  setTotalAmount(totalAmountValue);
-};
+    // ✅ Compute totals
+    const totalExpected = updated.reduce((sum, r) => sum + parseFloat(r.expectedSale || 0), 0);
+    const totalActual = updated.reduce((sum, r) => sum + parseFloat(r.actualSale || 0), 0);
+    setExpectedTotal(totalExpected);
+    setActualTotal(totalActual);
+
+    const misc = parseFloat(miscCharges) || 0;
+
+    const totalEmpties = updated.reduce((sum, r) => {
+      const price = pricingMap[r.priceId] || {};
+      const sp = parseFloat(price.shell_price) || 0;
+      const bp = parseFloat(price.bottle_price) || 0;
+      return sum + (r.soldShell * sp) + (r.soldPcs * bp);
+    }, 0);
+
+    const totalRefundables = updated.reduce((sum, r) => {
+      const price = pricingMap[r.priceId] || {};
+      const sp = parseFloat(price.shell_price) || 0;
+      const bp = parseFloat(price.bottle_price) || 0;
+      return sum + (r.expectedReturnShellEmpty * sp) + (r.expectedReturnPcsEmpty * bp);
+    }, 0);
+
+    setEmptiesPriceTotal(totalEmpties);
+    setRefundablesTotal(totalRefundables);
+
+    const totalDiscrepancyEmpty = updated.reduce((sum, r) => {
+      const price = pricingMap[r.priceId] || {};
+      const sp = parseFloat(price.shell_price) || 0;
+      const bp = parseFloat(price.bottle_price) || 0;
+      return sum + ((r.discrepancyShellEmpty || 0) * sp) + ((r.discrepancyPcsEmpty || 0) * bp);
+    }, 0);
+
+    const totalDiscrepancyNonEmpty = updated.reduce((sum, r) => {
+      const price = pricingMap[r.priceId] || {};
+      const sp = parseFloat(price.selling_price) || 0;
+      return sum + ((r.discrepancyPcsNonempty || 0) * sp);
+    }, 0);
+
+    const overallDiscrepancy = totalDiscrepancyEmpty + totalDiscrepancyNonEmpty;
+    setDiscrepancy(overallDiscrepancy.toFixed(2));
+
+    let totalAmountValue;
+    if (transactionType === "Van Load") {
+      totalAmountValue = (totalActual - misc) + overallDiscrepancy;
+    } else {
+      totalAmountValue = (totalEmpties - totalRefundables + totalActual);
+    }
+
+    setTotalAmount(totalAmountValue);
+  };
 
   const handleSubmit = async (status = "Complete") => {
+    if (!currentWarehouse?.id) {
+      alert("No warehouse selected. Please select a warehouse first.");
+      return false;
+    }
+
     const payload = {
       msp_no: mspNo,
       transaction_type: parseInt(transactionType),
       route: route ? parseInt(route) : null,
       van: selectedVan ? parseInt(selectedVan) : null,
       handled_by: selectedUser ? parseInt(selectedUser) : null,
+      warehouse: currentWarehouse.id, // ✅ ADD THIS LINE
       date_time: new Date().toISOString(),
       expected_sale: parseFloat(expectedTotal) || 0,
       actual_sale: parseFloat(actualTotal) || 0,
       miscellaneous: parseFloat(miscCharges) || 0,
       payment_amount: parseFloat(cashReceived) || 0,
-      payment_method: "",  // Using empty string since selectedPaymentMethod was removed
+      payment_method: "",
       invoice_no: invoiceNo,
       status: status,
       remarks: remarks,
@@ -467,29 +515,41 @@ const handleRowChange = (index, field, value) => {
         receipt_file: item.file,
       })),
 
-      payments: [],  // Using empty array since payments was removed
+      payments: [],
     };
 
     try {
-    // Removed unused 'res' variable
-    await axios.post("http://localhost:8080/api/merchandisings/", payload);
-    alert("Transaction saved successfully!");
-    return true; // ✅ return success
-  } catch (error) {
-    if (error.response) {
-      console.error("Backend response error:", error.response.data);
-      alert("Failed to save sale: " + JSON.stringify(error.response.data));
-    } else {
-      console.error(error.message);
-      alert("Failed to save sale.");
+      await axios.post("http://localhost:8080/api/merchandisings/", payload, {
+        params: { warehouse: currentWarehouse.id } // ✅ ADD THIS
+      });
+      alert("Transaction saved successfully!");
+      return true;
+    } catch (error) {
+      if (error.response) {
+        console.error("Backend response error:", error.response.data);
+        alert("Failed to save sale: " + JSON.stringify(error.response.data));
+      } else {
+        console.error(error.message);
+        alert("Failed to save sale.");
+      }
+      return false;
     }
-    return false; // ✅ return failure
-  }
-
-}
+  };
 
   return (
     <div className="bg-sky-200 min-h-screen p-6 text-black">
+      {/* Warehouse Display */}
+      <div className="mb-4 p-4 bg-blue-600 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-blue-100">Current Warehouse:</span>
+            <span className="ml-2 text-white font-bold text-lg">
+              {currentWarehouse?.name || "No Warehouse Selected"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
           <div>
@@ -506,7 +566,7 @@ const handleRowChange = (index, field, value) => {
               value={transactionType}
               onChange={(e) => {
                 const id = parseInt(e.target.value);
-                setTransactionType(id); // ✅ fixed
+                setTransactionType(id);
                 const selected = transactionTypes.find((t) => t.id === id);
                 setSelectedTransactionTypeName(selected?.name || "");
               }}
@@ -579,9 +639,11 @@ const handleRowChange = (index, field, value) => {
                       try {
                         const res = await axios.post("http://localhost:8080/api/customers/", {
                           name: newCustomer,
+                        }, {
+                          params: { warehouse: currentWarehouse?.id }
                         });
                         setCustomers((prev) => [...prev, res.data]);
-                        setSelectedCustomerId(res.data.id); // ⬅ use ID here
+                        setSelectedCustomerId(res.data.id);
                       } catch (error) {
                         console.error("Error saving new customer:", error);
                       }
@@ -595,7 +657,7 @@ const handleRowChange = (index, field, value) => {
                   onChange={(e) => {
                     if (e.target.value === "add_new") {
                       setIsAddingCustomer(true);
-                      setSelectedCustomerId(""); // reset if switching to input
+                      setSelectedCustomerId("");
                     } else {
                       setSelectedCustomerId(e.target.value);
                     }
@@ -659,6 +721,8 @@ const handleRowChange = (index, field, value) => {
                         try {
                           const res = await axios.post("http://localhost:8080/api/routes/", {
                             route_name: newRoute,
+                          }, {
+                            params: { warehouse: currentWarehouse?.id }
                           });
                           setRoutes((prev) => [...prev, res.data]);
                           setRoute(res.data.id);
@@ -675,7 +739,7 @@ const handleRowChange = (index, field, value) => {
                     onChange={(e) => {
                       if (e.target.value === "add_new") {
                         setIsAddingRoute(true);
-                        setRoute(""); // clear any leftover value
+                        setRoute("");
                       } else {
                         setRoute(e.target.value);
                       }
@@ -700,380 +764,194 @@ const handleRowChange = (index, field, value) => {
       </div>
  
       <div className="overflow-x-auto mt-6">
-  <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
-    <thead className="bg-gray-100 text-gray-800">
-      <tr className="text-xs font-semibold">
-        <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
-        <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>EMPTY PRICE</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
-        <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
-        <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
-        <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
-      </tr>
-        <tr className="bg-gray-200">
-        <td className="border border-gray-300 py-1"></td> {/* PRODUCT */}
+        <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
+          <thead className="bg-gray-100 text-gray-800">
+            <tr className="text-xs font-semibold">
+              <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
+              <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
+              <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
+              <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
+              <th className="border border-gray-300 py-2 px-1" colSpan={2}>EMPTY PRICE</th>
+              <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
+              <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
+              <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
+              <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
+              <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
+              <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
+              <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
+            </tr>
+            <tr className="bg-gray-200">
+              <td className="border border-gray-300 py-1"></td> {/* PRODUCT */}
 
-        {/* DISPATCHED */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              {/* DISPATCHED */}
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-        {/* SELLING PRICE -- only one cell */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium" colSpan={1}></td>
+              {/* SELLING PRICE -- only one cell */}
+              <td className="border border-gray-300 py-1 text-[11px] font-medium" colSpan={1}></td>
 
-        {/* SOLD */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              {/* SOLD */}
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-        {/* EMPTY PRICE */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              {/* EMPTY PRICE */}
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-        {/* RETURNED (Empty) */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              {/* RETURNED (Empty) */}
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-        {/* DISCREPANCY (Empty) */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              {/* DISCREPANCY (Empty) */}
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-        {/* RETURNED (With Content/s) */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              {/* RETURNED (With Content/s) */}
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-        {/* DISCREPANCY (Non-empty) */}
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              {/* DISCREPANCY (Non-empty) */}
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
 
-        {/* DISCOUNT, EXPECTED, ACTUAL */}
-        <td className="border border-gray-300 py-1"></td>
-        <td className="border border-gray-300 py-1"></td>
-        <td className="border border-gray-300 py-1"></td>
-      </tr>
+              {/* DISCOUNT, EXPECTED, ACTUAL */}
+              <td className="border border-gray-300 py-1"></td>
+              <td className="border border-gray-300 py-1"></td>
+              <td className="border border-gray-300 py-1"></td>
+            </tr>
 
-    </thead>
-    <tbody>
-      {rows.map((row, index) => (
-        <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
-      <td className="border border-gray-200 py-1 px-1 w-[120px]">
-        <select
-          className="w-full p-1 text-sm text-center rounded bg-white border"
-          value={row.productId}
-          onChange={(e) => handleProductChange(index, e.target.value)}
-        >
-          <option value="">Select Product</option>
-          {products.map((product) => (
-            <option key={product.id} value={product.id}>
-              {product.product_name}
-            </option>
-          ))}
-        </select>
-      </td>
+          </thead>
+          <tbody>
+            {rows.map((row, index) => (
+              <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
+                <td className="border border-gray-200 py-1 px-1 w-[120px]">
+                  <select
+                    className="w-full p-1 text-sm text-center rounded bg-white border"
+                    value={row.productId}
+                    onChange={(e) => handleProductChange(index, e.target.value)}
+                  >
+                    <option value="">Select Product</option>
+                    {products.map((product) => (
+                      <option key={product.id} value={product.id}>
+                        {product.product_name}
+                      </option>
+                    ))}
+                  </select>
+                </td>
 
-          {/* DISPATCHED */}
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input
-              type="number"
-              className="w-full p-1 text-sm text-center rounded bg-white"
-              value={row.dispatchedShell || ""}
-              onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
-/>
-          </td>
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input
-              type="number"
-              className="w-full p-1 text-sm text-center rounded bg-white"
-              value={row.dispatchedPcs || ""}
-              onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
-            />
-          </td>
+                {/* DISPATCHED */}
+                <td className="border border-gray-200 py-1 px-1 w-[72px]">
+                  <input
+                    type="number"
+                    className="w-full p-1 text-sm text-center rounded bg-white"
+                    value={row.dispatchedShell || ""}
+                    onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
+                  />
+                </td>
+                <td className="border border-gray-200 py-1 px-1 w-[72px]">
+                  <input
+                    type="number"
+                    className="w-full p-1 text-sm text-center rounded bg-white"
+                    value={row.dispatchedPcs || ""}
+                    onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
+                  />
+                </td>
 
-          {/* SELLING PRICE */}
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input
-              type="number"
-              className="w-full p-1 text-sm text-center rounded bg-gray-100"
-              value={pricingMap[row.priceId]?.selling_price || ""}
-              disabled
-            />
-          </td>
+                {/* SELLING PRICE */}
+                <td className="border border-gray-200 py-1 px-1 w-[72px]">
+                  <input
+                    type="number"
+                    className="w-full p-1 text-sm text-center rounded bg-gray-100"
+                    value={pricingMap[row.priceId]?.selling_price || ""}
+                    disabled
+                  />
+                </td>
 
-          {/* SOLD */}
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldShell || ""} onChange={(e) => handleRowChange(index, "soldShell", e.target.value)} />
-          </td>
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldPcs || ""} onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)} />
-          </td>
+                {/* SOLD */}
+                <td className="border border-gray-200 py-1 px-1 w-[72px]">
+                  <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldShell || ""} onChange={(e) => handleRowChange(index, "soldShell", e.target.value)} />
+                </td>
+                <td className="border border-gray-200 py-1 px-1 w-[72px]">
+                  <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldPcs || ""} onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)} />
+                </td>
 
-          {/* EMPTY PRICE */}
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input type="number" className="w-full p-1 text-sm text-center rounded bg-gray-100" value={pricingMap[row.priceId]?.shell_price || ""} disabled />
-          </td>
-          <td className="border border-gray-200 py-1 px-1 w-[72px]">
-            <input type="number" className="w-full p-1 text-sm text-center rounded bg-gray-100" value={pricingMap[row.priceId]?.bottle_price || ""} disabled />
-          </td>
+                {/* EMPTY PRICE */}
+                <td className="border border-gray-200 py-1 px-1 w-[72px]">
+                  <input type="number" className="w-full p-1 text-sm text-center rounded bg-gray-100" value={pricingMap[row.priceId]?.shell_price || ""} disabled />
+                </td>
+                <td className="border border-gray-200 py-1 px-1 w-[72px]">
+                  <input type="number" className="w-full p-1 text-sm text-center rounded bg-gray-100" value={pricingMap[row.priceId]?.bottle_price || ""} disabled />
+                </td>
 
-          {/* Continue with other fields as usual */}
-          {[
-            "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
-            "discrepancyShellEmpty", "discrepancyPcsEmpty",
-            "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
-            "discrepancyShellNonempty", "discrepancyPcsNonempty"
-          ].map((field, i) => (
-            <td key={i} className="border border-gray-200 py-1 px-1 w-[72px]">
-              <input
-                type="number"
-                className={`w-full p-1 text-sm text-center rounded focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all duration-100 ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field) ? "bg-yellow-50" : "bg-gray-100"} ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
-                value={row[field] === 0 ? "" : row[field]}
-                onChange={(e) => handleRowChange(index, field, e.target.value)}
-                disabled={["discrepancyShellEmpty", "discrepancyPcsEmpty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].includes(field)}
-              />
-            </td>
-          ))}
-
-          {/* Discount */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              type="number"
-              inputMode="decimal"
-              className={`w-full p-1 text-center rounded bg-white border ${row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
-              value={row.discount === 0 ? "" : row.discount}
-              onChange={(e) => handleRowChange(index, "discount", e.target.value)}
-              disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
-            />
-          </td>
-
-          {/* Expected & Actual Sale */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-              disabled
-              value={row.expectedSale ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
-            />
-          </td>
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-              disabled
-              value={row.actualSale ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
-            />
-          </td>
-        </tr>
-      ))}
-    </tbody>
-
-  </table>
-</div>
-
-    {/* Summary & Buttons */}
-        <div className="mt-6 max-w-7xl mx-auto flex flex-col md:flex-row gap-16">
-            <div className="w-full md:w-1/2">
-              <label className="block mb-1">Remarks:</label>
-              <textarea
-                value={remarks}
-                onChange={(e) => setRemarks(e.target.value)}
-                className="w-full h-28 p-2 rounded"
-              />
-            </div>
-
-            <div className="w-full md:w-1/2 space-y-4">
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right text-sm font-medium text-gray-700">Expected Sale:</label>
-                <input
-                  className="flex-1 p-2 rounded border border-gray-300 bg-gray-100 text-right font-semibold text-gray-800 shadow-sm"
-                  value={`₱${expectedTotal.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right text-sm font-medium text-gray-700">Actual Sale:</label>
-                <input
-                  className="flex-1 p-2 rounded border border-gray-300 bg-gray-100 text-right font-semibold text-gray-800 shadow-sm"
-                  value={`₱${actualTotal.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right text-sm font-medium text-gray-700">Empties Price:</label>
-                <input
-                  className="flex-1 p-2 rounded border border-gray-300 bg-blue-100 text-right font-semibold text-gray-800 shadow-sm"
-                  value={`₱${emptiesPriceTotal.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right text-sm font-medium text-gray-700">Refundables:</label>
-                <input
-                  className="flex-1 p-2 rounded border border-gray-300 bg-blue-100 text-right font-semibold text-gray-800 shadow-sm"
-                  value={`₱-${refundablesTotal.toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
-                  disabled
-                />
-              </div>
-
-              {/* === Misc Charges Section === */}
-              <div className="flex items-start gap-4">
-                <label className="w-40 text-right pt-2 font-medium text-gray-700">Miscellaneous Charges:</label>
-                <div className="flex-1 space-y-2">
-                  <div className="flex items-center gap-3">
+                {/* Continue with other fields as usual */}
+                {[
+                  "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
+                  "discrepancyShellEmpty", "discrepancyPcsEmpty",
+                  "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
+                  "discrepancyShellNonempty", "discrepancyPcsNonempty"
+                ].map((field, i) => (
+                  <td key={i} className="border border-gray-200 py-1 px-1 w-[72px]">
                     <input
-                      className="w-full p-2 border rounded shadow-sm bg-gray-100 text-right font-semibold text-gray-700"
-                      value={miscCharges}
-                      onChange={(e) => setMiscCharges(e.target.value)}
-                      disabled
+                      type="number"
+                      className={`w-full p-1 text-sm text-center rounded focus:outline-none focus:ring-1 focus:ring-blue-400 transition-all duration-100 ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field) ? "bg-yellow-50" : "bg-gray-100"} ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
+                      value={row[field] === 0 ? "" : row[field]}
+                      onChange={(e) => handleRowChange(index, field, e.target.value)}
+                      disabled={["discrepancyShellEmpty", "discrepancyPcsEmpty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].includes(field)}
                     />
-                    <label className="flex items-center space-x-2 text-sm font-medium text-gray-600">
-                      <input
-                        type="checkbox"
-                        checked={showMiscDetails}
-                        onChange={(e) => setShowMiscDetails(e.target.checked)}
-                        className="scale-125 accent-blue-600"
-                      />
-                      <span>Details</span>
-                    </label>
-                  </div>
+                  </td>
+                ))}
 
-                  {showMiscDetails && (
-                    <div className="bg-white border rounded-lg shadow p-4 space-y-4">
-                      {/* Description Input */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Descriptions (comma separated)</label>
-                        <input
-                          type="text"
-                          className="w-full p-2 border rounded shadow-sm"
-                          value={miscDescription}
-                          onChange={(e) => {
-                            const value = e.target.value;
-                            setMiscDescription(value);
-                            const parts = value.split(",").map((item) => item.trim()).filter((item) => item !== "");
-                            setMiscItems(parts);
-                            const updated = { ...miscAmounts };
-                            parts.forEach((item) => {
-                              if (!(item in updated)) updated[item] = "";
-                            });
-                            setMiscAmounts(updated);
-                          }}
-                          placeholder="E.g. toll fee, repair, snacks"
-                        />
-                      </div>
+                {/* Discount */}
+                <td className="border border-gray-200 py-1 px-1">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    className={`w-full p-1 text-center rounded bg-white border ${row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
+                    value={row.discount === 0 ? "" : row.discount}
+                    onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+                    disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+                  />
+                </td>
 
-                      {/* Amount per Item */}
-                      {miscItems.length > 0 && (
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Amount per Item</label>
-                          <div className="space-y-2">
-                            {miscItems.map((item, index) => (
-                              <div key={index} className="flex items-center gap-3">
-                                <span className="w-32 text-right text-sm text-gray-600">{item}:</span>
-                                <input
-                                  type="number"
-                                  className="flex-1 p-2 border rounded shadow-sm text-right"
-                                  placeholder="₱"
-                                  value={miscAmounts[item] || ""}
-                                  onChange={(e) => {
-                                    const updated = { ...miscAmounts };
-                                    updated[item] = e.target.value;
-                                    setMiscAmounts(updated);
-                                    const total = Object.values(updated)
-                                      .map((val) => parseFloat(val) || 0)
-                                      .reduce((sum, val) => sum + val, 0);
-                                    setMiscCharges(total.toFixed(2));
-                                  }}
-                                />
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
+                {/* Expected & Actual Sale */}
+                <td className="border border-gray-200 py-1 px-1">
+                  <input
+                    className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+                    disabled
+                    value={row.expectedSale ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
+                  />
+                </td>
+                <td className="border border-gray-200 py-1 px-1">
+                  <input
+                    className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+                    disabled
+                    value={row.actualSale ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : ""}
+                  />
+                </td>
+              </tr>
+            ))}
+          </tbody>
 
-                      {/* File Upload Section */}
-                      <div>
-                        <label className="block text-sm font-semibold text-gray-700 mb-1">Attach Files (Photos/Receipts)</label>
-                        <input
-                          type="file"
-                          className="w-full p-2 border rounded"
-                          accept="image/*"
-                          multiple
-                          onChange={(e) => {
-                            const files = Array.from(e.target.files);
-                            const previews = files.map((file) => ({
-                              file,
-                              url: URL.createObjectURL(file),
-                            }));
-                            setMiscFiles((prev) => [...prev, ...files]);
-                            setImagePreviewUrls((prev) => [...prev, ...previews]);
-                          }}
-                        />
-                        {imagePreviewUrls.length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {imagePreviewUrls.map((preview, index) => (
-                              <div key={index} className="relative group">
-                                <img
-                                  src={preview.url}
-                                  alt={`Preview ${index}`}
-                                  className="h-24 w-24 object-cover border rounded shadow cursor-zoom-in"
-                                  onClick={() => setZoomed(preview.url)}
-                                />
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    const updatedPreviews = [...imagePreviewUrls];
-                                    const updatedFiles = [...miscFiles];
-                                    updatedPreviews.splice(index, 1);
-                                    updatedFiles.splice(index, 1);
-                                    setImagePreviewUrls(updatedPreviews);
-                                    setMiscFiles(updatedFiles);
-                                  }}
-                                  className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-700"
-                                  title="Remove"
-                                >
-                                  ×
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+        </table>
+      </div>
 
-              {/* Totals */}
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right font-medium text-gray-700">Overall Discrepancy:</label>
-                <div className="flex-1 text-right pr-2 text-lg font-semibold bg-gray-50 border border-gray-300 rounded py-2 px-3 shadow-sm">
-                  ₱{parseFloat(discrepancy || 0).toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </div>
-              </div>
-             <div className="flex items-center gap-4">
-            <label className="w-40 text-right font-medium">Total Amount:</label>
+      {/* Summary & Buttons */}
+      <div className="mt-6 max-w-7xl mx-auto flex flex-col md:flex-row gap-16">
+        <div className="w-full md:w-1/2">
+          <label className="block mb-1">Remarks:</label>
+          <textarea
+            value={remarks}
+            onChange={(e) => setRemarks(e.target.value)}
+            className="w-full h-28 p-2 rounded"
+          />
+        </div>
+
+        <div className="w-full md:w-1/2 space-y-4">
+          <div className="flex items-center gap-4">
+            <label className="w-40 text-right text-sm font-medium text-gray-700">Expected Sale:</label>
             <input
-              className="flex-1 p-2 border rounded bg-gray-50 text-right"
-              value={`₱${parseFloat(totalAmount || 0).toLocaleString("en-PH", {
+              className="flex-1 p-2 rounded border border-gray-300 bg-gray-100 text-right font-semibold text-gray-800 shadow-sm"
+              value={`₱${expectedTotal.toLocaleString("en-PH", {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}`}
@@ -1081,102 +959,288 @@ const handleRowChange = (index, field, value) => {
             />
           </div>
 
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right font-medium">User Cash:</label>
-                <input
-                  type="number"
-                  className="flex-1 p-2 rounded border"
-                  value={userCashInput}
-                  onChange={(e) => setUserCashInput(e.target.value)}
-                  placeholder="Enter user cash"
-                />
-              </div>
+          <div className="flex items-center gap-4">
+            <label className="w-40 text-right text-sm font-medium text-gray-700">Actual Sale:</label>
+            <input
+              className="flex-1 p-2 rounded border border-gray-300 bg-gray-100 text-right font-semibold text-gray-800 shadow-sm"
+              value={`₱${actualTotal.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+              disabled
+            />
+          </div>
 
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right font-medium">Cash Received (with Misc):</label>
-                <div className="flex-1 text-right pr-2 font-semibold text-lg">
-                  <span className={cashMismatch ? "text-red-600" : "text-green-700"}>
-                    ₱{parseFloat(cashReceived || 0).toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-              </div>
+          <div className="flex items-center gap-4">
+            <label className="w-40 text-right text-sm font-medium text-gray-700">Empties Price:</label>
+            <input
+              className="flex-1 p-2 rounded border border-gray-300 bg-blue-100 text-right font-semibold text-gray-800 shadow-sm"
+              value={`₱${emptiesPriceTotal.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+              disabled
+            />
+          </div>
 
-              <div className="flex items-center gap-4">
-                <label className="w-40 text-right font-medium">Change:</label>
+          <div className="flex items-center gap-4">
+            <label className="w-40 text-right text-sm font-medium text-gray-700">Refundables:</label>
+            <input
+              className="flex-1 p-2 rounded border border-gray-300 bg-blue-100 text-right font-semibold text-gray-800 shadow-sm"
+              value={`₱-${refundablesTotal.toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+              disabled
+            />
+          </div>
+
+          {/* === Misc Charges Section === */}
+          <div className="flex items-start gap-4">
+            <label className="w-40 text-right pt-2 font-medium text-gray-700">Miscellaneous Charges:</label>
+            <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-3">
                 <input
-                  className="flex-1 p-2 border rounded bg-gray-50 text-right"
-                  value={`₱${parseFloat(change || 0).toLocaleString("en-PH", {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`}
+                  className="w-full p-2 border rounded shadow-sm bg-gray-100 text-right font-semibold text-gray-700"
+                  value={miscCharges}
+                  onChange={(e) => setMiscCharges(e.target.value)}
                   disabled
                 />
+                <label className="flex items-center space-x-2 text-sm font-medium text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={showMiscDetails}
+                    onChange={(e) => setShowMiscDetails(e.target.checked)}
+                    className="scale-125 accent-blue-600"
+                  />
+                  <span>Details</span>
+                </label>
               </div>
+
+              {showMiscDetails && (
+                <div className="bg-white border rounded-lg shadow p-4 space-y-4">
+                  {/* Description Input */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Descriptions (comma separated)</label>
+                    <input
+                      type="text"
+                      className="w-full p-2 border rounded shadow-sm"
+                      value={miscDescription}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setMiscDescription(value);
+                        const parts = value.split(",").map((item) => item.trim()).filter((item) => item !== "");
+                        setMiscItems(parts);
+                        const updated = { ...miscAmounts };
+                        parts.forEach((item) => {
+                          if (!(item in updated)) updated[item] = "";
+                        });
+                        setMiscAmounts(updated);
+                      }}
+                      placeholder="E.g. toll fee, repair, snacks"
+                    />
+                  </div>
+
+                  {/* Amount per Item */}
+                  {miscItems.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">Amount per Item</label>
+                      <div className="space-y-2">
+                        {miscItems.map((item, index) => (
+                          <div key={index} className="flex items-center gap-3">
+                            <span className="w-32 text-right text-sm text-gray-600">{item}:</span>
+                            <input
+                              type="number"
+                              className="flex-1 p-2 border rounded shadow-sm text-right"
+                              placeholder="₱"
+                              value={miscAmounts[item] || ""}
+                              onChange={(e) => {
+                                const updated = { ...miscAmounts };
+                                updated[item] = e.target.value;
+                                setMiscAmounts(updated);
+                                const total = Object.values(updated)
+                                  .map((val) => parseFloat(val) || 0)
+                                  .reduce((sum, val) => sum + val, 0);
+                                setMiscCharges(total.toFixed(2));
+                              }}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* File Upload Section */}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Attach Files (Photos/Receipts)</label>
+                    <input
+                      type="file"
+                      className="w-full p-2 border rounded"
+                      accept="image/*"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files);
+                        const previews = files.map((file) => ({
+                          file,
+                          url: URL.createObjectURL(file),
+                        }));
+                        setMiscFiles((prev) => [...prev, ...files]);
+                        setImagePreviewUrls((prev) => [...prev, ...previews]);
+                      }}
+                    />
+                    {imagePreviewUrls.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {imagePreviewUrls.map((preview, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={preview.url}
+                              alt={`Preview ${index}`}
+                              className="h-24 w-24 object-cover border rounded shadow cursor-zoom-in"
+                              onClick={() => setZoomed(preview.url)}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const updatedPreviews = [...imagePreviewUrls];
+                                const updatedFiles = [...miscFiles];
+                                updatedPreviews.splice(index, 1);
+                                updatedFiles.splice(index, 1);
+                                setImagePreviewUrls(updatedPreviews);
+                                setMiscFiles(updatedFiles);
+                              }}
+                              className="absolute top-1 right-1 bg-red-600 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-700"
+                              title="Remove"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
-            {/* Buttons */}
-          <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
-            {/* Only show DRAFT button for Van Load */}
-            {selectedTransactionTypeName === "Van Load" && (
-              <button
-                className="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600"
-                onClick={async () => {
-                  const confirmDraft = window.confirm("Save this sale as draft?");
-                  if (confirmDraft) {
-                    const success = await handleSubmit("Pending"); // save as draft
-                    if (success) navigate("/trading");
-                  }
-                }}
-
-              >
-                DRAFT
-              </button>
-            )}
-
-            {/* Back button */}
-            <button
-              className="bg-gray-500 text-white px-6 py-2 rounded"
-              onClick={() => {
-                const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
-                if (confirmBack) navigate("/trading");
-              }}
-            >
-              BACK
-            </button>
-
-            {/* Finalize button for all */}
-            <button
-              className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
-              onClick={() => {
-                const confirmFinalize = window.confirm("Are you sure you want to finalize this sale?");
-                if (confirmFinalize) {
-                  handleSubmit("Complete");
-                }
-              }}
-            >
-              FINALIZE SALE
-            </button>
+          {/* Totals */}
+          <div className="flex items-center gap-4">
+            <label className="w-40 text-right font-medium text-gray-700">Overall Discrepancy:</label>
+            <div className="flex-1 text-right pr-2 text-lg font-semibold bg-gray-50 border border-gray-300 rounded py-2 px-3 shadow-sm">
+              ₱{parseFloat(discrepancy || 0).toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
           </div>
+         <div className="flex items-center gap-4">
+          <label className="w-40 text-right font-medium">Total Amount:</label>
+          <input
+            className="flex-1 p-2 border rounded bg-gray-50 text-right"
+            value={`₱${parseFloat(totalAmount || 0).toLocaleString("en-PH", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`}
+            disabled
+          />
+        </div>
 
-            {/* 🔍 Image Zoom Overlay */}
-            {zoomed && (
-              <div
-                className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50"
-                onClick={() => setZoomed(null)}
-              >
-                <img
-                  src={zoomed}
-                  alt="Zoomed"
-                  className="max-w-[90%] max-h-[90%] rounded shadow-lg"
-                />
-              </div>
-            )}
+        <div className="flex items-center gap-4">
+          <label className="w-40 text-right font-medium">User Cash:</label>
+          <input
+            type="number"
+            className="flex-1 p-2 rounded border"
+            value={userCashInput}
+            onChange={(e) => setUserCashInput(e.target.value)}
+            placeholder="Enter user cash"
+          />
+        </div>
+
+        <div className="flex items-center gap-4">
+          <label className="w-40 text-right font-medium">Cash Received (with Misc):</label>
+          <div className="flex-1 text-right pr-2 font-semibold text-lg">
+            <span className={cashMismatch ? "text-red-600" : "text-green-700"}>
+              ₱{parseFloat(cashReceived || 0).toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </span>
           </div>
-        );
-      };
+        </div>
+
+        <div className="flex items-center gap-4">
+          <label className="w-40 text-right font-medium">Change:</label>
+          <input
+            className="flex-1 p-2 border rounded bg-gray-50 text-right"
+            value={`₱${parseFloat(change || 0).toLocaleString("en-PH", {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2,
+            })}`}
+            disabled
+          />
+        </div>
+      </div>
+    </div>
+
+    {/* Buttons */}
+    <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
+      {/* Only show DRAFT button for Van Load */}
+      {selectedTransactionTypeName === "Van Load" && (
+        <button
+          className="bg-yellow-500 text-white px-6 py-2 rounded hover:bg-yellow-600"
+          onClick={async () => {
+            const confirmDraft = window.confirm("Save this sale as draft?");
+            if (confirmDraft) {
+              const success = await handleSubmit("Pending"); // save as draft
+              if (success) navigate("/trading");
+            }
+          }}
+
+        >
+          DRAFT
+        </button>
+      )}
+
+      {/* Back button */}
+      <button
+        className="bg-gray-500 text-white px-6 py-2 rounded"
+        onClick={() => {
+          const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
+          if (confirmBack) navigate("/trading");
+        }}
+      >
+        BACK
+      </button>
+
+      {/* Finalize button for all */}
+      <button
+        className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+        onClick={() => {
+          const confirmFinalize = window.confirm("Are you sure you want to finalize this sale?");
+          if (confirmFinalize) {
+            handleSubmit("Complete");
+          }
+        }}
+      >
+        FINALIZE SALE
+      </button>
+    </div>
+
+    {/* 🔍 Image Zoom Overlay */}
+    {zoomed && (
+      <div
+        className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50"
+        onClick={() => setZoomed(null)}
+      >
+        <img
+          src={zoomed}
+          alt="Zoomed"
+          className="max-w-[90%] max-h-[90%] rounded shadow-lg"
+        />
+      </div>
+    )}
+  </div>
+);
+};
 
 export default MerchandisingSale;

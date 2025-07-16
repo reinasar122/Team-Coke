@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// SupplierReturnForm.js - Fixed React Hook warning
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -6,6 +7,7 @@ const SupplierReturnForm = () => {
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
   // ✅ Returns local date & time in YYYY-MM-DDTHH:MM format
   const getLocalDateTime = () => {
@@ -27,6 +29,7 @@ const SupplierReturnForm = () => {
   const [form, setForm] = useState({
     sup_no: generateRandomCode(),
     supplier: "",
+    warehouse: "", // ADD THIS
     date: getLocalDateTime(),
     total_amount: 0,
     items: [{
@@ -46,75 +49,28 @@ const SupplierReturnForm = () => {
   // NEW: Store merchandising items that need to be cleared
   const [merchandisingItemsToClean, setMerchandisingItemsToClean] = useState([]);
 
-  // Fixed useEffect to remove the dependency warning
-  useEffect(() => {
-    // Fetch all data in parallel
-    Promise.all([
-      axios.get("http://localhost:8080/api/suppliers/"),
-      axios.get("http://localhost:8080/api/pricing/"),
-      axios.get("http://localhost:8080/api/products/")
-    ])
-    .then(([suppliersRes, pricingRes, productsRes]) => {
-      // Set suppliers
-      setSuppliers(suppliersRes.data);
-      
-      // Get pricing data
-      const pricing = pricingRes.data;
-      console.log("Pricing data loaded:", pricing);
-      
-      // Filter content products
-      const contentProducts = productsRes.data.filter(
-        p => p.product_category?.name === "Content"
-      );
-      
-      console.log("Content products:", contentProducts);
-      setProducts(contentProducts);
-    })
-    .catch(err => {
-      console.error("Error fetching data:", err);
-    });
+  // Function to get current warehouse
+  const getCurrentWarehouse = useCallback(() => {
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    // For admin users, use selected warehouse or their enrolled warehouse
+    if (userData.role?.toLowerCase() === "admin") {
+      return selectedWarehouse || { id: userData.warehouse_id, name: userData.warehouse };
+    }
+    
+    // For non-admin users, always use their enrolled warehouse
+    return { id: userData.warehouse_id, name: userData.warehouse };
   }, []);
 
-  // Function to fetch return empties for selected supplier FROM RETURNABLE STOCKS
-  const fetchReturnEmpties = async (supplierId) => {
-    try {
-      console.log("🔍 Fetching returnable stocks for supplier:", supplierId);
-      
-      // Get returnable stocks data to find return empties
-      const response = await axios.get(`http://localhost:8080/api/returnable-stocks/`);
-      console.log("📦 All returnable stocks data:", response.data);
-      
-      // Filter by supplier_id to get empties for the selected supplier
-      const filteredData = response.data.filter(item => {
-        console.log("🔍 Checking item:", item, "Supplier match:", 
-          String(item.supplier_id) === String(supplierId), 
-          "Alternative supplier match:", String(item.supplier) === String(supplierId)
-        );
-        
-        return String(item.supplier_id) === String(supplierId) || String(item.supplier) === String(supplierId);
-      });
-      
-      console.log("✅ Filtered returnable stocks for supplier ID:", supplierId, filteredData);
-      
-      // Store the original data for removal later
-      setOriginalReturnableStocks(filteredData);
-
-      // NEW: Also find corresponding merchandising items that need to be cleared
-      await findMerchandisingItemsToClean(supplierId);
-      
-      return filteredData;
-    } catch (err) {
-      console.error("❌ Error fetching returnable stocks for supplier:", supplierId, err);
-      return [];
-    }
-  };
-
   // NEW: Function to find merchandising items that need to be cleaned
-  const findMerchandisingItemsToClean = async (supplierId) => {
+  const findMerchandisingItemsToClean = useCallback(async (supplierId) => {
     try {
       console.log("🔍 Finding merchandising items to clean for supplier:", supplierId);
       
-      const merchandisingResponse = await axios.get("http://localhost:8080/api/merchandisings/");
+      // Add warehouse filter to merchandising query
+      const warehouseParam = currentWarehouse?.id ? `?warehouse_id=${currentWarehouse.id}` : '';
+      const merchandisingResponse = await axios.get(`http://localhost:8080/api/merchandisings/${warehouseParam}`);
       const merchandisingData = merchandisingResponse.data;
       
       const itemsToClean = [];
@@ -151,7 +107,45 @@ const SupplierReturnForm = () => {
     } catch (err) {
       console.error("❌ Error finding merchandising items to clean:", err);
     }
-  };
+  }, [currentWarehouse, products]);
+
+  // Function to fetch return empties for selected supplier FROM RETURNABLE STOCKS (filtered by warehouse)
+  const fetchReturnEmpties = useCallback(async (supplierId) => {
+    try {
+      console.log("🔍 Fetching returnable stocks for supplier:", supplierId, "warehouse:", currentWarehouse?.id);
+      
+      // Get returnable stocks data with warehouse filter
+      const warehouseParam = currentWarehouse?.id ? `?warehouse_id=${currentWarehouse.id}` : '';
+      const response = await axios.get(`http://localhost:8080/api/returnable-stocks/${warehouseParam}`);
+      console.log("📦 All returnable stocks data:", response.data);
+      
+      // Filter by supplier_id AND warehouse to get empties for the selected supplier in current warehouse
+      const filteredData = response.data.filter(item => {
+        const supplierMatch = String(item.supplier_id) === String(supplierId) || String(item.supplier) === String(supplierId);
+        const warehouseMatch = !currentWarehouse?.id || String(item.warehouse_id) === String(currentWarehouse.id);
+        
+        console.log("🔍 Checking item:", item, 
+          "Supplier match:", supplierMatch, 
+          "Warehouse match:", warehouseMatch
+        );
+        
+        return supplierMatch && warehouseMatch;
+      });
+      
+      console.log("✅ Filtered returnable stocks for supplier ID:", supplierId, "in warehouse:", currentWarehouse?.name, filteredData);
+      
+      // Store the original data for removal later
+      setOriginalReturnableStocks(filteredData);
+
+      // NEW: Also find corresponding merchandising items that need to be cleared
+      await findMerchandisingItemsToClean(supplierId);
+      
+      return filteredData;
+    } catch (err) {
+      console.error("❌ Error fetching returnable stocks for supplier:", supplierId, err);
+      return [];
+    }
+  }, [currentWarehouse, findMerchandisingItemsToClean]);
 
   // Helper function to format a number to 2 decimal places and convert to a number
   const formatDecimal = (value) => {
@@ -159,9 +153,9 @@ const SupplierReturnForm = () => {
   };
 
   // Function to populate table with return empties data - combine duplicate products
-  const populateTableWithReturnEmpties = (returnEmptiesData) => {
+  const populateTableWithReturnEmpties = useCallback((returnEmptiesData) => {
     if (!returnEmptiesData || returnEmptiesData.length === 0) {
-      console.log("No return empties found for this supplier");
+      console.log("No return empties found for this supplier in current warehouse");
       setForm(prev => ({
         ...prev,
         items: [{
@@ -252,16 +246,16 @@ const SupplierReturnForm = () => {
       items: newItems,
       total_amount: totalAmount
     }));
-  };
+  }, [products]);
 
-  // Handle supplier change
-  const handleSupplierChange = async (supplierId) => {
+  // Handle supplier change - memoized to avoid dependency issues
+  const handleSupplierChange = useCallback(async (supplierId) => {
     console.log("🔄 Supplier changed to:", supplierId);
     setForm(prev => ({ ...prev, supplier: supplierId }));
     
     if (supplierId) {
-      console.log("🔍 Fetching return empties for supplier:", supplierId);
-      // Fetch and populate return empties for the selected supplier
+      console.log("🔍 Fetching return empties for supplier:", supplierId, "in warehouse:", currentWarehouse?.name);
+      // Fetch and populate return empties for the selected supplier in current warehouse
       const returnEmptiesData = await fetchReturnEmpties(supplierId);
       populateTableWithReturnEmpties(returnEmptiesData);
     } else {
@@ -284,7 +278,81 @@ const SupplierReturnForm = () => {
       setOriginalReturnableStocks([]);
       setMerchandisingItemsToClean([]);
     }
-  };
+  }, [currentWarehouse, fetchReturnEmpties, populateTableWithReturnEmpties]);
+
+  // Initial data loading useEffect
+  useEffect(() => {
+    // Get current warehouse on component mount
+    const warehouse = getCurrentWarehouse();
+    setCurrentWarehouse(warehouse);
+    
+    // Set warehouse in form
+    setForm(prev => ({
+      ...prev,
+      warehouse: warehouse?.id || ""
+    }));
+
+    // Fetch all data in parallel
+    Promise.all([
+      axios.get("http://localhost:8080/api/suppliers/"),
+      axios.get("http://localhost:8080/api/pricing/"),
+      axios.get("http://localhost:8080/api/products/")
+    ])
+    .then(([suppliersRes, pricingRes, productsRes]) => {
+      // Set suppliers
+      setSuppliers(suppliersRes.data);
+      
+      // Get pricing data
+      const pricing = pricingRes.data;
+      console.log("Pricing data loaded:", pricing);
+      
+      // Filter content products
+      const contentProducts = productsRes.data.filter(
+        p => p.product_category?.name === "Content"
+      );
+      
+      console.log("Content products:", contentProducts);
+      setProducts(contentProducts);
+    })
+    .catch(err => {
+      console.error("Error fetching data:", err);
+    });
+  }, [getCurrentWarehouse]);
+
+  // Separate useEffect for warehouse change listener
+  useEffect(() => {
+    // Listen for warehouse changes
+    const handleWarehouseChange = (event) => {
+      const newWarehouse = event.detail.warehouse || getCurrentWarehouse();
+      console.log("🏭 Warehouse changed:", newWarehouse);
+      setCurrentWarehouse(newWarehouse);
+      setForm(prev => ({
+        ...prev,
+        warehouse: newWarehouse?.id || "",
+        supplier: "", // Reset supplier when warehouse changes
+        items: [{
+          product: "",
+          product_name: "",
+          content_no: 0,
+          bottle_price: 0,
+          shell_price: 0,
+          qty_shell: "0",
+          qty_pcs: "0",
+          line_total: 0,
+        }],
+        total_amount: 0
+      }));
+      setOriginalReturnableStocks([]);
+      setMerchandisingItemsToClean([]);
+    };
+
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+
+    // Cleanup event listener
+    return () => {
+      window.removeEventListener('warehouseChanged', handleWarehouseChange);
+    };
+  }, [getCurrentWarehouse]);
 
   const handleItemChange = (index, field, value) => {
     // Create a deep copy of the items array
@@ -395,12 +463,14 @@ const SupplierReturnForm = () => {
         let remainingShellQty = returnedItem.qty_shell;
         let remainingPcsQty = returnedItem.qty_pcs;
 
-        // Find matching returnable stock entries for this product
+        // Find matching returnable stock entries for this product in current warehouse
         const matchingStocks = originalReturnableStocks.filter(stock => {
           const productMatch = stock.product_id === returnedItem.product || stock.product === returnedItem.product;
           const supplierMatch = String(stock.supplier_id) === String(form.supplier) || String(stock.supplier) === String(form.supplier);
-          console.log(`🔍 Checking stock ${stock.id}: Product match: ${productMatch}, Supplier match: ${supplierMatch}`);
-          return productMatch && supplierMatch;
+          const warehouseMatch = !currentWarehouse?.id || String(stock.warehouse_id) === String(currentWarehouse.id);
+          
+          console.log(`🔍 Checking stock ${stock.id}: Product match: ${productMatch}, Supplier match: ${supplierMatch}, Warehouse match: ${warehouseMatch}`);
+          return productMatch && supplierMatch && warehouseMatch;
         });
 
         console.log(`📦 Found ${matchingStocks.length} matching stock entries`);
@@ -480,6 +550,12 @@ const SupplierReturnForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Validate warehouse selection
+    if (!currentWarehouse?.id) {
+      showErrorModal("No warehouse selected. Please select a warehouse first.");
+      return;
+    }
+
     // Recalculate total one last time
     const totalAmount = formatDecimal(
       form.items.reduce((sum, item) => sum + formatDecimal(item.line_total), 0)
@@ -500,10 +576,11 @@ const SupplierReturnForm = () => {
     try {
       console.log("💾 Saving supplier return form...");
       
-      // Save the supplier return form with the returned items info
+      // Save the supplier return form with the returned items info and warehouse
       const response = await axios.post("http://localhost:8080/api/supplier-return-form/", {
         sup_no: form.sup_no,
         supplier: form.supplier,
+        warehouse: currentWarehouse.id, // ADD WAREHOUSE ID
         date: form.date,
         total_amount: totalAmount,
         items: filteredItems,
@@ -520,7 +597,7 @@ const SupplierReturnForm = () => {
       console.log("🧹 Step 2: Cleaning up returnable stocks...");
       const cleanupResult = await removeReturnedEmptiesFromReturnableStocks(filteredItems);
       
-      let message = "Supplier return saved successfully!";
+      let message = `Supplier return saved successfully for ${currentWarehouse.name}!`;
       
       if (merchandisingResult.cleared > 0) {
         message += ` ${merchandisingResult.cleared} merchandising empty returns have been cleared.`;
@@ -541,25 +618,73 @@ const SupplierReturnForm = () => {
       
       message += " The Return Empties view will be updated automatically.";
       
-      alert(message);
-      navigate("/supplier-returns");
+      // Create custom modal instead of alert
+      showSuccessModal(message);
       
     } catch (err) {
       console.error("❌ Save error:", err);
       console.log("Error details:", err.response?.data);
-      alert("Failed to save supplier return.");
+      showErrorModal("Failed to save supplier return.");
     }
+  };
+
+  // Custom modal functions instead of alert
+  const showSuccessModal = (message) => {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+        <div class="text-green-600 text-center mb-4">
+          <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+        </div>
+        <p class="text-gray-700 dark:text-gray-300 mb-6 text-center">${message}</p>
+        <div class="flex justify-center">
+          <button class="px-6 py-2 bg-green-500 text-white hover:bg-green-600 rounded" onclick="this.closest('.fixed').remove(); window.location.href='/supplier-returns'">OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  };
+
+  const showErrorModal = (message) => {
+    const modal = document.createElement('div');
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.innerHTML = `
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+        <div class="text-red-600 text-center mb-4">
+          <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </div>
+        <p class="text-gray-700 dark:text-gray-300 mb-6 text-center">${message}</p>
+        <div class="flex justify-center">
+          <button class="px-6 py-2 bg-red-500 text-white hover:bg-red-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
   };
 
   return (
     <div className="bg-white p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
-        <h2 className="text-xl font-bold mb-6">Supplier Return Form</h2>
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-xl font-bold">Supplier Return Form</h2>
+          
+          {/* Warehouse Display */}
+          <div className="bg-blue-50 px-4 py-2 rounded-lg">
+            <span className="text-blue-800 font-medium">
+              📍 Warehouse: {currentWarehouse?.name || 'No warehouse selected'}
+            </span>
+          </div>
+        </div>
         
         {(originalReturnableStocks.length > 0 || merchandisingItemsToClean.length > 0) && (
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <p className="text-blue-800 text-sm">
-              <strong>🔄 Processing data cleanup:</strong>
+              <strong>🔄 Processing data cleanup for {currentWarehouse?.name}:</strong>
               <br />
               {originalReturnableStocks.length > 0 && `• ${originalReturnableStocks.length} returnable stock entries`}
               <br />

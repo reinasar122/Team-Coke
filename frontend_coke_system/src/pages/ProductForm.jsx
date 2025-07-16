@@ -29,6 +29,18 @@ const ProductForm = () => {
   const [newValue, setNewValue] = useState("");
   const [suppliers, setSuppliers] = useState([]);
 
+  // Get current warehouse from user session
+  const getCurrentWarehouse = () => {
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    // For admin users, use selected warehouse if available, otherwise use enrolled warehouse
+    if (userData.role?.toLowerCase() === "admin") {
+      return selectedWarehouse?.id || userData.warehouse_id;
+    }
+    // For non-admin users, always use their enrolled warehouse
+    return userData.warehouse_id;
+  };
 
   useEffect(() => {
     fetchDropdowns();
@@ -66,7 +78,7 @@ const ProductForm = () => {
       }
       return newRows;
     });
-    checkAndAddRow(index); // Always check after any input change
+    checkAndAddRow(index);
   };
 
   const handleSelectChange = (index, e, type) => {
@@ -142,6 +154,13 @@ const ProductForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    const currentWarehouse = getCurrentWarehouse();
+    if (!currentWarehouse) {
+      alert("❌ No warehouse assigned. Please contact administrator.");
+      return;
+    }
+
     try {
       for (let formData of rows) {
         if (!formData.product_name) continue;
@@ -161,6 +180,7 @@ const ProductForm = () => {
           content_returnable: formData.returnable,
         });
 
+        // Include warehouse in product creation
         await axios.post("http://localhost:8080/api/products/", {
           system_code: formData.system_code,
           supplier_code: formData.supplier_code,
@@ -169,13 +189,15 @@ const ProductForm = () => {
           product_category: formData.product_category,
           unit_type: unitTypeRes.data.id,
           price: pricingRes.data.id,
+          warehouse: currentWarehouse,  // Add warehouse
         });
       }
-      alert("✅ Products saved!");
+      alert("✅ Products saved to your warehouse!");
       navigate("/products/");
     } catch (err) {
       console.log("Form values when saving:", rows);
-      alert("❌ Error saving products");
+      console.error("❌ Save Error:", err.response?.data || err.message);
+      alert("❌ Error saving products: " + (err.response?.data?.message || err.message));
     }
   };
 
