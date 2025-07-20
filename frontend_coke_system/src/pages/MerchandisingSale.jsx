@@ -88,6 +88,7 @@ const MerchandisingSale = () => {
 
 
 
+
   const [remarks, setRemarks] = useState("");
   const [miscCharges, setMiscCharges] = useState("");
   const [expectedTotal, setExpectedTotal] = useState(0);
@@ -109,7 +110,7 @@ const MerchandisingSale = () => {
 
  
 
-
+const isVanLoad = selectedTransactionTypeName === "Van Load";
 
 
   useEffect(() => {
@@ -536,7 +537,9 @@ if (emptyPrice > 0) {
 
 
 
-  const handleSubmit = async (status = "Complete") => {
+  const handleSubmit = async () => {
+  const status = parseInt(transactionType) === 1 ? "Pending" : "Complete";
+
     const payload = {
       msp_no: mspNo,
       transaction_type: parseInt(transactionType),
@@ -559,9 +562,6 @@ if (emptyPrice > 0) {
       total_trading_amount: parseFloat(totalTradingAmount) || 0,
       total_expenses_amount: parseFloat(totalExpensesAmount) || 0, // ✅ Add this
 
-
-      // cash_received: parseFloat(cashReceived) || 0,
-      // change: parseFloat(change) || 0,
 
       items: rows.filter(r => r.productId).map((row) => ({
         product: parseInt(row.productId),
@@ -624,20 +624,6 @@ const calculateTotalExpenses = () => {
   return miscTotal + (isNaN(extra) ? 0 : extra);
 };
 
-const totalDispatchedShell = useMemo(() => rows.reduce((sum, row) => sum + Number(row.dispatchedShell || 0), 0), [rows]);
-const totalDispatchedPcs = useMemo(() => rows.reduce((sum, row) => sum + Number(row.dispatchedPcs || 0), 0), [rows]);
-const totalSoldShell = useMemo(() => rows.reduce((sum, row) => sum + Number(row.soldShell || 0), 0), [rows]);
-const totalSoldPcs = useMemo(() => rows.reduce((sum, row) => sum + Number(row.soldPcs || 0), 0), [rows]);
-
-const totalExpectedReturnShellEmpty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedReturnShellEmpty || 0), 0), [rows]);
-const totalExpectedReturnPcsEmpty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedReturnPcsEmpty || 0), 0), [rows]);
-const totalDiscrepancyShellEmpty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.discrepancyShellEmpty || 0), 0), [rows]);
-const totalDiscrepancyPcsEmpty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.discrepancyPcsEmpty || 0), 0), [rows]);
-
-const totalExpectedReturnShellNonempty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedReturnShellNonempty || 0), 0), [rows]);
-const totalExpectedReturnPcsNonempty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedReturnPcsNonempty || 0), 0), [rows]);
-const totalDiscrepancyShellNonempty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.discrepancyShellNonempty || 0), 0), [rows]);
-const totalDiscrepancyPcsNonempty = useMemo(() => rows.reduce((sum, row) => sum + Number(row.discrepancyPcsNonempty || 0), 0), [rows]);
 
 const totalExpectedSale = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0), [rows]);
 const totalActualSale = useMemo(() => rows.reduce((sum, row) => sum + Number(row.actualSale || 0), 0), [rows]);
@@ -654,388 +640,409 @@ const totalTradingAmount = useMemo(() => {
             {editMode ? "View/Edit Merchandising Sale" : "New Merchandising Sale"}
           </h1>
           </div>
-    <div className="expenses-tab-container flex justify-end gap-2.5">
-  {/* TABS: Trading | Expenses */}
-        <div className="w-full mb-4">
-          <div className="flex justify-end gap-2.5 border-b border-gray-300">
-            {["Trading", "Expenses"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 font-semibold text-sm rounded-t-md
-                  ${
-                    activeTab === tab
-                      ? "bg-white text-blue-600 border border-b-white border-gray-300"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent"
-                  }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-
-    {/* Expenses Table */}
-   {activeTab === "Expenses" && (
-  <div className="w-full bg-white p-4 rounded-b-md shadow mt-1">
-    <h2 className="text-lg font-semibold mb-4 text-gray-700">Expenses</h2>
-
-    <table className="w-full text-sm text-left border border-gray-300 rounded shadow">
-      <thead className="bg-gray-100 text-gray-800">
-        <tr>
-          <th className="border border-gray-300 px-3 py-2 text-center">No.</th>
-          <th className="border border-gray-300 px-3 py-2">Description</th>
-          <th className="border border-gray-300 px-3 py-2 text-right">Amount (₱)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {miscItems.map((item, index) => (
-          <tr key={index} className="bg-white hover:bg-gray-50">
-            <td className="border border-gray-300 px-3 py-2 text-center">{index + 1}</td>
-            <td className="border border-gray-300 px-3 py-2">
-              <input
-                type="text"
-                value={item.description}
-                onChange={(e) => {
-                  const newItems = [...miscItems];
-                  newItems[index].description = e.target.value;
-                  setMiscItems(newItems);
-                }}
-                className="w-full px-2 py-1 rounded border border-gray-300"
-              />
-            </td>
-            <td className="border border-gray-300 px-3 py-2 text-right">
-              <input
-                type="number"
-                value={item.amount}
-                onChange={(e) => {
-                  const newItems = [...miscItems];
-                  newItems[index].amount = e.target.value;
-                  setMiscItems(newItems);
-                }}
-                className="w-full text-right px-2 py-1 rounded border border-gray-300"
-              />
-            </td>
-          </tr>
+   {selectedTransactionTypeName === "Warehouse" && (
+  <div className="expenses-tab-container flex justify-end gap-2.5">
+    {/* TABS: Trading | Expenses */}
+    <div className="w-full mb-4">
+      <div className="flex justify-end gap-2.5 border-b border-gray-300">
+        {["Trading", "Expenses"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 font-semibold text-sm rounded-t-md
+              ${
+                activeTab === tab
+                  ? "bg-white text-blue-600 border border-b-white border-gray-300"
+                  : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-transparent"
+              }`}
+          >
+            {tab}
+          </button>
         ))}
-        {/* Add New Row */}
-        <tr className="bg-gray-50">
-          <td className="border border-gray-300 px-3 py-2 text-center">+</td>
-          <td className="border border-gray-300 px-3 py-2">
-            <input
-              type="text"
-              placeholder="New description"
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-              className="w-full px-2 py-1 rounded border border-gray-300"
-            />
-          </td>
-          <td className="border border-gray-300 px-3 py-2 text-right">
-            <input
-              type="number"
-              placeholder="0.00"
-              value={newAmt}
-              onChange={(e) => setNewAmt(e.target.value)}
-              className="w-full text-right px-2 py-1 rounded border border-gray-300"
-            />
-          </td>
-        </tr>
-      </tbody>
-    </table>
+      </div>
 
-    {/* 🧮 Total Expenses */}
-    <div className="mt-2 text-right text-sm font-medium text-gray-700">
-      Total: <span className="text-lg font-bold">₱{totalExpensesAmount.toFixed(2)}</span>
-    </div>
+      {/* Expenses Table */}
+      {activeTab === "Expenses" && (
+        <div className="w-full bg-white p-4 rounded-b-md shadow mt-1">
+          <h2 className="text-lg font-semibold mb-4 text-gray-700">Expenses</h2>
 
-
-    <div className="flex justify-end mt-3">
-      <button
-        onClick={() => {
-          if (newDesc && newAmt) {
-            setMiscItems([...miscItems, { description: newDesc, amount: newAmt }]);
-            setNewDesc("");
-            setNewAmt("");
-          }
-        }}
-        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-      >
-        + Add Expense
-      </button>
-    </div>
-    
-  </div>
-)}
-  </div>
-</div>
-
-      <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
-        <div className="flex flex-col space-y-4 w-full md:w-1/2">
-          <div>
-            <label className="block mb-1">MSP NO.</label>
-            <input
-              className="w-64 p-2 rounded bg-gray-200 text-black"
-              value={mspNo}
-              disabled
-            />
-          </div>
-          <div>
-            <label className="block mb-1">Transaction Type</label>
-           <select
-              value={transactionType}
-              onChange={(e) => {
-                const id = parseInt(e.target.value);
-                setTransactionType(id); // ✅ fixed
-                const selected = transactionTypes.find((t) => t.id === id);
-                setSelectedTransactionTypeName(selected?.name || "");
-              }}
-
-
-              className="w-64 p-2 rounded bg-gray-200 text-black"
-            >
-              <option value="" disabled hidden>Select</option>
-              {transactionTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
+          <table className="w-full text-sm text-left border border-gray-300 rounded shadow">
+            <thead className="bg-gray-100 text-gray-800">
+              <tr>
+                <th className="border border-gray-300 px-3 py-2 text-center">No.</th>
+                <th className="border border-gray-300 px-3 py-2">Description</th>
+                <th className="border border-gray-300 px-3 py-2 text-right">Amount (₱)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {miscItems.map((item, index) => (
+                <tr key={index} className="bg-white hover:bg-gray-50">
+                  <td className="border border-gray-300 px-3 py-2 text-center">{index + 1}</td>
+                  <td className="border border-gray-300 px-3 py-2">
+                    <input
+                      type="text"
+                      value={item.description}
+                      onChange={(e) => {
+                        const newItems = [...miscItems];
+                        newItems[index].description = e.target.value;
+                        setMiscItems(newItems);
+                      }}
+                      className="w-full px-2 py-1 rounded border border-gray-300"
+                    />
+                  </td>
+                  <td className="border border-gray-300 px-3 py-2 text-right">
+                    <input
+                      type="number"
+                      value={item.amount}
+                      onChange={(e) => {
+                        const newItems = [...miscItems];
+                        newItems[index].amount = e.target.value;
+                        setMiscItems(newItems);
+                      }}
+                      className="w-full text-right px-2 py-1 rounded border border-gray-300"
+                    />
+                  </td>
+                </tr>
               ))}
-            </select>
-
-
-
-          </div>
-
-
-          {(selectedTransactionTypeName === "Van Load" || selectedTransactionTypeName === "Warehouse") && (
-            <div>
-              <label className="block mb-1">Handled by:</label>
-              <select
-                value={selectedUser}
-                onChange={(e) => setSelectedUser(e.target.value)}
-                className="w-64 p-2 rounded bg-gray-200 text-black"
-              >
-                <option value="" disabled hidden>Select</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.first_name} {user.last_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-        </div>
-
-
-        <div className="flex flex-col space-y-4 w-full md:w-1/2">
-          <div>
-            <label className="block mb-1">Date and Time</label>
-            <input
-              type="datetime-local"
-              value={dateTime}
-              onChange={(e) => setDateTime(e.target.value)}
-              className="w-64 p-2 rounded bg-gray-200 text-black"
-            />
-          </div>
-
-
-         {selectedTransactionTypeName === "Warehouse" && (
-            <div>
-              <label className="block mb-1">Customer</label>
-              {isAddingCustomer ? (
-                <input
-                  type="text"
-                  className="w-64 p-2 rounded bg-gray-200 text-black"
-                  placeholder="Enter new customer"
-                  onKeyDown={async (e) => {
-                    if (e.key === "Enter") {
-                      const newCustomer = e.target.value.trim();
-                      if (!newCustomer) return;
-
-
-                      const exists = customers.some(
-                        (c) => c.name?.toLowerCase() === newCustomer.toLowerCase()
-                      );
-
-
-                      if (exists) {
-                        alert(`Customer "${newCustomer}" already exists.`);
-                        setIsAddingCustomer(false);
-                        return;
-                      }
-
-
-                      try {
-                        const res = await axios.post("http://localhost:8080/api/customers/", {
-                          name: newCustomer,
-                        });
-                        setCustomers((prev) => [...prev, res.data]);
-                        setSelectedCustomerId(res.data.id); // ⬅ use ID here
-                      } catch (error) {
-                        console.error("Error saving new customer:", error);
-                      }
-                      setIsAddingCustomer(false);
-                    }
-                  }}
-                />
-              ) : (
-                <select
-                  value={selectedCustomerId}
-                  onChange={(e) => {
-                    if (e.target.value === "add_new") {
-                      setIsAddingCustomer(true);
-                      setSelectedCustomerId(""); // reset if switching to input
-                    } else {
-                      setSelectedCustomerId(e.target.value);
-                    }
-                  }}
-                  className="w-64 p-2 rounded bg-gray-200 text-black"
-                >
-                  <option value="" disabled hidden>Select a customer</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                  <option value="add_new">+ Add a customer</option>
-                </select>
-              )}
-            </div>
-          )}
-
-
-          {selectedTransactionTypeName === "Van Load" && (
-            <>
-              <div>
-                <label className="block mb-1">Van</label>
-                <select
-                  value={selectedVan}
-                  onChange={(e) => setSelectedVan(e.target.value)}
-                  className="w-64 p-2 rounded bg-gray-200 text-black"
-                >
-                  <option value="" disabled hidden>Select</option>
-                  {vans.map((van) => (
-                    <option key={van.id} value={van.id}>
-                      {van.van_id} - {van.plate_number}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-
-              <div>
-                <label className="block mb-1">Route</label>
-                {isAddingRoute ? (
+              {/* Add New Row */}
+              <tr className="bg-gray-50">
+                <td className="border border-gray-300 px-3 py-2 text-center">+</td>
+                <td className="border border-gray-300 px-3 py-2">
                   <input
                     type="text"
-                    className="w-64 p-2 rounded bg-gray-200 text-black"
-                    placeholder="Enter new route"
-                    value={route}
-                    onChange={(e) => setRoute(e.target.value)}
-                    onKeyDown={async (e) => {
-                      if (e.key === "Enter") {
-                        const newRoute = route.trim();
-                        if (!newRoute) return;
-
-
-                        const exists = routes.some(
-                          (r) => r.route_name.toLowerCase() === newRoute.toLowerCase()
-                        );
-
-
-                        if (exists) {
-                          alert(`Route "${newRoute}" already exists.`);
-                          setIsAddingRoute(false);
-                          return;
-                        }
-                       
-                        try {
-                          const res = await axios.post("http://localhost:8080/api/routes/", {
-                            route_name: newRoute,
-                          });
-                          setRoutes((prev) => [...prev, res.data]);
-                          setRoute(res.data.id);
-                        } catch (error) {
-                          console.error("Error saving new route:", error);
-                        }
-                        setIsAddingRoute(false);                        
-                      }
-                    }}
+                    placeholder="New description"
+                    value={newDesc}
+                    onChange={(e) => setNewDesc(e.target.value)}
+                    className="w-full px-2 py-1 rounded border border-gray-300"
                   />
-                ) : (
-                  <select
-                    value={route}
-                    onChange={(e) => {
-                      if (e.target.value === "add_new") {
-                        setIsAddingRoute(true);
-                        setRoute(""); // clear any leftover value
-                      } else {
-                        setRoute(e.target.value);
-                      }
-                    }}
-                    className="w-64 p-2 rounded bg-gray-200 text-black"
-                  >
-                    <option value="" disabled hidden>Select a route</option>
-                    {routes.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.route_name}
-                      </option>
+                </td>
+                <td className="border border-gray-300 px-3 py-2 text-right">
+                  <input
+                    type="number"
+                    placeholder="0.00"
+                    value={newAmt}
+                    onChange={(e) => setNewAmt(e.target.value)}
+                    className="w-full text-right px-2 py-1 rounded border border-gray-300"
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
 
-                    ))}
-                    <option value="add_new">+ Add a new route</option>
-                  </select>
-                )}
-              </div>
+          {/* 🧮 Total Expenses */}
+          <div className="mt-2 text-right text-sm font-medium text-gray-700">
+            Total: <span className="text-lg font-bold">₱{calculateTotalExpenses().toFixed(2)}</span>
+          </div>
+
+          <div className="flex justify-end mt-3">
+            <button
+              onClick={() => {
+                if (newDesc && newAmt) {
+                  setMiscItems([...miscItems, { description: newDesc, amount: newAmt }]);
+                  setNewDesc("");
+                  setNewAmt("");
+                }
+              }}
+              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            >
+              + Add Expense
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
 
-            </>
+<div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
+  <div className="flex flex-col space-y-4 w-full md:w-1/2">
+    <div>
+      <label className="block mb-1">MSP NO.</label>
+      <input
+        className="w-64 p-2 rounded bg-gray-200 text-black"
+        value={mspNo}
+        disabled
+      />
+    </div>
+    <div>
+      <label className="block mb-1">Transaction Type</label>
+      <select
+        value={transactionType}
+        onChange={(e) => {
+          const id = parseInt(e.target.value);
+          setTransactionType(id); // ✅ fixed
+          const selected = transactionTypes.find((t) => t.id === id);
+          setSelectedTransactionTypeName(selected?.name || "");
+        }}
+
+
+        className="w-64 p-2 rounded bg-gray-200 text-black"
+      >
+        <option value="" disabled hidden>Select</option>
+        {transactionTypes.map((type) => (
+          <option key={type.id} value={type.id}>
+            {type.name}
+          </option>
+        ))}
+      </select>
+
+
+
+    </div>
+
+
+    {(selectedTransactionTypeName === "Van Load" || selectedTransactionTypeName === "Warehouse") && (
+      <div>
+        <label className="block mb-1">Handled by:</label>
+        <select
+          value={selectedUser}
+          onChange={(e) => setSelectedUser(e.target.value)}
+          className="w-64 p-2 rounded bg-gray-200 text-black"
+        >
+          <option value="" disabled hidden>Select</option>
+          {users.map((user) => (
+            <option key={user.id} value={user.id}>
+              {user.first_name} {user.last_name}
+            </option>
+          ))}
+        </select>
+      </div>
+    )}
+  </div>
+
+
+  <div className="flex flex-col space-y-4 w-full md:w-1/2">
+    <div>
+      <label className="block mb-1">Date and Time</label>
+      <input
+        type="datetime-local"
+        value={dateTime}
+        onChange={(e) => setDateTime(e.target.value)}
+        className="w-64 p-2 rounded bg-gray-200 text-black"
+      />
+    </div>
+
+
+    {selectedTransactionTypeName === "Warehouse" && (
+      <div>
+        <label className="block mb-1">Customer</label>
+        {isAddingCustomer ? (
+          <input
+            type="text"
+            className="w-64 p-2 rounded bg-gray-200 text-black"
+            placeholder="Enter new customer"
+            onKeyDown={async (e) => {
+              if (e.key === "Enter") {
+                const newCustomer = e.target.value.trim();
+                if (!newCustomer) return;
+
+
+                const exists = customers.some(
+                  (c) => c.name?.toLowerCase() === newCustomer.toLowerCase()
+                );
+
+
+                if (exists) {
+                  alert(`Customer "${newCustomer}" already exists.`);
+                  setIsAddingCustomer(false);
+                  return;
+                }
+
+
+                try {
+                  const res = await axios.post("http://localhost:8080/api/customers/", {
+                    name: newCustomer,
+                  });
+                  setCustomers((prev) => [...prev, res.data]);
+                  setSelectedCustomerId(res.data.id); // ⬅ use ID here
+                } catch (error) {
+                  console.error("Error saving new customer:", error);
+                }
+                setIsAddingCustomer(false);
+              }
+            }}
+          />
+        ) : (
+          <select
+            value={selectedCustomerId}
+            onChange={(e) => {
+              if (e.target.value === "add_new") {
+                setIsAddingCustomer(true);
+                setSelectedCustomerId(""); // reset if switching to input
+              } else {
+                setSelectedCustomerId(e.target.value);
+              }
+            }}
+            className="w-64 p-2 rounded bg-gray-200 text-black"
+          >
+            <option value="" disabled hidden>Select a customer</option>
+            {customers.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+            <option value="add_new">+ Add a customer</option>
+          </select>
+        )}
+      </div>
+    )}
+
+
+    {selectedTransactionTypeName === "Van Load" && (
+      <>
+        <div>
+          <label className="block mb-1">Van</label>
+          <select
+            value={selectedVan}
+            onChange={(e) => setSelectedVan(e.target.value)}
+            className="w-64 p-2 rounded bg-gray-200 text-black"
+          >
+            <option value="" disabled hidden>Select</option>
+            {vans.map((van) => (
+              <option key={van.id} value={van.id}>
+                {van.van_id} - {van.plate_number}
+              </option>
+            ))}
+          </select>
+        </div>
+
+
+        <div>
+          <label className="block mb-1">Route</label>
+          {isAddingRoute ? (
+            <input
+              type="text"
+              className="w-64 p-2 rounded bg-gray-200 text-black"
+              placeholder="Enter new route"
+              value={route}
+              onChange={(e) => setRoute(e.target.value)}
+              onKeyDown={async (e) => {
+                if (e.key === "Enter") {
+                  const newRoute = route.trim();
+                  if (!newRoute) return;
+
+
+                  const exists = routes.some(
+                    (r) => r.route_name.toLowerCase() === newRoute.toLowerCase()
+                  );
+
+
+                  if (exists) {
+                    alert(`Route "${newRoute}" already exists.`);
+                    setIsAddingRoute(false);
+                    return;
+                  }
+                  
+                  try {
+                    const res = await axios.post("http://localhost:8080/api/routes/", {
+                      route_name: newRoute,
+                    });
+                    setRoutes((prev) => [...prev, res.data]);
+                    setRoute(res.data.id);
+                  } catch (error) {
+                    console.error("Error saving new route:", error);
+                  }
+                  setIsAddingRoute(false);                        
+                }
+              }}
+            />
+          ) : (
+            <select
+              value={route}
+              onChange={(e) => {
+                if (e.target.value === "add_new") {
+                  setIsAddingRoute(true);
+                  setRoute(""); // clear any leftover value
+                } else {
+                  setRoute(e.target.value);
+                }
+              }}
+              className="w-64 p-2 rounded bg-gray-200 text-black"
+            >
+              <option value="" disabled hidden>Select a route</option>
+              {routes.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.route_name}
+                </option>
+
+              ))}
+              <option value="add_new">+ Add a new route</option>
+            </select>
           )}
         </div>
-      </div>
+
+
+      </>
+    )}
+  </div>
+</div>
  
-
-
-
-
-
 
 <div className="overflow-x-auto mt-6">
       <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
-      <thead className="bg-gray-100 text-gray-800">
-        <tr className="text-xs font-semibold">
-          <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
-          <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>EMPTY PRICE</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
-          <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
-          <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
+        <thead className="bg-gray-100 text-gray-800">
+      <tr className="text-xs font-semibold">
+        <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
+        <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
+
+        {!isVanLoad && (
+          <>
+            <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
+          </>
+        )}
+
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>PRICE (Shell/Bottle)</th>
+
+        {!isVanLoad && (
+          <>
+            <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
+            <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
+            <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
+            <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
+            <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
+          </>
+        )}
+
+        <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
+        {!isVanLoad && (
           <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
-        </tr>
-        <tr className="bg-gray-200">
-          <td className="border border-gray-300 py-1"></td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-          <td className="border border-gray-300 py-1"></td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-          <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-          <td className="border border-gray-300 py-1"></td>
-          <td className="border border-gray-300 py-1"></td>
-          <td className="border border-gray-300 py-1"></td>
-        </tr>
-      </thead>
+        )}
+      </tr>
+
+      {/* Subheaders */}
+      <tr className="bg-gray-200">
+        <td className="border border-gray-300 py-1"></td>
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+        <td className="border border-gray-300 py-1"></td>
+
+        {!isVanLoad && (
+          <>
+            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+          </>
+        )}
+
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">Bottle</td>
+
+        {!isVanLoad && (
+          <>
+            {Array(8).fill(null).map((_, i) => (
+              <td key={i} className="border border-gray-300 py-1 text-[11px] font-medium">
+                {i % 2 === 0 ? "Shell" : "PCS"}
+              </td>
+            ))}
+            <td className="border border-gray-300 py-1"></td>
+          </>
+        )}
+
+        <td className="border border-gray-300 py-1"></td>
+        {!isVanLoad && <td className="border border-gray-300 py-1"></td>}
+      </tr>
+    </thead>
 
   <tbody>
     {rows.map((row, index) => (
@@ -1058,97 +1065,183 @@ const totalTradingAmount = useMemo(() => {
 
         {/* DISPATCHED */}
         <td className="border border-gray-200 py-1 px-1">
-          <input type="number" className="w-full p-1 text-sm text-center rounded bg-white" value={row.dispatchedShell || ""} onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)} />
+          <input
+            type="number"
+            className="w-full p-1 text-sm text-center rounded bg-white"
+            value={row.dispatchedShell || ""}
+            onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
+          />
         </td>
         <td className="border border-gray-200 py-1 px-1">
-          <input type="number" className="w-full p-1 text-sm text-center rounded bg-white" value={row.dispatchedPcs || ""} onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)} />
+          <input
+            type="number"
+            className="w-full p-1 text-sm text-center rounded bg-white"
+            value={row.dispatchedPcs || ""}
+            onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
+          />
         </td>
 
         {/* SELLING PRICE */}
         <td className="border border-gray-200 py-1 px-1">
-          <input type="number" disabled className="w-full p-1 text-sm text-center bg-gray-100" value={pricingMap[row.priceId]?.selling_price || ""} />
+          <input
+            type="number"
+            disabled
+            className="w-full p-1 text-sm text-center bg-gray-100"
+            value={pricingMap[row.priceId]?.selling_price || ""}
+          />
         </td>
 
-        {/* SOLD */}
-        <td className="border border-gray-200 py-1 px-1">
-          <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldShell || ""} onChange={(e) => handleRowChange(index, "soldShell", e.target.value)} />
-        </td>
-        <td className="border border-gray-200 py-1 px-1">
-          <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.soldPcs || ""} onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)} />
-        </td>
+        {!isVanLoad && (
+          <>
+            {/* SOLD */}
+            <td className="border border-gray-200 py-1 px-1">
+              <input
+                type="number"
+                className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+                value={row.soldShell || ""}
+                onChange={(e) => handleRowChange(index, "soldShell", e.target.value)}
+              />
+            </td>
+            <td className="border border-gray-200 py-1 px-1">
+              <input
+                type="number"
+                className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+                value={row.soldPcs || ""}
+                onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)}
+              />
+            </td>
+          </>
+        )}
 
-        {/* EMPTY PRICE */}
-        <td className="border border-gray-200 py-1 px-1">
-          <input type="number" className="w-full p-1 text-sm text-center bg-gray-100" value={pricingMap[row.priceId]?.shell_price || ""} disabled />
-        </td>
-        <td className="border border-gray-200 py-1 px-1">
-          <input type="number" className="w-full p-1 text-sm text-center bg-gray-100" value={pricingMap[row.priceId]?.bottle_price || ""} disabled />
-        </td>
-
-        {/* Returned/Discrepancy fields */}
-        {[
-          "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
-          "discrepancyShellEmpty", "discrepancyPcsEmpty",
-          "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
-          "discrepancyShellNonempty", "discrepancyPcsNonempty"
-        ].map((field, i) => (
-          <td key={i} className="border border-gray-200 py-1 px-1">
-            <input
-              type="number"
-              value={row[field] === 0 ? "" : row[field]}
-              onChange={(e) => handleRowChange(index, field, e.target.value)}
-              disabled={["discrepancyShellEmpty", "discrepancyPcsEmpty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].includes(field)}
-              className={`w-full p-1 text-sm text-center rounded
-                ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field) ? "bg-yellow-50" : "bg-gray-100"}
-                ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
-            />
-          </td>
-        ))}
-
-        {/* DISCOUNT */}
+        {/* EMPTY PRICES */}
         <td className="border border-gray-200 py-1 px-1">
           <input
             type="number"
-            className={`w-full p-1 text-sm text-center rounded bg-white border ${row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
-            value={row.discount === 0 ? "" : row.discount}
-            onChange={(e) => handleRowChange(index, "discount", e.target.value)}
-            disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+            className="w-full p-1 text-sm text-center bg-gray-100"
+            value={pricingMap[row.priceId]?.shell_price || ""}
+            disabled
+          />
+        </td>
+        <td className="border border-gray-200 py-1 px-1">
+          <input
+            type="number"
+            className="w-full p-1 text-sm text-center bg-gray-100"
+            value={pricingMap[row.priceId]?.bottle_price || ""}
+            disabled
           />
         </td>
 
-        {/* Expected & Actual Sale */}
+        {!isVanLoad && (
+          <>
+            {/* RETURN & DISCREPANCY FIELDS */}
+            {[
+              "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
+              "discrepancyShellEmpty", "discrepancyPcsEmpty",
+              "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
+              "discrepancyShellNonempty", "discrepancyPcsNonempty"
+            ].map((field, i) => (
+              <td key={i} className="border border-gray-200 py-1 px-1">
+                <input
+                  type="number"
+                  value={row[field] === 0 ? "" : row[field]}
+                  onChange={(e) => handleRowChange(index, field, e.target.value)}
+                  disabled={["discrepancyShellEmpty", "discrepancyPcsEmpty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].includes(field)}
+                  className={`w-full p-1 text-sm text-center rounded
+                    ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field) ? "bg-yellow-50" : "bg-gray-100"}
+                    ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
+                />
+              </td>
+            ))}
+          </>
+        )}
+
+        {/* DISCOUNT */}
+        {!isVanLoad && (
+          <td className="border border-gray-200 py-1 px-1">
+            <input
+              type="number"
+              className={`w-full p-1 text-sm text-center rounded border ${
+                row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"
+              }`}
+              value={row.discount === 0 ? "" : row.discount}
+              onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+              disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+            />
+          </td>
+        )}
+
+        {/* EXPECTED SALE */}
         <td className="border border-gray-200 py-1 px-1">
           <input
             className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
             disabled
-            value={row.expectedSale ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : ""}
+            value={
+              row.expectedSale
+                ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
+                    minimumFractionDigits: 2
+                  })}`
+                : ""
+            }
           />
         </td>
-        <td className="border border-gray-200 py-1 px-1">
-          <input
-            className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-            disabled
-            value={row.actualSale ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", { minimumFractionDigits: 2 })}` : ""}
-          />
-        </td>
+
+        {/* ACTUAL SALE */}
+        {!isVanLoad && (
+          <td className="border border-gray-200 py-1 px-1">
+            <input
+              className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+              disabled
+              value={
+                row.actualSale
+                  ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", {
+                      minimumFractionDigits: 2
+                    })}`
+                  : ""
+              }
+            />
+          </td>
+        )}
       </tr>
+
     ))}
 
-    {/* ✅ TOTAL ROW */}
-    <tr className="bg-gray-200 font-semibold text-[13px] text-right">
-      <td className="border border-gray-300 py-2 px-1 text-center">TOTAL</td>
-      <td className="border border-gray-300 py-2 px-1 text-center"></td>
-      <td className="border border-gray-300 py-2 px-1 text-center"></td>
-      <td className="border border-gray-300 py-2 px-1 text-center"></td>
-      <td className="border border-gray-300 py-2 px-1 text-center"></td>
-      <td className="border border-gray-300 py-2 px-1 text-center"></td>
-      {Array(10).fill(null).map((_, i) => (
-        <td key={i} className="border border-gray-300 py-2 px-1"></td>
+  <tr className="bg-gray-200 font-semibold text-[13px] text-right">
+  <td className="border border-gray-300 py-2 px-1 text-center">TOTAL</td>
+  <td className="border border-gray-300 py-2 px-1"></td> {/* Dispatched Shell */}
+  <td className="border border-gray-300 py-2 px-1"></td> {/* Dispatched PCS */}
+  <td className="border border-gray-300 py-2 px-1"></td> {/* Selling Price */}
+
+  {!isVanLoad && (
+    <>
+      <td className="border border-gray-300 py-2 px-1"></td> {/* Sold Shell */}
+      <td className="border border-gray-300 py-2 px-1"></td> {/* Sold PCS */}
+    </>
+  )}
+
+  <td className="border border-gray-300 py-2 px-1"></td> {/* Shell Price */}
+  <td className="border border-gray-300 py-2 px-1"></td> {/* Bottle Price */}
+
+  {!isVanLoad && (
+    <>
+      {/* 4 pairs (Shell + PCS) = 8 cells */}
+      {Array(8).fill(null).map((_, i) => (
+        <td key={`tot-${i}`} className="border border-gray-300 py-2 px-1"></td>
       ))}
-      <td className="border border-gray-300 py-2 px-1"></td>
-      <td className="border border-gray-300 py-2 px-1 text-green-700">₱{totalExpectedSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
-      <td className="border border-gray-300 py-2 px-1 text-blue-700">₱{totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
-    </tr>
+      <td className="border border-gray-300 py-2 px-1"></td> {/* Discount */}
+    </>
+  )}
+
+  <td className="border border-gray-300 py-2 px-1 text-green-700">
+    ₱{totalExpectedSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+  </td>
+
+  {!isVanLoad && (
+    <td className="border border-gray-300 py-2 px-1 text-blue-700">
+      ₱{totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+    </td>
+  )}
+</tr>
+
   </tbody>
 </table>
 
@@ -1173,41 +1266,59 @@ const totalTradingAmount = useMemo(() => {
 
 
 
+{/* Buttons */}
+<div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
 
-            {/* Buttons */}
-          <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
-            
+  {/* Back Button */}
+  <button
+    className="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 transition"
+    onClick={() => {
+      const confirmBack = window.confirm(
+        "Are you sure you want to go back? Unsaved changes will be lost."
+      );
+      if (confirmBack) navigate("/trading");
+    }}
+  >
+    BACK
+  </button>
 
-            {/* Back button */}
-            <button
-              className="bg-gray-500 text-white px-6 py-2 rounded"
-              onClick={() => {
-                const confirmBack = window.confirm("Are you sure you want to go back? Unsaved changes will be lost.");
-                if (confirmBack) navigate("/trading");
-              }}
-            >
-              BACK
-            </button>
+{/* Pay Button - Only for "Warehouse" */}
+{selectedTransactionTypeName === "Warehouse" && (
+  <button
+    className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 transition"
+    onClick={() => {
+      const confirmPay = window.confirm(
+        "Are you sure you want to proceed to payment? Unsaved changes will be lost."
+      );
+      if (confirmPay) navigate("/trading");
+    }}
+  >
+    PAY
+  </button>
+)}
 
-           <button
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 mt-4"
-            onClick={async () => {
-              const confirmed = window.confirm("Are you sure you want to finalize this sale?");
-              if (confirmed) {
-                const success = await handleSubmit("Complete");
-                if (success) {
-                  // Only redirect if save was successful
-                  navigate("/trading");
-                }
-              }
-            }}
-            >
-              FINALIZE SALE
-          </button>
+{/* Finalize Sale Button - Only for "Van Load" */}
+{selectedTransactionTypeName === "Van Load" && (
+  <button
+    className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
+    onClick={async () => {
+      const confirmed = window.confirm(
+        "Are you sure you want to finalize this sale?"
+      );
+      if (confirmed) {
+        const success = await handleSubmit("Complete");
+        if (success) {
+          navigate("/trading");
+        }
+      }
+    }}
+  >
+    FINALIZE SALE
+  </button>
+)}
 
 
-          </div>
-
+</div>
 
 
             {/* 🔍 Image Zoom Overlay */}

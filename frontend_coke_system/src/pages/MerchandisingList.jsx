@@ -17,7 +17,7 @@ const MerchandisingList = () => {
   };
 
   const handleRowClick = (sale) => {
-    navigate('/merchandising-sale', {
+    navigate(`/merchandising-sale/${sale.id}`, {
       state: {
         data: sale,
         editMode: true,
