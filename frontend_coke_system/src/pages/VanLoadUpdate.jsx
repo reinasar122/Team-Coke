@@ -7,54 +7,57 @@ const VanLoadUpdate = () => {
   const navigate = useNavigate();
   const saleId = location.state?.id;
   const [sale, setSale] = useState(null);
-  const [rows, setRows] = useState([]);
   const [products, setProducts] = useState([]);
+  const [rows, setRows] = useState([]);
   const [pricingMap, setPricingMap] = useState({});
+  
 
-  const totalExpectedSale = rows.reduce((sum, row) => sum + (parseFloat(row.expected_sale) || 0), 0);
+
+  const totalExpectedSale = rows.reduce((sum, row) => sum + (parseFloat(row.expectedSale) || 0), 0);
   const totalActualSale = rows.reduce((sum, row) => sum + (parseFloat(row.actual_sale) || 0), 0);
 
-  // Fetch sale data
- useEffect(() => {
-    if (!saleId) {
-      alert("No sale ID provided.");
-      navigate("/merchandising-sale"); // or wherever you want to redirect
-      return;
-    }
 
-    axios.get(`http://localhost:8080/api/merchandising-set/${saleId}/`)
-      .then((res) => {
-        setSale(res.data);
+  useEffect(() => {
+  if (!saleId) return;
 
-        if (res.data.products && Array.isArray(res.data.products)) {
-          setRows(res.data.products.map((product) => ({
-            ...product,
-            actual_sale: 0,
-            discount: product.discount || 0,
-            sold_shell: product.sold_shell || 0,
-            sold_pcs: product.sold_pcs || 0,
-            empty_return_shell: product.empty_return_shell || 0,
-            empty_return_pcs: product.empty_return_pcs || 0,
-            discrepancy_empties_pc: product.discrepancy_empties_pc || 0,
-            discrepancy_empties_shell: product.discrepancy_empties_shell || 0,
-            actual_return_shell: product.actual_return_shell || 0,
-            actual_return_pcs: product.actual_return_pcs || 0,
-            discrepancy_full_shell: product.discrepancy_full_shell || 0,
-            discrepancy_full_pcs: product.discrepancy_full_pcs || 0,
-            priceId: product.productId
-          })));
-        }
-      })
-      .catch((err) => {
-        console.error(err);
-        alert("Failed to fetch sale data.");
-      });
-  }, [saleId, navigate]);
+  axios.get(`http://localhost:8080/api/merchandising-set/${saleId}/`)
+    .then((res) => {
+      setSale(res.data);
+
+      if (res.data.items && Array.isArray(res.data.items)) {
+        setRows(res.data.items.map(item => ({
+          ...item,
+          productId: item.product?.id,
+          product_name: item.product?.product_name || "",
+          selling_price: parseFloat(item.product?.selling_price) || 0,
+          empty_price_shell: parseFloat(item.product?.empty_price_shell) || 0,
+          empty_price_pc: parseFloat(item.product?.empty_price_pc) || 0,
+          actual_sale: 0,
+          discount: item.discount || 0,
+          sold_shell: item.sold_shell || 0,
+          sold_pcs: item.sold_pcs || 0,
+          empty_return_shell: item.empty_return_shell || 0,
+          empty_return_pcs: item.empty_return_pcs || 0,
+          discrepancy_empties_shell: item.discrepancy_empties_shell || 0,
+          discrepancy_empties_pc: item.discrepancy_empties_pc || 0,
+          actual_return_shell: item.actual_return_shell || 0,
+          actual_return_pcs: item.actual_return_pcs || 0,
+          discrepancy_full_shell: item.discrepancy_full_shell || 0,
+          discrepancy_full_pcs: item.discrepancy_full_pcs || 0,
+          discount: item.discount_percent || item.discount || 0,
+        })));
+      }
+    })
+    .catch((err) => {
+      console.error(err);
+      alert("Failed to fetch sale data.");
+    });
+}, [saleId, navigate]);
+
 
   // Fetch product data and create pricing map
   useEffect(() => {
     axios.get('http://localhost:8080/api/products/')
-
       .then((res) => {
         setProducts(res.data);
         const priceMap = {};
@@ -62,9 +65,11 @@ const VanLoadUpdate = () => {
           priceMap[prod.id] = prod;
         });
         setPricingMap(priceMap);
+
       })
       .catch((err) => {
         console.error('Failed to fetch products:', err);
+
       });
   }, []);
 
@@ -72,10 +77,10 @@ const VanLoadUpdate = () => {
     const updatedRows = [...rows];
     updatedRows[index][field] = value;
 
-    if (['sold_pcs', 'soldShell', 'discount'].includes(field)) {
+    if (['soldPcs', 'soldShell', 'discount'].includes(field)) {
       const productId = updatedRows[index].productId;
-      const price = pricingMap[productId]?.selling_price || 0;
-      const pcs = parseFloat(updatedRows[index].sold_pcs) || 0;
+      const price = parseFloat(updatedRows[index].product?.selling_price) || 0;
+      const pcs = parseFloat(updatedRows[index].soldPcs) || 0;
       const shells = parseFloat(updatedRows[index].soldShell) || 0;
       const discount = parseFloat(updatedRows[index].discount) || 0;
 
@@ -101,7 +106,7 @@ const VanLoadUpdate = () => {
   }
 
   const payload = {
-    sale_id: sale.id,
+    sale_id: saleId,
     total_expected_sale: totalExpectedSale,
     total_actual_sale: totalActualSale,
     products: rows.map(row => ({
@@ -153,10 +158,6 @@ const VanLoadUpdate = () => {
           <label className="font-semibold">Date Created:</label>
           <div className="p-2 border rounded">{new Date(sale.date_time).toLocaleString()}</div>
         </div>
-        <div className="md:col-span-2">
-          <label className="font-semibold">Customer:</label>
-          <div className="p-2 border rounded">{sale.customer_name}</div>
-        </div>
       </div>
 
       <h3 className="text-lg font-semibold mt-6 mb-2">Product Details</h3>
@@ -202,8 +203,10 @@ const VanLoadUpdate = () => {
         <tbody>
           {rows.map((row, index) => (
             <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
-              <td className="border border-gray-200 py-1 px-1 w-[120px]">
-                <div className="p-2 border rounded">{row.product_name || `Product #${row.productId}`}</div>
+             <td className="border border-gray-200 py-1 px-1 w-[120px]">
+                <div className="p-2 border rounded">
+                  {row.product_name || `Product #${row.productId}`}
+                </div>
               </td>
               <td className="border border-gray-200 py-1 px-1">
                 <div className="p-2 border rounded">{row.dispatched_shell}</div>
@@ -212,7 +215,7 @@ const VanLoadUpdate = () => {
                 <div className="p-2 border rounded">{row.dispatched_pcs}</div>
               </td>
               <td className="border border-gray-200 py-1 px-1">
-                <div className="p-2 border rounded">{pricingMap[row.productId]?.selling_price || 0}</div>
+                <div className="p-2 border rounded">{row.product?.selling_price || 0}</div>
               </td>
 
               <td className="border border-gray-200 py-1 px-1">
@@ -223,11 +226,22 @@ const VanLoadUpdate = () => {
               </td>
 
               <td className="border border-gray-200 py-1 px-1">
-                <input type="number" className="w-full p-1 text-sm text-center bg-gray-100" value={pricingMap[row.productId]?.empty_price_shell || ""} disabled />
+                <input
+                  type="number"
+                  className="w-full p-1 text-sm text-center bg-gray-100"
+                  value={row.empty_price_shell || ""}
+                  disabled
+                />
               </td>
               <td className="border border-gray-200 py-1 px-1">
-                <input type="number" className="w-full p-1 text-sm text-center bg-gray-100" value={pricingMap[row.productId]?.empty_price_pc || ""} disabled />
+                <input
+                  type="number"
+                  className="w-full p-1 text-sm text-center bg-gray-100"
+                  value={row.empty_price_pc || ""}
+                  disabled
+                />
               </td>
+
 
               {[
                 "empty_return_shell", "empty_return_pcs",
@@ -287,19 +301,10 @@ const VanLoadUpdate = () => {
           </tr>
         </tbody>
       </table>
-    <div className="md:col-span-2">
-      <label htmlFor="remarks" className="font-semibold">Remarks:</label>
-      <textarea
-        id="remarks"
-        name="remarks"
-        value={sale?.remarks || ""}
-        onChange={(e) => setSale({ ...sale, remarks: e.target.value })}
-        className="w-full p-2 border rounded resize-none"
-        rows={3}
-        placeholder="Enter remarks..."
-      />
-    </div>
-
+      <div className="md:col-span-2">
+        <label className="font-semibold">Remarks:</label>
+        <div className="p-2 border rounded">{sale.remarks || "None"}</div>
+      </div>
       
         <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
             <button

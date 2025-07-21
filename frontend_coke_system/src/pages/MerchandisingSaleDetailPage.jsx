@@ -3,8 +3,8 @@ import { useParams, useLocation, useNavigate } from 'react-router-dom';
 
 const MerchandisingSaleDetailPage = () => {
   const { id } = useParams();
-  const navigate = useNavigate();
   const location = useLocation();
+  const navigate = useNavigate();
   const sale = location.state?.data;
 
   if (!sale) {
@@ -31,7 +31,7 @@ const MerchandisingSaleDetailPage = () => {
       </div>
 
       {/* ✅ Sale detail contents */}
-      <h2 className="text-2xl font-bold mb-4">Sale Details (ID: {id})</h2>
+      <h2 className="text-2xl font-bold mb-4">Sale Details</h2>
 
       <table className="min-w-full border border-collapse bg-white shadow">
         <tbody>
@@ -47,10 +47,12 @@ const MerchandisingSaleDetailPage = () => {
             <td className="border px-4 py-2 font-semibold">Transaction Type</td>
             <td className="border px-4 py-2">{sale.transaction_type_name}</td>
           </tr>
-          <tr>
-            <td className="border px-4 py-2 font-semibold">Customer Name</td>
-            <td className="border px-4 py-2">{sale.customer_name}</td>
-          </tr>
+          {sale.transaction_type_name === "Warehouse" && (
+            <tr>
+              <td className="border px-4 py-2 font-semibold">Customer Name</td>
+              <td className="border px-4 py-2">{sale.customer_name}</td>
+            </tr>
+          )}
           <tr>
             <td className="border px-4 py-2 font-semibold">Handled By</td>
             <td className="border px-4 py-2">{sale.handled_by}</td>

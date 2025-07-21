@@ -183,10 +183,19 @@ class PricingSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    selling_price = serializers.DecimalField(source='price.selling_price', max_digits=10, decimal_places=2, read_only=True)
+    empty_price_shell = serializers.DecimalField(source='price.shell_price', max_digits=10, decimal_places=2, read_only=True)
+    empty_price_pc = serializers.DecimalField(source='price.bottle_price', max_digits=10, decimal_places=2, read_only=True)
+
     class Meta:
         model = Product
-        fields = '__all__'
-
+        fields = [
+            'id',
+            'product_name',
+            'selling_price',
+            'empty_price_pc',
+            'empty_price_shell'
+        ]
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -331,12 +340,27 @@ class CustomerSerializer(serializers.ModelSerializer):
 
 # MerchandisingItem Serializer
 class MerchandisingItemSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+
     class Meta:
         model = MerchandisingItem
         fields = '__all__'
         extra_kwargs = {
-            'merchandising': {'required': False}  # ✅ make it optional
+            'merchandising': {'required': False}
         }
+
+    def create(self, validated_data):
+        instance = MerchandisingItem(**validated_data)
+        # This triggers your model’s save() method
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()  # re-triggers the price update logic
+        return instance
+
 
 class MerchandisingSaleSerializer(serializers.ModelSerializer):
     class Meta:

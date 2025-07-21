@@ -14,6 +14,7 @@ const MerchandisingSale = () => {
   const [newDesc, setNewDesc] = useState("");
   const [newAmt, setNewAmt] = useState("");
   
+  
 
   const [customer, setCustomer] = useState("");
   const [transactionDate, setTransactionDate] = useState("");
@@ -94,7 +95,6 @@ const MerchandisingSale = () => {
   const [expectedTotal, setExpectedTotal] = useState(0);
   const [actualTotal, setActualTotal] = useState(0);
   const [discrepancy, setDiscrepancy] = useState(0);
-  // const [change, setChange] = useState("");
   const [showMiscDetails, setShowMiscDetails] = useState(false);
   const [miscDescription, setMiscDescription] = useState("");
   const [miscFiles, setMiscFiles] = useState([]);
@@ -103,9 +103,6 @@ const MerchandisingSale = () => {
   const [miscItems, setMiscItems] = useState([]);
   const [miscAmounts, setMiscAmounts] = useState({});
   const [pricingMap, setPricingMap] = useState({});
-  // const [cashMismatch, setCashMismatch] = useState(false);
-  // const [userCashInput, setUserCashInput] = useState("");
-  // const [cashReceived, setCashReceived] = useState("");
 
 
  
@@ -170,24 +167,6 @@ useEffect(() => {
     setSelectedUser(saleData.handled_by_id || ""); // ✅ If this exists
   }
 }, [editMode, saleData]);
-
-
-
-
-
-
-
-//   useEffect(() => {
-//   const userCash = parseFloat(userCashInput) || 0;
-//   const misc = parseFloat(miscCharges) || 0;
-//   const totalCash = userCash + misc;
-//   const total = parseFloat(actualTotal) || 0;
-
-
-//   // setCashReceived(totalCash.toFixed(2));
-//   // setChange(!isNaN(totalCash - total) ? (totalCash - total).toFixed(2) : "");
-//   // setCashMismatch(totalCash.toFixed(2) !== total.toFixed(2));
-// }, [userCashInput, miscCharges, actualTotal]);
 
 
   useEffect(() => {
@@ -330,13 +309,6 @@ const handleProductChange = (index, productId) => {
     ]);
   }
 };
-
-
-
-
-
-
-
 
 
 const handleRowChange = (index, field, value) => {
@@ -1316,8 +1288,6 @@ const totalTradingAmount = useMemo(() => {
     FINALIZE SALE
   </button>
 )}
-
-
 </div>
 
 
