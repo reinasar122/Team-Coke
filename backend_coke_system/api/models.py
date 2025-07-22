@@ -234,6 +234,8 @@ class ReceivingItem(models.Model):
 
         super().save(*args, **kwargs)
 
+    
+
 
 # === STOCK  ===
 class Stock(models.Model):
@@ -436,3 +438,4 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"{self.method} - ₱{self.amount}"
+

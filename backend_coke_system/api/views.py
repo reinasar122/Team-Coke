@@ -480,32 +480,52 @@ class StockAvailabilityView(APIView):
 
 # views.py
 
+from rest_framework import status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+
 class UpdateStockView(APIView):
     def put(self, request, product_id):
         try:
-            # Fetch the product stock
             stock = Stock.objects.get(product_id=product_id)
-            quantity_sold = request.data.get('quantity_available')
-            
-            # Update the stock quantity
+            quantity_sold = int(request.data.get('quantity_available', 0))
+
+            if quantity_sold <= 0:
+                return Response({"error": "Quantity must be greater than zero."}, status=status.HTTP_400_BAD_REQUEST)
+
+            if quantity_sold > stock.quantity_available:
+                return Response({"error": "Not enough stock available."}, status=status.HTTP_400_BAD_REQUEST)
+
             stock.quantity_available -= quantity_sold
             stock.save()
 
             return Response({"message": "Stock updated successfully"}, status=status.HTTP_200_OK)
+
+        except (ValueError, TypeError):
+            return Response({"error": "Invalid quantity."}, status=status.HTTP_400_BAD_REQUEST)
+
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
+
 
 
 @api_view(['PATCH'])
 def restore_stock(request, pk):
     try:
         stock = Stock.objects.get(product_id=pk)
-        stock.quantity_available += int(request.data.get('quantity', 0))
+        quantity = int(request.data.get('quantity', 0))
+
+        if quantity <= 0:
+            return Response({'error': 'Quantity must be greater than zero.'}, status=400)
+
+        stock.quantity_available += quantity
         stock.save()
         return Response({'status': 'restored', 'new_quantity': stock.quantity_available})
+
+    except (ValueError, TypeError):
+        return Response({'error': 'Invalid quantity.'}, status=400)
     except Stock.DoesNotExist:
         return Response({'error': 'Stock not found'}, status=404)
-
 
 
 
