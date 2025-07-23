@@ -234,6 +234,8 @@ class ReceivingItem(models.Model):
 
         super().save(*args, **kwargs)
 
+    
+
 
 # === STOCK  ===
 class Stock(models.Model):
@@ -369,7 +371,14 @@ class MerchandisingItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.merchandising.msp_no}"
-    
+
+    def save(self, *args, **kwargs):
+        if self.product and self.product.price:
+            self.selling_price = self.product.price.selling_price or 0
+            self.empty_price_pc = self.product.price.bottle_price or 0
+            self.empty_price_shell = self.product.price.shell_price or 0
+            super().save(*args, **kwargs)
+
 
 class MiscellaneousItem(models.Model):
     merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
@@ -429,3 +438,4 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"{self.method} - ₱{self.amount}"
+

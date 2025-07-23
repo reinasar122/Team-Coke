@@ -17,7 +17,7 @@ const MerchandisingList = () => {
   };
 
   const handleRowClick = (sale) => {
-    navigate('/merchandising-sale', {
+    navigate(`/merchandising-sale/${sale.id}`, {
       state: {
         data: sale,
         editMode: true,
@@ -42,7 +42,6 @@ const MerchandisingList = () => {
             <th className="p-2">MSP NO.</th>
             <th className="p-2">DATE & TIME</th>
             <th className="p-2">TRANSACTION TYPE</th>
-            <th className="p-2">CUSTOMER</th>
             <th className="p-2">HANDLED BY</th>
             <th className="p-2">TOTAL AMOUNT</th>
             <th className="p-2">STATUS</th>
@@ -63,7 +62,6 @@ const MerchandisingList = () => {
                 <td className="p-2">{sale.msp_no}</td>
                 <td className="p-2">{sale.date_time}</td>
                 <td className="p-2">{sale.transaction_type_name}</td>
-                <td className="p-2">{sale.customer_name}</td>
                 <td className="p-2">{sale.handled_by}</td>
                 <td className="p-2">
                   ₱{totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}

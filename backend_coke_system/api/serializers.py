@@ -106,7 +106,8 @@ class WarehouseSerializer(serializers.ModelSerializer):
 class SupplierContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierContact
-        fields = ["contact_person", "email", "phone_number"]
+        fields = ["id", "contact_person", "email", "phone_number"]  # Include 'id' for updates
+
 
 class SupplierSerializer(serializers.ModelSerializer):
     contacts = SupplierContactSerializer(many=True, required=False)
@@ -115,35 +116,35 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = '__all__'
 
-    def create(self, validated_data):
-        contacts_data = validated_data.pop("contacts", [])  # ✅ Match related_name
-        supplier = Supplier.objects.create(**validated_data)
-        for contact_data in contacts_data:
-            SupplierContact.objects.create(supplier=supplier, **contact_data)
-        return supplier
-
     def update(self, instance, validated_data):
         contacts_data = validated_data.pop("contacts", [])
 
-        # Update the Supplier fields
-        instance.company_name = validated_data.get('company_name', instance.company_name)
-        instance.bir_no = validated_data.get('bir_no', instance.bir_no)
-        instance.contact_person = validated_data.get('contact_person', instance.contact_person)
-        instance.email = validated_data.get('email', instance.email)
-        instance.phone_number = validated_data.get('phone_number', instance.phone_number)
-        instance.street_address = validated_data.get('street_address', instance.street_address)
-        instance.city = validated_data.get('city', instance.city)
-        instance.region = validated_data.get('region', instance.region)
-        instance.zip_code = validated_data.get('zip_code', instance.zip_code)
+        # Update Supplier fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
         instance.save()
 
-        # Delete old contacts and recreate them
-        instance.contacts.all().delete()
+        # Update or create contacts
+        existing_ids = [c.id for c in instance.contacts.all()]
+        incoming_ids = [c.get("id") for c in contacts_data if c.get("id")]
+
+        # Delete contacts not in incoming data
+        for contact in instance.contacts.all():
+            if contact.id not in incoming_ids:
+                contact.delete()
+
         for contact_data in contacts_data:
-            SupplierContact.objects.create(supplier=instance, **contact_data)
+            contact_id = contact_data.get("id")
+            if contact_id and contact_id in existing_ids:
+                contact = SupplierContact.objects.get(id=contact_id, supplier=instance)
+                for attr, value in contact_data.items():
+                    setattr(contact, attr, value)
+                contact.save()
+            else:
+                SupplierContact.objects.create(supplier=instance, **contact_data)
 
         return instance
-    
+
 
 class VanSerializer(serializers.ModelSerializer):
     class Meta:
@@ -183,10 +184,12 @@ class PricingSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
+    product_category = serializers.PrimaryKeyRelatedField(queryset=ProductCategory.objects.all())
+    unit_type = serializers.PrimaryKeyRelatedField(queryset=UnitType.objects.all())
+    price = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all()) 
     class Meta:
         model = Product
         fields = '__all__'
-
 
 
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -284,12 +287,12 @@ class ReceivingSerializer(serializers.ModelSerializer):
     
 
 class StockSerializer(serializers.ModelSerializer):
-    product_name = serializers.CharField(source='product.product_name', read_only=True)
+    product = ProductSerializer(read_only=True)  # ✅ This gives you full product details
     stock_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Stock
-        fields = ['id', 'product', 'product_name', 'quantity_available', 'last_updated', 'stock_status']  # ← ✅ include stock_status
+        fields = ['id', 'product', 'quantity_available', 'last_updated', 'stock_status']
 
     def get_stock_status(self, obj):
         return obj.stock_status()
@@ -331,12 +334,27 @@ class CustomerSerializer(serializers.ModelSerializer):
 
 # MerchandisingItem Serializer
 class MerchandisingItemSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+
     class Meta:
         model = MerchandisingItem
         fields = '__all__'
         extra_kwargs = {
-            'merchandising': {'required': False}  # ✅ make it optional
+            'merchandising': {'required': False}
         }
+
+    def create(self, validated_data):
+        instance = MerchandisingItem(**validated_data)
+        # This triggers your model’s save() method
+        instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()  # re-triggers the price update logic
+        return instance
+
 
 class MerchandisingSaleSerializer(serializers.ModelSerializer):
     class Meta:

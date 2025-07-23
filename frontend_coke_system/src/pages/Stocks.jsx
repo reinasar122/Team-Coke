@@ -82,7 +82,7 @@ const Stocks = () => {
                     } hover:bg-gray-100`}
                   >
                     <td className="px-6 py-4 text-left font-medium text-gray-800 whitespace-nowrap">
-                      {item.product_name}
+                     {item.product.product_name}
                     </td>
                     <td className="px-6 py-4 text-center font-semibold text-gray-700">
                       {item.quantity_available}

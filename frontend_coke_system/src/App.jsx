@@ -37,10 +37,11 @@ import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
 import Merchandising from "./pages/Merchandising";
 import MerchandisingSale from "./pages/MerchandisingSale";
+import MerchandisingSaleDetailPage from './pages/MerchandisingSaleDetailPage';
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
 import Expences from "./pages/Expences";
-
+import VanLoadUpdate from "./pages/VanLoadUpdate";
 
 // Icons
 import {
@@ -117,14 +118,17 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/merchandising" element={<><h1 className="text-2xl flex items-center gap-2 mb-4"><FaChartLine /> Create New Sale</h1><Merchandising /></>} />
             <Route path="/merchandising-sale" element={<MerchandisingSale />} />
-            <Route path="/merchandising-sale/:id" element={<MerchandisingSale viewOnly={true} />} />
-            <Route path="/merchandising-sale/edit/:id" element={<MerchandisingSale editMode={true} />} />
-
+            <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-otp" element={<VerifyOTP />} />
             <Route path="/expences" element={<Expences />} />
+            <Route path="/van-load-update" element={<VanLoadUpdate />} />
+
+
+            
+          
           </Routes>
         </div>
       </div>
