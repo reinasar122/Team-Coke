@@ -2,7 +2,7 @@ import { useState } from "react";
 
 const MODULES = {
   "Sales Report": ["Dashboard"],
-  Transactions: ["Receiving", "Trading", "Supplier Return"],
+  Transactions: ["Receiving", "Trading", "Supplier Return", "Invoice"],
   Inventory: ["Stocks", "Product", "Returned Empties"],
   Reports: ["Sales Report", "Inventory Report"],
   Manage: ["User", "Roles", "Supplier", "Warehouse", "Van"],
@@ -36,7 +36,7 @@ const initializePermissions = (role) => {
       "Dashboard",
       "Stocks", "Product", "Returned Empties",
       "Sales Report", "Inventory Report",
-      "User", "Roles", "Supplier", "Warehouse", "Van",
+      "User", "Roles", "Supplier", "Warehouse", "Van", 
     ].forEach((submenu) => {
       permissions[submenu] = {
         full_access: false,
@@ -46,7 +46,7 @@ const initializePermissions = (role) => {
         delete: false,
       };
     });
-    ["Receiving", "Trading", "Supplier Return"].forEach((submenu) => {
+    ["Receiving", "Trading", "Supplier Return",  "Invoice"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: true,
         view: true,
@@ -56,7 +56,7 @@ const initializePermissions = (role) => {
       };
     });
   } else if (role === "Cashier") {
-    ["Stocks", "Product", "Returned Empties"].forEach((submenu) => {
+    ["Stocks", "Product", "Returned Empties",  "Invoice"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: false,
         view: true,
