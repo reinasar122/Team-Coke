@@ -7,7 +7,8 @@ import {
   useLocation,
 } from "react-router-dom";
 
-// Layout Components
+// Layout Components\
+import MerchandisingSale from "./components/merchandisingcomponents/MerchandisingSale";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 // src/index.js or src/main.jsx
@@ -36,12 +37,13 @@ import ReceivingList from "./pages/ReceivingList";
 import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
 import Merchandising from "./pages/Merchandising";
-import MerchandisingSale from "./pages/MerchandisingSale";
 import MerchandisingSaleDetailPage from './pages/MerchandisingSaleDetailPage';
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
 import Expences from "./pages/Expences";
-import VanLoadUpdate from "./pages/VanLoadUpdate";
+import VanLoadUpdate from "./pages/VanLoadUpdate";import SupplierReturnForm from "./pages/SupplierReturnForm";
+import SupplierReturnList from "./pages/SupplierReturnList";
+import ReturnEmpties from "./pages/ReturnEmpties";
 
 // Icons
 import {
@@ -56,6 +58,7 @@ import {
   FaUsers,
   FaUserShield,
   FaWarehouse,
+  FaUndoAlt,
 } from "react-icons/fa";
 
 // ✅ Layout wrapper for protected pages
@@ -91,6 +94,8 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 <Route path="/trading" element={<h1 className="text-2xl flex items-center gap-2"><FaChartLine /> Trading</h1>} />
                 <Route path="/invoice" element={<h1 className="text-2xl flex items-center gap-2"><FaFileInvoice /> Invoice</h1>} />
                 <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} />
+                <Route path="/supplier-returns" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Supplier Returns</h1>} />
+                <Route path="/return-empties" element={<h1 className="text-2xl flex items-center gap-2"><FaUndoAlt /> Return Empties</h1>} />
               </Routes>
             </div>
           )}
@@ -129,6 +134,9 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
             
           
+            <Route path="/supplier-returns" element={<SupplierReturnList />} />
+            <Route path="/supplier-returns/new" element={<SupplierReturnForm />} />
+            <Route path="/return-empties" element={<ReturnEmpties />} />
           </Routes>
         </div>
       </div>

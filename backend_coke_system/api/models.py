@@ -5,6 +5,8 @@ import random
 from django.utils import timezone
 from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import MinValueValidator, MaxValueValidator
+from decimal import Decimal
+from django.core.exceptions import ValidationError
 
 class Warehouse(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -108,11 +110,17 @@ class User(models.Model):
 
 
 class Van(models.Model):
-    van_id = models.CharField(max_length=50, unique=True)
-    plate_number = models.CharField(max_length=20, unique=True)
+    van_id = models.CharField(max_length=50)
+    plate_number = models.CharField(max_length=20)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, related_name='vans')
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.van_id} - {self.plate_number}"
+        return f"{self.van_id} - {self.plate_number} ({self.warehouse.name})"
+
+    class Meta:
+        unique_together = [['van_id', 'warehouse'], ['plate_number', 'warehouse']]
 
 class ContentType(models.Model):
     description = models.TextField()
@@ -152,13 +160,14 @@ class Pricing(models.Model):
         return f"₱{self.selling_price:.2f}"
 
 class Product(models.Model):
-    system_code = models.CharField(max_length=100, unique=True)  # ✅ Fixed from TextField
+    system_code = models.CharField(max_length=100, unique=True)
     supplier_code = models.CharField(max_length=100, blank=True, null=True)
     product_name = models.CharField(max_length=255)
     product_category = models.ForeignKey(ProductCategory, on_delete=models.SET_NULL, null=True)
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE)  # NEW: Add warehouse field
 
     def save(self, *args, **kwargs):
         if not self.system_code:
@@ -170,7 +179,6 @@ class Product(models.Model):
     def __str__(self):
         return self.product_name
 
-
 # You can continue the remaining models following the same patterns...
 
 
@@ -180,6 +188,7 @@ class Receiving(models.Model):
     date_time = models.DateTimeField(default=timezone.now)
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     invoice_no = models.CharField(max_length=100, blank=True, null=True)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
 
     return_total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     receive_total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -203,10 +212,9 @@ class Receiving(models.Model):
         return self.receive_no
 
 
-
 class ReceivingItem(models.Model):
-    receiving = models.ForeignKey(Receiving, related_name="details", on_delete=models.CASCADE)
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, null=True)  # 👈 Add this
+    receiving = models.ForeignKey('Receiving', related_name="details", on_delete=models.CASCADE)
+    product = models.ForeignKey('Product', on_delete=models.CASCADE, null=True)
     product_name = models.CharField(max_length=255, blank=True, null=True)
     pcs_qty = models.PositiveIntegerField(default=0)
     shell_qty = models.PositiveIntegerField(default=0)
@@ -218,7 +226,6 @@ class ReceivingItem(models.Model):
     unit_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
-
     def save(self, *args, **kwargs):
         content_no = self.product.unit_type.content_no if self.product and self.product.unit_type else 1
 
@@ -229,8 +236,15 @@ class ReceivingItem(models.Model):
 
         self.bottle_qty = self.pcs_qty
 
-        self.unit_cost = self.unit_price + self.bottle_price + (self.shell_price / content_no)
-        self.total = self.pcs_qty * self.unit_cost
+        # Compute unit cost and total
+        self.unit_cost = (
+            self.unit_price +
+            self.bottle_price +
+            (self.shell_price / content_no if content_no else 0)
+        )
+
+        adjusted_pcs = max(self.pcs_qty - self.bad_order_pcs, 0)
+        self.total = self.unit_cost * adjusted_pcs
 
         super().save(*args, **kwargs)
 
@@ -240,10 +254,16 @@ class ReceivingItem(models.Model):
 # === STOCK  ===
 class Stock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
     quantity_available = models.PositiveIntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        unique_together = ['product', 'warehouse']  # Ensure unique stock per product per warehouse
+
     def __str__(self):
+        if self.warehouse:
+            return f"{self.product.product_name} - {self.warehouse.name} - {self.quantity_available} pcs"
         return f"{self.product.product_name} - {self.quantity_available} pcs"
 
     def stock_status(self):
@@ -255,24 +275,29 @@ class Stock(models.Model):
             return "Moderate"
         else:
             return "High"
-        
 
 class Route(models.Model):
     route_name = models.CharField(max_length=100, unique=True)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
 
     def __str__(self):
         return self.route_name
 
-    
-    #   TransactionType
 class TransactionType(models.Model):
     name = models.CharField(max_length=100, unique=True)
 
-    def __str__(self):
-        return self.name
+    def clean(self):
+        allowed = ["Van Load", "Warehouse"]
+        if self.name not in allowed:
+            raise ValidationError(f"Invalid transaction type name: '{self.name}'")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()  # ✅ calls clean() before saving
+        super().save(*args, **kwargs)
     
 class Customer(models.Model):
     name = models.CharField(max_length=255)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
 
     def __str__(self):
         return self.name
@@ -298,6 +323,7 @@ class Merchandising(models.Model):
     handled_by = models.CharField(max_length=100)
     route = models.ForeignKey(Route, on_delete=models.SET_NULL, null=True, blank=True)
     van = models.ForeignKey(Van, on_delete=models.SET_NULL, null=True, blank=True)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
 
     date_time = models.DateTimeField(default=timezone.now)
 
@@ -310,7 +336,6 @@ class Merchandising(models.Model):
     status = models.CharField(max_length=50, default="PENDING")
     remarks = models.TextField(blank=True, null=True)
 
-    # 🔽 NEW FIELDS
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     cash_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -320,21 +345,23 @@ class Merchandising(models.Model):
             prefix = ''
             if self.transaction_type.name.lower() == 'warehouse':
                 prefix = 'W'
-            elif self.transaction_type.name.lower() == 'van':
+            elif self.transaction_type.name.lower() == 'van load':
                 prefix = 'V'
             else:
                 prefix = 'X'
 
-            last = Merchandising.objects.filter(transaction_type=self.transaction_type).order_by('-id').first()
+            # Filter by warehouse to get warehouse-specific numbering
+            last = Merchandising.objects.filter(
+                transaction_type=self.transaction_type,
+                warehouse=self.warehouse
+            ).order_by('-id').first()
+            
             next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
             self.msp_no = f"{prefix}-{next_number:04d}"
 
         super().save(*args, **kwargs)
 
-
-
-        
-# 7. MerchandisingItem (Per-product Detail)
+# Keep all other models the same but add warehouse field where needed
 class MerchandisingItem(models.Model):
     merchandising = models.ForeignKey(Merchandising, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
@@ -347,17 +374,14 @@ class MerchandisingItem(models.Model):
     sold_pcs = models.PositiveIntegerField(default=0)
     sold_shell = models.PositiveIntegerField(default=0)
 
-
     empty_price_shell = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     empty_price_pc = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-
 
     empty_return_pcs = models.PositiveIntegerField(default=0)
     empty_return_shell = models.PositiveIntegerField(default=0)
 
     discrepancy_empties_pc = models.PositiveIntegerField(default=0)
     discrepancy_empties_shell = models.PositiveIntegerField(default=0)
-
 
     actual_return_pcs = models.PositiveIntegerField(default=0)
     actual_return_shell = models.PositiveIntegerField(default=0)
@@ -384,14 +408,11 @@ class MiscellaneousItem(models.Model):
     merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
-    receipt_file = models.FileField(upload_to='misc_receipts/', blank=True, null=True)  # <-- Add this line
+    receipt_file = models.FileField(upload_to='misc_receipts/', blank=True, null=True)
 
     def __str__(self):
         return f"{self.description} - ₱{self.amount}"
 
-
-# 9. ReturnableStock
-# filepath: c:\Users\Lenizo.karenzoe\Desktop\Inventory 111\coke-POS-system\backend_coke_system\api\models.py
 class ReturnableStock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
     empty_bottle_qty = models.PositiveIntegerField(default=0)
@@ -399,25 +420,25 @@ class ReturnableStock(models.Model):
     source = models.CharField(
         max_length=20,
         choices=[('customer', 'Customer'), ('supplier', 'Supplier')],
-        default='customer'  # Provide a default value here
+        default='customer'
     )
-    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True)  # ADD THIS
+    supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.product.name} Returnables from {self.source}"
 
-# 10. SupplierReturn
 class SupplierReturn(models.Model):
     supplier = models.ForeignKey('Supplier', on_delete=models.CASCADE)
     return_no = models.CharField(max_length=20, unique=True)
     date_returned = models.DateTimeField(auto_now_add=True)
     remarks = models.TextField(blank=True, null=True)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
 
     def __str__(self):
         return self.return_no
 
-# 11. SupplierReturnItem
 class SupplierReturnItem(models.Model):
     supplier_return = models.ForeignKey(SupplierReturn, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
@@ -426,8 +447,6 @@ class SupplierReturnItem(models.Model):
 
     def __str__(self):
         return f"{self.product.name} returned"
-
-
 
 class Payment(models.Model):
     merchandising = models.ForeignKey(Merchandising, on_delete=models.CASCADE, related_name='payments')
@@ -439,3 +458,25 @@ class Payment(models.Model):
     def __str__(self):
         return f"{self.method} - ₱{self.amount}"
 
+
+class SupplierReturnForm(models.Model):
+    sup_no = models.CharField(max_length=20, unique=True)
+    supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
+    date = models.DateTimeField()
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.sup_no} - {self.warehouse.name}"
+
+class SupplierReturnFormItem(models.Model):
+    supplier_return = models.ForeignKey(SupplierReturnForm, related_name='items', on_delete=models.CASCADE)
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    qty_shell = models.PositiveIntegerField()
+    qty_pcs = models.PositiveIntegerField()
+    bottle_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    shell_price = models.DecimalField(max_digits=12, decimal_places=2, default=0.00)
+    line_total = models.DecimalField(max_digits=12, decimal_places=2)
+
+    def __str__(self):
+        return f"{self.product.product_name} ({self.qty_shell} shell)"

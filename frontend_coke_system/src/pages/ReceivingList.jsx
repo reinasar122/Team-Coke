@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// Updated ReceivingList.jsx - Added auto-reload functionality
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { FaTrashAlt, FaEye } from "react-icons/fa";
@@ -22,6 +23,9 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
         <div className="mb-4 text-center">
           <h2 className="text-2xl font-bold">Receipt No.</h2>
           <h2 className="text-base text-[#0069ff] font-bold">#{receipt.receive_no}</h2>
+          {receipt.warehouse_name && (
+            <p className="text-sm text-gray-600 mt-1">Warehouse: {receipt.warehouse_name}</p>
+          )}
         </div>
         
         <div className="mb-4 grid grid-cols-2 gap-2">
@@ -107,38 +111,152 @@ const ReceivingList = () => {
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [users, setUsers] = useState([]);
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
+  const [isLoadingWarehouse, setIsLoadingWarehouse] = useState(true);
+  
+  // NEW: State to track the selected warehouse from localStorage
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
 
+  // NEW: Monitor localStorage for warehouse changes
   useEffect(() => {
-    fetchReceivings();
-    fetchUsers();
-  }, []);
+    const checkWarehouseChanges = () => {
+      const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      const newWarehouseId = selectedWarehouse?.id || null;
+      
+      console.log("🔍 [ReceivingList] Checking warehouse changes:", selectedWarehouseId, "->", newWarehouseId);
+      
+      if (newWarehouseId !== selectedWarehouseId) {
+        console.log("🚨 [ReceivingList] WAREHOUSE CHANGE DETECTED:", selectedWarehouseId, "->", newWarehouseId);
+        setSelectedWarehouseId(newWarehouseId);
+      }
+    };
 
-  const fetchReceivings = () => {
-    axios.get("http://localhost:8080/api/receiving/")
-      .then((res) => setReceivings(res.data))
-      .catch((err) => console.error("Error fetching data:", err));
-  };
+    // Check immediately
+    checkWarehouseChanges();
+    
+    // Check every 300ms for changes
+    const interval = setInterval(checkWarehouseChanges, 300);
+    
+    return () => clearInterval(interval);
+  }, [selectedWarehouseId]);
 
-  const fetchUsers = () => {
-    axios.get("http://localhost:8080/api/users/")
-      .then((res) => setUsers(res.data))
-      .catch((err) => console.error("Error fetching users:", err));
-  };
+  // Get current warehouse info - triggers when selectedWarehouseId changes
+  useEffect(() => {
+    const setupWarehouse = async () => {
+      console.log("🏗️ [ReceivingList] Setting up warehouse...");
+      setIsLoadingWarehouse(true);
+      
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      
+      let warehouse = null;
+      
+      // For admin users, use selected warehouse or fallback to user's warehouse
+      if (user.role?.toLowerCase() === "admin") {
+        if (selectedWarehouse && selectedWarehouse.id) {
+          warehouse = selectedWarehouse;
+          console.log(`🔄 [ReceivingList] Admin using selected warehouse: ${warehouse.name} (ID: ${warehouse.id})`);
+        } else {
+          warehouse = { name: user.warehouse, id: user.warehouse_id };
+          console.log(`🔄 [ReceivingList] Admin using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`);
+        }
+      } else {
+        // For non-admin users, always use their enrolled warehouse
+        warehouse = { name: user.warehouse, id: user.warehouse_id };
+        console.log(`🔄 [ReceivingList] User using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`);
+      }
+      
+      // Only update if warehouse actually changed
+      const hasChanged = !currentWarehouse || currentWarehouse?.id !== warehouse?.id;
+      if (hasChanged) {
+        console.log("🔄 [ReceivingList] Warehouse changed, updating data...");
+        setCurrentWarehouse(warehouse);
+        // Clear existing data when warehouse changes
+        setReceivings([]);
+        setUsers([]);
+        setSelectedReceipt(null);
+        setIsModalOpen(false);
+      } else {
+        console.log("📍 [ReceivingList] Warehouse same, no changes needed");
+      }
+      
+      setIsLoadingWarehouse(false);
+    };
+
+    setupWarehouse();
+  }, [selectedWarehouseId, currentWarehouse]);
+
+  // Create axios instance with warehouse header
+  const getAxiosConfig = useCallback(() => {
+    const config = {};
+    if (currentWarehouse?.id) {
+      config.headers = {
+        'X-Warehouse-ID': currentWarehouse.id
+      };
+      console.log(`📡 [ReceivingList] Making API call with warehouse header: ${currentWarehouse.id}`);
+    } else {
+      console.log("⚠️ [ReceivingList] No warehouse ID for API call!");
+    }
+    return config;
+  }, [currentWarehouse?.id]);
+
+  const fetchReceivings = useCallback(() => {
+    if (!currentWarehouse?.id) {
+      console.log("❌ [ReceivingList] Skipping receivings fetch - no warehouse ID");
+      return;
+    }
+    
+    console.log(`🔄 [ReceivingList] Fetching receivings for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
+    const config = getAxiosConfig();
+    axios.get("http://localhost:8080/api/receiving/", config)
+      .then((res) => {
+        console.log(`✅ [ReceivingList] Loaded ${res.data.length} receivings for warehouse ${currentWarehouse.id}`);
+        setReceivings(res.data);
+      })
+      .catch((err) => console.error("❌ [ReceivingList] Error fetching receivings:", err));
+  }, [currentWarehouse?.id, currentWarehouse?.name, getAxiosConfig]);
+
+  const fetchUsers = useCallback(() => {
+    if (!currentWarehouse?.id) {
+      console.log("❌ [ReceivingList] Skipping users fetch - no warehouse ID");
+      return;
+    }
+    
+    console.log(`🔄 [ReceivingList] Fetching users for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
+    const config = getAxiosConfig();
+    axios.get("http://localhost:8080/api/users/", config)
+      .then((res) => {
+        console.log(`✅ [ReceivingList] Loaded ${res.data.length} users for warehouse ${currentWarehouse.id}`);
+        setUsers(res.data);
+      })
+      .catch((err) => console.error("❌ [ReceivingList] Error fetching users:", err));
+  }, [currentWarehouse?.id, currentWarehouse?.name, getAxiosConfig]);
+
+  // Fetch data when warehouse changes
+  useEffect(() => {
+    if (currentWarehouse?.id && !isLoadingWarehouse) {
+      fetchReceivings();
+      fetchUsers();
+    }
+  }, [currentWarehouse?.id, isLoadingWarehouse, fetchReceivings, fetchUsers]);
 
   const handleDelete = async (id) => {
     const confirmDelete = window.confirm("Are you sure you want to delete this receiving?");
     if (!confirmDelete) return;
     try {
-      await axios.delete(`http://localhost:8080/api/receiving/${id}/`);
+      const config = getAxiosConfig();
+      await axios.delete(`http://localhost:8080/api/receiving/${id}/`, config);
+      console.log("✅ [ReceivingList] Receiving deleted successfully");
       fetchReceivings();
     } catch (error) {
-      console.error("Error deleting receiving:", error);
+      console.error("❌ [ReceivingList] Error deleting receiving:", error);
     }
   };
 
   const handleViewReceipt = async (id) => {
     try {
-      const response = await axios.get(`http://localhost:8080/api/receiving/${id}/`);
+      const config = getAxiosConfig();
+      const response = await axios.get(`http://localhost:8080/api/receiving/${id}/`, config);
       const receiptData = response.data;
 
       if (users.length > 0 && receiptData.received_by) {
@@ -163,23 +281,40 @@ const ReceivingList = () => {
       setSelectedReceipt(receiptData);
       setIsModalOpen(true);
     } catch (error) {
-      console.error("Error fetching receipt details:", error);
+      console.error("❌ [ReceivingList] Error fetching receipt details:", error);
       alert("Error loading receipt details. Please try again.");
     }
   };
 
+  // Show loading if no warehouse is set or still loading
+  if (!currentWarehouse || isLoadingWarehouse) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading warehouse information...</p>
+          <p className="text-sm text-gray-500 mt-2">Updating receiving data...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 min-h-screen bg-white">
-      {/* Header */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-[#041021]">
-        <Link
-          to="/receiving/new"
-          className="bg-[#0B1320] hover:bg-[#a7a7a7] text-white px-6 py-2 rounded-md font-semibold"
-        >
+      {/* Enhanced Warehouse Info Header */}
+      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6">
+        <h3 className="text-lg font-semibold text-blue-800 mb-2">📦 Current Warehouse</h3>
+        <p className="text-blue-700">
+          Showing receiving data for: <strong>{currentWarehouse.name}</strong> (ID: {currentWarehouse.id})
+        </p>
+        <p className="text-xs text-gray-500 mt-1">🔍 Monitoring ID: {selectedWarehouseId}</p>
+      </div>
+
+      <div className="flex justify-end items-center mb-8">
+        <Link to="/receiving/new" className="bg-[#0B1320] hover:bg-[#a7a7a7] text-white px-6 py-2 rounded-md font-semibold">
           + New Receiving
         </Link>
-        </h1>
+       
       </div>
 
       {/* Table */}
@@ -196,31 +331,31 @@ const ReceivingList = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-300">
-            {receivings.map((item) => (
-              <tr key={item.id} className="hover:bg-[#f8f9fa]">
-                <td className="p-3">{item.receive_no}</td>
-                <td className="p-3">{new Date(item.date_time).toLocaleString()}</td>
-                <td className="p-3">{item.supplier_name}</td>
-                <td className="p-3">{item.invoice_no}</td>
-                <td className="p-3">₱{parseFloat(item.net_amount).toFixed(2)}</td>
-                <td className="p-3 flex justify-center space-x-4">
-                  <button
-                    onClick={() => handleViewReceipt(item.id)}
-                    className="text-[#0047ad] hover:text-blue-700 text-lg"
-                    title="View Receipt"
-                  >
-                    <FaEye />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(item.id)}
-                    className="text-[#a50000] hover:text-red-700 text-lg"
-                    title="Delete"
-                  >
-                    <FaTrashAlt />
-                  </button>
+            {receivings.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="p-8 text-center text-gray-500">
+                  No receiving records found for {currentWarehouse.name}
                 </td>
               </tr>
-            ))}
+            ) : (
+              receivings.map((item) => (
+                <tr key={item.id} className="hover:bg-[#f8f9fa]">
+                  <td className="p-3">{item.receive_no}</td>
+                  <td className="p-3">{new Date(item.date_time).toLocaleString()}</td>
+                  <td className="p-3">{item.supplier_name}</td>
+                  <td className="p-3">{item.invoice_no}</td>
+                  <td className="p-3">₱{parseFloat(item.net_amount).toFixed(2)}</td>
+                  <td className="p-3 flex justify-center space-x-4">
+                    <button onClick={() => handleViewReceipt(item.id)} className="text-[#0047ad] hover:text-blue-700 text-lg" title="View Receipt">
+                      <FaEye />
+                    </button>
+                    <button onClick={() => handleDelete(item.id)} className="text-[#a50000] hover:text-red-700 text-lg" title="Delete">
+                      <FaTrashAlt />
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
           </tbody>
         </table>
       </div>

@@ -7,12 +7,28 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
   useEffect(() => {
     if (vanToEdit) {
       setVanId(vanToEdit.van_id);
-      setPlateNumber(vanToEdit.plate_number); // ✅ Corrected from 'route' to 'plate_number'
+      setPlateNumber(vanToEdit.plate_number);
     }
   }, [vanToEdit]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // Get current warehouse from localStorage
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    // Determine which warehouse to use
+    let warehouseId;
+    if (user.role?.toLowerCase() === "admin" && selectedWarehouse) {
+      warehouseId = selectedWarehouse.id;
+    } else if (user.warehouse_id) {
+      warehouseId = user.warehouse_id;
+    } else {
+      console.error("No warehouse found for user");
+      alert("Error: No warehouse assigned to user");
+      return;
+    }
 
     const method = vanToEdit ? "PUT" : "POST";
     const url = vanToEdit
@@ -25,7 +41,8 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           van_id: vanId,
-          plate_number: plateNumber, // ✅ Corrected field name
+          plate_number: plateNumber,
+          warehouse: warehouseId, // Include warehouse ID
         }),
       });
 
@@ -36,6 +53,7 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
       onClose();
     } catch (error) {
       console.error("Error saving van:", error);
+      alert("Error saving van: " + error.message);
     }
   };
 
@@ -51,7 +69,7 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
             <label className="block mb-1 font-medium">Van ID:</label>
             <input
               type="text"
-              className="w-full border p-2 rounded"
+              className="w-full border p-2 rounded text-base"
               value={vanId}
               onChange={(e) => setVanId(e.target.value)}
               required
@@ -62,7 +80,7 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
             <label className="block mb-1 font-medium">Plate Number:</label>
             <input
               type="text"
-              className="w-full border p-2 rounded"
+              className="w-full border p-2 rounded text-base"
               value={plateNumber}
               onChange={(e) => setPlateNumber(e.target.value)}
               required

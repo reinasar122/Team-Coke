@@ -5,7 +5,9 @@ import { useNavigate } from 'react-router-dom';
 const MerchandisingList = () => {
   const [sales, setSales] = useState([]);
   const navigate = useNavigate();
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
+  // Get current warehouse
   useEffect(() => {
    axios.get('http://localhost:8080/api/merchandising-set/')
       .then(res => setSales(res.data))
@@ -27,6 +29,18 @@ const MerchandisingList = () => {
 
   return (
     <div className="p-6 bg-sky-200 min-h-screen">
+      {/* Warehouse Display */}
+      <div className="mb-4 p-4 bg-blue-600 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-blue-100">Current Warehouse:</span>
+            <span className="ml-2 text-white font-bold text-lg">
+              {currentWarehouse?.name || "No Warehouse Selected"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div className="flex justify-end items-center mb-6">
         <button
           onClick={handleCreateNew}

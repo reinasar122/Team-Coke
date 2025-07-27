@@ -7,7 +7,8 @@ from .models import Van
 from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
 from .models import User, RoleAccessibility
 import re
-from .models import MerchandisingSale
+from .models import SupplierReturnForm, SupplierReturnFormItem, Product
+from .models import *
 
 class RoleAccessibilitySerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
@@ -60,7 +61,7 @@ Hello {user.first_name},
 Your account has been created.
 
 Username: {user.username}
-Password: {self.initial_data.get('password')}
+Password: {self.initial_data.get('password')}F
 
 Please log in and change your password as soon as possible.
 
@@ -116,19 +117,25 @@ class SupplierSerializer(serializers.ModelSerializer):
         model = Supplier
         fields = '__all__'
 
+    def create(self, validated_data):
+        contacts_data = validated_data.pop('contacts', [])
+        supplier = Supplier.objects.create(**validated_data)
+
+        for contact_data in contacts_data:
+            SupplierContact.objects.create(supplier=supplier, **contact_data)
+
+        return supplier
+
     def update(self, instance, validated_data):
         contacts_data = validated_data.pop("contacts", [])
 
-        # Update Supplier fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # Update or create contacts
         existing_ids = [c.id for c in instance.contacts.all()]
         incoming_ids = [c.get("id") for c in contacts_data if c.get("id")]
 
-        # Delete contacts not in incoming data
         for contact in instance.contacts.all():
             if contact.id not in incoming_ids:
                 contact.delete()
@@ -205,24 +212,64 @@ class ProductDetailSerializer(serializers.ModelSerializer):
 class ReceivingItemSerializer(serializers.ModelSerializer):
     product_id = serializers.IntegerField(write_only=True)
     product_name = serializers.CharField(source='product.product_name', read_only=True)
+    unit_cost = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
+    total = serializers.DecimalField(max_digits=12, decimal_places=2, read_only=True)
 
     class Meta:
         model = ReceivingItem
         exclude = ['receiving']
-        read_only_fields = ['product_name', 'unit_cost', 'total']
+
+    def validate(self, attrs):
+        product_id = attrs.get('product_id')
+        if not Product.objects.filter(id=product_id).exists():
+            raise serializers.ValidationError({'product_id': 'Invalid product ID'})
+        return attrs
 
     def create(self, validated_data):
         product_id = validated_data.pop('product_id')
         product = Product.objects.get(id=product_id)
         validated_data['product'] = product
         validated_data['product_name'] = product.product_name
-        return ReceivingItem(**validated_data)
+
+        # Extract pricing from related product.price
+        if hasattr(product, 'price'):
+            purchase_price = product.price.purchase_price or 0
+            bottle_price = product.price.bottle_price or 0
+            shell_price = product.price.shell_price or 0
+        else:
+            purchase_price = bottle_price = shell_price = 0
+
+        content_no = product.unit_type.content_no if product.unit_type else 1
+
+        pcs_qty = validated_data.get('pcs_qty', 0)
+        bad_order_pcs = validated_data.get('bad_order_pcs', 0)
+
+        unit_cost = purchase_price + bottle_price + (shell_price / content_no if content_no else 0)
+        adjusted_pcs = max(pcs_qty - bad_order_pcs, 0)
+        total = unit_cost * adjusted_pcs
+
+        validated_data.update({
+            'unit_price': purchase_price,
+            'bottle_price': bottle_price,
+            'shell_price': shell_price,
+            'unit_cost': unit_cost,
+            'total': total
+        })
+
+        receiving = self.context.get('receiving')
+        if not receiving:
+            raise serializers.ValidationError("Receiving context is missing.")
+
+        validated_data['receiving'] = receiving
+        return ReceivingItem.objects.create(**validated_data)
+
 
 
 class ReceivingSerializer(serializers.ModelSerializer):
     received_by_first_name = serializers.CharField(source='received_by.first_name', read_only=True)
     received_by_last_name = serializers.CharField(source='received_by.last_name', read_only=True)
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
     details = ReceivingItemSerializer(many=True)
 
     class Meta:
@@ -233,66 +280,85 @@ class ReceivingSerializer(serializers.ModelSerializer):
         details_data = validated_data.pop('details')
         receiving = Receiving.objects.create(**validated_data)
 
-        for detail in details_data:
-            detail_instance = ReceivingItemSerializer().create(detail)
-            detail_instance.receiving = receiving
-            detail_instance.save()
+        for item_data in details_data:
+            item_serializer = ReceivingItemSerializer(data=item_data, context={'receiving': receiving})
+            item_serializer.is_valid(raise_exception=True)
+            item = item_serializer.save()
 
-            # ✅ Update stock (based on saved ReceivingItem logic)
-            try:
-                product = detail_instance.product
-                content_no = product.unit_type.content_no if product.unit_type else 1
-                pcs_qty = detail_instance.shell_qty * content_no
-                adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
+            # Stock logic - Handle warehouse filtering
+            product = item.product
+            content_no = product.unit_type.content_no if product.unit_type else 1
+            pcs_qty = item.shell_qty * content_no
+            adjusted_pcs = pcs_qty - item.bad_order_pcs
 
-                stock, _ = Stock.objects.get_or_create(product=product)
-                stock.quantity_available += max(adjusted_pcs, 0)
-                stock.save()
-            except Product.DoesNotExist:
-                continue
+            # Get or create stock for this warehouse (or general stock if no warehouse)
+            if receiving.warehouse:
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse=receiving.warehouse,
+                    defaults={'quantity_available': 0}
+                )
+            else:
+                # Fallback: get or create stock without warehouse for existing data
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse__isnull=True,
+                    defaults={'quantity_available': 0}
+                )
+            
+            stock.quantity_available += max(adjusted_pcs, 0)
+            stock.save()
 
         return receiving
 
     def update(self, instance, validated_data):
         details_data = validated_data.pop('details', [])
 
-        # Update Receiving fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        # Clear old ReceivingItems
         instance.details.all().delete()
 
-        # Save updated items and update stock
-        for detail in details_data:
-            detail_instance = ReceivingItemSerializer().create(detail)
-            detail_instance.receiving = instance
-            detail_instance.save()
+        for item_data in details_data:
+            item_serializer = ReceivingItemSerializer(data=item_data, context={'receiving': instance})
+            item_serializer.is_valid(raise_exception=True)
+            item = item_serializer.save()
 
-            try:
-                product = detail_instance.product
-                content_no = product.unit_type.content_no if product.unit_type else 1
-                pcs_qty = detail_instance.shell_qty * content_no
-                adjusted_pcs = pcs_qty - detail_instance.bad_order_pcs
+            # Stock logic - Handle warehouse filtering
+            product = item.product
+            content_no = product.unit_type.content_no if product.unit_type else 1
+            pcs_qty = item.shell_qty * content_no
+            adjusted_pcs = pcs_qty - item.bad_order_pcs
 
-                stock, _ = Stock.objects.get_or_create(product=product)
-                stock.quantity_available += max(adjusted_pcs, 0)
-                stock.save()
-            except Product.DoesNotExist:
-                continue
+            if instance.warehouse:
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse=instance.warehouse,
+                    defaults={'quantity_available': 0}
+                )
+            else:
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse__isnull=True,
+                    defaults={'quantity_available': 0}
+                )
+            
+            stock.quantity_available += max(adjusted_pcs, 0)
+            stock.save()
 
         return instance
-
     
 
 class StockSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)  # ✅ This gives you full product details
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
     stock_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Stock
-        fields = ['id', 'product', 'quantity_available', 'last_updated', 'stock_status']
+        fields = ['id', 'product', 'product_name', 'warehouse', 'warehouse_name', 
+                 'quantity_available', 'last_updated', 'stock_status']
 
     def get_stock_status(self, obj):
         return obj.stock_status()
@@ -311,28 +377,21 @@ class RoleAccessibilitySerializer(serializers.ModelSerializer):
         model = RoleAccessibility
         fields = '__all__'
 
-
 class RouteSerializer(serializers.ModelSerializer):
     class Meta:
         model = Route
         fields = '__all__'
 
-
-
-# TransactionType Serializer
 class TransactionTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = TransactionType
         fields = '__all__'
 
-
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'warehouse']
 
-
-# MerchandisingItem Serializer
 class MerchandisingItemSerializer(serializers.ModelSerializer):
     product = ProductSerializer(read_only=True)
 
@@ -370,17 +429,14 @@ class MiscellaneousItemSerializer(serializers.ModelSerializer):
             'merchandising': {'required': False}  # ✅ make it optional
         }
 
-
-# Payment Serializer
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
         fields = '__all__'
 
-
-# Merchandising Serializer (Main Transaction)
 class MerchandisingSerializer(serializers.ModelSerializer):
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
+    customer_name = serializers.SerializerMethodField()
     items = MerchandisingItemSerializer(many=True)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False)
@@ -397,6 +453,10 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
     def get_total_expenses_amount(self, obj):
         return sum([item.amount for item in obj.misc_items.all()])
+
+    def get_customer_name(self, obj):
+        # You might need to add customer field to Merchandising model
+        return "N/A"  # Placeholder
 
     def create(self, validated_data):
         items_data = validated_data.pop('items')
@@ -430,28 +490,34 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 actual_sale=item_data.get("actual_sale", 0),
             )
 
-            # ✅ Handle returned empties (ReturnableStock)
+            # Handle returned empties (ReturnableStock)
             if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
                 ReturnableStock.objects.create(
                     product=product,
                     empty_bottle_qty=merchandising_item.empty_return_pcs,
                     empty_shell_qty=merchandising_item.empty_return_shell,
                     source='customer',
-                    supplier=product.supplier  # ✅ Link the return to the correct supplier
+                    supplier=product.supplier,
+                    warehouse=merchandising.warehouse  # ADD THIS
                 )
 
-            # ✅ Handle returned full items (restock)
+            # Handle returned full items (restock)
             if merchandising_item.actual_return_pcs > 0:
-                stock, _ = Stock.objects.get_or_create(product=product)
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse=merchandising.warehouse
+                )
                 stock.quantity_available += merchandising_item.actual_return_pcs
                 stock.save()
 
-            # ✅ Deduct sold quantity from stock
+            # Deduct sold quantity from stock
             if merchandising_item.sold_pcs > 0:
-                stock, _ = Stock.objects.get_or_create(product=product)
+                stock, _ = Stock.objects.get_or_create(
+                    product=product, 
+                    warehouse=merchandising.warehouse
+                )
                 stock.quantity_available -= merchandising_item.sold_pcs
                 stock.save()
-
 
         for misc_data in misc_items_data:
             MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
@@ -462,25 +528,18 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         return merchandising
 
     def update(self, instance, validated_data):
-        # Optional: we can add complex update logic if you need
         return super().update(instance, validated_data)
 
-
-# ReturnableStock Serializer
 class ReturnableStockSerializer(serializers.ModelSerializer):
     class Meta:
         model = ReturnableStock
         fields = '__all__'
 
-
-# SupplierReturnItem Serializer
 class SupplierReturnItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierReturnItem
         fields = '__all__'
 
-
-# SupplierReturn Serializer
 class SupplierReturnSerializer(serializers.ModelSerializer):
     items = SupplierReturnItemSerializer(many=True)
 
@@ -498,7 +557,6 @@ class SupplierReturnSerializer(serializers.ModelSerializer):
         return supplier_return
 
     def update(self, instance, validated_data):
-        # Optional update logic
         return super().update(instance, validated_data)
 
 class LoginSerializer(serializers.Serializer):
@@ -570,3 +628,44 @@ class OTPVerificationSerializer(serializers.Serializer):
             raise serializers.ValidationError("Email not found.")
         return data
 
+#Supplier Return Item Serializer 
+class SupplierReturnFormItemSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SupplierReturnFormItem
+        fields = ['product', 'qty_shell', 'qty_pcs', 'bottle_price', 'shell_price', 'line_total']
+
+class SupplierReturnFormSerializer(serializers.ModelSerializer):
+    supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)  # ADD THIS
+    items = SupplierReturnFormItemSerializer(many=True)
+
+    class Meta:
+        model = SupplierReturnForm
+        fields = ['id', 'sup_no', 'supplier', 'supplier_name', 'warehouse', 'warehouse_name', 'date', 'total_amount', 'items']  # ADD warehouse fields
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        supplier_return = SupplierReturnForm.objects.create(**validated_data)
+        for item_data in items_data:
+            SupplierReturnFormItem.objects.create(supplier_return=supplier_return, **item_data)
+        return supplier_return
+
+class ProcessEmptiesReturnSerializer(serializers.Serializer):
+    return_date = serializers.DateTimeField()
+    items = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.CharField()
+        )
+    )
+    
+    def validate_items(self, value):
+        if not value:
+            raise serializers.ValidationError("At least one item is required")
+        
+        for item in value:
+            required_fields = ['merchandising_id', 'item_id', 'product_id']
+            for field in required_fields:
+                if field not in item:
+                    raise serializers.ValidationError(f"Missing required field: {field}")
+        
+        return value

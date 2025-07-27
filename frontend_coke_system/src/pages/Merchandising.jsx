@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
@@ -17,25 +17,78 @@ const Merchandising = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [isAddingRoute, setIsAddingRoute] = useState(false);
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const navigate = useNavigate();
+  
   const [dateTime, setDateTime] = useState(() => {
     const date = new Date();
     date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
     return date.toISOString().slice(0, 16);
   });
+  
   const [rows, setRows] = useState([
     { id: Date.now(), productId: "", quantity: "", shellQty: "" }
   ]);
 
-
-  //const [customer, setCustomer] = useState("");
-
-
-  //Make changes for stock (track available stock for each product)
   const [availableStock, setAvailableStock] = useState({});
-
   const location = useLocation();
 
+  // Get current warehouse from localStorage or user data
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    // For admin users, use selected warehouse or fallback to enrolled warehouse
+    if (user.role?.toLowerCase() === "admin") {
+      setCurrentWarehouse(selectedWarehouse || { id: user.warehouse_id, name: user.warehouse });
+    } else {
+      // For non-admin users, always use their enrolled warehouse
+      setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
+    }
+
+    // Listen for warehouse changes (from Header component)
+    const handleWarehouseChange = (event) => {
+      const { warehouse } = event.detail;
+      if (warehouse) {
+        setCurrentWarehouse(warehouse);
+      } else {
+        // Reset to user's enrolled warehouse
+        setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
+      }
+    };
+
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+    return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
+  }, []);
+
+  // Memoized functions to fix ESLint warnings
+  const fetchStockQuantity = useCallback(async (productId) => {
+    try {
+      const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`, {
+        params: { warehouse: currentWarehouse?.id }
+      });
+      setAvailableStock((prevState) => ({
+        ...prevState,
+        [productId]: response.data.quantity_available,
+      }));
+    } catch (err) {
+      console.error("Error fetching stock:", err);
+    }
+  }, [currentWarehouse?.id]);
+
+  const fetchMspNo = useCallback(async (transactionType) => {
+    try {
+      const response = await axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
+        params: { 
+          transaction_type: transactionType,
+          warehouse: currentWarehouse?.id 
+        }
+      });
+      setMspNo(response.data.msp_no);
+    } catch (err) {
+      console.error("Error fetching MSP:", err);
+    }
+  }, [currentWarehouse?.id]);
 
   useEffect(() => {
     const savedForm = localStorage.getItem("merchForm");
@@ -59,126 +112,83 @@ const Merchandising = () => {
       if (dateTime) setDateTime(dateTime);
 
       if (products && products.length > 0) {
-      const restoredRows = products.map((product) => ({
-        id: Date.now() + Math.random(),
-        productId: product.productId,
-        quantity: product.dispatchedPcs,
-        shellQty: product.dispatchedShell,
-        contentNo: product.contentNo || 0,
-      }));
+        const restoredRows = products.map((product) => ({
+          id: Date.now() + Math.random(),
+          productId: product.productId,
+          quantity: product.dispatchedPcs,
+          shellQty: product.dispatchedShell,
+          contentNo: product.contentNo || 0,
+        }));
 
-      setRows(restoredRows);
+        setRows(restoredRows);
 
-      // ✅ Fetch stock for each restored product
-      products.forEach((product) => {
-        fetchStockQuantity(product.productId);
-      });
+        products.forEach((product) => {
+          fetchStockQuantity(product.productId);
+        });
+      }
+    } else if (savedForm) {
+      const data = JSON.parse(savedForm);
+      setMspNo(data.mspNo);
+      setTransactionType(data.transactionType);
+      setSelectedUser(data.selectedUser);
+      setRoute(data.selectedRoute);
+      setDateTime(data.dateTime);
+      setRows(
+        data.products.map((product) => ({
+          id: Date.now() + Math.random(),
+          productId: product.productId,
+          quantity: product.quantity,
+          shellQty: product.shellQty,
+          contentNo: product.contentNo || 0,
+        }))
+      );
     }
-
-
-
-
-  } else if (savedForm) {
-    const data = JSON.parse(savedForm);
-    setMspNo(data.mspNo);
-    setTransactionType(data.transactionType);
-    setSelectedUser(data.selectedUser);
-    setRoute(data.selectedRoute);
-    setDateTime(data.dateTime);
-    setRows(
-      data.products.map((product) => ({
-        id: Date.now() + Math.random(),
-        productId: product.productId,
-        quantity: product.quantity,
-        shellQty: product.shellQty,
-        contentNo: product.contentNo || 0,
-      }))
-    );
-  }
-}, [location.state]);
-
-
+  }, [location.state, fetchStockQuantity]);
 
   useEffect(() => {
-    axios.get("http://localhost:8080/api/users/")
+    if (!currentWarehouse?.id) return;
+
+    const warehouseId = currentWarehouse.id;
+
+    axios.get(`http://localhost:8080/api/users/?warehouse=${warehouseId}`)
       .then(res => setUsers(res.data))
       .catch(err => console.error("Failed to fetch users:", err));
 
-    axios.get("http://localhost:8080/api/products/")
+    axios.get(`http://localhost:8080/api/products/?warehouse=${warehouseId}`)
       .then(res => setProducts(res.data))
       .catch(err => console.error("Failed to fetch products:", err));
 
-    axios.get("http://localhost:8080/api/routes/")
+    axios.get(`http://localhost:8080/api/routes/?warehouse=${warehouseId}`)
       .then(res => setRoutes(res.data))
       .catch(err => console.error("Failed to fetch routes:", err));
 
-    axios.get("http://localhost:8080/api/customers/")
+    axios.get(`http://localhost:8080/api/customers/?warehouse=${warehouseId}`)
       .then(res => setCustomers(res.data))
       .catch(err => console.error("Failed to fetch customers:", err));
-  }, []);
+  }, [currentWarehouse]);
 
   useEffect(() => {
-    if (transactionType === "Van Load") {
-      axios.get("http://localhost:8080/api/vans/")
+    if (transactionType === "Van Load" && currentWarehouse?.id) {
+      axios.get(`http://localhost:8080/api/vans/?warehouse=${currentWarehouse.id}`)
         .then(res => setVans(res.data))
         .catch(err => console.error("Failed to fetch vans:", err));
     }
-  }, [transactionType]);
+  }, [transactionType, currentWarehouse]);
 
-
-
-    // Number 2 changes
-  // Trigger fetching MSP number when the transaction type is selected
   useEffect(() => {
-    if (transactionType) {
-      fetchMspNo(transactionType);  // Fetch MSP No when the transaction type is selected
+    if (transactionType && currentWarehouse?.id) {
+      fetchMspNo(transactionType);
     }
-  }, [transactionType]);  // Only run when transactionType changes
+  }, [transactionType, currentWarehouse, fetchMspNo]);
 
-  // Fetch the next MSP number from the backend based on the transaction type
-  const fetchMspNo = async (transactionType) => {
-    
-    try {
-      // Send transaction_type as a query param to the backend API
-      const response = await axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
-        params: { transaction_type: transactionType } // Ensure correct value is passed here
-      });
-      setMspNo(response.data.msp_no);  // Set the fetched MSP number
-    } catch (err) {
-      console.error("Error fetching MSP:", err); // Ensure errors are logged for better debugging
-    }
-};
-
-
-    //Number 3 changes
-    // Fetch the stock quantity for a specific product
-  const fetchStockQuantity = async (productId) => {
-    try {
-      const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`);
-      // Store the stock quantity in availableStock state
-      setAvailableStock((prevState) => ({
-        ...prevState,
-        [productId]: response.data.quantity_available,
-      }));
-    } catch (err) {
-      console.error("Error fetching stock:", err);
-    }
-  };
-
-
-
- //Number 4 changes
   const handleProductChange = (index, productId) => {
     const updated = [...rows];
     updated[index].productId = productId;
   
-    // Fetch selected product from products list to get the content_no
-  const selectedProduct = products.find(p => p.id === productId);
+    const selectedProduct = products.find(p => p.id === productId);
     if (selectedProduct) {
-      updated[index].contentNo = selectedProduct.unit_type.content_no;  // Fix content_no
-      console.log(`Selected Product: ${selectedProduct.product_name}, Content No: ${updated[index].contentNo}`);
+      updated[index].contentNo = selectedProduct.unit_type.content_no;
     }
-
   
     setRows(updated);
   
@@ -186,56 +196,52 @@ const Merchandising = () => {
       fetchStockQuantity(productId);
     }
   
-    // Add a new empty row if it's the last row
     if (index === rows.length - 1) {
       setRows(prev => [...prev, { id: Date.now(), productId: "", quantity: "", shellQty: "" }]);
     }
   };
-  
-
 
   const handleShellQtyChange = (index, shellQtyValue) => {
-  const updated = [...rows];
-  updated[index].shellQty = shellQtyValue;
-
-  const productId = updated[index].productId;
-  const product = products.find(p => p.id.toString() === productId.toString());
-
-  const contentNo = product?.unit_type?.content_no || 0;
-  if (!contentNo) {
-    console.warn("Missing content_no for product:", product);
-  }
-
-  const pcsQty = parseInt(shellQtyValue || 0) * contentNo;
-  const stockAvailable = availableStock[productId] || 0;
-
-  if (pcsQty > stockAvailable) {
-    alert(`Insufficient stock for ${product?.product_name}. Available: ${stockAvailable} pcs.`);
-    updated[index].quantity = 0; // Reset PCS if stock is not enough
-  } else {
-    updated[index].quantity = pcsQty;
-  }
-
-  setRows(updated);
-};
-
-  // Handle "Quantity (Pcs)" change
-  const handleQuantityChange = (index, value) => {
     const updated = [...rows];
-    updated[index].quantity = value;  // Update the quantity (PCS) state
+    updated[index].shellQty = shellQtyValue;
 
-    // Ensure contentNo is fetched correctly
-    const contentNo = updated[index].contentNo || 0;
-    updated[index].shellQty = Math.floor(value / contentNo);  // Update shell quantity (rounded down)
+    const productId = updated[index].productId;
+    const product = products.find(p => p.id.toString() === productId.toString());
 
-    console.log(`Updated Shell Qty: ${updated[index].shellQty}, Updated PCS: ${value}`);  // Log to check if it's calculating correctly
+    const contentNo = product?.unit_type?.content_no || 0;
+    if (!contentNo) {
+      console.warn("Missing content_no for product:", product);
+    }
 
-    setRows(updated);  // Update the state
+    const pcsQty = parseInt(shellQtyValue || 0) * contentNo;
+    const stockAvailable = availableStock[productId] || 0;
+
+    if (pcsQty > stockAvailable) {
+      alert(`Insufficient stock for ${product?.product_name}. Available: ${stockAvailable} pcs.`);
+      updated[index].quantity = 0;
+    } else {
+      updated[index].quantity = pcsQty;
+    }
+
+    setRows(updated);
   };
 
-  
+  const handleQuantityChange = (index, value) => {
+    const updated = [...rows];
+    updated[index].quantity = value;
+
+    const contentNo = updated[index].contentNo || 0;
+    updated[index].shellQty = Math.floor(value / contentNo);
+
+    setRows(updated);
+  };
 
   const handleSave = async () => {
+    if (!currentWarehouse?.id) {
+      alert("No warehouse selected. Please select a warehouse first.");
+      return;
+    }
+
     if (!transactionType) {
       alert("Please select a Transaction Type before proceeding.");
       return;
@@ -267,40 +273,30 @@ const Merchandising = () => {
       }
     }
 
+    const validRows = rows.filter((row) => row.productId && row.quantity && row.shellQty);
 
-  const validRows = rows.filter((row) => row.productId && row.quantity && row.shellQty);
+    const deductedStock = validRows.map((row) => ({
+      productId: row.productId,
+      deducted: parseInt(row.quantity)
+    }));
 
-  // Prepare deduction data but DO NOT apply it yet
-  const deductedStock = validRows.map((row) => ({
-    productId: row.productId,
-    deducted: parseInt(row.quantity)
-  }));
-
- 
-  
-  for (let row of validRows) {
-    const stockQuantity = availableStock[row.productId];
-    if (row.quantity > stockQuantity) {
-      alert(`Not enough stock for ${row.productId}. Available: ${stockQuantity}, Requested: ${row.quantity}`);
-      return;
+    for (let row of validRows) {
+      const stockQuantity = availableStock[row.productId];
+      if (row.quantity > stockQuantity) {
+        alert(`Not enough stock for ${row.productId}. Available: ${stockQuantity}, Requested: ${row.quantity}`);
+        return;
+      }
     }
-
-  }
-
-
-
 
     const confirmed = window.confirm("Do you want to proceed with saving?");
     if (!confirmed) return;
 
     let selectedUserName = selectedUser;
 
-    // If selectedUser is a number (i.e., an ID), resolve it to full name
     if (!isNaN(selectedUser)) {
       const user = users.find((u) => u.id.toString() === selectedUser.toString());
       selectedUserName = user ? `${user.first_name} ${user.last_name}` : "N/A";
     }
-
 
     const selectedProductsRows = validRows.map((row) => {
       const product = products.find((p) => p.id.toString() === row.productId.toString());
@@ -314,9 +310,7 @@ const Merchandising = () => {
       };
     });
 
-    // Ensure customer name is found for display
-      let customerObj = customers.find(c => c.id.toString() === selectedCustomerId.toString());
-
+    let customerObj = customers.find(c => c.id.toString() === selectedCustomerId.toString());
     
     navigate("/merchandising-sale", {
       state: {
@@ -327,15 +321,28 @@ const Merchandising = () => {
         dateTime,
         customerId: selectedCustomerId,
         customer: customerObj?.name || "",
-        selectedVan, // ✅ <-- add this line
+        selectedVan,
         products: selectedProductsRows,
-        deductedStock,  // ✅ pass it along
+        deductedStock,
+        warehouse: currentWarehouse,
       }
     });
   };
 
   return (
     <div className="min-h-screen bg-gray-700 text-white p-6">
+      {/* Warehouse Display */}
+      <div className="mb-4 p-4 bg-blue-600 rounded-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <span className="text-blue-100">Current Warehouse:</span>
+            <span className="ml-2 text-white font-bold text-lg">
+              {currentWarehouse?.name || "No Warehouse Selected"}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
           <div>
@@ -415,9 +422,11 @@ const Merchandising = () => {
                       try {
                         const res = await axios.post("http://localhost:8080/api/customers/", {
                           name: newCustomer,
+                        }, {
+                          params: { warehouse: currentWarehouse?.id }
                         });
                         setCustomers((prev) => [...prev, res.data]);
-                        setSelectedCustomerId(res.data.id); // ⬅ use ID here
+                        setSelectedCustomerId(res.data.id);
                       } catch (error) {
                         console.error("Error saving new customer:", error);
                       }
@@ -431,7 +440,7 @@ const Merchandising = () => {
                   onChange={(e) => {
                     if (e.target.value === "add_new") {
                       setIsAddingCustomer(true);
-                      setSelectedCustomerId(""); // reset if switching to input
+                      setSelectedCustomerId("");
                     } else {
                       setSelectedCustomerId(e.target.value);
                     }
@@ -495,6 +504,8 @@ const Merchandising = () => {
                         try {
                           const res = await axios.post("http://localhost:8080/api/routes/", {
                             route_name: newRoute,
+                          }, {
+                            params: { warehouse: currentWarehouse?.id }
                           });
                           setRoutes((prev) => [...prev, res.data]);
                           setRoute(res.data.route_name);
@@ -511,7 +522,7 @@ const Merchandising = () => {
                     onChange={(e) => {
                       if (e.target.value === "add_new") {
                         setIsAddingRoute(true);
-                        setRoute(""); // clear any leftover value
+                        setRoute("");
                       } else {
                         setRoute(e.target.value);
                       }
@@ -528,11 +539,11 @@ const Merchandising = () => {
                   </select>
                 )}
               </div>
-
             </>
           )}
         </div>
       </div>
+
       {/* Table Section */}
       <div className="overflow-x-auto bg-gray-100 rounded">
         <table className="table-auto w-full text-black">

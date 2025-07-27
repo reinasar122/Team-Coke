@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+// Updated ReceivingForm.jsx - Fixed ESLint warnings
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
@@ -6,8 +7,21 @@ const ReceivingForm = () => {
   const navigate = useNavigate();
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [filteredProducts, setFilteredProducts] = useState([]);
   const [users, setUsers] = useState([]);
   const [receiveNo, setReceiveNo] = useState("");
+  const [supplierReturns, setSupplierReturns] = useState([]);
+  const [isLoadingReturns, setIsLoadingReturns] = useState(false);
+  const [error, setError] = useState("");
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
+  const [debugInfo, setDebugInfo] = useState("");
+  const [isLoadingWarehouse, setIsLoadingWarehouse] = useState(true);
+  
+  // NEW: State to track the selected warehouse from localStorage
+  const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
+  
+  // Use ref to track if we've already fetched for this supplier
+  const lastFetchedSupplier = useRef(null);
 
   const [form, setForm] = useState({
     supplier: "",
@@ -29,10 +43,204 @@ const ReceivingForm = () => {
     ],
   });
 
+  // NEW: Reset form when warehouse changes
+  const resetForm = useCallback(() => {
+    console.log("🔄 Resetting form data...");
+    setForm({
+      supplier: "",
+      invoice_no: "",
+      return_total_amount: 0,
+      net_amount: 0,
+      received_by: "",
+      remarks: "",
+      details: [
+        {
+          product_id: "",
+          pcs_qty: 0,
+          shell_qty: 0,
+          bottle_qty: 0,
+          bad_order_pcs: 0,
+          unit_cost: 0,
+          total: 0,
+        },
+      ],
+    });
+    setSuppliers([]);
+    setProducts([]);
+    setUsers([]);
+    setSupplierReturns([]);
+    setFilteredProducts([]);
+    lastFetchedSupplier.current = null;
+  }, []);
+
+  // NEW: Monitor localStorage for warehouse changes - this runs constantly
   useEffect(() => {
-    axios.get("http://localhost:8080/api/suppliers/").then((res) => setSuppliers(res.data));
-    axios.get("http://localhost:8080/api/products/").then((res) => setProducts(res.data));
-    axios.get("http://localhost:8080/api/users/").then((res) => setUsers(res.data));
+    const checkWarehouseChanges = () => {
+      const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      const newWarehouseId = selectedWarehouse?.id || null;
+      
+      console.log("🔍 Checking warehouse changes:", selectedWarehouseId, "->", newWarehouseId);
+      
+      if (newWarehouseId !== selectedWarehouseId) {
+        console.log("🚨 WAREHOUSE CHANGE DETECTED:", selectedWarehouseId, "->", newWarehouseId);
+        setSelectedWarehouseId(newWarehouseId);
+      }
+    };
+
+    // Check immediately
+    checkWarehouseChanges();
+    
+    // Check every 300ms for changes
+    const interval = setInterval(checkWarehouseChanges, 300);
+    
+    return () => clearInterval(interval);
+  }, [selectedWarehouseId]);
+
+  // FIXED: Enhanced warehouse detection - triggers when selectedWarehouseId changes
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    console.log("🔍 Debug - Full user data:", user);
+    console.log("🔍 Debug - Selected warehouse:", selectedWarehouse);
+    console.log("🔍 Debug - Trigger warehouse ID:", selectedWarehouseId);
+    
+    // Function to fetch warehouse ID by name
+    const fetchWarehouseByName = async (warehouseName) => {
+      try {
+        const response = await axios.get("http://localhost:8080/api/warehouses/");
+        const warehouse = response.data.find(w => w.name === warehouseName);
+        return warehouse || null;
+      } catch (error) {
+        console.error("❌ Error fetching warehouses:", error);
+        return null;
+      }
+    };
+
+    const setupWarehouse = async () => {
+      console.log("🏗️ Setting up warehouse...");
+      setIsLoadingWarehouse(true);
+      let warehouse = null;
+      let debugMsg = "";
+      
+      if (user.role?.toLowerCase() === "admin") {
+        // For admin: use selected warehouse OR their enrolled warehouse
+        if (selectedWarehouse && selectedWarehouse.id) {
+          warehouse = selectedWarehouse;
+          debugMsg = `Admin using selected warehouse: ${warehouse.name} (ID: ${warehouse.id})`;
+        } else if (user.warehouse_id) {
+          warehouse = { name: user.warehouse, id: user.warehouse_id };
+          debugMsg = `Admin using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`;
+        } else if (user.warehouse) {
+          // Try to get warehouse ID from name
+          const foundWarehouse = await fetchWarehouseByName(user.warehouse);
+          if (foundWarehouse) {
+            warehouse = { name: foundWarehouse.name, id: foundWarehouse.id };
+            debugMsg = `Admin warehouse mapped: ${warehouse.name} (ID: ${warehouse.id})`;
+          } else {
+            debugMsg = `⚠️ Admin warehouse "${user.warehouse}" not found in database`;
+          }
+        } else {
+          debugMsg = "⚠️ Admin has no warehouse assigned";
+        }
+      } else {
+        // For non-admin: ALWAYS use their enrolled warehouse, ignore selectedWarehouse
+        if (user.warehouse_id) {
+          warehouse = { name: user.warehouse, id: user.warehouse_id };
+          debugMsg = `User using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`;
+        } else if (user.warehouse) {
+          // Try to get warehouse ID from name
+          console.log(`🔄 Looking up warehouse ID for: "${user.warehouse}"`);
+          const foundWarehouse = await fetchWarehouseByName(user.warehouse);
+          if (foundWarehouse) {
+            warehouse = { name: foundWarehouse.name, id: foundWarehouse.id };
+            debugMsg = `✅ User warehouse mapped: ${warehouse.name} (ID: ${warehouse.id})`;
+            
+            // IMPORTANT: Update localStorage to include warehouse_id for future use
+            const updatedUser = { ...user, warehouse_id: foundWarehouse.id };
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+            console.log("💾 Updated user data with warehouse_id:", updatedUser);
+          } else {
+            debugMsg = `❌ User warehouse "${user.warehouse}" not found in database`;
+          }
+        } else {
+          debugMsg = "❌ User has no warehouse assigned";
+        }
+      }
+      
+      console.log("🔍 Final result:", debugMsg);
+      setDebugInfo(debugMsg);
+      
+      // Only update if warehouse actually changed
+      const hasChanged = !currentWarehouse || currentWarehouse?.id !== warehouse?.id;
+      if (hasChanged) {
+        console.log("🔄 Warehouse changed, updating data and resetting form...");
+        setCurrentWarehouse(warehouse);
+        resetForm();
+      } else {
+        console.log("📍 Warehouse same, no changes needed");
+      }
+      
+      // Clear any previous errors if we found a warehouse
+      if (warehouse?.id) {
+        setError("");
+      } else {
+        setError(`User warehouse not found. ${debugMsg}`);
+      }
+      
+      setIsLoadingWarehouse(false);
+    };
+
+    setupWarehouse();
+  }, [selectedWarehouseId, resetForm, currentWarehouse]); // FIXED: Added currentWarehouse to dependencies
+
+  // Create axios instance with warehouse header and debugging
+  const getAxiosConfig = useCallback(() => {
+    const config = {};
+    if (currentWarehouse?.id) {
+      config.headers = {
+        'X-Warehouse-ID': currentWarehouse.id
+      };
+      console.log(`📡 Making API call with warehouse header: ${currentWarehouse.id}`);
+    } else {
+      console.log("⚠️ No warehouse ID for API call!");
+    }
+    return config;
+  }, [currentWarehouse?.id]);
+
+  // Load data when warehouse changes
+  useEffect(() => {
+    if (!currentWarehouse?.id || isLoadingWarehouse) {
+      console.log("❌ Skipping API calls - no warehouse ID or still loading");
+      return;
+    }
+
+    const config = getAxiosConfig();
+    console.log(`🔄 Loading data for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
+    
+    // Load suppliers
+    axios.get("http://localhost:8080/api/suppliers/", config)
+      .then((res) => {
+        console.log(`✅ Loaded ${res.data.length} suppliers for warehouse ${currentWarehouse.id}`);
+        setSuppliers(res.data);
+      })
+      .catch(err => console.error("❌ Error loading suppliers:", err));
+    
+    // Load products
+    axios.get("http://localhost:8080/api/products/", config)
+      .then((res) => {
+        console.log(`✅ Loaded ${res.data.length} products for warehouse ${currentWarehouse.id}`);
+        setProducts(res.data);
+      })
+      .catch(err => console.error("❌ Error loading products:", err));
+    
+    // Load users
+    axios.get("http://localhost:8080/api/users/", config)
+      .then((res) => {
+        console.log(`✅ Loaded ${res.data.length} users for warehouse ${currentWarehouse.id}`);
+        setUsers(res.data);
+      })
+      .catch(err => console.error("❌ Error loading users:", err));
 
     const generateJumbledCode = () => {
       const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -40,13 +248,163 @@ const ReceivingForm = () => {
     };
 
     setReceiveNo(generateJumbledCode());
+  }, [currentWarehouse?.id, currentWarehouse?.name, getAxiosConfig, isLoadingWarehouse]); // FIXED: Added currentWarehouse.name to dependencies
+
+  // Filter products when supplier changes
+  useEffect(() => {
+    if (form.supplier && products.length > 0) {
+      const supplierProducts = products.filter(product => 
+        String(product.supplier_id) === String(form.supplier) || 
+        String(product.supplier) === String(form.supplier)
+      );
+      setFilteredProducts(supplierProducts);
+      
+      setForm(prev => ({
+        ...prev,
+        details: [
+          {
+            product_id: "",
+            pcs_qty: 0,
+            shell_qty: 0,
+            bottle_qty: 0,
+            bad_order_pcs: 0,
+            unit_cost: 0,
+            total: 0,
+          }
+        ]
+      }));
+    } else {
+      setFilteredProducts([]);
+    }
+  }, [form.supplier, products]);
+
+  // Function to update form with return amount calculation
+  const updateFormWithReturnAmount = useCallback((returnAmount) => {
+    setForm(prev => {
+      const total = prev.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
+      const netAmount = Math.max(0, total - returnAmount);
+      
+      return {
+        ...prev,
+        return_total_amount: returnAmount,
+        net_amount: netAmount.toFixed(2)
+      };
+    });
   }, []);
 
-  const handleReturnChange = (value) => {
-    const updatedReturnAmount = value === "" ? "" : Number(value);
-    const total = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
-    const net = total - (updatedReturnAmount === "" ? 0 : updatedReturnAmount);
-    setForm({ ...form, return_total_amount: value, net_amount: net.toFixed(2) });
+  // Fetch supplier returns from API (filtered by warehouse)
+  const fetchSupplierReturns = useCallback(async (supplierId) => {
+    if (!currentWarehouse?.id || !supplierId) return;
+    
+    if (lastFetchedSupplier.current === supplierId) return;
+    lastFetchedSupplier.current = supplierId;
+    
+    setIsLoadingReturns(true);
+    setError("");
+    
+    try {
+      console.log("🔄 Fetching returns for supplier:", supplierId, "in warehouse:", currentWarehouse.name);
+      
+      const config = getAxiosConfig();
+      const response = await axios.get("http://localhost:8080/api/supplier-return-form/", config);
+      console.log("📊 All supplier returns for warehouse:", response.data);
+      
+      const filteredReturns = response.data.filter(returnItem => 
+        String(returnItem.supplier) === String(supplierId)
+      );
+      
+      console.log("🎯 Filtered returns for supplier", supplierId, ":", filteredReturns);
+      
+      if (filteredReturns.length > 0) {
+        setSupplierReturns(filteredReturns);
+        
+        const totalReturnAmount = filteredReturns.reduce((sum, returnItem) => 
+          sum + parseFloat(returnItem.total_amount || 0), 0);
+        
+        console.log("💰 Total return amount calculated:", totalReturnAmount);
+        updateFormWithReturnAmount(totalReturnAmount);
+      } else {
+        setSupplierReturns([]);
+        updateFormWithReturnAmount(0);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching supplier returns:", error);
+      console.error("❌ Error details:", error.response?.data || error.message);
+      setSupplierReturns([]);
+      updateFormWithReturnAmount(0);
+      setError("Failed to fetch supplier return data. Please try again.");
+    } finally {
+      setIsLoadingReturns(false);
+    }
+  }, [currentWarehouse, getAxiosConfig, updateFormWithReturnAmount]);
+
+  // FIXED: Fetch supplier return items whenever supplier changes
+  useEffect(() => {
+    lastFetchedSupplier.current = null;
+    
+    if (form.supplier && currentWarehouse?.id) {
+      fetchSupplierReturns(form.supplier);
+    } else {
+      setSupplierReturns([]);
+      updateFormWithReturnAmount(0);
+    }
+  }, [form.supplier, currentWarehouse?.id, fetchSupplierReturns, updateFormWithReturnAmount]);
+
+  // Function to remove supplier returns after receiving is processed
+  const removeProcessedSupplierReturns = useCallback(async (supplierId) => {
+    if (!currentWarehouse?.id) return 0;
+    
+    try {
+      console.log("🧹 Removing processed supplier returns for supplier:", supplierId, "in warehouse:", currentWarehouse.name);
+      
+      const config = getAxiosConfig();
+      const response = await axios.get("http://localhost:8080/api/supplier-return-form/", config);
+      const supplierReturns = response.data.filter(returnItem => 
+        String(returnItem.supplier) === String(supplierId)
+      );
+      
+      console.log("📋 Found supplier returns to process:", supplierReturns);
+      
+      let deletedCount = 0;
+      
+      for (const returnItem of supplierReturns) {
+        try {
+          console.log(`🗑️ Removing processed supplier return: ${returnItem.sup_no} (ID: ${returnItem.id})`);
+          await axios.delete(`http://localhost:8080/api/supplier-return-form/${returnItem.id}/`, config);
+          console.log(`✅ Successfully removed return: ${returnItem.sup_no}`);
+          deletedCount++;
+        } catch (error) {
+          console.error(`❌ Error removing return ${returnItem.id}:`, error);
+        }
+      }
+      
+      console.log(`🏁 Finished removing processed supplier returns. Removed ${deletedCount} returns.`);
+      
+      return deletedCount;
+    } catch (error) {
+      console.error("❌ Error removing processed supplier returns:", error);
+      return 0;
+    }
+  }, [currentWarehouse, getAxiosConfig]);
+
+  const handleSupplierChange = (supplierId) => {
+    lastFetchedSupplier.current = null;
+    
+    setForm(prev => ({
+      ...prev,
+      supplier: supplierId,
+      details: [
+        {
+          product_id: "",
+          pcs_qty: 0,
+          shell_qty: 0,
+          bottle_qty: 0,
+          bad_order_pcs: 0,
+          unit_cost: 0,
+          total: 0,
+        }
+      ]
+    }));
   };
 
   const handleRowChange = (index, field, value) => {
@@ -55,7 +413,7 @@ const ReceivingForm = () => {
 
     row[field] = value === "" ? "" : Number(value);
 
-    const product = products.find((p) => p.id === Number(row.product_id));
+    const product = filteredProducts.find((p) => p.id === Number(row.product_id));
     const content_no = product?.unit_type?.content_no || 1;
 
     const shell_qty = row.shell_qty === "" || isNaN(row.shell_qty) ? 0 : Number(row.shell_qty);
@@ -77,8 +435,8 @@ const ReceivingForm = () => {
     }
 
     const total = newRows.reduce((sum, r) => sum + parseFloat(r.total || 0), 0);
-    const returnAmount = form.return_total_amount === "" ? 0 : Number(form.return_total_amount);
-    const net = total - returnAmount;
+    const returnAmount = parseFloat(form.return_total_amount) || 0;
+    const net = Math.max(0, total - returnAmount);
 
     const isLastRow = index === newRows.length - 1;
     const rowFilled = row.product_id && row.shell_qty;
@@ -101,34 +459,111 @@ const ReceivingForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!currentWarehouse?.id) {
+      alert("❌ No warehouse selected. Please contact your administrator. Debug: " + debugInfo);
+      return;
+    }
+
     const filteredRows = form.details.filter(row =>
       row.product_id && (row.shell_qty !== "" && row.shell_qty !== 0)
     );
+
+    if (filteredRows.length === 0) {
+      alert("Please add at least one product to the receiving form.");
+      return;
+    }
+
+    if (!form.supplier) {
+      alert("Please select a supplier.");
+      return;
+    }
+
+    if (!form.received_by) {
+      alert("Please select who received the items.");
+      return;
+    }
 
     const dataToSubmit = {
       ...form,
       receive_no: receiveNo,
       details: filteredRows,
-      return_total_amount: form.return_total_amount === "" ? 0 : form.return_total_amount,
     };
 
     try {
-      await axios.post("http://localhost:8080/api/receiving/", dataToSubmit);
-      alert("Receiving saved!");
+      console.log("💾 Saving receiving for warehouse:", currentWarehouse.name, "ID:", currentWarehouse.id);
+      console.log("💾 Data to submit:", dataToSubmit);
+      
+      const config = getAxiosConfig();
+      console.log("💾 Config headers:", config.headers);
+      
+      const response = await axios.post("http://localhost:8080/api/receiving/", dataToSubmit, config);
+      console.log("✅ Receiving saved successfully", response.data);
+      
+      console.log("🧹 Starting removal of processed supplier returns...");
+      const deletedCount = await removeProcessedSupplierReturns(form.supplier);
+      
+      let message = `✅ Receiving saved successfully in ${currentWarehouse.name}!`;
+      if (deletedCount > 0) {
+        message += ` ${deletedCount} supplier return(s) have been processed and removed.`;
+      }
+      
+      alert(message);
       navigate("/receiving");
     } catch (error) {
-      console.error("Save failed:", error);
-      alert("Save failed! See console for details.");
+      console.error("❌ Save failed:", error);
+      console.error("❌ Error details:", error.response?.data);
+      
+      let errorMessage = "❌ Save failed! ";
+      if (error.response?.data?.detail) {
+        errorMessage += error.response.data.detail;
+      } else if (error.response?.data?.message) {
+        errorMessage += error.response.data.message;
+      } else if (error.response?.data) {
+        errorMessage += JSON.stringify(error.response.data);
+      } else {
+        errorMessage += "Please check console for details.";
+      }
+      
+      alert(errorMessage);
     }
   };
 
-  const hasSelectedProduct = form.details.some(row => row.product_id);
+  const totalReceiving = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
+
+  if (isLoadingWarehouse) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading warehouse information...</p>
+          <p className="text-sm text-gray-500 mt-2">Mapping warehouse data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!currentWarehouse) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center max-w-md">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-bold text-red-600 mb-2">Warehouse Setup Required</h2>
+          <p className="text-gray-600 mb-4">{debugInfo}</p>
+          <button 
+            onClick={() => window.location.reload()} 
+            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <form onSubmit={handleSubmit} className="max-w-[98%] mx-auto p-10 bg-white rounded-3xl shadow-lg space-y-10">
-      
-       {/* Remove spinner for all number fields */}
-       <style>{`
+      {/* Remove spinner for all number fields */}
+      <style>{`
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button {
           -webkit-appearance: none;
@@ -138,6 +573,25 @@ const ReceivingForm = () => {
           -moz-appearance: textfield;
         }
       `}</style>
+
+      {/* Enhanced Warehouse Info Header with Debug */}
+      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+        <h3 className="text-lg font-semibold text-blue-800 mb-2">📦 Current Warehouse</h3>
+        <p className="text-blue-700">
+          All receiving data will be saved to: <strong>{currentWarehouse.name}</strong> (ID: {currentWarehouse.id})
+        </p>
+        {debugInfo && (
+          <p className="text-xs text-gray-600 mt-1">🔍 Debug: {debugInfo}</p>
+        )}
+        <p className="text-xs text-gray-500 mt-1">🔍 Monitoring ID: {selectedWarehouseId}</p>
+      </div>
+      
+      {error && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded mb-6">
+          <p className="font-bold">Error</p>
+          <p>{error}</p>
+        </div>
+      )}
       
       <div className="grid md:grid-cols-2 gap-6">
         <div>
@@ -146,45 +600,129 @@ const ReceivingForm = () => {
         </div>
         <div>
           <label className="block text-gray-600 font-semibold mb-2">Supplier:</label>
-          <select value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300">
+          <select 
+            value={form.supplier} 
+            onChange={(e) => handleSupplierChange(e.target.value)} 
+            className="w-full p-3 rounded-lg bg-gray-100 border-gray-300"
+          >
             <option value="">Select Supplier</option>
             {suppliers.map((s) => (
               <option key={s.id} value={s.id}>{s.company_name}</option>
             ))}
           </select>
+          {isLoadingReturns && (
+            <p className="text-blue-600 text-sm mt-1">Loading supplier returns...</p>
+          )}
+          {form.supplier && filteredProducts.length > 0 && (
+            <p className="text-green-600 text-sm mt-1">
+              {filteredProducts.length} products available from this supplier
+            </p>
+          )}
+          {form.supplier && filteredProducts.length === 0 && (
+            <p className="text-orange-600 text-sm mt-1">
+              No products found for this supplier
+            </p>
+          )}
         </div>
         <div>
           <label className="block text-gray-600 font-semibold mb-2">Invoice No:</label>
           <input type="text" value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300" />
         </div>
-        <div>
-          <label className="block text-gray-600 font-semibold mb-2">Return Total Amount:</label>
-          <div className="relative">
-            <span className="absolute left-3 top-3 text-gray-500">₱</span>
-            <input
-              type="number"
-              disabled={!hasSelectedProduct}
-              value={form.return_total_amount}
-              onFocus={(e) => e.target.value === "0" ? e.target.value = "" : null}
-              onBlur={(e) => e.target.value === "" ? e.target.value = 0 : null}
-              onChange={(e) => handleReturnChange(e.target.value)}
-              className="w-full pl-8 p-3 rounded-lg bg-gray-100 border-gray-300 disabled:opacity-50"
-            />
+      </div>
+
+      {/* Financial Summary Section */}
+      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
+        <h3 className="text-lg font-semibold text-gray-700 mb-4">Financial Summary</h3>
+        <div className="grid md:grid-cols-3 gap-6">
+          <div>
+            <label className="block text-gray-600 font-semibold mb-2">Total Receiving Amount:</label>
+            <div className="relative">
+              <span className="absolute left-3 top-3 text-gray-500">₱</span>
+              <input
+                type="text"
+                value={parseFloat(totalReceiving || 0).toFixed(2)}
+                readOnly
+                className="w-full pl-8 p-3 rounded-lg bg-gray-100 text-gray-800 font-semibold"
+              />
+            </div>
           </div>
-        </div>
-        <div>
-          <label className="block text-gray-600 font-semibold mb-2">Net Amount:</label>
-          <div className="relative">
-            <span className="absolute left-3 top-3 text-gray-500">₱</span>
-            <input
-              type="text"
-              value={parseFloat(form.net_amount || 0).toFixed(2)}
-              readOnly
-              className="w-full pl-8 p-3 rounded-lg bg-gray-100 text-gray-800 font-bold"
-            />
+          <div>
+            <label className="block text-gray-600 font-semibold mb-2">
+              Return Total Amount:
+              {supplierReturns.length > 0 && (
+                <span className="ml-2 text-sm text-blue-600">({supplierReturns.length} returns)</span>
+              )}
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-3 text-gray-500">₱</span>
+              <input
+                type="text"
+                value={parseFloat(form.return_total_amount || 0).toFixed(2)}
+                readOnly
+                className={`w-full pl-8 p-3 rounded-lg bg-gray-100 ${parseFloat(form.return_total_amount) > 0 ? 'text-red-600' : 'text-gray-800'} font-semibold`}
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-gray-600 font-semibold mb-2">Net Amount:</label>
+            <div className="relative">
+              <span className="absolute left-3 top-3 text-gray-500">₱</span>
+              <input
+                type="text"
+                value={parseFloat(form.net_amount || 0).toFixed(2)}
+                readOnly
+                className="w-full pl-8 p-3 rounded-lg bg-gray-100 text-gray-800 font-bold"
+              />
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Return Details Section (shown only when returns exist) */}
+      {supplierReturns.length > 0 && (
+        <div className="bg-red-50 p-6 rounded-xl border border-red-200 shadow-sm">
+          <h3 className="text-lg font-semibold text-red-700 mb-4">Supplier Return Details (Will be processed)</h3>
+          <div className="overflow-x-auto mt-2">
+            <table className="w-full rounded-xl border-collapse shadow-sm">
+              <thead className="bg-red-700 text-white">
+                <tr>
+                  <th className="p-2">Return Reference</th>
+                  <th className="p-2">Date</th>
+                  <th className="p-2">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white">
+                {supplierReturns.map((returnItem, index) => (
+                  <tr key={index} className="hover:bg-red-50">
+                    <td className="border-b p-2 text-center">
+                      {returnItem.sup_no || "N/A"}
+                    </td>
+                    <td className="border-b p-2 text-center">
+                      {returnItem.date ? 
+                        new Date(returnItem.date).toLocaleDateString() : "N/A"}
+                    </td>
+                    <td className="border-b p-2 text-right font-semibold text-red-600">
+                      ₱{parseFloat(returnItem.total_amount || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot className="bg-red-100">
+                <tr>
+                  <td colSpan="2" className="p-2 text-right font-bold">Total Return Amount:</td>
+                  <td className="p-2 text-right font-bold text-red-600">
+                    ₱{parseFloat(form.return_total_amount || 0).toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <p className="text-sm text-red-600 mt-2">
+            ⚠️ Note: These supplier returns will be automatically removed when this receiving is saved, 
+            as they represent empty returns that are being processed through this receiving.
+          </p>
+        </div>
+      )}
 
       <div className="overflow-x-auto mt-8">
         <table className="w-full rounded-xl border-collapse shadow-md">
@@ -202,33 +740,45 @@ const ReceivingForm = () => {
             {form.details.map((row, index) => (
               <tr key={index} className="hover:bg-gray-50">
                 <td className="border-b p-2">
-                  <select value={row.product_id} onChange={(e) => handleRowChange(index, "product_id", e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 border-gray-300">
-                    <option value="">Select Product</option>
-                    {products.map((p) => (
+                  <select 
+                    value={row.product_id || ""} 
+                    onChange={(e) => handleRowChange(index, "product_id", e.target.value)} 
+                    className="w-full p-2 rounded-lg bg-gray-100 border-gray-300"
+                    disabled={!form.supplier}
+                  >
+                    <option value="">
+                      {!form.supplier ? "Select Supplier First" : "Select Product"}
+                    </option>
+                    {filteredProducts.map((p) => (
                       <option key={p.id} value={p.id}>{p.product_name}</option>
                     ))}
                   </select>
                 </td>
                 <td className="border-b p-2">
-                <input
+                  <input
                     type="number"
                     disabled={!row.product_id}
-                    value={row.shell_qty}
+                    value={row.shell_qty || 0}
                     onFocus={(e) => e.target.value === "0" ? e.target.value = "" : null}
                     onBlur={(e) => e.target.value === "" ? e.target.value = 0 : null}
                     onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
                     className="w-full p-2 text-center rounded-lg bg-gray-100 border-gray-300 disabled:opacity-50"
                   />
-
                 </td>
                 <td className="border-b p-2">
-                  <input type="number" value={row.pcs_qty} readOnly disabled className="w-full p-2 text-center rounded-lg bg-gray-100 text-gray-700" />
+                  <input 
+                    type="number" 
+                    value={row.pcs_qty || 0} 
+                    readOnly 
+                    disabled 
+                    className="w-full p-2 text-center rounded-lg bg-gray-100 text-gray-700" 
+                  />
                 </td>
                 <td className="border-b p-2">
-                <input
+                  <input
                     type="number"
                     disabled={!row.product_id}
-                    value={row.bad_order_pcs}
+                    value={row.bad_order_pcs || 0}
                     onFocus={(e) => e.target.value === "0" ? e.target.value = "" : null}
                     onBlur={(e) => e.target.value === "" ? e.target.value = 0 : null}
                     onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
@@ -264,7 +814,7 @@ const ReceivingForm = () => {
           Cancel
         </button>
         <button type="submit" className="px-6 py-3 bg-[#0B1320] hover:bg-[#1C2230] text-white rounded-full font-semibold transition">
-          Save
+          Save to {currentWarehouse.name}
         </button>
       </div>
     </form>

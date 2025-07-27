@@ -38,6 +38,10 @@ from .views import (
 
 
 )
+from .views import SupplierReturnFormListCreateView
+from .views import SupplierReturnFormDetailView
+from .views import ProcessEmptiesReturnView
+
 
 urlpatterns = [
     # User URLs
@@ -130,6 +134,14 @@ urlpatterns = [
     path('customers/', CustomerListCreateView.as_view(), name='customer-list-create'),
     path('customers/<int:pk>/', CustomerRetrieveUpdateDestroyView.as_view(), name='customer-detail'),
     path('login/', LoginAPIView.as_view(), name='login'),
+
+    # Supplier Return Form
+      path('supplier-return-form/', SupplierReturnFormListCreateView.as_view(), name='supplier-return-form'),
+      path('supplier-return-form/<int:pk>/', SupplierReturnFormDetailView.as_view(), name='supplier-return-form-detail'),
+
+    # Process Empties Return
+       path('process-empties-return/', ProcessEmptiesReturnView.as_view(), name='process-empties-return'),
+
 ]
 
 router = DefaultRouter()
