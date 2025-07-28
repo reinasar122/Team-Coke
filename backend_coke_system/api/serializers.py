@@ -351,7 +351,7 @@ class ReceivingSerializer(serializers.ModelSerializer):
     
 
 class StockSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(read_only=True)  # ✅ This gives you full product details
+    product_name = serializers.CharField(source='product.product_name', read_only=True)
     warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
     stock_status = serializers.SerializerMethodField()
 
@@ -362,6 +362,8 @@ class StockSerializer(serializers.ModelSerializer):
 
     def get_stock_status(self, obj):
         return obj.stock_status()
+
+
 
 
 

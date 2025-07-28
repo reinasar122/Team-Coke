@@ -276,6 +276,7 @@ class Stock(models.Model):
         else:
             return "High"
 
+
 class Route(models.Model):
     route_name = models.CharField(max_length=100, unique=True)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
