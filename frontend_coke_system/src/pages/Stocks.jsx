@@ -163,8 +163,8 @@ const Stocks = () => {
                       index % 2 === 0 ? "bg-gray-50 dark:bg-gray-700" : "bg-white dark:bg-gray-800"
                     } hover:bg-gray-100 dark:hover:bg-gray-600`}
                   >
-                    <td className="px-6 py-4 text-left font-medium text-gray-800 whitespace-nowrap">
-                     {item.product.product_name}
+                    <td className="px-6 py-4 text-left font-medium text-gray-800 dark:text-white whitespace-nowrap">
+                      {item.product_name}
                     </td>
                     <td className="px-6 py-4 text-center font-semibold text-gray-700 dark:text-gray-300">
                       {item.quantity_available}

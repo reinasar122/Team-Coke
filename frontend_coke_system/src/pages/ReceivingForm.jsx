@@ -1,4 +1,4 @@
-// Updated ReceivingForm.jsx - Fixed ESLint warnings
+// Updated ReceivingForm.jsx - Fixed warehouse filtering logic
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -19,6 +19,7 @@ const ReceivingForm = () => {
   
   // NEW: State to track the selected warehouse from localStorage
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
   
   // Use ref to track if we've already fetched for this supplier
   const lastFetchedSupplier = useRef(null);
@@ -73,14 +74,26 @@ const ReceivingForm = () => {
     lastFetchedSupplier.current = null;
   }, []);
 
-  // NEW: Monitor localStorage for warehouse changes - this runs constantly
+  // ENHANCED: Monitor localStorage for warehouse AND user changes
   useEffect(() => {
-    const checkWarehouseChanges = () => {
+    const checkChanges = () => {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
       const newWarehouseId = selectedWarehouse?.id || null;
+      const newUserId = user?.id || null;
       
-      console.log("🔍 Checking warehouse changes:", selectedWarehouseId, "->", newWarehouseId);
+      console.log("🔍 Checking changes - Warehouse:", selectedWarehouseId, "->", newWarehouseId, "User:", currentUserId, "->", newUserId);
       
+      // Check for user change first (this forces a complete reset)
+      if (newUserId !== currentUserId) {
+        console.log("🚨 USER CHANGE DETECTED:", currentUserId, "->", newUserId);
+        setCurrentUserId(newUserId);
+        setSelectedWarehouseId(null); // Reset to trigger warehouse re-detection
+        resetForm();
+        return; // Exit early to avoid duplicate processing
+      }
+      
+      // Check for warehouse change
       if (newWarehouseId !== selectedWarehouseId) {
         console.log("🚨 WAREHOUSE CHANGE DETECTED:", selectedWarehouseId, "->", newWarehouseId);
         setSelectedWarehouseId(newWarehouseId);
@@ -88,15 +101,15 @@ const ReceivingForm = () => {
     };
 
     // Check immediately
-    checkWarehouseChanges();
+    checkChanges();
     
     // Check every 300ms for changes
-    const interval = setInterval(checkWarehouseChanges, 300);
+    const interval = setInterval(checkChanges, 300);
     
     return () => clearInterval(interval);
-  }, [selectedWarehouseId]);
+  }, [selectedWarehouseId, currentUserId, resetForm]);
 
-  // FIXED: Enhanced warehouse detection - triggers when selectedWarehouseId changes
+  // FIXED: Enhanced warehouse detection - triggers when selectedWarehouseId OR currentUserId changes
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
@@ -104,6 +117,7 @@ const ReceivingForm = () => {
     console.log("🔍 Debug - Full user data:", user);
     console.log("🔍 Debug - Selected warehouse:", selectedWarehouse);
     console.log("🔍 Debug - Trigger warehouse ID:", selectedWarehouseId);
+    console.log("🔍 Debug - Current user ID:", currentUserId);
     
     // Function to fetch warehouse ID by name
     const fetchWarehouseByName = async (warehouseName) => {
@@ -171,15 +185,9 @@ const ReceivingForm = () => {
       console.log("🔍 Final result:", debugMsg);
       setDebugInfo(debugMsg);
       
-      // Only update if warehouse actually changed
-      const hasChanged = !currentWarehouse || currentWarehouse?.id !== warehouse?.id;
-      if (hasChanged) {
-        console.log("🔄 Warehouse changed, updating data and resetting form...");
-        setCurrentWarehouse(warehouse);
-        resetForm();
-      } else {
-        console.log("📍 Warehouse same, no changes needed");
-      }
+      // Always update warehouse info (don't check for changes)
+      console.log("🔄 Setting warehouse and resetting form...");
+      setCurrentWarehouse(warehouse);
       
       // Clear any previous errors if we found a warehouse
       if (warehouse?.id) {
@@ -191,8 +199,11 @@ const ReceivingForm = () => {
       setIsLoadingWarehouse(false);
     };
 
-    setupWarehouse();
-  }, [selectedWarehouseId, resetForm, currentWarehouse]); // FIXED: Added currentWarehouse to dependencies
+    // Only run if we have user data
+    if (user.id) {
+      setupWarehouse();
+    }
+  }, [selectedWarehouseId, currentUserId]); // Removed currentWarehouse to avoid circular dependency
 
   // Create axios instance with warehouse header and debugging
   const getAxiosConfig = useCallback(() => {
@@ -218,18 +229,27 @@ const ReceivingForm = () => {
     const config = getAxiosConfig();
     console.log(`🔄 Loading data for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
     
-    // Load suppliers
+    // Load suppliers for this warehouse
     axios.get("http://localhost:8080/api/suppliers/", config)
       .then((res) => {
         console.log(`✅ Loaded ${res.data.length} suppliers for warehouse ${currentWarehouse.id}`);
+        console.log("🔍 Sample suppliers:", res.data.slice(0, 3).map(s => ({ id: s.id, name: s.company_name })));
         setSuppliers(res.data);
       })
       .catch(err => console.error("❌ Error loading suppliers:", err));
     
-    // Load products
+    // Load products for this warehouse
     axios.get("http://localhost:8080/api/products/", config)
       .then((res) => {
         console.log(`✅ Loaded ${res.data.length} products for warehouse ${currentWarehouse.id}`);
+        console.log("🔍 Sample products:", res.data.slice(0, 3).map(p => ({ 
+          id: p.id, 
+          name: p.product_name, 
+          supplier_id: p.supplier_id,
+          supplier_name: p.supplier_name,
+          warehouse: p.warehouse,
+          warehouse_id: p.warehouse_id
+        })));
         setProducts(res.data);
       })
       .catch(err => console.error("❌ Error loading products:", err));
@@ -248,17 +268,110 @@ const ReceivingForm = () => {
     };
 
     setReceiveNo(generateJumbledCode());
-  }, [currentWarehouse?.id, currentWarehouse?.name, getAxiosConfig, isLoadingWarehouse]); // FIXED: Added currentWarehouse.name to dependencies
+  }, [currentWarehouse?.id, currentWarehouse?.name, getAxiosConfig, isLoadingWarehouse]);
 
-  // Filter products when supplier changes
+  // FIXED: Filter products by supplier AND ensure they're available in current warehouse
   useEffect(() => {
-    if (form.supplier && products.length > 0) {
-      const supplierProducts = products.filter(product => 
-        String(product.supplier_id) === String(form.supplier) || 
-        String(product.supplier) === String(form.supplier)
-      );
-      setFilteredProducts(supplierProducts);
+    if (form.supplier && products.length > 0 && suppliers.length > 0 && currentWarehouse?.id) {
+      console.log("🔍 Filtering products for supplier:", form.supplier, "in warehouse:", currentWarehouse.name);
+      console.log("🔍 Total products loaded:", products.length);
+      console.log("🔍 Total suppliers loaded:", suppliers.length);
       
+      // Find supplier details - FIXED: Use strict equality
+      const selectedSupplier = suppliers.find(s => s.id === Number(form.supplier));
+      console.log("🔍 Selected supplier details:", selectedSupplier);
+      
+      // Step 1: Filter products that belong to the selected supplier
+      const supplierProducts = products.filter(product => {
+        // Check multiple possible supplier reference fields
+        const supplierMatch = 
+          String(product.supplier_id) === String(form.supplier) || 
+          String(product.supplier) === String(form.supplier) ||
+          // Also check if supplier name matches (if available)
+          (product.supplier_name && selectedSupplier?.company_name === product.supplier_name);
+        
+        if (supplierMatch) {
+          console.log(`✅ Product "${product.product_name}" matches supplier ${form.supplier}`, {
+            product_supplier_id: product.supplier_id,
+            product_supplier: product.supplier,
+            product_supplier_name: product.supplier_name,
+            selected_supplier_id: form.supplier,
+            selected_supplier_name: selectedSupplier?.company_name
+          });
+        }
+        
+        return supplierMatch;
+      });
+      
+      console.log(`📦 Found ${supplierProducts.length} products from supplier "${selectedSupplier?.company_name}" (ID: ${form.supplier})`);
+      
+      if (supplierProducts.length === 0) {
+        console.log("⚠️ No products found for this supplier. Debugging...");
+        
+        // Debug: Show all available supplier IDs in products
+        const uniqueSupplierIds = [...new Set(products.map(p => p.supplier_id).filter(Boolean))];
+        console.log("🔍 Available supplier IDs in products:", uniqueSupplierIds);
+        
+        // Debug: Show all available supplier names in products
+        const uniqueSupplierNames = [...new Set(products.map(p => p.supplier_name).filter(Boolean))];
+        console.log("🔍 Available supplier names in products:", uniqueSupplierNames);
+        
+        console.log("🔍 Looking for supplier ID:", form.supplier);
+        console.log("🔍 Looking for supplier name:", selectedSupplier?.company_name);
+      }
+      
+      // Step 2: FIXED - Proper warehouse filtering logic
+      const warehouseFilteredProducts = supplierProducts.filter(product => {
+        // If product has warehouse_id, compare with current warehouse ID
+        if (product.warehouse_id) {
+          const warehouseMatch = String(product.warehouse_id) === String(currentWarehouse.id);
+          if (!warehouseMatch) {
+            console.log(`❌ Product "${product.product_name}" warehouse ID ${product.warehouse_id} doesn't match current warehouse ID ${currentWarehouse.id}`);
+          }
+          return warehouseMatch;
+        }
+        
+        // If product has warehouse field
+        if (product.warehouse) {
+          // First check if warehouse is an ID (numeric string)
+          if (/^\d+$/.test(String(product.warehouse))) {
+            const warehouseMatch = String(product.warehouse) === String(currentWarehouse.id);
+            if (!warehouseMatch) {
+              console.log(`❌ Product "${product.product_name}" warehouse ID "${product.warehouse}" doesn't match current warehouse ID "${currentWarehouse.id}"`);
+            }
+            return warehouseMatch;
+          } else {
+            // If it's a name, compare with warehouse name
+            const warehouseMatch = String(product.warehouse).toLowerCase() === String(currentWarehouse.name).toLowerCase();
+            if (!warehouseMatch) {
+              console.log(`❌ Product "${product.product_name}" warehouse name "${product.warehouse}" doesn't match current warehouse name "${currentWarehouse.name}"`);
+            }
+            return warehouseMatch;
+          }
+        }
+        
+        // If no warehouse field is present, assume it's available (API should have filtered it)
+        console.log(`✅ Product "${product.product_name}" has no warehouse field - assuming available from API filtering`);
+        return true;
+      });
+      
+      console.log(`🏪 Final result: ${warehouseFilteredProducts.length} products available from supplier "${selectedSupplier?.company_name}" in warehouse "${currentWarehouse.name}"`);
+      
+      // Log final filtered products for debugging
+      if (warehouseFilteredProducts.length > 0) {
+        console.log("🎯 Filtered products:", warehouseFilteredProducts.map(p => ({
+          id: p.id,
+          name: p.product_name,
+          supplier_id: p.supplier_id,
+          supplier_name: p.supplier_name,
+          warehouse: p.warehouse,
+          warehouse_id: p.warehouse_id
+        })));
+      }
+      
+      setFilteredProducts(warehouseFilteredProducts);
+      
+      // Reset product details when filtering changes
       setForm(prev => ({
         ...prev,
         details: [
@@ -275,8 +388,17 @@ const ReceivingForm = () => {
       }));
     } else {
       setFilteredProducts([]);
+      if (!form.supplier) {
+        console.log("🔍 No supplier selected");
+      } else if (products.length === 0) {
+        console.log("🔍 No products loaded yet");
+      } else if (suppliers.length === 0) {
+        console.log("🔍 No suppliers loaded yet");
+      } else if (!currentWarehouse?.id) {
+        console.log("🔍 No warehouse selected");
+      }
     }
-  }, [form.supplier, products]);
+  }, [form.supplier, products, suppliers, currentWarehouse?.id, currentWarehouse?.name]);
 
   // Function to update form with return amount calculation
   const updateFormWithReturnAmount = useCallback((returnAmount) => {
@@ -583,7 +705,7 @@ const ReceivingForm = () => {
         {debugInfo && (
           <p className="text-xs text-gray-600 mt-1">🔍 Debug: {debugInfo}</p>
         )}
-        <p className="text-xs text-gray-500 mt-1">🔍 Monitoring ID: {selectedWarehouseId}</p>
+        <p className="text-xs text-gray-500 mt-1">🔍 User: {currentUserId} | Warehouse: {selectedWarehouseId}</p>
       </div>
       
       {error && (
@@ -615,12 +737,12 @@ const ReceivingForm = () => {
           )}
           {form.supplier && filteredProducts.length > 0 && (
             <p className="text-green-600 text-sm mt-1">
-              {filteredProducts.length} products available from this supplier
+              {filteredProducts.length} products available from this supplier in {currentWarehouse.name}
             </p>
           )}
-          {form.supplier && filteredProducts.length === 0 && (
+          {form.supplier && suppliers.length > 0 && filteredProducts.length === 0 && (
             <p className="text-orange-600 text-sm mt-1">
-              No products found for this supplier
+              No products found for this supplier in {currentWarehouse.name}
             </p>
           )}
         </div>
@@ -747,7 +869,12 @@ const ReceivingForm = () => {
                     disabled={!form.supplier}
                   >
                     <option value="">
-                      {!form.supplier ? "Select Supplier First" : "Select Product"}
+                      {!form.supplier 
+                        ? "Select Supplier First" 
+                        : filteredProducts.length === 0 
+                          ? `No products from this supplier in ${currentWarehouse.name}`
+                          : `Select Product (${filteredProducts.length} available)`
+                      }
                     </option>
                     {filteredProducts.map((p) => (
                       <option key={p.id} value={p.id}>{p.product_name}</option>

@@ -1,10 +1,9 @@
-// Updated ReceivingList.jsx - Added auto-reload functionality
+// Updated ReceivingList.jsx - Enhanced user switching detection
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { FaTrashAlt, FaEye } from "react-icons/fa";
 
-// ReceiptModal Component
 const ReceiptModal = ({ isOpen, onClose, receipt }) => {
   if (!isOpen || !receipt) return null;
 
@@ -27,7 +26,7 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
             <p className="text-sm text-gray-600 mt-1">Warehouse: {receipt.warehouse_name}</p>
           )}
         </div>
-        
+
         <div className="mb-4 grid grid-cols-2 gap-2">
           <div>
             <p><span className="font-semibold">Date & Time:</span> {new Date(receipt.date_time).toLocaleString()}</p>
@@ -39,7 +38,7 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
             <p><span className="font-semibold">Return Total Amount:</span> ₱{parseFloat(receipt.return_total_amount || 0).toFixed(2)}</p>
           </div>
         </div>
-        
+
         <table className="min-w-full table-auto border mb-4 text-sm">
           <thead className="bg-[#0B1320] text-white">
             <tr>
@@ -47,7 +46,7 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
               <th className="border p-2">Shell</th>
               <th className="border p-2">PCS</th>
               <th className="border p-2">BO/PCs</th>
-              <th className="border p-2">Unit Price</th>
+              <th className="border p-2">Purchased Price</th>
               <th className="border p-2">Shell Price</th>
               <th className="border p-2">Bottle Price</th>
               <th className="border p-2">Unit Cost</th>
@@ -56,47 +55,39 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
           </thead>
           <tbody>
             {receipt.details && receipt.details.map((item, index) => {
-              // Make sure quantities are displayed correctly by converting to appropriate types
-              const shellQty = item.shell_qty !== undefined ? Number(item.shell_qty) : 0;
-              const pcsQty = item.pcs_qty !== undefined ? Number(item.pcs_qty) : 0;
-              const badOrderPcs = item.bad_order_pcs !== undefined ? Number(item.bad_order_pcs) : 0;
-              
               return (
                 <tr key={index} className="text-center">
                   <td className="border p-2">{item.product_name || item.item_name}</td>
-                  <td className="border p-2">{shellQty}</td>
-                  <td className="border p-2">{pcsQty}</td>
-                  <td className="border p-2">{badOrderPcs}</td>
-                  <td className="border p-2">₱{parseFloat(item.unit_price || 0).toFixed(2)}</td>
-                  <td className="border p-2">₱{parseFloat(item.shell_price || 0).toFixed(2)}</td>
-                  <td className="border p-2">₱{parseFloat(item.bottle_price || 0).toFixed(2)}</td>
-                  <td className="border p-2">₱{parseFloat(item.unit_cost || 0).toFixed(2)}</td>
-                  <td className="border p-2 font-bold">₱{parseFloat(item.total || item.amount || 0).toFixed(2)}</td>
+                  <td className="border p-2">{item.shell_qty}</td>
+                  <td className="border p-2">{item.pcs_qty}</td>
+                  <td className="border p-2">{item.bad_order_pcs}</td>
+                  <td className="border p-2">₱{parseFloat(item.unit_price).toFixed(2)}</td>
+                  <td className="border p-2">₱{parseFloat(item.shell_price).toFixed(2)}</td>
+                  <td className="border p-2">₱{parseFloat(item.bottle_price).toFixed(2)}</td>
+                  <td className="border p-2">₱{parseFloat(item.unit_cost).toFixed(2)}</td>
+                  <td className="border p-2 font-bold">₱{parseFloat(item.total).toFixed(2)}</td>
                 </tr>
               );
             })}
           </tbody>
         </table>
-        
+
         {receipt.remarks && (
           <div className="mb-4">
             <p className="font-semibold">Remarks:</p>
             <p className="border p-2 rounded bg-gray-50">{receipt.remarks}</p>
           </div>
         )}
-        
+
         <div className="flex justify-between items-center mt-4">
           <div></div>
           <div>
-            <p className="font-semibold text-right">Net Amount: ₱{parseFloat(receipt.net_amount).toFixed(2)}</p>
+            <p className="font-semibold text-right">Net Amount: ₱{parseFloat(receipt.net_amount || 0).toFixed(2)}</p>
           </div>
         </div>
-        
+
         <div className="text-right mt-4">
-          <button 
-            onClick={onClose}
-            className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-          >
+          <button onClick={onClose} className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600">
             Close
           </button>
         </div>
@@ -105,7 +96,6 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
   );
 };
 
-// ReceivingList Component
 const ReceivingList = () => {
   const [receivings, setReceivings] = useState([]);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
@@ -116,15 +106,32 @@ const ReceivingList = () => {
   
   // NEW: State to track the selected warehouse from localStorage
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
+  const [currentUserId, setCurrentUserId] = useState(null);
 
-  // NEW: Monitor localStorage for warehouse changes
+  // ENHANCED: Monitor localStorage for warehouse AND user changes
   useEffect(() => {
-    const checkWarehouseChanges = () => {
+    const checkChanges = () => {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
       const newWarehouseId = selectedWarehouse?.id || null;
+      const newUserId = user?.id || null;
       
-      console.log("🔍 [ReceivingList] Checking warehouse changes:", selectedWarehouseId, "->", newWarehouseId);
+      console.log("🔍 [ReceivingList] Checking changes - Warehouse:", selectedWarehouseId, "->", newWarehouseId, "User:", currentUserId, "->", newUserId);
       
+      // Check for user change first (this forces a complete reset)
+      if (newUserId !== currentUserId) {
+        console.log("🚨 [ReceivingList] USER CHANGE DETECTED:", currentUserId, "->", newUserId);
+        setCurrentUserId(newUserId);
+        setSelectedWarehouseId(null); // Reset to trigger warehouse re-detection
+        // Clear existing data
+        setReceivings([]);
+        setUsers([]);
+        setSelectedReceipt(null);
+        setIsModalOpen(false);
+        return; // Exit early to avoid duplicate processing
+      }
+      
+      // Check for warehouse change
       if (newWarehouseId !== selectedWarehouseId) {
         console.log("🚨 [ReceivingList] WAREHOUSE CHANGE DETECTED:", selectedWarehouseId, "->", newWarehouseId);
         setSelectedWarehouseId(newWarehouseId);
@@ -132,22 +139,37 @@ const ReceivingList = () => {
     };
 
     // Check immediately
-    checkWarehouseChanges();
+    checkChanges();
     
     // Check every 300ms for changes
-    const interval = setInterval(checkWarehouseChanges, 300);
+    const interval = setInterval(checkChanges, 300);
     
     return () => clearInterval(interval);
-  }, [selectedWarehouseId]);
+  }, [selectedWarehouseId, currentUserId]);
 
-  // Get current warehouse info - triggers when selectedWarehouseId changes
+  // ENHANCED: Get current warehouse info with proper mapping - triggers when selectedWarehouseId OR currentUserId changes
   useEffect(() => {
+    // Function to fetch warehouse ID by name
+    const fetchWarehouseByName = async (warehouseName) => {
+      try {
+        const response = await axios.get("http://localhost:8080/api/warehouses/");
+        const warehouse = response.data.find(w => w.name === warehouseName);
+        return warehouse || null;
+      } catch (error) {
+        console.error("❌ [ReceivingList] Error fetching warehouses:", error);
+        return null;
+      }
+    };
+
     const setupWarehouse = async () => {
       console.log("🏗️ [ReceivingList] Setting up warehouse...");
       setIsLoadingWarehouse(true);
       
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      
+      console.log("🔍 [ReceivingList] User data:", user);
+      console.log("🔍 [ReceivingList] Selected warehouse:", selectedWarehouse);
       
       let warehouse = null;
       
@@ -156,35 +178,54 @@ const ReceivingList = () => {
         if (selectedWarehouse && selectedWarehouse.id) {
           warehouse = selectedWarehouse;
           console.log(`🔄 [ReceivingList] Admin using selected warehouse: ${warehouse.name} (ID: ${warehouse.id})`);
-        } else {
+        } else if (user.warehouse_id) {
           warehouse = { name: user.warehouse, id: user.warehouse_id };
           console.log(`🔄 [ReceivingList] Admin using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`);
+        } else if (user.warehouse) {
+          // Try to get warehouse ID from name for admin
+          const foundWarehouse = await fetchWarehouseByName(user.warehouse);
+          if (foundWarehouse) {
+            warehouse = { name: foundWarehouse.name, id: foundWarehouse.id };
+            console.log(`🔄 [ReceivingList] Admin warehouse mapped: ${warehouse.name} (ID: ${warehouse.id})`);
+            // Update localStorage to include warehouse_id for future use
+            const updatedUser = { ...user, warehouse_id: foundWarehouse.id };
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+            console.log("💾 [ReceivingList] Updated user data with warehouse_id:", updatedUser);
+          }
         }
       } else {
         // For non-admin users, always use their enrolled warehouse
-        warehouse = { name: user.warehouse, id: user.warehouse_id };
-        console.log(`🔄 [ReceivingList] User using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`);
+        if (user.warehouse_id) {
+          warehouse = { name: user.warehouse, id: user.warehouse_id };
+          console.log(`🔄 [ReceivingList] User using enrolled warehouse: ${warehouse.name} (ID: ${warehouse.id})`);
+        } else if (user.warehouse) {
+          // Try to get warehouse ID from name
+          console.log(`🔄 [ReceivingList] Looking up warehouse ID for: "${user.warehouse}"`);
+          const foundWarehouse = await fetchWarehouseByName(user.warehouse);
+          if (foundWarehouse) {
+            warehouse = { name: foundWarehouse.name, id: foundWarehouse.id };
+            console.log(`✅ [ReceivingList] User warehouse mapped: ${warehouse.name} (ID: ${warehouse.id})`);
+            // Update localStorage to include warehouse_id for future use
+            const updatedUser = { ...user, warehouse_id: foundWarehouse.id };
+            localStorage.setItem("user", JSON.stringify(updatedUser));
+            console.log("💾 [ReceivingList] Updated user data with warehouse_id:", updatedUser);
+          }
+        }
       }
       
-      // Only update if warehouse actually changed
-      const hasChanged = !currentWarehouse || currentWarehouse?.id !== warehouse?.id;
-      if (hasChanged) {
-        console.log("🔄 [ReceivingList] Warehouse changed, updating data...");
-        setCurrentWarehouse(warehouse);
-        // Clear existing data when warehouse changes
-        setReceivings([]);
-        setUsers([]);
-        setSelectedReceipt(null);
-        setIsModalOpen(false);
-      } else {
-        console.log("📍 [ReceivingList] Warehouse same, no changes needed");
-      }
+      // Always update warehouse (don't check for changes to ensure data loads)
+      console.log("🔄 [ReceivingList] Setting warehouse and clearing data...");
+      setCurrentWarehouse(warehouse);
       
       setIsLoadingWarehouse(false);
     };
 
-    setupWarehouse();
-  }, [selectedWarehouseId, currentWarehouse]);
+    // Only run if we have user data
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    if (user.id) {
+      setupWarehouse();
+    }
+  }, [selectedWarehouseId, currentUserId]);
 
   // Create axios instance with warehouse header
   const getAxiosConfig = useCallback(() => {
@@ -241,8 +282,8 @@ const ReceivingList = () => {
   }, [currentWarehouse?.id, isLoadingWarehouse, fetchReceivings, fetchUsers]);
 
   const handleDelete = async (id) => {
-    const confirmDelete = window.confirm("Are you sure you want to delete this receiving?");
-    if (!confirmDelete) return;
+    if (!window.confirm("Are you sure you want to delete this receiving?")) return;
+    
     try {
       const config = getAxiosConfig();
       await axios.delete(`http://localhost:8080/api/receiving/${id}/`, config);
@@ -265,18 +306,6 @@ const ReceivingList = () => {
           receiptData.received_by_name = `${user.first_name} ${user.last_name}`;
         }
       }
-
-      receiptData.details = (receiptData.details || []).map(item => ({
-        product_name: item.product_name,
-        shell_qty: Number(item.shell_qty ?? 0),
-        pcs_qty: Number(item.pcs_qty ?? 0),
-        bad_order_pcs: Number(item.bad_order_pcs ?? 0),
-        unit_price: Number(item.unit_price ?? 0),
-        shell_price: Number(item.shell_price ?? 0),
-        bottle_price: Number(item.bottle_price ?? 0),
-        unit_cost: Number(item.unit_cost ?? 0),
-        total: Number(item.total ?? 0),
-      }));
 
       setSelectedReceipt(receiptData);
       setIsModalOpen(true);
@@ -307,17 +336,15 @@ const ReceivingList = () => {
         <p className="text-blue-700">
           Showing receiving data for: <strong>{currentWarehouse.name}</strong> (ID: {currentWarehouse.id})
         </p>
-        <p className="text-xs text-gray-500 mt-1">🔍 Monitoring ID: {selectedWarehouseId}</p>
+        <p className="text-xs text-gray-500 mt-1">🔍 User: {currentUserId} | Warehouse: {selectedWarehouseId}</p>
       </div>
 
       <div className="flex justify-end items-center mb-8">
         <Link to="/receiving/new" className="bg-[#0B1320] hover:bg-[#a7a7a7] text-white px-6 py-2 rounded-md font-semibold">
           + New Receiving
         </Link>
-       
       </div>
 
-      {/* Table */}
       <div className="overflow-x-auto bg-white rounded-lg shadow-md">
         <table className="min-w-full text-sm">
           <thead className="bg-[#0B1320] text-white">
@@ -360,12 +387,7 @@ const ReceivingList = () => {
         </table>
       </div>
 
-      {/* Modal */}
-      <ReceiptModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        receipt={selectedReceipt}
-      />
+      <ReceiptModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} receipt={selectedReceipt} />
     </div>
   );
 };

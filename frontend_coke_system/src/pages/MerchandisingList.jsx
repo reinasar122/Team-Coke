@@ -7,12 +7,44 @@ const MerchandisingList = () => {
   const navigate = useNavigate();
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
-  // Get current warehouse
+  // Get current warehouse from localStorage or user data
   useEffect(() => {
-   axios.get('http://localhost:8080/api/merchandising-set/')
-      .then(res => setSales(res.data))
-      .catch(err => console.error(err));
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    // For admin users, use selected warehouse or fallback to enrolled warehouse
+    if (user.role?.toLowerCase() === "admin") {
+      setCurrentWarehouse(selectedWarehouse || { id: user.warehouse_id, name: user.warehouse });
+    } else {
+      // For non-admin users, always use their enrolled warehouse
+      setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
+    }
+
+    // Listen for warehouse changes (from Header component)
+    const handleWarehouseChange = (event) => {
+      const { warehouse } = event.detail;
+      if (warehouse) {
+        setCurrentWarehouse(warehouse);
+      } else {
+        // Reset to user's enrolled warehouse
+        setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
+      }
+    };
+
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+    return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
   }, []);
+
+  // Fetch sales data filtered by warehouse
+  useEffect(() => {
+    if (!currentWarehouse?.id) return;
+
+    axios.get('http://localhost:8080/api/merchandising-set/', {
+      params: { warehouse: currentWarehouse.id }
+    })
+      .then(res => setSales(res.data))
+      .catch(err => console.error('Error fetching sales:', err));
+  }, [currentWarehouse]);
 
   const handleCreateNew = () => {
     navigate('/merchandising-sale'); // for creating new sales
@@ -87,7 +119,7 @@ const MerchandisingList = () => {
           {sales.length === 0 && (
             <tr>
               <td colSpan="7" className="text-center py-4 text-gray-600">
-                No sales data found.
+                No sales data found for this warehouse.
               </td>
             </tr>
           )}
