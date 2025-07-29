@@ -9,6 +9,12 @@ const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [totalExpectedSale, setTotalExpectedSale] = useState(0);
+  const [totalActualSale, setTotalActualSale] = useState(0);
+  const [emptiesPriceTotal, setEmptiesPriceTotal] = useState(0);
+  const [refundablesTotal, setRefundablesTotal] = useState(0);
+  const [discrepancy, setDiscrepancy] = useState(0);
+  const [totalAmount, setTotalAmount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [routes, setRoutes] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -355,6 +361,13 @@ const MerchandisingSale = () => {
         products={products}
         selectedTransactionTypeName={selectedTransactionTypeName}
         miscItems={miscItems} // ✅ needed for refund/discrepancy
+        warehouseId={currentWarehouse?.id}
+        setTotalExpectedSale={setTotalExpectedSale}
+        setTotalActualSale={setTotalActualSale}
+        setEmptiesPriceTotal={setEmptiesPriceTotal}
+        setRefundablesTotal={setRefundablesTotal}
+        setDiscrepancy={setDiscrepancy}
+        setTotalAmount={setTotalAmount}
       />
 
       <ActionButtons

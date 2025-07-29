@@ -1,5 +1,6 @@
 from rest_framework import viewsets
 from rest_framework import generics
+from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
 from api.models import Warehouse, RoleAccessibility
 from .serializers import WarehouseSerializer
@@ -375,41 +376,47 @@ class ReceivingListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         warehouse_id = self.request.headers.get('X-Warehouse-ID')
         print(f"Received warehouse_id: {warehouse_id}")  # Debug log
-        
+
         if warehouse_id:
             try:
                 warehouse = Warehouse.objects.get(id=warehouse_id)
                 print(f"Found warehouse: {warehouse}")  # Debug log
-                serializer.save(warehouse=warehouse)
+                receiving = serializer.save(warehouse=warehouse)
             except Warehouse.DoesNotExist:
                 print(f"Warehouse {warehouse_id} not found")  # Debug log
-                # Save without warehouse for now
-                serializer.save()
+                receiving = serializer.save()
         else:
             print("No warehouse_id provided")  # Debug log
-            serializer.save()
+            receiving = serializer.save()
+
+        # ✅ Create or update stock for each detail
+        for detail in receiving.details.all():
+            product = detail.product
+            pcs_qty = detail.pcs_qty or 0
+
+            stock, created = Stock.objects.get_or_create(
+                product=product,
+                warehouse=receiving.warehouse,
+                defaults={"quantity_available": pcs_qty}
+            )
+
+            if not created:
+                stock.quantity_available += pcs_qty
+                stock.save()
+
+            print(f"{'Created' if created else 'Updated'} stock for product {product.id} in warehouse {receiving.warehouse.id} — Qty: {stock.quantity_available}")
 
     def create(self, request, *args, **kwargs):
         try:
-            # ✅ Get warehouse ID from header
-            warehouse_id = request.headers.get("X-Warehouse-Id")
-            if not warehouse_id:
-                return Response({"error": "X-Warehouse-Id header is missing."}, status=400)
-
-            # ✅ Clone data and inject warehouse ID
-            data = request.data.copy()
-            data['warehouse'] = warehouse_id
-
-            # ✅ Continue with the normal flow
-            serializer = self.get_serializer(data=data)
-            serializer.is_valid(raise_exception=True)
-            self.perform_create(serializer)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-
+            print(f"Request data: {request.data}")  # Optional debug
+            print(f"Request headers: {dict(request.headers)}")  # Optional debug
+            return super().create(request, *args, **kwargs)
         except Exception as e:
-            print("Error creating receiving:", serializer.errors)
-            return Response({"error": str(e)}, status=500)
-        
+            print("Error creating receiving:")
+            import traceback
+            print(traceback.format_exc())
+            return Response({"detail": f"Error creating receiving: {str(e)}"}, status=500)
+     
         
 class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ReceivingSerializer
@@ -443,9 +450,24 @@ class StockListCreateView(generics.ListCreateAPIView):
             warehouse_id = getattr(self.request.user, 'warehouse_id', None)
         
         serializer.save(warehouse_id=warehouse_id)
-class StockDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Stock.objects.all()
-    serializer_class = StockSerializer
+
+class StockDetailView(APIView):
+    def get(self, request):
+        product_id = request.query_params.get("product_id")
+        warehouse_id = request.query_params.get("warehouse")
+
+        if not product_id:
+            return Response({"detail": "Product ID is required."}, status=400)
+
+        filters = {'product_id': product_id}
+        if warehouse_id:
+            filters['warehouse_id'] = warehouse_id
+
+        try:
+            stock = Stock.objects.get(**filters)
+            return Response({"quantity_available": stock.quantity_available})
+        except Stock.DoesNotExist:
+            return Response({"quantity_available": 0})  # ← Instead of NotFound
 
 
 class RouteListCreateView(generics.ListCreateAPIView):

@@ -1,16 +1,55 @@
-
 import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 
-const ProductTable = ({ rows, setRows, products, selectedTransactionTypeName, miscItems = [] }) => {
+const ProductTable = ({
+  rows,
+  setRows,
+  products,
+  selectedTransactionTypeName,
+  miscItems = [],
+  warehouseId,
+  setTotalExpectedSale,
+  setTotalActualSale,
+  setEmptiesPriceTotal,
+  setRefundablesTotal,
+  setDiscrepancy,
+  setTotalAmount,
+  miscCharges,
+}) => {
+
   const isVanLoad = selectedTransactionTypeName === "Van Load";
   const [pricingMap, setPricingMap] = useState({});
   const [availableStock, setAvailableStock] = useState({});
-  const totalExpectedSale = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0), [rows]);
-  const totalActualSale = useMemo(() => rows.reduce((sum, row) => sum + Number(row.actualSale || 0), 0), [rows]);
+  const [unitTypes, setUnitTypes] = useState([]);
 
-  const fetchStockQuantity = async (productId) => {
-  if (!productId) return;
+  // Fetch unit types on mount
+  useEffect(() => {
+    const fetchUnitTypes = async () => {
+      try {
+        const response = await axios.get("http://localhost:8080/api/unit-types/");
+        setUnitTypes(response.data);
+      } catch (err) {
+        console.error("Failed to fetch unit types:", err);
+      }
+    };
+    fetchUnitTypes();
+  }, []);
+
+  // Create a map of unitType ID → content_no
+  const unitTypeMap = useMemo(() => {
+    const map = {};
+    unitTypes.forEach(ut => {
+      map[ut.id] = ut.content_no;
+    });
+    return map;
+  }, [unitTypes]);
+
+  // Fetch available stock for a product/warehouse combo
+const fetchStockQuantity = async (productId) => {
+  if (!productId || !warehouseId) {
+    console.warn("Missing product or warehouse ID");
+    return;
+  }
 
   const productExists = products.some((p) => p.id === parseInt(productId));
   if (!productExists) {
@@ -19,10 +58,13 @@ const ProductTable = ({ rows, setRows, products, selectedTransactionTypeName, mi
   }
 
   try {
-    const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`);
+    const response = await axios.get(
+      `http://localhost:8080/api/stocks/?product_id=${productId}&warehouse_id=${warehouseId}`
+    );
+    const quantity = response.data.quantity_available;
     setAvailableStock((prev) => ({
       ...prev,
-      [productId]: response.data.quantity_available,
+      [productId]: quantity ?? 0,
     }));
   } catch (err) {
     console.warn(`Product stock not found for ID: ${productId}`);
@@ -33,25 +75,61 @@ const ProductTable = ({ rows, setRows, products, selectedTransactionTypeName, mi
   }
 };
 
+
+  const [pricingData, setPricingData] = useState([]);
+
+useEffect(() => {
+  const fetchPricing = async () => {
+    try {
+      const response = await axios.get("http://localhost:8080/api/pricing/");
+      setPricingData(response.data);
+    } catch (err) {
+      console.error("Failed to fetch pricing:", err);
+    }
+  };
+  fetchPricing();
+}, []);
+
+
 const handleProductChange = (index, value) => {
   const updatedRows = [...rows];
-  const productId = parseInt(value); // ✅ define productId properly
-
-  updatedRows[index].productId = productId;
-  setRows(updatedRows);
-  fetchStockQuantity(productId);
-
+  const productId = parseInt(value);
   const selectedProduct = products.find((p) => p.id === productId);
+
   if (selectedProduct) {
+    const priceId = selectedProduct.price?.id || null;
+    const fullPrice = pricingData.find((price) => price.id === priceId);
+
+    updatedRows[index].productId = productId;
     updatedRows[index].productName = selectedProduct.product_name;
-    updatedRows[index].priceId = selectedProduct.price.id;
-    updatedRows[index].contentNo = selectedProduct.unit_type.content_no;
+    updatedRows[index].priceId = priceId;
+    updatedRows[index].contentNo = selectedProduct.unit_type?.content_no || "";
+
+    // ✅ Add pricing info directly to the row
+    if (fullPrice) {
+      updatedRows[index].shellPrice = fullPrice.shell_price ?? "";
+      updatedRows[index].bottlePrice = fullPrice.bottle_price ?? "";
+
+      // Optionally cache to pricingMap
+      setPricingMap((prev) => ({
+        ...prev,
+        [priceId]: {
+          selling_price: fullPrice.selling_price,
+          shell_price: fullPrice.shell_price,
+          bottle_price: fullPrice.bottle_price,
+        },
+      }));
+    } else {
+      updatedRows[index].shellPrice = "";
+      updatedRows[index].bottlePrice = "";
+    }
   }
 
   setRows(updatedRows);
+  fetchStockQuantity(productId);
 
-  // ✅ Automatically add a new row if current is last and selected
-  if (index === rows.length - 1 && productId) {
+  // Auto-add row only if valid and it's the last row
+  if (index === rows.length - 1 && productId && selectedProduct) {
     setRows((prev) => [
       ...prev,
       {
@@ -75,22 +153,43 @@ const handleProductChange = (index, value) => {
         expectedSale: "",
         actualSale: "",
         contentNo: "",
+        shellPrice: "",     
+        bottlePrice: "",    
       },
     ]);
   }
 };
 
-
 const handleRowChange = (index, field, value) => {
   const updatedRows = [...rows];
   const row = updatedRows[index];
+
   row[field] = value;
 
-  const product = products.find(p => p.id === parseInt(row.productId));
-  const conversion = product?.conversion || 1;
-  const price = product?.price?.selling_price || pricingMap[row.priceId]?.selling_price || 0;
+  // Handle product selection
+  if (field === "productId") {
+    const product = products.find((p) => p.id === parseInt(value));
+    if (product) {
+      const priceId = product.price?.id;
+      const fullPrice = pricingData.find((price) => price.id === priceId);
+      const conversion = parseFloat(product.unit_type?.content_no || 1);
 
-  // Auto-sync PCS ↔ Shells
+      row.priceId = priceId;
+      row.conversion = conversion;
+
+      row.shellPrice = fullPrice?.shell_price ?? "";
+      row.bottlePrice = fullPrice?.bottle_price ?? "";
+    }
+  }
+
+  const product = products.find((p) => p.id === parseInt(row.productId));
+  const conversion = parseFloat(product?.unit_type?.content_no || 1);
+  const price =
+    product?.price?.selling_price ||
+    pricingData.find((p) => p.id === row.priceId)?.selling_price ||
+    0;
+
+  // Handle PCS ↔ Shell conversion
   if (field === "dispatchedShell") {
     row.dispatchedPcs = Math.round(parseFloat(value || 0) * conversion);
   } else if (field === "dispatchedPcs") {
@@ -99,35 +198,88 @@ const handleRowChange = (index, field, value) => {
     row.soldPcs = Math.round(parseFloat(value || 0) * conversion);
   } else if (field === "soldPcs") {
     row.soldShell = (parseFloat(value || 0) / conversion).toFixed(2);
+  } else if (field === "expectedReturnShellEmpty") {
+    row.expectedReturnPcsEmpty = Math.round(parseFloat(value || 0) * conversion);
+  } else if (field === "expectedReturnPcsEmpty") {
+    row.expectedReturnShellEmpty = (parseFloat(value || 0) / conversion).toFixed(2);
+  } else if (field === "expectedReturnShellNonempty") {
+    row.expectedReturnPcsNonempty = Math.round(parseFloat(value || 0) * conversion);
+  } else if (field === "expectedReturnPcsNonempty") {
+    row.expectedReturnShellNonempty = (parseFloat(value || 0) / conversion).toFixed(2);
   }
 
-  // Compute expected and actual sales
-  const dispatchedPcs = parseInt(row.dispatchedPcs || 0);
-  const soldPcs = parseInt(row.soldPcs || 0);
+  // Per-row calculations
+  const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
+  const soldPcs = parseFloat(row.soldPcs || 0);
 
-  row.expectedSale = parseFloat(price) * dispatchedPcs;
-  row.actualSale = parseFloat(price) * soldPcs;
-  row.discrepancy = row.expectedSale - row.actualSale;
+  row.expectedSale = parseFloat((price * dispatchedPcs).toFixed(2));
+  row.actualSale = parseFloat((price * soldPcs).toFixed(2));
+  row.discrepancy = parseFloat((row.expectedSale - row.actualSale).toFixed(2));
 
   setRows(updatedRows);
+
+  // 🔢 Total Calculations
+  const expectedTotal = updatedRows.reduce((sum, r) => sum + (parseFloat(r.expectedSale) || 0), 0);
+  const actualTotal = updatedRows.reduce((sum, r) => sum + (parseFloat(r.actualSale) || 0), 0);
+  const discrepancyTotal = expectedTotal - actualTotal;
+
+  const emptiesTotal = updatedRows.reduce((sum, r) => {
+    const pcs = parseFloat(r.expectedReturnPcsEmpty || 0);
+    const price = parseFloat(r.shellPrice || 0);
+    return sum + pcs * price;
+  }, 0);
+
+  const refundablesTotal = updatedRows.reduce((sum, r) => {
+    const pcs = parseFloat(r.expectedReturnPcsNonempty || 0);
+    const price = parseFloat(r.bottlePrice || 0);
+    return sum + pcs * price;
+  }, 0);
+
+  const miscTotal = miscItems.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
+
+  const finalTotal = actualTotal + miscTotal;
+
+  // 🔄 Update totals in parent
+  setTotalExpectedSale(expectedTotal);
+  setTotalActualSale(actualTotal);
+  setEmptiesPriceTotal(emptiesTotal);
+  setRefundablesTotal(refundablesTotal);
+  setDiscrepancy(discrepancyTotal);
+  setTotalAmount(finalTotal);
 };
 
 
+useEffect(() => {
+  let expectedTotal = 0;
+  let actualTotal = 0;
+
+  rows.forEach((row) => {
+    expectedTotal += parseFloat(row.expectedSale || 0);
+    actualTotal += parseFloat(row.actualSale || 0);
+  });
+
+  const miscCharges = miscItems.reduce((sum, item) => sum + parseFloat(item.amount || 0), 0);
+  expectedTotal += miscCharges;
+  actualTotal += miscCharges;
+
+  setTotalExpectedSale(expectedTotal);
+  setTotalActualSale(actualTotal);
+}, [rows, miscItems]); // ✅ recalculate when rows or misc items change
 
 
-  const expectedSale = rows.reduce((sum, row) => {
-    const product = products.find(p => p.id === parseInt(row.product_id));
-    const price = product?.price_per_case || 0;
-    return sum + price * (parseInt(row.dispatched || 0));
-  }, 0);
 
-  const actualSale = rows.reduce((sum, row) => {
-    const product = products.find(p => p.id === parseInt(row.product_id));
-    const price = product?.price_per_case || 0;
-    return sum + price * (parseInt(row.sold || 0));
-  }, 0);
+  // Totals
+  const totalExpectedSale = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0),
+    [rows]
+  );
 
-  
+  const totalActualSale = useMemo(
+    () => rows.reduce((sum, row) => sum + Number(row.actualSale || 0), 0),
+    [rows]
+  );
+
+
 
 return (
   <div className="overflow-x-auto mt-6">
@@ -186,158 +338,174 @@ return (
         </tr>
       </thead>
       <tbody>
-        {rows.map((row, index) => (
-          <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
-            {/* PRODUCT SELECT */}
-            <td className="border border-gray-200 py-1 px-1 w-[120px]">
-              <select
-                className="w-full p-1 text-sm text-center rounded bg-white border"
-                value={row.productId}
-                onChange={(e) => handleProductChange(index, e.target.value)}
-              >
-                <option value="">Select Product</option>
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>
-                    {product.product_name}
-                  </option>
-                ))}
-              </select>
-            </td>
-            {/* DISPATCHED */}
-            <td className="border border-gray-200 py-1 px-1">
-              <input
-                type="number"
-                className="w-full p-1 text-sm text-center rounded bg-white"
-                value={row.dispatchedShell || ""}
-                onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
-              />
-            </td>
-            <td className="border border-gray-200 py-1 px-1">
-              <input
-                type="number"
-                className="w-full p-1 text-sm text-center rounded bg-white"
-                value={row.dispatchedPcs || ""}
-                onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
-              />
-            </td>
-            {/* SELLING PRICE */}
-            <td className="border border-gray-200 py-1 px-1">
-              <input
-                type="number"
-                disabled={!row.product_id}
-                className="w-full p-1 text-sm text-center bg-gray-100"
-                value={pricingMap[row.priceId]?.selling_price || ""}
-              />
-            </td>
-            {!isVanLoad && (
-              <>
-                {/* SOLD */}
-                <td className="border border-gray-200 py-1 px-1">
-                  <input
-                    type="number"
-                    disabled={!row.product_id}
-                    className="w-full p-1 text-sm text-center rounded bg-yellow-50"
-                    value={row.soldShell || ""}
-                    onChange={(e) => handleRowChange(index, "soldShell", e.target.value)}
-                  />
-                </td>
-                <td className="border border-gray-200 py-1 px-1">
-                  <input
-                    type="number"
-                    disabled={!row.product_id}
-                    className="w-full p-1 text-sm text-center rounded bg-yellow-50"
-                    value={row.soldPcs || ""}
-                    onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)}
-                  />
-                </td>
-              </>
-            )}
-            {/* EMPTY PRICES */}
-            <td className="border border-gray-200 py-1 px-1">
-              <input
-                type="number"
-                className="w-full p-1 text-sm text-center bg-gray-100"
-                value={pricingMap[row.priceId]?.shell_price || ""}
-                disabled
-              />
-            </td>
-            <td className="border border-gray-200 py-1 px-1">
-              <input
-                type="number"
-                className="w-full p-1 text-sm text-center bg-gray-100"
-                value={pricingMap[row.priceId]?.bottle_price || ""}
-                disabled
-              />
-            </td>
-            {!isVanLoad && (
-              <>
-                {/* RETURN & DISCREPANCY FIELDS */}
-                {[
-                  "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
-                  "discrepancyShellEmpty", "discrepancyPcsEmpty",
-                  "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
-                  "discrepancyShellNonempty", "discrepancyPcsNonempty"
-                ].map((field, i) => (
-                  <td key={i} className="border border-gray-200 py-1 px-1">
-                    <input
-                      type="number"
-                      value={row[field] === 0 ? "" : row[field]}
-                      onChange={(e) => handleRowChange(index, field, e.target.value)}
-                      disabled={["discrepancyShellEmpty", "discrepancyPcsEmpty", "discrepancyShellNonempty", "discrepancyPcsNonempty"].includes(field)}
-                      className={`w-full p-1 text-sm text-center rounded
-                        ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field) ? "bg-yellow-50" : "bg-gray-100"}
-                        ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
-                    />
-                  </td>
-                ))}
-              </>
-            )}
-            {/* DISCOUNT */}
-            {!isVanLoad && (
-              <td className="border border-gray-200 py-1 px-1">
-                <input
-                  type="number"
-                  className={`w-full p-1 text-sm text-center rounded border ${
-                    row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"
-                  }`}
-                  value={row.discount === 0 ? "" : row.discount}
-                  onChange={(e) => handleRowChange(index, "discount", e.target.value)}
-                  disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
-                />
-              </td>
-            )}
-            {/* EXPECTED SALE */}
-            <td className="border border-gray-200 py-1 px-1">
-              <input
-                className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-                disabled
-                value={
-                  row.expectedSale
-                    ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
-                        minimumFractionDigits: 2
-                      })}`
-                    : ""
-                }
-              />
-            </td>
-            {/* ACTUAL SALE */}
-            {!isVanLoad && (
-              <td className="border border-gray-200 py-1 px-1">
-                <input
-                  className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-                  disabled
-                  value={
-                    row.actualSale
-                      ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", {
-                          minimumFractionDigits: 2
-                        })}`
-                      : ""
-                  }
-                />
-              </td>
-            )}
-          </tr>
+     {rows.map((row, index) => (
+  <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
+    {/* PRODUCT SELECT */}
+    <td className="border border-gray-200 py-1 px-1 w-[120px]">
+      <select
+        className="w-full p-1 text-sm text-center rounded bg-white border"
+        value={row.productId ?? ""}
+        onChange={(e) => handleProductChange(index, e.target.value)}
+      >
+        <option value="">Select Product</option>
+        {products.map((product) => (
+          <option key={product.id} value={product.id}>
+            {product.product_name}
+          </option>
         ))}
+      </select>
+    </td>
+
+    {/* DISPATCHED */}
+    <td className="border border-gray-200 py-1 px-1">
+      <input
+        type="number"
+        className="w-full p-1 text-sm text-center rounded bg-white"
+        value={row.dispatchedShell ?? ""}
+        onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
+      />
+    </td>
+    <td className="border border-gray-200 py-1 px-1">
+      <input
+        type="number"
+        className="w-full p-1 text-sm text-center rounded bg-white"
+        value={row.dispatchedPcs ?? ""}
+        onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
+      />
+    </td>
+
+    {/* SELLING PRICE */}
+    <td className="border border-gray-200 py-1 px-1">
+      <input
+        type="number"
+        disabled
+        className="w-full p-1 text-sm text-center bg-gray-100"
+        value={
+          pricingMap[row.priceId]?.selling_price ??
+          products.find((p) => p.id === parseInt(row.productId))?.price?.selling_price ??
+          ""
+        }
+      />
+    </td>
+
+    {!isVanLoad && (
+      <>
+        {/* SOLD */}
+        <td className="border border-gray-200 py-1 px-1">
+          <input
+            type="number"
+            disabled={!row.productId}
+            className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+            value={row.soldShell ?? ""}
+            onChange={(e) => handleRowChange(index, "soldShell", e.target.value)}
+          />
+        </td>
+        <td className="border border-gray-200 py-1 px-1">
+          <input
+            type="number"
+            disabled={!row.productId}
+            className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+            value={row.soldPcs ?? ""}
+            onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)}
+          />
+        </td>
+      </>
+    )}
+
+    {/* EMPTY PRICES */}
+    <td className="border border-gray-200 py-1 px-1">
+      <input
+        type="number"
+        className="w-full p-1 text-sm text-center bg-gray-100"
+        value={row.shellPrice ?? ""}
+        disabled
+      />
+    </td>
+    <td className="border border-gray-200 py-1 px-1">
+      <input
+        type="number"
+        className="w-full p-1 text-sm text-center bg-gray-100"
+        value={row.bottlePrice ?? ""}
+        disabled
+      />
+    </td>
+
+    {!isVanLoad && (
+      <>
+        {/* RETURN & DISCREPANCY FIELDS */}
+        {[
+          "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
+          "discrepancyShellEmpty", "discrepancyPcsEmpty",
+          "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
+          "discrepancyShellNonempty", "discrepancyPcsNonempty"
+        ].map((field, i) => (
+          <td key={i} className="border border-gray-200 py-1 px-1">
+            <input
+              type="number"
+              value={row[field] === 0 || row[field] === undefined ? "" : row[field]}
+              onChange={(e) => handleRowChange(index, field, e.target.value)}
+              className={`w-full p-1 text-sm text-center rounded
+                ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
+                  ? "bg-yellow-50"
+                  : "bg-gray-100"}
+                ${field.includes("discrepancy") && parseInt(row[field]) !== 0
+                  ? "bg-red-100 text-red-700 font-semibold"
+                  : ""}`}
+            />
+          </td>
+        ))}
+      </>
+    )}
+
+    {/* DISCOUNT */}
+    {!isVanLoad && (
+      <td className="border border-gray-200 py-1 px-1">
+        <input
+          type="number"
+          className={`w-full p-1 text-sm text-center rounded border ${
+            row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"
+          }`}
+          value={row.discount ?? ""}
+          onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+          disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+        />
+      </td>
+    )}
+
+    {/* EXPECTED SALE */}
+    <td className="border border-gray-200 py-1 px-1">
+      <input
+        className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+        disabled
+        value={
+          row.expectedSale !== undefined && row.expectedSale !== null
+            ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
+                minimumFractionDigits: 2,
+              })}`
+            : ""
+        }
+      />
+    </td>
+
+    {/* ACTUAL SALE */}
+    {!isVanLoad && (
+      <td className="border border-gray-200 py-1 px-1">
+        <input
+          className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+          disabled
+          value={
+            row.actualSale !== undefined && row.actualSale !== null
+              ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", {
+                  minimumFractionDigits: 2,
+                })}`
+              : ""
+          }
+        />
+      </td>
+    )}
+  </tr>
+))}
+
         <tr className="bg-gray-200 font-semibold text-[13px] text-right">
           <td className="border border-gray-300 py-2 px-1 text-center">TOTAL</td>
           <td className="border border-gray-300 py-2 px-1"></td> {/* Dispatched Shell */}

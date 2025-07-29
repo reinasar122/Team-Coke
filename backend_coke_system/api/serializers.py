@@ -266,6 +266,7 @@ class ReceivingItemSerializer(serializers.ModelSerializer):
 
 
 class ReceivingSerializer(serializers.ModelSerializer):
+    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all(), required=False)
     received_by_first_name = serializers.CharField(source='received_by.first_name', read_only=True)
     received_by_last_name = serializers.CharField(source='received_by.last_name', read_only=True)
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
