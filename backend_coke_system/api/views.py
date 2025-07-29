@@ -391,16 +391,26 @@ class ReceivingListCreateView(generics.ListCreateAPIView):
 
     def create(self, request, *args, **kwargs):
         try:
-            print(f"Request data: {request.data}")  # Debug log
-            print(f"Request headers: {dict(request.headers)}")  # Debug log
-            return super().create(request, *args, **kwargs)
+            # ✅ Get warehouse ID from header
+            warehouse_id = request.headers.get("X-Warehouse-Id")
+            if not warehouse_id:
+                return Response({"error": "X-Warehouse-Id header is missing."}, status=400)
+
+            # ✅ Clone data and inject warehouse ID
+            data = request.data.copy()
+            data['warehouse'] = warehouse_id
+
+            # ✅ Continue with the normal flow
+            serializer = self.get_serializer(data=data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+
         except Exception as e:
-            print(f"Error creating receiving: {str(e)}")
-            print(f"Traceback: {traceback.format_exc()}")
-            return Response(
-                {"detail": f"Error creating receiving: {str(e)}"}, 
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            print("Error creating receiving:", serializer.errors)
+            return Response({"error": str(e)}, status=500)
+        
+        
 class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ReceivingSerializer
     
