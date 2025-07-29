@@ -8,12 +8,16 @@ const ProductTable = ({ rows, setRows, products, selectedTransactionTypeName, mi
   const [availableStock, setAvailableStock] = useState({});
   const totalExpectedSale = useMemo(() => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0), [rows]);
   const totalActualSale = useMemo(() => rows.reduce((sum, row) => sum + Number(row.actualSale || 0), 0), [rows]);
-  
-  const handleProductChange = (index, productId) => {
-  const updatedRows = [...rows];
-  updatedRows[index].productId = productId;
 
   const fetchStockQuantity = async (productId) => {
+  if (!productId) return;
+
+  const productExists = products.some((p) => p.id === parseInt(productId));
+  if (!productExists) {
+    console.warn(`Skipping fetch: product ID ${productId} not found in products list`);
+    return;
+  }
+
   try {
     const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`);
     setAvailableStock((prev) => ({
@@ -21,20 +25,30 @@ const ProductTable = ({ rows, setRows, products, selectedTransactionTypeName, mi
       [productId]: response.data.quantity_available,
     }));
   } catch (err) {
-    console.error("Error fetching stock:", err);
+    console.warn(`Product stock not found for ID: ${productId}`);
+    setAvailableStock((prev) => ({
+      ...prev,
+      [productId]: null,
+    }));
   }
 };
 
-  const selectedProduct = products.find((p) => p.id === parseInt(productId));
+const handleProductChange = (index, value) => {
+  const updatedRows = [...rows];
+  const productId = parseInt(value); // ✅ define productId properly
+
+  updatedRows[index].productId = productId;
+  setRows(updatedRows);
+  fetchStockQuantity(productId);
+
+  const selectedProduct = products.find((p) => p.id === productId);
   if (selectedProduct) {
     updatedRows[index].productName = selectedProduct.product_name;
     updatedRows[index].priceId = selectedProduct.price.id;
     updatedRows[index].contentNo = selectedProduct.unit_type.content_no;
-
-    // ✅ Fetch stock for selected product
-    fetchStockQuantity(productId);
   }
-   setRows(updatedRows);
+
+  setRows(updatedRows);
 
   // ✅ Automatically add a new row if current is last and selected
   if (index === rows.length - 1 && productId) {
@@ -66,20 +80,40 @@ const ProductTable = ({ rows, setRows, products, selectedTransactionTypeName, mi
   }
 };
 
-  const handleRowChange = (index, field, value) => {
-    const updatedRows = [...rows];
-    updatedRows[index][field] = value;
 
-    const product = products.find(p => p.id === parseInt(updatedRows[index].product_id));
-    const price = product ? parseFloat(product.price_per_case || 0) : 0;
-    const sold = parseInt(updatedRows[index].sold || 0);
+const handleRowChange = (index, field, value) => {
+  const updatedRows = [...rows];
+  const row = updatedRows[index];
+  row[field] = value;
 
-    updatedRows[index].expected_sale = price * parseInt(updatedRows[index].dispatched || 0);
-    updatedRows[index].actual_sale = price * sold;
-    updatedRows[index].discrepancy = updatedRows[index].expected_sale - updatedRows[index].actual_sale;
+  const product = products.find(p => p.id === parseInt(row.productId));
+  const conversion = product?.conversion || 1;
+  const price = product?.price?.selling_price || pricingMap[row.priceId]?.selling_price || 0;
 
-    setRows(updatedRows);
-  };
+  // Auto-sync PCS ↔ Shells
+  if (field === "dispatchedShell") {
+    row.dispatchedPcs = Math.round(parseFloat(value || 0) * conversion);
+  } else if (field === "dispatchedPcs") {
+    row.dispatchedShell = (parseFloat(value || 0) / conversion).toFixed(2);
+  } else if (field === "soldShell") {
+    row.soldPcs = Math.round(parseFloat(value || 0) * conversion);
+  } else if (field === "soldPcs") {
+    row.soldShell = (parseFloat(value || 0) / conversion).toFixed(2);
+  }
+
+  // Compute expected and actual sales
+  const dispatchedPcs = parseInt(row.dispatchedPcs || 0);
+  const soldPcs = parseInt(row.soldPcs || 0);
+
+  row.expectedSale = parseFloat(price) * dispatchedPcs;
+  row.actualSale = parseFloat(price) * soldPcs;
+  row.discrepancy = row.expectedSale - row.actualSale;
+
+  setRows(updatedRows);
+};
+
+
+
 
   const expectedSale = rows.reduce((sum, row) => {
     const product = products.find(p => p.id === parseInt(row.product_id));
@@ -190,7 +224,7 @@ return (
             <td className="border border-gray-200 py-1 px-1">
               <input
                 type="number"
-                disabled
+                disabled={!row.product_id}
                 className="w-full p-1 text-sm text-center bg-gray-100"
                 value={pricingMap[row.priceId]?.selling_price || ""}
               />
@@ -201,6 +235,7 @@ return (
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
+                    disabled={!row.product_id}
                     className="w-full p-1 text-sm text-center rounded bg-yellow-50"
                     value={row.soldShell || ""}
                     onChange={(e) => handleRowChange(index, "soldShell", e.target.value)}
@@ -209,6 +244,7 @@ return (
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
+                    disabled={!row.product_id}
                     className="w-full p-1 text-sm text-center rounded bg-yellow-50"
                     value={row.soldPcs || ""}
                     onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)}

@@ -1,15 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProductTable from "./ProductTable";
 import ExpensesSection from "./ExpensesSection";
 import ActionButtons from "./ActionButtons";
 
-
 const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [users, setUsers] = useState([]);
   const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [routes, setRoutes] = useState([]);
   const [customers, setCustomers] = useState([]);
   const [miscItems, setMiscItems] = useState([]);
@@ -22,8 +22,6 @@ const MerchandisingSale = () => {
   const [transactionType, setTransactionType] = useState("");
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
   const [transactionTypes, setTransactionTypes] = useState([]);
-
-
   const [mspNo, setMspNo] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
@@ -32,46 +30,108 @@ const MerchandisingSale = () => {
   const [isAddingRoute, setIsAddingRoute] = useState(false);
   const [newRoute, setNewRoute] = useState("");
 
-  const handleBack = () => {
-    navigate("/merchandising-list"); // or wherever you want to go
+  const getCurrentWarehouse = () => {
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    if (userData.role?.toLowerCase() === "admin") {
+      return selectedWarehouse?.id || userData.warehouse_id;
+    }
+    return userData.warehouse_id;
   };
 
-  const handleFinalizeSale = () => {
-    // logic for finalizing Van Load
-    console.log("Finalizing Van Load Sale...");
-    // maybe API call here
-  };
+  // ✅ Set currentWarehouse on mount
+  useEffect(() => {
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const warehouseId = getCurrentWarehouse();
 
-  const handlePay = () => {
-    // logic for paying Warehouse transaction
-    console.log("Processing Payment...");
-    // maybe API call here
-  };
+    if (warehouseId) {
+      const name = selectedWarehouse?.name || user?.warehouse_name || "Warehouse";
+      setCurrentWarehouse({ id: warehouseId, name });
+    }
+  }, []);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      setLoading(true);
+      const warehouseId = getCurrentWarehouse();
+
+      if (!warehouseId) {
+        console.warn("No warehouse assigned to user");
+        setProducts([]);
+        return;
+      }
+
+      const res = await axios.get(`http://localhost:8080/api/products/?warehouse_id=${warehouseId}`);
+      setProducts(res.data);
+    } catch (err) {
+      console.error("Error fetching products:", err);
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchProducts();
+    const handleWarehouseChange = () => {
+      fetchProducts();
+    };
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+    return () => {
+      window.removeEventListener('warehouseChanged', handleWarehouseChange);
+    };
+  }, [fetchProducts]);
+
+  // ✅ Fixed fetchUsers with axios config and correct dependencies
+  const fetchUsers = useCallback(() => {
+    if (!currentWarehouse?.id) {
+      console.log("❌ Skipping users fetch - no warehouse ID");
+      return;
+    }
+
+    console.log(`🔄 Fetching users for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
+
+    const config = {
+      headers: {
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    };
+
+    axios.get("http://localhost:8080/api/users/", config)
+      .then((res) => {
+        console.log(`✅ Loaded ${res.data.length} users`);
+        setUsers(res.data);
+      })
+      .catch((err) => console.error("❌ Error fetching users:", err));
+  }, [currentWarehouse]);
+
+  // ✅ Fetch users when currentWarehouse is set
+  useEffect(() => {
+    if (currentWarehouse?.id) {
+      fetchUsers();
+    }
+  }, [currentWarehouse, fetchUsers]);
 
   const [rows, setRows] = useState([
-  {
-    id: 1,
-    productId: "",
-    priceId: null,
-    dispatched: 0,
-    sold: 0,
-    expected_sale: 0,
-    actual_sale: 0,
-    discrepancy: 0,
-    // add any other fields your table needs
-  },
-  
-]);
+    {
+      id: 1,
+      productId: "",
+      priceId: null,
+      dispatched: 0,
+      sold: 0,
+      expected_sale: 0,
+      actual_sale: 0,
+      discrepancy: 0,
+    },
+  ]);
 
-
-  // Fetch data based on selected warehouse
+  // ✅ Only fetch routes and customers here (not users/products)
   useEffect(() => {
     if (!currentWarehouse?.id) return;
 
     const warehouseId = currentWarehouse.id;
 
-    axios.get(`http://localhost:8080/api/users/?warehouse=${warehouseId}`).then(res => setUsers(res.data));
-    axios.get(`http://localhost:8080/api/products/?warehouse=${warehouseId}`).then(res => setProducts(res.data));
     axios.get(`http://localhost:8080/api/routes/?warehouse=${warehouseId}`).then(res => setRoutes(res.data));
     axios.get(`http://localhost:8080/api/customers/?warehouse=${warehouseId}`).then(res => setCustomers(res.data));
   }, [currentWarehouse]);
@@ -85,25 +145,43 @@ const MerchandisingSale = () => {
       .catch(err => console.error("Failed to fetch transaction types:", err));
   }, []);
 
-useEffect(() => {
-  if (transactionType && selectedTransactionTypeName) {
-    axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
-      params: { transaction_type: transactionType }
-    }).then(res => {
-      console.log("✅ MSP Prefix check:", selectedTransactionTypeName, res.data.msp_no);
-      setMspNo(res.data.msp_no);
-    });
-  }
-}, [transactionType, selectedTransactionTypeName]);
+  useEffect(() => {
+    if (transactionType && selectedTransactionTypeName) {
+      axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
+        params: { transaction_type: transactionType }
+      }).then(res => {
+        console.log("✅ MSP Prefix check:", selectedTransactionTypeName, res.data.msp_no);
+        setMspNo(res.data.msp_no);
+      });
+    }
+  }, [transactionType, selectedTransactionTypeName]);
 
-const [dateTime, setDateTime] = useState(() => {
-  const date = new Date();
-  date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-  return date.toISOString().slice(0, 16);
+  const [dateTime, setDateTime] = useState(() => {
+    const date = new Date();
+    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
+    return date.toISOString().slice(0, 16);
   });
-  // Calculate total expense
+
+    useEffect(() => {
+    const now = new Date();
+    const formatted = now.toISOString().slice(0, 16); // Format: "YYYY-MM-DDTHH:MM"
+    setTransactionDate(formatted);
+  }, []);
+
   const calculateTotalExpenses = () => {
     return miscItems.reduce((total, item) => total + parseFloat(item.amount || 0), 0);
+  };
+
+  const handleBack = () => {
+    navigate("/merchandising-list");
+  };
+
+  const handleFinalizeSale = () => {
+    console.log("Finalizing Van Load Sale...");
+  };
+
+  const handlePay = () => {
+    console.log("Processing Payment...");
   };
 
   return (
@@ -181,11 +259,13 @@ const [dateTime, setDateTime] = useState(() => {
 
           {/* RIGHT */}
           <div className="flex flex-col space-y-4 w-full md:w-1/2">
-            <div>
+           <div>
               <label className="text-sm">Date/Time</label>
               <input
                 type="datetime-local"
                 className="w-full rounded-md px-2 py-1 text-sm"
+                value={transactionDate}
+                onChange={(e) => setTransactionDate(e.target.value)}
               />
             </div>
 
