@@ -209,14 +209,37 @@ const handleRowChange = (index, field, value) => {
   }
 
   // Per-row calculations
-  const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
-  const soldPcs = parseFloat(row.soldPcs || 0);
+const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
+const soldPcs = parseFloat(row.soldPcs || 0);
+const discountPercent = parseFloat(row.discount || 0);
+const discount = (price * soldPcs * discountPercent) / 100;
 
-  row.expectedSale = parseFloat((price * dispatchedPcs).toFixed(2));
-  row.actualSale = parseFloat((price * soldPcs).toFixed(2));
-  row.discrepancy = parseFloat((row.expectedSale - row.actualSale).toFixed(2));
+row.expectedSale = parseFloat((price * dispatchedPcs).toFixed(2));
+row.actualSale = parseFloat((price * soldPcs - discount).toFixed(2));
+row.discrepancy = parseFloat((row.expectedSale - row.actualSale).toFixed(2));
 
-  setRows(updatedRows);
+// 🔢 DISCREPANCY CALCULATIONS (inserted here)
+const dispatchedShell = parseFloat(row.dispatchedShell || 0);
+const soldShell = parseFloat(row.soldShell || 0);
+const returnedEmptyShell = parseFloat(row.expectedReturnShellEmpty || 0);
+const returnedEmptyPcs = parseFloat(row.expectedReturnPcsEmpty || 0);
+
+// Compute discrepancy for empties
+row.discrepancyPcsEmpty = soldPcs - returnedEmptyPcs;
+row.discrepancyShellEmpty = soldShell - returnedEmptyShell;
+
+// Compute returned with content
+const returnedWithContentPcs = dispatchedPcs - soldPcs;
+const returnedWithContentShell = dispatchedShell - soldShell;
+row.expectedReturnPcsNonempty = returnedWithContentPcs;
+row.expectedReturnShellNonempty = returnedWithContentShell;
+
+// Compute discrepancy for non-empties
+row.discrepancyPcsNonempty = dispatchedPcs - soldPcs - returnedWithContentPcs;
+row.discrepancyShellNonempty = dispatchedShell - soldShell - returnedWithContentShell;
+
+setRows(updatedRows);
+
 
   // 🔢 Total Calculations
   const expectedTotal = updatedRows.reduce((sum, r) => sum + (parseFloat(r.expectedSale) || 0), 0);
