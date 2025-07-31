@@ -368,6 +368,13 @@ const MerchandisingSale = () => {
         setRefundablesTotal={setRefundablesTotal}
         setDiscrepancy={setDiscrepancy}
         setTotalAmount={setTotalAmount}
+
+        emptiesPriceTotal={emptiesPriceTotal}
+        refundablesTotal={refundablesTotal}
+        discrepancy={discrepancy}
+        totalExpectedSale={totalExpectedSale}
+        totalActualSale={totalActualSale}
+
       />
 
       <ActionButtons
