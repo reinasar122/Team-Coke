@@ -562,6 +562,14 @@ const handleFinalizeSale = async () => {
         setRefundablesTotal={setRefundablesTotal}
         setDiscrepancy={setDiscrepancy}
         setTotalAmount={setTotalAmount}
+        totalAmount={totalAmount}
+
+        emptiesPriceTotal={emptiesPriceTotal}
+        refundablesTotal={refundablesTotal}
+        discrepancy={discrepancy}
+        totalExpectedSale={totalExpectedSale}
+        totalActualSale={totalActualSale}
+
       />
     )}
 

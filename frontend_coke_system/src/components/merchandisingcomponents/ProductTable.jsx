@@ -15,10 +15,20 @@ const ProductTable = ({
   setDiscrepancy,
   setTotalAmount,
   miscCharges,
+
+  // ✅ These are needed for the TOTAL ROW display
+  emptiesPriceTotal,
+  refundablesTotal,
+  discrepancy,
+  totalAmount,  // ✅ pass this
+  
+
+
 }) => {
   const [pricingMap, setPricingMap] = useState({});
   const [availableStock, setAvailableStock] = useState({});
   const [unitTypes, setUnitTypes] = useState([]);
+  
 
   // Fetch unit types on mount
   useEffect(() => {
@@ -207,44 +217,120 @@ const handleRowChange = (index, field, value) => {
   }
 
   // Per-row calculations
-  const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
-  const soldPcs = parseFloat(row.soldPcs || 0);
+const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
+const soldPcs = parseFloat(row.soldPcs || 0);
+const discountPercent = parseFloat(row.discount || 0);
+const discount = (price * soldPcs * discountPercent) / 100;
 
-  row.expectedSale = parseFloat((price * dispatchedPcs).toFixed(2));
-  row.actualSale = parseFloat((price * soldPcs).toFixed(2));
-  row.discrepancy = parseFloat((row.expectedSale - row.actualSale).toFixed(2));
+row.expectedSale = parseFloat((price * dispatchedPcs).toFixed(2));
+row.actualSale = parseFloat((price * soldPcs - discount).toFixed(2));
+row.discrepancy = parseFloat((row.expectedSale - row.actualSale).toFixed(2));
 
-  setRows(updatedRows);
+// 🔢 DISCREPANCY CALCULATIONS (inserted here)
+const dispatchedShell = parseFloat(row.dispatchedShell || 0);
+const soldShell = parseFloat(row.soldShell || 0);
+const returnedEmptyShell = parseFloat(row.expectedReturnShellEmpty || 0);
+const returnedEmptyPcs = parseFloat(row.expectedReturnPcsEmpty || 0);
+
+// Compute discrepancy for empties
+row.discrepancyPcsEmpty = soldPcs - returnedEmptyPcs;
+row.discrepancyShellEmpty = soldShell - returnedEmptyShell;
+
+// Compute returned with content
+// Compute returned with content (user can override)
+let returnedWithContentPcs =
+  field === "expectedReturnPcsNonempty"
+    ? parseFloat(value || 0)
+    : parseFloat(row.expectedReturnPcsNonempty || dispatchedPcs - soldPcs);
+
+let returnedWithContentShell =
+  field === "expectedReturnShellNonempty"
+    ? parseFloat(value || 0)
+    : parseFloat(row.expectedReturnShellNonempty || dispatchedShell - soldShell);
+
+
+  // Update only if not user-typing
+if (field !== "expectedReturnPcsNonempty") {
+  row.expectedReturnPcsNonempty = dispatchedPcs - soldPcs;
+}
+if (field !== "expectedReturnShellNonempty") {
+  row.expectedReturnShellNonempty = dispatchedShell - soldShell;
+}
+
+
+// ✅ Final discrepancy computation (non-empty)
+row.discrepancyPcsNonempty = dispatchedPcs - soldPcs - returnedWithContentPcs;
+row.discrepancyShellNonempty = dispatchedShell - soldShell - returnedWithContentShell;
+
+setRows(updatedRows);
+
 
   // 🔢 Total Calculations
-  const expectedTotal = updatedRows.reduce((sum, r) => sum + (parseFloat(r.expectedSale) || 0), 0);
-  const actualTotal = updatedRows.reduce((sum, r) => sum + (parseFloat(r.actualSale) || 0), 0);
-  const discrepancyTotal = expectedTotal - actualTotal;
 
-  const emptiesTotal = updatedRows.reduce((sum, r) => {
-    const pcs = parseFloat(r.expectedReturnPcsEmpty || 0);
-    const price = parseFloat(r.shellPrice || 0);
-    return sum + pcs * price;
+  // Empties and Refundables totals
+  const totalEmpties = updatedRows.reduce((sum, r) => {
+    const price = pricingData.find((p) => p.id === r.priceId) || {};
+    const sp = parseFloat(price.shell_price) || 0;
+    const bp = parseFloat(price.bottle_price) || 0;
+    const shellQty = parseFloat(r.soldShell || 0);
+    const pcsQty = parseFloat(r.soldPcs || 0);
+    return sum + (shellQty * sp) + (pcsQty * bp);
   }, 0);
 
-  const refundablesTotal = updatedRows.reduce((sum, r) => {
-    const pcs = parseFloat(r.expectedReturnPcsNonempty || 0);
-    const price = parseFloat(r.bottlePrice || 0);
-    return sum + pcs * price;
+  const totalRefundables = updatedRows.reduce((sum, r) => {
+    const price = pricingData.find((p) => p.id === r.priceId) || {};
+    const sp = parseFloat(price.shell_price) || 0;
+    const bp = parseFloat(price.bottle_price) || 0;
+    const shellQty = parseFloat(r.expectedReturnShellEmpty || 0);
+    const pcsQty = parseFloat(r.expectedReturnPcsEmpty || 0);
+    return sum + (shellQty * sp) + (pcsQty * bp);
   }, 0);
 
-  const miscTotal = miscItems.reduce((sum, m) => sum + (parseFloat(m.amount) || 0), 0);
-
-  const finalTotal = actualTotal + miscTotal;
-
-  // 🔄 Update totals in parent
-  setTotalExpectedSale(expectedTotal);
-  setTotalActualSale(actualTotal);
-  setEmptiesPriceTotal(emptiesTotal);
-  setRefundablesTotal(refundablesTotal);
-  setDiscrepancy(discrepancyTotal);
-  setTotalAmount(finalTotal);
+  setEmptiesPriceTotal(totalEmpties);
+  setRefundablesTotal(totalRefundables);
 };
+
+
+
+  // ✅ Top-level computed values (moved out of handleRowChange)
+  const totalDiscrepancyEmpty = useMemo(() => {
+    return rows.reduce((sum, r) => {
+      const price = pricingMap[r.priceId] || {};
+      const sp = parseFloat(price.shell_price) || 0;
+      const bp = parseFloat(price.bottle_price) || 0;
+      const shellDisc = parseFloat(r.discrepancyShellEmpty || 0);
+      const pcsDisc = parseFloat(r.discrepancyPcsEmpty || 0);
+      return sum + (shellDisc * sp) + (pcsDisc * bp);
+    }, 0);
+  }, [rows, pricingMap]);
+
+  const totalDiscrepancyNonEmpty = useMemo(() => {
+    return rows.reduce((sum, r) => {
+      const price = pricingMap[r.priceId] || {};
+      const sellingPrice = parseFloat(price.selling_price) || 0;
+      const shellPrice = parseFloat(price.shell_price) || 0;
+
+      const pcsDisc = parseFloat(r.discrepancyPcsNonempty || 0);
+      const shellDisc = parseFloat(r.discrepancyShellNonempty || 0);
+
+      const bottleValue = pcsDisc * sellingPrice;
+      const shellValue = shellDisc * shellPrice;
+
+      return sum + bottleValue + shellValue;
+    }, 0);
+  }, [rows, pricingMap]);
+
+  const overallDiscrepancy = useMemo(() => {
+    return totalDiscrepancyEmpty + totalDiscrepancyNonEmpty;
+  }, [totalDiscrepancyEmpty, totalDiscrepancyNonEmpty]);
+
+  useEffect(() => {
+    setDiscrepancy(overallDiscrepancy.toFixed(2));
+  }, [overallDiscrepancy]);
+  
+
+
+
 
 
 useEffect(() => {
@@ -264,9 +350,7 @@ useEffect(() => {
   setTotalActualSale(actualTotal);
 }, [rows, miscItems]); // ✅ recalculate when rows or misc items change
 
-
-
-  // Totals
+// Totals
   const totalExpectedSale = useMemo(
     () => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0),
     [rows]
@@ -276,6 +360,45 @@ useEffect(() => {
     () => rows.reduce((sum, row) => sum + Number(row.actualSale || 0), 0),
     [rows]
   );
+
+
+  
+
+useEffect(() => {
+  const misc = parseFloat(miscCharges) || 0;
+
+  let totalAmountValue;
+  if (selectedTransactionTypeName === "Van Load") {
+    totalAmountValue = (totalActualSale - misc) + overallDiscrepancy;
+  } else {
+    totalAmountValue = emptiesPriceTotal - refundablesTotal + totalActualSale;
+  }
+
+  console.log("🧮 COMPUTED totalAmountValue:", totalAmountValue);
+  console.log({
+    emptiesPriceTotal,
+    refundablesTotal,
+    totalActualSale,
+    overallDiscrepancy,
+    misc
+  });
+
+
+
+  setTotalAmount(totalAmountValue);
+}, [
+  totalActualSale,
+  miscCharges,
+  selectedTransactionTypeName,
+  emptiesPriceTotal,
+  refundablesTotal,
+  overallDiscrepancy
+]);
+
+
+
+  
+
 
 
 
@@ -288,7 +411,7 @@ return (
           <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
           <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
           <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>PRICE (Shell/Bottle)</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>EMPTY PRICE (Shell/Bottle)</th>
           <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
           <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
           <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
@@ -387,57 +510,74 @@ return (
               />
             </td>
 
-        {/* EMPTY PRICES */}
-        <td className="border border-gray-200 py-1 px-1">
-          <input
-            type="number"
-            className="w-full p-1 text-sm text-center bg-gray-100"
-            value={row.shellPrice ?? ""}
-            disabled
-          />
-        </td>
-        <td className="border border-gray-200 py-1 px-1">
-          <input
-            type="number"
-            className="w-full p-1 text-sm text-center bg-gray-100"
-            value={row.bottlePrice ?? ""}
-            disabled
-          />
-        </td>
-            {/* RETURN & DISCREPANCY FIELDS */}
-            {[
-              "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
-              "discrepancyShellEmpty", "discrepancyPcsEmpty",
-              "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
-              "discrepancyShellNonempty", "discrepancyPcsNonempty"
-            ].map((field, i) => (
-              <td key={i} className="border border-gray-200 py-1 px-1">
-                <input
-                  type="number"
-                  value={row[field] === 0 || row[field] === undefined ? "" : row[field]}
-                  onChange={(e) => handleRowChange(index, field, e.target.value)}
-                  className={`w-full p-1 text-sm text-center rounded
-                    ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
-                      ? "bg-yellow-50"
-                      : "bg-gray-100"}
-                    ${field.includes("discrepancy") && parseInt(row[field]) !== 0
-                      ? "bg-red-100 text-red-700 font-semibold"
-                      : ""}`}
-                />
-              </td>
-            ))}
-        {/* DISCOUNT */}
-          <td className="border border-gray-200 py-1 px-1">
+    {/* EMPTY PRICES */}
+    <td className="border border-gray-200 py-1 px-1">
+      <input
+        type="number"
+        className="w-full p-1 text-sm text-center bg-gray-100"
+        value={row.shellPrice ?? ""}
+        disabled
+      />
+    </td>
+    <td className="border border-gray-200 py-1 px-1">
+      <input
+        type="number"
+        className="w-full p-1 text-sm text-center bg-gray-100"
+        value={row.bottlePrice ?? ""}
+        disabled
+      />
+    </td>
+
+   
+        {/* RETURN & DISCREPANCY FIELDS */}
+        {[
+          "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
+          "discrepancyShellEmpty", "discrepancyPcsEmpty",
+          "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
+          "discrepancyShellNonempty", "discrepancyPcsNonempty"
+        ].map((field, i) => (
+          <td key={i} className="border border-gray-200 py-1 px-1">
             <input
               type="number"
-              className={`w-full p-1 text-sm text-center rounded border ${
-                row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"
-              }`}
-              value={row.discount ?? ""}
-              onChange={(e) => handleRowChange(index, "discount", e.target.value)}
-              disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+              value={
+                row[field] === undefined || row[field] === null
+                  ? ""
+                  : row[field] === "" || row[field] === "0"
+                  ? ""
+                  : row[field]
+              }
+
+              onChange={(e) => handleRowChange(index, field, e.target.value)}
+              onFocus={() => {
+                if (row[field] === 0 || row[field] === "0") {
+                  handleRowChange(index, field, "");
+                }
+              }}
+
+              className={`w-full p-1 text-sm text-center rounded
+                ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
+                  ? "bg-yellow-50"
+                  : "bg-gray-100"}
+                ${field.includes("discrepancy") && parseFloat(row[field]) !== 0
+                  ? "bg-red-100 text-red-700 font-semibold"
+                  : ""}`}
             />
           </td>
+        ))}
+
+    {/* DISCOUNT */}
+   
+      <td className="border border-gray-200 py-1 px-1">
+        <input
+          type="number"
+          className={`w-full p-1 text-sm text-center rounded border ${
+            row.soldShell > 0 || row.soldPcs > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"
+          }`}
+          value={row.discount ?? ""}
+          onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+          disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+        />
+      </td>
 
         {/* EXPECTED SALE */}
         <td className="border border-gray-200 py-1 px-1">
@@ -471,31 +611,80 @@ return (
       </tr>
     ))}
 
-        <tr className="bg-gray-200 font-semibold text-[13px] text-right">
-          <td className="border border-gray-300 py-2 px-1 text-center">TOTAL</td>
-          <td className="border border-gray-300 py-2 px-1"></td> {/* Dispatched Shell */}
-          <td className="border border-gray-300 py-2 px-1"></td> {/* Dispatched PCS */}
-          <td className="border border-gray-300 py-2 px-1"></td> {/* Selling Price */}
+        <tr className="bg-blue-100 font-semibold text-[13px] text-right">
+          <td className="py-2 px-1 text-center text-black">TOTAL</td>
+
+          {/* DISPATCHED */}
+          <td className="border-none py-2 px-1 bg-blue-100"></td>
+          <td className="border-none py-2 px-1 bg-blue-100"></td>
+
+          {/* SELLING PRICE */}
+          <td className="border-none py-2 px-1 bg-blue-100"></td>
+
+          {/* SOLD */}
+              <td className="border-none py-2 px-1 bg-blue-100"></td>
+              <td className="border-none py-2 px-1 bg-blue-100"></td>
           
-          <td className="border border-gray-300 py-2 px-1"></td> {/* Sold Shell */}
-          <td className="border border-gray-300 py-2 px-1"></td> {/* Sold PCS */}
-           
-          <td className="border border-gray-300 py-2 px-1"></td> {/* Shell Price */}
-          <td className="border border-gray-300 py-2 px-1"></td> {/* Bottle Price */}
-              {/* 4 pairs (Shell + PCS) = 8 cells */}
-              {Array(8).fill(null).map((_, i) => (
-                <td key={`tot-${i}`} className="border border-gray-300 py-2 px-1"></td>
-              ))}
-              <td className="border border-gray-300 py-2 px-1"></td> {/* Discount */}
-          <td className="border border-gray-300 py-2 px-1 text-green-700">
-            ₱{totalExpectedSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+
+          {/* EMPTY PRICE (Shell + Bottle) */}
+          <td colSpan={2} className="py-2 px-1 bg-gray-300 text-black text-center font-semibold">
+          ₱{parseFloat(emptiesPriceTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+        </td>
+
+
+              {/* RETURNED (Empty) */}
+              <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
+              ₱{parseFloat(refundablesTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+            </td>
+
+
+
+              {/* DISCREPANCY (Empty) */}
+              <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
+              ₱{parseFloat(totalDiscrepancyEmpty || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+            </td>
+
+
+              {/* RETURNED (Non-Empty) */}
+              <td className="py-2 px-1 bg-blue-100"></td>
+              <td className="py-2 px-1 bg-blue-100"></td>
+
+
+              {/* DISCREPANCY (Non-Empty) */}
+              <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
+              ₱{parseFloat(totalDiscrepancyNonEmpty || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+            </td>
+
+
+
+              {/* DISCOUNT */}
+              <td className="border border-gray-300 py-2 px-1 bg-blue-100"></td>
+
+          {/* EXPECTED SALE */}
+          <td className="border border-gray-300 py-2 px-1 bg-green-100 text-green-700 font-bold text-center">
+            ₱{isNaN(totalExpectedSale) ? "0.00" : totalExpectedSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
           </td>
-            <td className="border border-gray-300 py-2 px-1 text-blue-700">
-              ₱{totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+
+            <td className="border border-gray-300 py-2 px-1 bg-gray-200 text-blue-700 font-bold text-center">
+              ₱{isNaN(totalActualSale) ? "0.00" : totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
             </td>
         </tr>
+
+
         </tbody>
       </table>
+
+
+      <div className="flex justify-end mt-2 pr-4">
+        <div className="flex items-center gap-2 bg-blue-100 px-4 py-2 rounded shadow text-right">
+          <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>
+          <span className="text-lg font-bold text-blue-800">
+           ₱{(parseFloat(totalAmount) || 0).toLocaleString("en-PH", {minimumFractionDigits: 2,})}
+          </span>
+        </div>
+      </div>
+
+
   </div>
   );
 };
