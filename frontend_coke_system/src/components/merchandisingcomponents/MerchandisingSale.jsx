@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import ProductTable from "./ProductTable";
 import ExpensesSection from "./ExpensesSection";
 import ActionButtons from "./ActionButtons";
+import VanLoadTable from "./VanLoadTable"; 
 
 const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
@@ -35,12 +36,17 @@ const MerchandisingSale = () => {
   const [selectedVan, setSelectedVan] = useState("");
   const [isAddingRoute, setIsAddingRoute] = useState(false);
   const [newRoute, setNewRoute] = useState("");
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [vans, setVans] = useState([]);
+
 
   const getCurrentWarehouse = () => {
     const userData = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
     if (userData.role?.toLowerCase() === "admin") {
-      return selectedWarehouse?.id || userData.warehouse_id;
+     return Array.isArray(selectedWarehouse?.id)
+  ? selectedWarehouse.id[0]
+  : selectedWarehouse?.id || userData.warehouse_id;
     }
     return userData.warehouse_id;
   };
@@ -112,6 +118,14 @@ const MerchandisingSale = () => {
       .catch((err) => console.error("❌ Error fetching users:", err));
   }, [currentWarehouse]);
 
+    useEffect(() => {
+  if (selectedTransactionTypeName === "Van Load") {
+    axios.get("http://localhost:8080/api/vans/")
+      .then(res => setVans(res.data))
+      .catch(err => console.error("Failed to fetch vans:", err));
+  }
+}, [transactionType])
+
   // ✅ Fetch users when currentWarehouse is set
   useEffect(() => {
     if (currentWarehouse?.id) {
@@ -182,9 +196,107 @@ const MerchandisingSale = () => {
     navigate("/merchandising-list");
   };
 
-  const handleFinalizeSale = () => {
-    console.log("Finalizing Van Load Sale...");
+const handleSubmit = async () => {
+  const isVanLoad = parseInt(transactionType) === 1;
+  const warehouseId = currentWarehouse?.id;
+
+  // ✅ VALIDATION BEFORE SUBMIT
+  if (!warehouseId) {
+    alert("Warehouse is required.");
+    return false;
+  }
+
+  if (isVanLoad) {
+    if (!route) {
+      alert("Route is required for Van Load.");
+      return false;
+    }
+    if (!selectedVan) {
+      alert("Van is required for Van Load.");
+      return false;
+    }
+  }
+
+  const payload = {
+    msp_no: mspNo,
+    warehouse: Number(warehouseId) || null,
+    transaction_type: parseInt(transactionType),
+    route: route ? parseInt(route) : null,
+    van: selectedVan ? parseInt(selectedVan) : null,
+    handled_by: (() => {
+      const user = users.find((u) => u.id === parseInt(selectedUser));
+      return user ? `${user.first_name} ${user.last_name}` : null;
+    })(),
+    date_time: new Date().toISOString(),
+    expected_sale: parseFloat(totalExpectedSale) || 0,
+    actual_sale: parseFloat(totalActualSale) || 0,
+    miscellaneous: calculateTotalExpenses(),
+    payment_method: "",
+    invoice_no: "",
+    status: isVanLoad ? "Pending" : "Complete",
+    remarks: "",
+    total_trading_amount: parseFloat(totalAmount) || 0,
+    total_expenses_amount: calculateTotalExpenses(),
+    items: rows
+      .filter((r) =>
+        isVanLoad
+          ? r.productId && !isNaN(parseFloat(r.expectedSale))
+          : r.productId
+      )
+      .map((row) => {
+        const item = {
+          product: row.productId ? parseInt(row.productId) : null,
+          dispatched_pcs: parseInt(row.dispatchedPcs) || 0,
+          dispatched_shell: parseInt(row.dispatchedShell) || 0,
+          actual_return_pcs: parseInt(row.expectedReturnPcsNonempty) || 0,
+          actual_return_shell: parseInt(row.expectedReturnShellNonempty) || 0,
+          discrepancy_empties_pc: parseInt(row.discrepancyPcsEmpty) || 0,
+          discrepancy_empties_shell: parseInt(row.discrepancyShellEmpty) || 0,
+          discrepancy_full_pcs: parseInt(row.discrepancyPcsNonempty) || 0,
+          discrepancy_full_shell: parseInt(row.discrepancyShellNonempty) || 0,
+          discount_percent: parseFloat(row.discount) || 0,
+          expected_sale: parseFloat(row.expectedSale) || 0,
+          actual_sale: parseFloat(row.actualSale) || 0,
+        };
+
+        if (!isVanLoad) {
+          item.sold_pcs = parseInt(row.soldPcs) || 0;
+          item.sold_shell = parseInt(row.soldShell) || 0;
+          item.empty_return_pcs = parseInt(row.expectedReturnPcsEmpty) || 0;
+        }
+
+        return item;
+      }),
+    misc_items: miscItems.map((item) => ({
+      description: item.description,
+      amount: parseFloat(item.amount) || 0,
+      receipt_file: item.file,
+    })),
+    payments: [],
   };
+
+  console.log("Submitting payload:", payload);
+
+  try {
+    await axios.post("http://localhost:8080/api/merchandisings/", payload);
+    alert("Transaction saved successfully!");
+    return true;
+  } catch (error) {
+    console.error("Save error:", error.response?.data || error.message);
+    alert("Failed to save transaction.");
+    return false;
+  }
+};
+
+
+
+const handleFinalizeSale = async () => {
+  const success = await handleSubmit();
+  if (success) {
+    navigate("/trading");
+  }
+};
+
 
   const handlePay = () => {
     console.log("Processing Payment...");
@@ -275,92 +387,174 @@ const MerchandisingSale = () => {
               />
             </div>
 
-            {transactionType === "Warehouse" && (
+            {/* Warehouse: CUSTOMER FIELD WITH ADD OPTION */}
+            {selectedTransactionTypeName === "Warehouse" && (
               <div>
-                <label className="text-sm">Customer</label>
-                <select
-                  value={selectedCustomerId}
-                  onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  className="w-full rounded-md px-2 py-1 text-sm"
-                >
-                  <option value="">-- Select Customer --</option>
-                  {customers.map((cust) => (
-                    <option key={cust.id} value={cust.id}>
-                      {cust.customer_name}
-                    </option>
-                  ))}
-                </select>
+                <label className="text-sm mb-1 block">Customer</label>
+                {isAddingCustomer ? (
+                  <input
+                    type="text"
+                    className="w-full rounded-md px-2 py-1 bg-gray-200 text-black"
+                    placeholder="Enter new customer"
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter") {
+                        const newCustomer = e.target.value.trim();
+                        if (!newCustomer) return;
+
+                        const exists = customers.some(
+                          (c) => c.name?.toLowerCase() === newCustomer.toLowerCase()
+                        );
+                        if (exists) {
+                          alert(`Customer "${newCustomer}" already exists.`);
+                          setIsAddingCustomer(false);
+                          return;
+                        }
+
+                        try {
+                          const res = await axios.post("http://localhost:8080/api/customers/", {
+                            name: newCustomer,
+                          });
+                          setCustomers((prev) => [...prev, res.data]);
+                          setSelectedCustomerId(res.data.id);
+                        } catch (error) {
+                          console.error("Error saving new customer:", error);
+                        }
+                        setIsAddingCustomer(false);
+                      }
+                    }}
+                  />
+                ) : (
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => {
+                      if (e.target.value === "add_new") {
+                        setIsAddingCustomer(true);
+                        setSelectedCustomerId("");
+                      } else {
+                        setSelectedCustomerId(e.target.value);
+                      }
+                    }}
+                    className="w-full rounded-md px-2 py-1 bg-gray-200 text-black"
+                  >
+                    <option value="" disabled hidden>Select a customer</option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                    <option value="add_new">+ Add a customer</option>
+                  </select>
+                )}
               </div>
             )}
 
-            {transactionType === "Van Load" && (
+            {/* Van Load: VAN + ROUTE FIELD WITH ADD OPTION */}
+            {selectedTransactionTypeName === "Van Load" && (
               <>
                 <div>
-                  <label className="text-sm">Van</label>
-                  <input
-                    type="text"
+                  <label className="text-sm mb-1 block">Van</label>
+                  <select
                     value={selectedVan}
                     onChange={(e) => setSelectedVan(e.target.value)}
-                    className="w-full rounded-md px-2 py-1 text-sm"
-                  />
+                    className="w-full rounded-md px-2 py-1 bg-gray-200 text-black"
+                  >
+                    <option value="" disabled hidden>Select</option>
+                    {vans.map((van) => (
+                      <option key={van.id} value={van.id}>
+                        {van.van_id} - {van.plate_number}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
-                <div>
-                  <label className="text-sm">Route</label>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={route}
-                      onChange={(e) => setRoute(e.target.value)}
-                      className="w-full rounded-md px-2 py-1 text-sm"
-                    >
-                      <option value="">-- Select Route --</option>
-                      {routes.map((r) => (
-                        <option key={r.id} value={r.id}>
-                          {r.name}
-                        </option>
-                      ))}
-                    </select>
-                    <button
-                      onClick={() => setIsAddingRoute(true)}
-                      className="bg-gray-700 text-white px-2 py-1 rounded text-xs"
-                    >
-                      Add
-                    </button>
-                  </div>
-                  {isAddingRoute && (
-                    <div className="mt-2">
-                      <input
-                        type="text"
-                        placeholder="New Route"
-                        value={newRoute}
-                        onChange={(e) => setNewRoute(e.target.value)}
-                        className="w-full rounded-md px-2 py-1 text-sm"
-                      />
-                      <button
-                        onClick={() => {
+             <div>
+                <label className="text-sm mb-1 block">Route</label>
+                {isAddingRoute ? (
+                  <input
+                    type="text"
+                    className="w-full rounded-md px-2 py-1 bg-gray-200 text-black"
+                    placeholder="Enter new route"
+                    value={typeof route === "string" ? route : ""}
+                    onChange={(e) => setRoute(e.target.value)}
+                    onKeyDown={async (e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        const newRouteName = route.trim();
+                        if (!newRouteName) return;
+
+                        // Check if the route already exists
+                        const existing = routes.find(
+                          (r) => r.route_name.toLowerCase() === newRouteName.toLowerCase()
+                        );
+                        if (existing) {
+                          alert(`Route "${newRouteName}" already exists. Selected it for you.`);
+                          setRoute(existing.id); // ✅ Use the existing route's ID
                           setIsAddingRoute(false);
-                          setNewRoute("");
-                        }}
-                        className="text-xs text-red-600 mt-1"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  )}
-                </div>
+                          return;
+                        }
+
+                        // Add new route
+                        try {
+                          const res = await axios.post("http://localhost:8080/api/routes/", {
+                            route_name: newRouteName,
+                          });
+
+                          const newRoute = res.data;
+                          setRoutes((prev) => [...prev, newRoute]);
+                          setRoute(newRoute.id); // ✅ Use new route ID
+                        } catch (error) {
+                          console.error("Error saving new route:", error);
+                        }
+
+                        setIsAddingRoute(false);
+                      }
+                    }}
+                  />
+                ) : (
+                  <select
+                    value={route}
+                    onChange={(e) => {
+                      if (e.target.value === "add_new") {
+                        setIsAddingRoute(true);
+                        setRoute("");
+                      } else {
+                        setRoute(parseInt(e.target.value)); // ✅ ensure it's a number
+                      }
+                    }}
+                    className="w-full rounded-md px-2 py-1 bg-gray-200 text-black"
+                  >
+                    <option value="" disabled hidden>Select a route</option>
+                    {routes.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.route_name}
+                      </option>
+                    ))}
+                    <option value="add_new">+ Add a new route</option>
+                  </select>
+                )}
+              </div>
+
               </>
             )}
-          </div>
+            </div>
         </div>
       </div>
 
-      {/* ✅ Subcomponents below original layout */}
-     <ProductTable
+   {selectedTransactionTypeName === "Van Load" ? (
+      <VanLoadTable
+        rows={rows}
+        setRows={setRows}
+        products={products}
+        warehouseId={currentWarehouse}
+        setTotalExpectedSale={setTotalExpectedSale}
+      />
+    ) : (
+      <ProductTable
         rows={rows}
         setRows={setRows}
         products={products}
         selectedTransactionTypeName={selectedTransactionTypeName}
-        miscItems={miscItems} // ✅ needed for refund/discrepancy
+        miscItems={miscItems}
         warehouseId={currentWarehouse?.id}
         setTotalExpectedSale={setTotalExpectedSale}
         setTotalActualSale={setTotalActualSale}
@@ -369,6 +563,7 @@ const MerchandisingSale = () => {
         setDiscrepancy={setDiscrepancy}
         setTotalAmount={setTotalAmount}
       />
+    )}
 
       <ActionButtons
         transactionType={selectedTransactionTypeName}

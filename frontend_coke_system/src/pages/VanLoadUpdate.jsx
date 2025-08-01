@@ -1,3 +1,4 @@
+
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import axios from 'axios';
@@ -28,8 +29,8 @@ const VanLoadUpdate = () => {
         setRows(res.data.items.map(item => ({
           ...item,
           productId: item.product?.id,
-          product_name: item.product?.product_name || "",
-          selling_price: parseFloat(item.product?.selling_price) || 0,
+          product_name: item.product_detail?.product_name || "", 
+          selling_price: parseFloat(item.selling_price) || 0,
           empty_price_shell: parseFloat(item.product?.empty_price_shell) || 0,
           empty_price_pc: parseFloat(item.product?.empty_price_pc) || 0,
           actual_sale: 0,
@@ -73,23 +74,68 @@ const VanLoadUpdate = () => {
       });
   }, []);
 
-  const handleRowChange = (index, field, value) => {
-    const updatedRows = [...rows];
-    updatedRows[index][field] = value;
+const handleRowChange = (index, field, value) => {
+  const updatedRows = [...rows];
+  const row = updatedRows[index];
+  const product = row.product_detail || row.product;
 
-    if (['soldPcs', 'soldShell', 'discount'].includes(field)) {
-      const productId = updatedRows[index].productId;
-      const price = parseFloat(updatedRows[index].product?.selling_price) || 0;
-      const pcs = parseFloat(updatedRows[index].soldPcs) || 0;
-      const shells = parseFloat(updatedRows[index].soldShell) || 0;
-      const discount = parseFloat(updatedRows[index].discount) || 0;
+  const contentNo = parseFloat(product?.unit_type?.content_no || 1);
+  const numericValue = parseFloat(value) || 0;
 
-      const raw = (pcs + shells) * price;
-      updatedRows[index].actual_sale = raw * ((100 - discount) / 100);
-    }
+  row[field] = numericValue;
 
-    setRows(updatedRows);
-  };
+  // 🔁 Shell ↔ PCS Sync
+  if (field === "sold_shell") {
+    row.sold_pcs = Math.round(numericValue * contentNo);
+  } else if (field === "sold_pcs") {
+    row.sold_shell = parseFloat((numericValue / contentNo).toFixed(2));
+  }
+
+  // 🔁 Expected returns (EMPTY)
+  if (field === "expected_return_shell_empty") {
+    row.expected_return_pcs_empty = Math.round(numericValue * contentNo);
+  } else if (field === "expected_return_pcs_empty") {
+    row.expected_return_shell_empty = parseFloat((numericValue / contentNo).toFixed(2));
+  }
+
+  // 🔁 Expected returns (NON-EMPTY)
+  if (field === "expected_return_shell_nonempty") {
+    row.expected_return_pcs_nonempty = Math.round(numericValue * contentNo);
+  } else if (field === "expected_return_pcs_nonempty") {
+    row.expected_return_shell_nonempty = parseFloat((numericValue / contentNo).toFixed(2));
+  }
+
+  // 💰 Actual Sale Calculation
+  if (['sold_pcs', 'sold_shell', 'discount'].includes(field)) {
+    const price = parseFloat(row.selling_price) || 0;
+    const pcs = parseFloat(row.sold_pcs) || 0;
+    const discount = parseFloat(row.discount_percent || 0); // fix: match actual field name
+
+    const rawTotal = pcs * price;
+    row.actual_sale = parseFloat((rawTotal * (1 - discount / 100)).toFixed(2));
+  }
+
+  // 📊 Discrepancy Calculations
+  row.discrepancy_empties_shell =
+    parseFloat(row.expected_return_shell_empty || 0) -
+    parseFloat(row.empty_return_shell || 0);
+
+  row.discrepancy_empties_pc =
+    parseFloat(row.expected_return_pcs_empty || 0) -
+    parseFloat(row.empty_return_pcs || 0);
+
+  row.discrepancy_full_shell =
+    parseFloat(row.expected_return_shell_nonempty || 0) -
+    parseFloat(row.actual_return_shell || 0);
+
+  row.discrepancy_full_pcs =
+    parseFloat(row.expected_return_pcs_nonempty || 0) -
+    parseFloat(row.actual_return_pcs || 0);
+
+  updatedRows[index] = row;
+  setRows(updatedRows);
+};
+
 
   if (!sale) {
     return (
@@ -203,20 +249,24 @@ const VanLoadUpdate = () => {
         <tbody>
           {rows.map((row, index) => (
             <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
-             <td className="border border-gray-200 py-1 px-1 w-[120px]">
-                <div className="p-2 border rounded">
-                  {row.product_name || `Product #${row.productId}`}
+              <td className="border border-gray-200 py-1 px-1 w-[120px]">
+                <div className="p-2 border rounded text-sm text-center">
+                  {row.product_detail?.product_name || `Product #${row.product}`}
                 </div>
               </td>
+
               <td className="border border-gray-200 py-1 px-1">
                 <div className="p-2 border rounded">{row.dispatched_shell}</div>
               </td>
               <td className="border border-gray-200 py-1 px-1">
                 <div className="p-2 border rounded">{row.dispatched_pcs}</div>
               </td>
-              <td className="border border-gray-200 py-1 px-1">
-                <div className="p-2 border rounded">{row.product?.selling_price || 0}</div>
-              </td>
+            <td className="border border-gray-200 py-1 px-1">
+              <div className="p-2 border rounded text-sm text-center">
+                {row.selling_price || "0.00"}
+              </div>
+            </td>
+
 
               <td className="border border-gray-200 py-1 px-1">
                 <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.sold_shell || ""} onChange={(e) => handleRowChange(index, "sold_shell", e.target.value)} />
@@ -243,24 +293,31 @@ const VanLoadUpdate = () => {
               </td>
 
 
-              {[
-                "empty_return_shell", "empty_return_pcs",
-                "discrepancy_empties_shell", "discrepancy_empties_pc",
-                "actual_return_shell", "actual_return_pcs",
-                "discrepancy_full_shell", "discrepancy_full_pcs"
-              ].map((field, i) => (
-                <td key={i} className="border border-gray-200 py-1 px-1">
-                  <input
-                    type="number"
-                    value={row[field] === 0 ? "" : row[field]}
-                    onChange={(e) => handleRowChange(index, field, e.target.value)}
-                    disabled={field.includes("discrepancy")}
-                    className={`w-full p-1 text-sm text-center rounded
-                      ${field.includes("expectedReturn") ? "bg-yellow-50" : "bg-gray-100"}
-                      ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}`}
-                  />
-                </td>
-              ))}
+             {[
+              "empty_return_shell", 
+              "empty_return_pcs",
+              "discrepancy_empties_shell", 
+              "discrepancy_empties_pc",
+              "actual_return_shell", 
+              "actual_return_pcs",
+              "discrepancy_full_shell", 
+              "discrepancy_full_pcs"
+            ].map((field, i) => (
+              <td key={i} className="border border-gray-200 py-1 px-1">
+                <input
+                  type="number"
+                  value={row[field] === 0 ? "" : row[field] || ""}
+                  onChange={(e) => handleRowChange(index, field, e.target.value)}
+                  disabled={field.includes("discrepancy")}
+                  className={`w-full p-1 text-sm text-center rounded
+                    ${field.includes("expectedReturn") ? "bg-yellow-50" : "bg-gray-100"}
+                    ${field.includes("discrepancy") && parseInt(row[field]) !== 0 ? "bg-red-100 text-red-700 font-semibold" : ""}
+                    ${field.includes("discrepancy") ? "cursor-not-allowed" : ""}
+                  `}
+                />
+              </td>
+            ))}
+
 
               <td className="border border-gray-200 py-1 px-1">
                 <input

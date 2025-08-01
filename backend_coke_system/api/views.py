@@ -109,7 +109,7 @@ class VerifyOTPAPIView(APIView):
 
 
 class MerchandisingViewSet(viewsets.ModelViewSet):
-    queryset = Merchandising.objects.all().order_by('-id')
+    queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
 
@@ -864,6 +864,8 @@ class ProcessEmptiesReturnView(APIView):
                         merchandising__warehouse_id=warehouse_id
                     )
                     
+                    print("Looking for product with ID:", item['product'])
+
                     # Get the product and supplier
                     product = Product.objects.get(id=product_id)
                     supplier = None

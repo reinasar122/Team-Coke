@@ -396,7 +396,8 @@ class CustomerSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'warehouse']
 
 class MerchandisingItemSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(read_only=True)
+    product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())  # Accept ID
+    product_detail = ProductSerializer(source="product", read_only=True)  # Optional: for output
 
     class Meta:
         model = MerchandisingItem
@@ -407,14 +408,13 @@ class MerchandisingItemSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         instance = MerchandisingItem(**validated_data)
-        # This triggers your model’s save() method
         instance.save()
         return instance
 
     def update(self, instance, validated_data):
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-        instance.save()  # re-triggers the price update logic
+        instance.save()
         return instance
 
 
@@ -443,6 +443,8 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     items = MerchandisingItemSerializer(many=True)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False)
+    route = serializers.PrimaryKeyRelatedField(
+            queryset=Route.objects.all(), allow_null=True, required=False)
 
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
@@ -450,6 +452,20 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Merchandising
         fields = '__all__'
+
+    def validate(self, data):
+        print("🚨 VALIDATE TRIGGERED")
+        transaction_type = data.get("transaction_type")  # This is an instance
+        route = data.get("route")
+        van = data.get("van")
+
+        if transaction_type and transaction_type.name.lower() == "van load":
+            if not route:
+                raise serializers.ValidationError({"route": "Route is required for Van Load transactions."})
+            if not van:
+                raise serializers.ValidationError({"van": "Van is required for Van Load transactions."})
+
+        return data
 
     def get_total_trading_amount(self, obj):
         return sum([item.actual_sale or 0 for item in obj.items.all()])

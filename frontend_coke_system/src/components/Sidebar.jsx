@@ -97,7 +97,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button
             onClick={() => toggleDropdown("inventory")}
-            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className=" w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faBoxOpen} className="mr-2" /> Inventory
@@ -129,7 +129,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button
             onClick={() => toggleDropdown("report")}
-            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className=" w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faChartBar} className="mr-2" /> Report
@@ -156,7 +156,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button
             onClick={() => toggleDropdown("manage")}
-            className="block w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className=" w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faBoxOpen} className="mr-2" /> Manage
@@ -197,7 +197,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         {/* Settings */}
         <li>
           {canView("Settings") ? (
-            <Link to="/settings" className="block p-2 hover:bg-gray-700 rounded flex items-center">
+            <Link to="/settings" className=" p-2 hover:bg-gray-700 rounded flex items-center">
               <FontAwesomeIcon icon={faCog} className="mr-2" /> Settings
             </Link>
           ) : (

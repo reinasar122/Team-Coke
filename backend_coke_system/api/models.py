@@ -303,11 +303,13 @@ class Customer(models.Model):
     def __str__(self):
         return self.name
     
+
 class MerchandisingSale(models.Model):
     msp_no = models.CharField(max_length=100)
     date_time = models.DateTimeField()
     transaction_type_name = models.CharField(max_length=100)
     customer_name = models.CharField(max_length=255)
+    route = models.ForeignKey(Route, null=True, blank=True, on_delete=models.SET_NULL)
     handled_by = models.CharField(max_length=100)
     total_trading_amount = models.DecimalField(max_digits=10, decimal_places=2)
     total_expenses_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -322,7 +324,7 @@ class Merchandising(models.Model):
     msp_no = models.CharField(max_length=20, unique=True, editable=False)
     transaction_type = models.ForeignKey(TransactionType, on_delete=models.CASCADE)
     handled_by = models.CharField(max_length=100)
-    route = models.ForeignKey(Route, on_delete=models.SET_NULL, null=True, blank=True)
+    route = models.ForeignKey(Route, null=True, blank=True, on_delete=models.SET_NULL)
     van = models.ForeignKey(Van, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
 
