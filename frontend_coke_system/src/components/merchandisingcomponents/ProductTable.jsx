@@ -20,6 +20,7 @@ const ProductTable = ({
   emptiesPriceTotal,
   refundablesTotal,
   discrepancy,
+  totalAmount,  // ✅ pass this
   
 
 
@@ -267,14 +268,9 @@ setRows(updatedRows);
 
 
   // 🔢 Total Calculations
-  const misc = parseFloat(miscCharges) || 0;
 
-  const totalExpected = updatedRows.reduce((sum, r) => sum + parseFloat(r.expectedSale || 0), 0);
-  const totalActual = updatedRows.reduce((sum, r) => sum + parseFloat(r.actualSale || 0), 0);
-  setTotalExpectedSale(totalExpected);
-  setTotalActualSale(totalActual);
-
-    const totalEmpties = updatedRows.reduce((sum, r) => {
+  // Empties and Refundables totals
+  const totalEmpties = updatedRows.reduce((sum, r) => {
     const price = pricingData.find((p) => p.id === r.priceId) || {};
     const sp = parseFloat(price.shell_price) || 0;
     const bp = parseFloat(price.bottle_price) || 0;
@@ -282,10 +278,8 @@ setRows(updatedRows);
     const pcsQty = parseFloat(r.soldPcs || 0);
     return sum + (shellQty * sp) + (pcsQty * bp);
   }, 0);
- 
 
-
-    const totalRefundables = updatedRows.reduce((sum, r) => {
+  const totalRefundables = updatedRows.reduce((sum, r) => {
     const price = pricingData.find((p) => p.id === r.priceId) || {};
     const sp = parseFloat(price.shell_price) || 0;
     const bp = parseFloat(price.bottle_price) || 0;
@@ -294,20 +288,11 @@ setRows(updatedRows);
     return sum + (shellQty * sp) + (pcsQty * bp);
   }, 0);
 
-
   setEmptiesPriceTotal(totalEmpties);
   setRefundablesTotal(totalRefundables);
+};
 
 
-  let totalAmountValue;
-    if (selectedTransactionTypeName === "Van Load") {
-      totalAmountValue = (totalActual - misc) + overallDiscrepancy;
-    } else {
-      totalAmountValue = totalEmpties - totalRefundables + totalActual;
-    }
-
-    setTotalAmount(totalAmountValue);
-  };
 
   // ✅ Top-level computed values (moved out of handleRowChange)
   const totalDiscrepancyEmpty = useMemo(() => {
@@ -348,6 +333,8 @@ setRows(updatedRows);
 
 
 
+
+
 useEffect(() => {
   let expectedTotal = 0;
   let actualTotal = 0;
@@ -365,9 +352,7 @@ useEffect(() => {
   setTotalActualSale(actualTotal);
 }, [rows, miscItems]); // ✅ recalculate when rows or misc items change
 
-
-
-  // Totals
+// Totals
   const totalExpectedSale = useMemo(
     () => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0),
     [rows]
@@ -377,6 +362,45 @@ useEffect(() => {
     () => rows.reduce((sum, row) => sum + Number(row.actualSale || 0), 0),
     [rows]
   );
+
+
+  
+
+useEffect(() => {
+  const misc = parseFloat(miscCharges) || 0;
+
+  let totalAmountValue;
+  if (selectedTransactionTypeName === "Van Load") {
+    totalAmountValue = (totalActualSale - misc) + overallDiscrepancy;
+  } else {
+    totalAmountValue = emptiesPriceTotal - refundablesTotal + totalActualSale;
+  }
+
+  console.log("🧮 COMPUTED totalAmountValue:", totalAmountValue);
+  console.log({
+    emptiesPriceTotal,
+    refundablesTotal,
+    totalActualSale,
+    overallDiscrepancy,
+    misc
+  });
+
+
+
+  setTotalAmount(totalAmountValue);
+}, [
+  totalActualSale,
+  miscCharges,
+  selectedTransactionTypeName,
+  emptiesPriceTotal,
+  refundablesTotal,
+  overallDiscrepancy
+]);
+
+
+
+  
+
 
 
 
@@ -692,6 +716,16 @@ return (
 
         </tbody>
       </table>
+
+
+      <div className="flex justify-end mt-2 pr-4">
+        <div className="flex items-center gap-2 bg-blue-100 px-4 py-2 rounded shadow text-right">
+          <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>
+          <span className="text-lg font-bold text-blue-800">
+           ₱{(parseFloat(totalAmount) || 0).toLocaleString("en-PH", {minimumFractionDigits: 2,})}
+          </span>
+        </div>
+      </div>
 
 
   </div>

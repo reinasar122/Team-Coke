@@ -368,6 +368,7 @@ const MerchandisingSale = () => {
         setRefundablesTotal={setRefundablesTotal}
         setDiscrepancy={setDiscrepancy}
         setTotalAmount={setTotalAmount}
+        totalAmount={totalAmount}
 
         emptiesPriceTotal={emptiesPriceTotal}
         refundablesTotal={refundablesTotal}
