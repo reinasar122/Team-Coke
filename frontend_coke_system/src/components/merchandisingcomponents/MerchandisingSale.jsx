@@ -5,6 +5,9 @@ import ProductTable from "./ProductTable";
 import ExpensesSection from "./ExpensesSection";
 import ActionButtons from "./ActionButtons";
 import VanLoadTable from "./VanLoadTable"; 
+import PaymentModal from "../PaymentModal";
+import InvoiceModal from "../InvoiceModal";
+
 
 const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
@@ -38,6 +41,13 @@ const MerchandisingSale = () => {
   const [newRoute, setNewRoute] = useState("");
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [vans, setVans] = useState([]);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [invoiceData, setInvoiceData] = useState(null); // store invoice info
+
+  
+
+
 
 
   const getCurrentWarehouse = () => {
@@ -196,6 +206,16 @@ const MerchandisingSale = () => {
     navigate("/merchandising-list");
   };
 
+
+  const customer = customers.find((c) => c.id === selectedCustomerId);
+  const customerName = customer ? customer.name : "Walk-in";
+
+  const handledByUser = users.find((user) => user.id === selectedUser);
+  const handledBy = handledByUser ? handledByUser.name : "";
+
+
+
+
 const handleSubmit = async () => {
   const isVanLoad = parseInt(transactionType) === 1;
   const warehouseId = currentWarehouse?.id;
@@ -299,8 +319,21 @@ const handleFinalizeSale = async () => {
 
 
   const handlePay = () => {
-    console.log("Processing Payment...");
+    setIsPaymentModalOpen(true);
   };
+
+  const handleClosePayment = () => {
+    setIsPaymentModalOpen(false);
+  };
+
+
+  const handleConfirmPayment = (paymentData) => {
+  console.log("Payment confirmed:", paymentData);
+  // TODO: Add your logic to save payment to backend, etc.
+  setIsPaymentModalOpen(false);
+};
+
+
 
   return (
     <div className="bg-sky-300 min-h-screen p-3 text-black">
@@ -413,6 +446,7 @@ const handleFinalizeSale = async () => {
                         try {
                           const res = await axios.post("http://localhost:8080/api/customers/", {
                             name: newCustomer,
+                            warehouse: selectedWarehouseId,
                           });
                           setCustomers((prev) => [...prev, res.data]);
                           setSelectedCustomerId(res.data.id);
@@ -578,6 +612,21 @@ const handleFinalizeSale = async () => {
         onBack={() => navigate(-1)}
         onFinalize={handleFinalizeSale}
         onPay={handlePay}
+      />
+
+      <PaymentModal
+        open={isPaymentModalOpen}
+        onClose={handleClosePayment}
+        onConfirm={handleConfirmPayment}
+        products={products} // Or your actual product state
+        amountDue={totalExpectedSale}
+        actualSales={totalActualSale}
+        emptyReturns={refundablesTotal}
+        emptyDiscrepancies={discrepancy}
+        totalAdjustments
+        mspNo={mspNo}
+        customerName={customerName}
+        handledBy={handledBy}
       />
 
     </div>
