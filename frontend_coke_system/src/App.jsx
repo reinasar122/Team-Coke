@@ -41,7 +41,8 @@ import MerchandisingSaleDetailPage from './pages/MerchandisingSaleDetailPage';
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
 import Expences from "./pages/Expences";
-import VanLoadUpdate from "./pages/VanLoadUpdate";import SupplierReturnForm from "./pages/SupplierReturnForm";
+import VanLoadUpdate from "./pages/VanLoadUpdate";
+import SupplierReturnForm from "./pages/SupplierReturnForm";
 import SupplierReturnList from "./pages/SupplierReturnList";
 import ReturnEmpties from "./pages/ReturnEmpties";
 

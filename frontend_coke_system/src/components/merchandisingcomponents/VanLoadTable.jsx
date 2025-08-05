@@ -17,36 +17,31 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId,setTotalExpectedSal
     fetchPrices();
   }, [products]);
 
-    // Fetch available stock for a product/warehouse combo
-  const fetchStockQuantity = async (productId) => {
-    if (!productId || !warehouseId) {
-      console.warn("Missing product or warehouse ID");
-      return;
-    }
-  
-    const productExists = products.some((p) => p.id === parseInt(productId));
-    if (!productExists) {
-      console.warn(`Skipping fetch: product ID ${productId} not found in products list`);
-      return;
-    }
-  
-    try {
-      const response = await axios.get(
-        `http://localhost:8080/api/stocks/?product_id=${productId}&warehouse_id=${warehouseId}`
-      );
-      const quantity = response.data.quantity_available;
-      setAvailableStock((prev) => ({
-        ...prev,
-        [productId]: quantity ?? 0,
-      }));
-    } catch (err) {
-      console.warn(`Product stock not found for ID: ${productId}`);
-      setAvailableStock((prev) => ({
-        ...prev,
-        [productId]: null,
-      }));
-    }
-  };
+ const fetchStockQuantity = async (productId) => {
+  if (!productId || !warehouseId) return;
+
+  try {
+    const response = await axios.get(
+      `http://localhost:8080/api/stocks/?product_id=${productId}&warehouse_id=${warehouseId}`
+    );
+    
+    const quantity = Array.isArray(response.data)
+      ? response.data[0]?.quantity_available
+      : response.data.quantity_available;
+
+    setAvailableStock((prev) => ({
+      ...prev,
+      [productId]: quantity ?? 0,
+    }));
+  } catch (err) {
+    console.warn(`Product stock not found for ID: ${productId}`);
+    setAvailableStock((prev) => ({
+      ...prev,
+      [productId]: null,
+    }));
+  }
+};
+
   
   
     const [pricingData, setPricingData] = useState([]);
@@ -135,7 +130,6 @@ const handleRowChange = (index, field, value) => {
 
       row.priceId = priceId;
       row.conversion = conversion;
-
       row.shellPrice = fullPrice?.shell_price ?? "";
       row.bottlePrice = fullPrice?.bottle_price ?? "";
     }
@@ -148,28 +142,38 @@ const handleRowChange = (index, field, value) => {
     pricingData.find((p) => p.id === row.priceId)?.selling_price ||
     0;
 
-  // Handle PCS ↔ Shell conversion
+  // 🛑 Validate against available stock
+  const available = availableStock[row.productId] ?? Infinity;
+  if (field === "dispatchedPcs") {
+    const pcsValue = parseFloat(value || 0);
+    if (pcsValue > available) {
+      alert("Dispatched PCS exceeds available stock!");
+      return; // stop here if exceeding
+    }
+  }
+
+  // 🔁 PCS ↔ Shell conversion
   if (field === "dispatchedShell") {
     row.dispatchedPcs = Math.round(parseFloat(value || 0) * conversion);
   } else if (field === "dispatchedPcs") {
     row.dispatchedShell = (parseFloat(value || 0) / conversion).toFixed(2);
-  } 
+  }
 
-  // Per-row calculations
+  // 💰 Expected sale calculation
   const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
-
   row.expectedSale = parseFloat((price * dispatchedPcs).toFixed(2));
+
   setRows(updatedRows);
 
   // 🔢 Total Calculations
-  const expectedTotal = updatedRows.reduce((sum, r) => sum + (parseFloat(r.expectedSale) || 0), 0);
-  const actualTotal = updatedRows.reduce((sum, r) => sum + (parseFloat(r.actualSale) || 0), 0);
+  const expectedTotal = updatedRows.reduce(
+    (sum, r) => sum + (parseFloat(r.expectedSale) || 0),
+    0
+  );
 
-
-
-  // 🔄 Update totals in parent
   setTotalExpectedSale(expectedTotal);
 };
+
 
   const addRow = () => {
     setRows([
@@ -191,117 +195,127 @@ const handleRowChange = (index, field, value) => {
 
   return (
     <div className="overflow-x-auto border rounded-md mt-4">
-    <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
-  <thead className="bg-gray-200 text-gray-700">
-    <tr>
-      <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
-      <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
-      <th className="border border-gray-300 py-2 px-1" colSpan={2}>SELLING PRICE</th>
-      <th className="border border-gray-300 py-2 px-1">Expected Sale</th>
-      <th className="border border-gray-300 py-2 px-1">Actions</th>
-    </tr>
-    <tr className="bg-gray-200">
-      <td className="border border-gray-300 py-1"></td>
-      <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-      <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-      <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-      <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-      <td className="border border-gray-300 py-1"></td>
-      <td className="border border-gray-300 py-1"></td>
-    </tr>
-  </thead>
-  <tbody>
-    {rows.map((row, index) => {
-      const productId = row.productId;
-      const price = pricingMap[productId] || { shell_price: 0, bottle_price: 0 };
+  <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
+    <thead className="bg-gray-200 text-gray-700">
+      <tr>
+        <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>SELLING PRICE</th>
+        <th className="border border-gray-300 py-2 px-1">Expected Sale</th>
+        <th className="border border-gray-300 py-2 px-1">Available</th>
+        <th className="border border-gray-300 py-2 px-1">Actions</th>
+      </tr>
+      <tr className="bg-gray-200">
+        <td className="border border-gray-300 py-1"></td>
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+        <td className="border border-gray-300 py-1"></td>
+        <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+        <td className="border border-gray-300 py-1"></td>
+      </tr>
+    </thead>
+    <tbody>
+      {rows.map((row, index) => {
+        const productId = row.productId;
+        const price = pricingMap[productId] || { shell_price: 0, bottle_price: 0 };
 
-      return (
-        <tr key={index} className="bg-white border-t">
-          {/* PRODUCT SELECT */}
-          <td className="border border-gray-200 py-1 px-1 w-[120px]">
-            <select
-              className="w-full p-1 text-sm text-center rounded bg-white border"
-              value={row.productId ?? ""}
-              onChange={(e) => handleProductChange(index, e.target.value)}
-            >
-              <option value="">Select Product</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.product_name}
-                </option>
-              ))}
-            </select>
-          </td>
+        return (
+          <tr key={index} className="bg-white border-t">
+            {/* PRODUCT SELECT */}
+            <td className="border border-gray-200 py-1 px-1 w-[120px]">
+              <select
+                className="w-full p-1 text-sm text-center rounded bg-white border"
+                value={row.productId ?? ""}
+                onChange={(e) => handleProductChange(index, e.target.value)}
+              >
+                <option value="">Select Product</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>
+                    {product.product_name}
+                  </option>
+                ))}
+              </select>
+            </td>
 
-          {/* DISPATCHED Shell */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              type="number"
-              className="w-full p-1 text-sm text-center rounded bg-white"
-              value={row.dispatchedShell ?? ""}
-              onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
-            />
-          </td>
+            {/* DISPATCHED Shell */}
+            <td className="border border-gray-200 py-1 px-1">
+              <input
+                type="number"
+                className="w-full p-1 text-sm text-center rounded bg-white"
+                value={row.dispatchedShell ?? ""}
+                onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
+              />
+            </td>
 
-          {/* DISPATCHED PCS */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              type="number"
-              className="w-full p-1 text-sm text-center rounded bg-white"
-              value={row.dispatchedPcs ?? ""}
-              onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
-            />
-          </td>
+            {/* DISPATCHED PCS */}
+            <td className="border border-gray-200 py-1 px-1">
+              <input
+                type="number"
+                className="w-full p-1 text-sm text-center rounded bg-white"
+                value={row.dispatchedPcs ?? ""}
+                onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
+              />
+            </td>
 
-          {/* SELLING PRICE Shell */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              type="number"
-              disabled
-              className="w-full p-1 text-sm text-center bg-gray-100"
-              value={row.shellPrice ?? ""}
-            />
-          </td>
+            {/* SELLING PRICE Shell */}
+            <td className="border border-gray-200 py-1 px-1">
+              <input
+                type="number"
+                disabled
+                className="w-full p-1 text-sm text-center bg-gray-100"
+                value={row.shellPrice ?? ""}
+              />
+            </td>
 
-          {/* SELLING PRICE PCS */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              type="number"
-              disabled
-              className="w-full p-1 text-sm text-center bg-gray-100"
-              value={row.bottlePrice ?? ""}
-            />
-          </td>
+            {/* SELLING PRICE PCS */}
+            <td className="border border-gray-200 py-1 px-1">
+              <input
+                type="number"
+                disabled
+                className="w-full p-1 text-sm text-center bg-gray-100"
+                value={row.bottlePrice ?? ""}
+              />
+            </td>
 
-          {/* EXPECTED SALE */}
-          <td className="border border-gray-200 py-1 px-1">
-            <input
-              className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-              disabled
-              value={
-                row.expectedSale !== undefined && row.expectedSale !== null
-                  ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
-                      minimumFractionDigits: 2,
-                    })}`
-                  : ""
-              }
-            />
-          </td>
+            {/* EXPECTED SALE */}
+            <td className="border border-gray-200 py-1 px-1">
+              <input
+                className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+                disabled
+                value={
+                  row.expectedSale !== undefined && row.expectedSale !== null
+                    ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                      })}`
+                    : ""
+                }
+              />
+            </td>
 
-          {/* ACTION BUTTONS */}
-          <td className="p-1 border w-[80px]">
-            <button
-              onClick={() => removeRow(index)}
-              className="text-red-500 hover:text-red-700 text-xs"
-            >
-              Remove
-            </button>
-          </td>
-        </tr>
-      );
-    })}
-  </tbody>
+            {/* AVAILABLE STOCK */}
+            <td className="border border-gray-200 py-1 px-1 text-sm text-center">
+              {availableStock[productId] !== undefined && availableStock[productId] !== null
+                ? availableStock[productId]
+                : "--"}
+            </td>
+
+            {/* ACTION BUTTONS */}
+            <td className="p-1 border w-[80px]">
+              <button
+                onClick={() => removeRow(index)}
+                className="text-red-500 hover:text-red-700 text-xs"
+              >
+                Remove
+              </button>
+            </td>
+          </tr>
+        );
+      })}
+    </tbody>
 </table>
+
 
 
     </div>

@@ -1,24 +1,26 @@
 
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useEffect, useState } from 'react';
+import { useEffect, useState,useMemo } from 'react';
 import axios from 'axios';
 
+import ExpensesSection from '../components/merchandisingcomponents/ExpensesSection';
+
+
 const VanLoadUpdate = () => {
+  
   const location = useLocation();
   const navigate = useNavigate();
   const saleId = location.state?.id;
   const [sale, setSale] = useState(null);
-  const [products, setProducts] = useState([]);
   const [rows, setRows] = useState([]);
-  const [pricingMap, setPricingMap] = useState({});
-  
+  const [unitTypes, setUnitTypes] = useState([]);
 
 
   const totalExpectedSale = rows.reduce((sum, row) => sum + (parseFloat(row.expectedSale) || 0), 0);
   const totalActualSale = rows.reduce((sum, row) => sum + (parseFloat(row.actual_sale) || 0), 0);
+ 
 
-
-  useEffect(() => {
+useEffect(() => {
   if (!saleId) return;
 
   axios.get(`http://localhost:8080/api/merchandising-set/${saleId}/`)
@@ -26,27 +28,79 @@ const VanLoadUpdate = () => {
       setSale(res.data);
 
       if (res.data.items && Array.isArray(res.data.items)) {
-        setRows(res.data.items.map(item => ({
-          ...item,
-          productId: item.product?.id,
-          product_name: item.product_detail?.product_name || "", 
-          selling_price: parseFloat(item.selling_price) || 0,
-          empty_price_shell: parseFloat(item.product?.empty_price_shell) || 0,
-          empty_price_pc: parseFloat(item.product?.empty_price_pc) || 0,
-          actual_sale: 0,
-          discount: item.discount || 0,
-          sold_shell: item.sold_shell || 0,
-          sold_pcs: item.sold_pcs || 0,
-          empty_return_shell: item.empty_return_shell || 0,
-          empty_return_pcs: item.empty_return_pcs || 0,
-          discrepancy_empties_shell: item.discrepancy_empties_shell || 0,
-          discrepancy_empties_pc: item.discrepancy_empties_pc || 0,
-          actual_return_shell: item.actual_return_shell || 0,
-          actual_return_pcs: item.actual_return_pcs || 0,
-          discrepancy_full_shell: item.discrepancy_full_shell || 0,
-          discrepancy_full_pcs: item.discrepancy_full_pcs || 0,
-          discount: item.discount_percent || item.discount || 0,
-        })));
+       setRows(res.data.items.map(item => {
+          const product = item.product_detail ?? item.product ?? {};
+          const unitTypeId = product.unit_type ?? null;
+          const contentNo = unitTypeMap[unitTypeId] ?? 1;
+
+          const dispatchedShell = parseFloat(item.dispatched_shell ?? 0);
+          const dispatchedPcs = Math.round(dispatchedShell * contentNo);
+
+          const soldShell = parseFloat(item.sold_shell ?? 0);
+          const soldPcs = Math.round(soldShell * contentNo);
+
+          const price = parseFloat(item.selling_price ?? 0);
+          const discount = parseFloat(item.discount_percent ?? item.discount ?? 0);
+          const actualSale = parseFloat((soldPcs * price * (1 - discount / 100)).toFixed(2));
+
+          const emptyReturnShell = parseFloat(item.empty_return_shell ?? 0);
+          const emptyReturnPcs = Math.round(emptyReturnShell * contentNo);
+
+          // Returned with content (Non-empty/full bottles)
+          const discrepancyShell = dispatchedShell - soldShell;
+          const discrepancyPcs = dispatchedPcs - soldPcs;
+
+          const actualReturnShell = item.actual_return_shell != null
+            ? parseFloat(item.actual_return_shell)
+            : discrepancyShell;
+
+          const actualReturnPcs = item.actual_return_pcs != null
+            ? Math.round(parseFloat(item.actual_return_pcs))
+            : discrepancyPcs;
+
+          return {
+            ...item,
+            productId: product.id,
+            product_name: product.product_name ?? "",
+            unit_type_id: unitTypeId,
+            content_no: contentNo,
+
+            dispatched_shell: dispatchedShell,
+            dispatched_pcs: dispatchedPcs,
+
+            sold_shell: soldShell,
+            sold_pcs: soldPcs,
+            selling_price: price,
+            discount: discount,
+            actual_sale: actualSale,
+
+            empty_price_shell: parseFloat(item.empty_price_shell ?? 0),
+            empty_price_pc: parseFloat(item.empty_price_pc ?? 0),
+
+            // Empties (expected return = sold)
+            expected_return_shell_empty: soldShell,
+            expected_return_pcs_empty: soldPcs,
+
+            // Non-empty return (expected = dispatched - sold)
+            expected_return_shell_nonempty: discrepancyShell,
+            expected_return_pcs_nonempty: discrepancyPcs,
+
+            // Actual returned
+            empty_return_shell: emptyReturnShell,
+            empty_return_pcs: emptyReturnPcs,
+            actual_return_shell: actualReturnShell,
+            actual_return_pcs: actualReturnPcs,
+
+            // Discrepancy for empties (sold - returned empty)
+            discrepancy_empties_shell: soldShell - emptyReturnShell,
+            discrepancy_empties_pc: soldPcs - emptyReturnPcs,
+
+            // ✅ Discrepancy for non-empty (dispatched - sold - returned full)
+            discrepancy_full_shell: dispatchedShell - soldShell - actualReturnShell,
+            discrepancy_full_pcs: dispatchedPcs - soldPcs - actualReturnPcs,
+          };
+
+        }));
       }
     })
     .catch((err) => {
@@ -56,30 +110,32 @@ const VanLoadUpdate = () => {
 }, [saleId, navigate]);
 
 
-  // Fetch product data and create pricing map
-  useEffect(() => {
-    axios.get('http://localhost:8080/api/products/')
-      .then((res) => {
-        setProducts(res.data);
-        const priceMap = {};
-        res.data.forEach(prod => {
-          priceMap[prod.id] = prod;
-        });
-        setPricingMap(priceMap);
+useEffect(() => {
+  const fetchUnitTypes = async () => {
+    try {
+      const response = await axios.get("http://localhost:8080/api/unit-types/");
+      setUnitTypes(response.data);
+    } catch (err) {
+      console.error("Failed to fetch unit types:", err);
+    }
+  };
+  fetchUnitTypes();
+}, []);
 
-      })
-      .catch((err) => {
-        console.error('Failed to fetch products:', err);
+const unitTypeMap = useMemo(() => {
+  const map = {};
+  unitTypes.forEach(ut => {
+    map[ut.id] = ut.content_no;
+  });
+  return map;
+}, [unitTypes]);
 
-      });
-  }, []);
 
 const handleRowChange = (index, field, value) => {
   const updatedRows = [...rows];
   const row = updatedRows[index];
-  const product = row.product_detail || row.product;
 
-  const contentNo = parseFloat(product?.unit_type?.content_no || 1);
+  const contentNo = parseFloat(unitTypeMap[row.unit_type_id]) || 1;
   const numericValue = parseFloat(value) || 0;
 
   row[field] = numericValue;
@@ -91,50 +147,44 @@ const handleRowChange = (index, field, value) => {
     row.sold_shell = parseFloat((numericValue / contentNo).toFixed(2));
   }
 
-  // 🔁 Expected returns (EMPTY)
-  if (field === "expected_return_shell_empty") {
-    row.expected_return_pcs_empty = Math.round(numericValue * contentNo);
-  } else if (field === "expected_return_pcs_empty") {
-    row.expected_return_shell_empty = parseFloat((numericValue / contentNo).toFixed(2));
+  if (field === "empty_return_shell") {
+    row.empty_return_pcs = Math.round(numericValue * contentNo);
+  } else if (field === "empty_return_pcs") {
+    row.empty_return_shell = parseFloat((numericValue / contentNo).toFixed(2));
   }
 
-  // 🔁 Expected returns (NON-EMPTY)
-  if (field === "expected_return_shell_nonempty") {
-    row.expected_return_pcs_nonempty = Math.round(numericValue * contentNo);
-  } else if (field === "expected_return_pcs_nonempty") {
-    row.expected_return_shell_nonempty = parseFloat((numericValue / contentNo).toFixed(2));
+  if (field === "actual_return_shell") {
+    row.actual_return_pcs = Math.round(numericValue * contentNo);
+  } else if (field === "actual_return_pcs") {
+    row.actual_return_shell = parseFloat((numericValue / contentNo).toFixed(2));
   }
 
   // 💰 Actual Sale Calculation
-  if (['sold_pcs', 'sold_shell', 'discount'].includes(field)) {
+  if (["sold_pcs", "sold_shell", "discount"].includes(field)) {
     const price = parseFloat(row.selling_price) || 0;
     const pcs = parseFloat(row.sold_pcs) || 0;
-    const discount = parseFloat(row.discount_percent || 0); // fix: match actual field name
-
+    const discount = parseFloat(row.discount || row.discount_percent || 0);
     const rawTotal = pcs * price;
     row.actual_sale = parseFloat((rawTotal * (1 - discount / 100)).toFixed(2));
   }
 
-  // 📊 Discrepancy Calculations
-  row.discrepancy_empties_shell =
-    parseFloat(row.expected_return_shell_empty || 0) -
-    parseFloat(row.empty_return_shell || 0);
+  // 📦 Returned With Content (dispatched - sold)
+  row.returned_with_content_pcs = (parseFloat(row.dispatched_pcs) || 0) - (parseFloat(row.sold_pcs) || 0);
+  row.returned_with_content_shell = (parseFloat(row.dispatched_shell) || 0) - (parseFloat(row.sold_shell) || 0);
 
-  row.discrepancy_empties_pc =
-    parseFloat(row.expected_return_pcs_empty || 0) -
-    parseFloat(row.empty_return_pcs || 0);
+  // 📉 Discrepancy (Empty)
+  row.discrepancy_empties_pc = (parseFloat(row.sold_pcs) || 0) - (parseFloat(row.empty_return_pcs) || 0);
+  row.discrepancy_empties_shell = (parseFloat(row.sold_shell) || 0) - (parseFloat(row.empty_return_shell) || 0);
 
-  row.discrepancy_full_shell =
-    parseFloat(row.expected_return_shell_nonempty || 0) -
-    parseFloat(row.actual_return_shell || 0);
-
-  row.discrepancy_full_pcs =
-    parseFloat(row.expected_return_pcs_nonempty || 0) -
-    parseFloat(row.actual_return_pcs || 0);
+    // ⚠️ Discrepancy (Non-Empty) = Returned with content - Actual returned (with content)
+  row.discrepancy_full_pcs = row.returned_with_content_pcs - (parseFloat(row.actual_return_pcs) || 0);
+  row.discrepancy_full_shell = row.returned_with_content_shell - (parseFloat(row.actual_return_shell) || 0);
 
   updatedRows[index] = row;
   setRows(updatedRows);
 };
+
+
 
 
   if (!sale) {
@@ -255,27 +305,33 @@ const handleRowChange = (index, field, value) => {
                 </div>
               </td>
 
-              <td className="border border-gray-200 py-1 px-1">
+              <td className="border border-gray-200 py-1 px-1  w-[70px]">
                 <div className="p-2 border rounded">{row.dispatched_shell}</div>
               </td>
-              <td className="border border-gray-200 py-1 px-1">
+              <td className="border border-gray-200 py-1 px-1  w-[70px]">
                 <div className="p-2 border rounded">{row.dispatched_pcs}</div>
               </td>
-            <td className="border border-gray-200 py-1 px-1">
+             <td className="border border-gray-200 py-1 px-1  w-[70px]">
               <div className="p-2 border rounded text-sm text-center">
                 {row.selling_price || "0.00"}
               </div>
             </td>
 
 
-              <td className="border border-gray-200 py-1 px-1">
-                <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.sold_shell || ""} onChange={(e) => handleRowChange(index, "sold_shell", e.target.value)} />
+               <td className="border border-gray-200 py-1 px-1  w-[70px]">
+                <input type="number" 
+                className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+                 value={row.sold_shell || ""} 
+                onChange={(e) => handleRowChange(index, "sold_shell", e.target.value)} />
               </td>
-              <td className="border border-gray-200 py-1 px-1">
-                <input type="number" className="w-full p-1 text-sm text-center rounded bg-yellow-50" value={row.sold_pcs || ""} onChange={(e) => handleRowChange(index, "sold_pcs", e.target.value)} />
+              <td className="border border-gray-200 py-1 px-1  w-[70px]">
+                <input type="number"
+                 className="w-full p-1 text-sm text-center rounded bg-yellow-50" 
+                 value={row.sold_pcs || ""} 
+                 onChange={(e) => handleRowChange(index, "sold_pcs", e.target.value)} />
               </td>
 
-              <td className="border border-gray-200 py-1 px-1">
+              <td className="border border-gray-200 py-1 px-1  w-[70px]">
                 <input
                   type="number"
                   className="w-full p-1 text-sm text-center bg-gray-100"
@@ -283,7 +339,7 @@ const handleRowChange = (index, field, value) => {
                   disabled
                 />
               </td>
-              <td className="border border-gray-200 py-1 px-1">
+              <td className="border border-gray-200 py-1 px-1  w-[70px]">
                 <input
                   type="number"
                   className="w-full p-1 text-sm text-center bg-gray-100"

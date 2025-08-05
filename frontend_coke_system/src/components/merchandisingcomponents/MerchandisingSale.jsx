@@ -546,6 +546,7 @@ const handleFinalizeSale = async () => {
         setRows={setRows}
         products={products}
         warehouseId={currentWarehouse}
+        setTotalActualSale={setTotalActualSale}
         setTotalExpectedSale={setTotalExpectedSale}
       />
     ) : (
