@@ -14,10 +14,23 @@ const VanLoadUpdate = () => {
   const [sale, setSale] = useState(null);
   const [rows, setRows] = useState([]);
   const [unitTypes, setUnitTypes] = useState([]);
+  const [remarks, setRemarks] = useState("");
+
+  // Expense-related states
+  const [activeTab, setActiveTab] = useState('expenses');
+  const [miscItems, setMiscItems] = useState([]);
+  const [newDesc, setNewDesc] = useState('');
+  const [newAmt, setNewAmt] = useState('');
+
+const calculateTotalExpenses = () => {
+  return miscItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+};
 
 
-  const totalExpectedSale = rows.reduce((sum, row) => sum + (parseFloat(row.expectedSale) || 0), 0);
+  const totalExpectedSale = rows.reduce((sum, row) => sum + (parseFloat(row.expected_sale) || 0), 0);
   const totalActualSale = rows.reduce((sum, row) => sum + (parseFloat(row.actual_sale) || 0), 0);
+
+  const totalAmount = totalActualSale + calculateTotalExpenses(); // ✅ Add this
  
 
 useEffect(() => {
@@ -185,8 +198,6 @@ const handleRowChange = (index, field, value) => {
 };
 
 
-
-
   if (!sale) {
     return (
       <div className="p-6 text-center text-gray-500">
@@ -236,6 +247,18 @@ const handleRowChange = (index, field, value) => {
   return (
     <div className="w-100 mx-auto p-6 bg-white shadow rounded-lg mt-4">
       <h2 className="text-2xl font-bold mb-6 text-blue-600">Van Load Return</h2>
+
+          <ExpensesSection
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                miscItems={miscItems}
+                setMiscItems={setMiscItems}
+                newDesc={newDesc}
+                setNewDesc={setNewDesc}
+                newAmt={newAmt}
+                setNewAmt={setNewAmt}
+                calculateTotalExpenses={calculateTotalExpenses}
+            />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <div>
@@ -409,15 +432,36 @@ const handleRowChange = (index, field, value) => {
               <td key={i} className="border border-gray-300 py-2 px-1"></td>
             ))}
             <td className="border border-gray-300 py-2 px-1"></td>
-            <td className="border border-gray-300 py-2 px-1 text-green-700">₱{totalExpectedSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
-            <td className="border border-gray-300 py-2 px-1 text-blue-700">₱{totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}</td>
+            <td className="border border-gray-300 py-2 px-1 text-green-700">
+              ₱{totalExpectedSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+            </td>
+            <td className="border border-gray-300 py-2 px-1 text-blue-700">
+              ₱{totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+            </td>
           </tr>
+
         </tbody>
       </table>
+      <div className="flex justify-end mt-2 pr-4">
+        <div className="flex items-center gap-2 bg-blue-100 px-4 py-2 rounded shadow text-right">
+          <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>
+          <span className="text-lg font-bold text-blue-800">
+          ₱{(parseFloat(totalAmount) || 0).toLocaleString("en-PH", {minimumFractionDigits: 2,})}
+          </span>
+        </div>
+      </div>
+
       <div className="md:col-span-2">
         <label className="font-semibold">Remarks:</label>
-        <div className="p-2 border rounded">{sale.remarks || "None"}</div>
+        <textarea
+          className="w-full p-2 border rounded"
+          value={remarks}
+          onChange={(e) => setRemarks(e.target.value)}
+          rows={3}
+          placeholder="Enter remarks here..."
+        />
       </div>
+
       
         <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
             <button
