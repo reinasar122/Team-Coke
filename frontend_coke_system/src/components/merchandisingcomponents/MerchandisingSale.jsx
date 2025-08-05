@@ -44,6 +44,7 @@ const MerchandisingSale = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceData, setInvoiceData] = useState(null); // store invoice info
+  
 
   
 
@@ -337,19 +338,6 @@ const handleFinalizeSale = async () => {
 
   return (
     <div className="bg-sky-300 min-h-screen p-3 text-black">
-      {selectedTransactionTypeName === "Warehouse" && (
-        <ExpensesSection
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          miscItems={miscItems}
-          setMiscItems={setMiscItems}
-          newDesc={newDesc}
-          setNewDesc={setNewDesc}
-          newAmt={newAmt}
-          setNewAmt={setNewAmt}
-          calculateTotalExpenses={calculateTotalExpenses}
-        />
-      )}
 
       <div className="p-6">
         <h1 className="text-xl font-bold mb-4">
@@ -618,7 +606,8 @@ const handleFinalizeSale = async () => {
         open={isPaymentModalOpen}
         onClose={handleClosePayment}
         onConfirm={handleConfirmPayment}
-        products={products} // Or your actual product state
+        rows={rows}  // ✅ pass sold items
+        products={products} // optional
         amountDue={totalExpectedSale}
         actualSales={totalActualSale}
         emptyReturns={refundablesTotal}
@@ -627,6 +616,7 @@ const handleFinalizeSale = async () => {
         mspNo={mspNo}
         customerName={customerName}
         handledBy={handledBy}
+        totalAmount={totalAmount}
       />
 
     </div>

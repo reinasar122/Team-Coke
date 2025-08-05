@@ -4,16 +4,31 @@ import InvoiceModal from "./InvoiceModal";
 
 
 
-const PaymentModal = ({ open, onClose, onConfirm, amountDue, actualSales, products, emptyReturns, emptyDiscrepancies }) => {
+const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount, amountDue, actualSales, products, emptyReturns, emptyDiscrepancies, rows }) => {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
   const showChange = cashReceived !== "";
   const change = Math.max(parseFloat(cashReceived || 0) - amountDue, 0);
-  const totalAdjustments = parseFloat(emptyReturns || 0) - parseFloat(emptyDiscrepancies || 0);
+  
   const [invoiceData, setInvoiceData] = useState(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
 
+  const [paymentTerms, setPaymentTerms] = useState("30 Days");
+  const [creditNotes, setCreditNotes] = useState("");
 
+  const getDaysFromTerm = (term) => {
+  const num = parseInt(term);
+  return isNaN(num) ? 30 : num;
+};
+
+  const days = getDaysFromTerm(paymentTerms);
+  const paymentDueDate = new Date();
+  paymentDueDate.setDate(paymentDueDate.getDate() + days);
+  const formattedDueDate = paymentDueDate.toLocaleDateString("en-PH", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
 
   if (!open) return null;
 
@@ -39,24 +54,26 @@ const PaymentModal = ({ open, onClose, onConfirm, amountDue, actualSales, produc
         {/* Product Summary */}
         <div className="mt-6">
           <h3 className="font-semibold mb-2">Products Summary</h3>
-          <table className="w-full border text-sm">
-            <thead className="bg-gray-100">
+          <table className="w-full mt-4 border">
+            <thead className="bg-gray-200">
               <tr>
                 <th className="p-2 text-left">Product</th>
-                <th className="p-2 text-left">Qty Sold</th>
+                <th className="p-2 text-left">Sold Qty (Shell)</th>
+                <th className="p-2 text-left">Sold Qty (PC)</th>
                 <th className="p-2 text-left">Unit Price</th>
-                <th className="p-2 text-left">Amount</th>
+                <th className="p-2 text-left">Total</th>
               </tr>
             </thead>
             <tbody>
-                {products.map((item, index) => (
-                    <tr key={index}>
-                    <td className="p-2">{item.product_name}</td>
-                    <td className="p-2">{item.quantity_description}</td>
-                    <td className="p-2">₱{parseFloat(item.unit_price).toFixed(2)}</td>
-                    <td className="p-2">₱{parseFloat(item.amount).toFixed(2)}</td>
-                    </tr>
-                ))}
+              {rows.map((row, index) => (
+                <tr key={index} className="border-t">
+                  <td className="p-2">{row.productName || row.product_name}</td>
+                  <td className="p-2">{row.soldShell || 0}</td>
+                  <td className="p-2">{row.soldPcs || 0}</td>
+                  <td className="p-2">₱{Number(row.unitPrice || 0).toFixed(2)}</td>
+                  <td className="p-2">₱{Number(row.actualSale || 0).toFixed(2)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -66,14 +83,15 @@ const PaymentModal = ({ open, onClose, onConfirm, amountDue, actualSales, produc
           <h3 className="font-semibold mb-2">Payment Breakdown</h3>
           <div className="border p-4 rounded space-y-2">
             <div><strong>Actual Sales:</strong> ₱{actualSales.toFixed(2)}</div>
+            <div className="ml-4">- Empties Price Total: ₱{Number(emptiesPriceTotal || 0).toFixed(2)}</div>
             <div className="ml-4">- Empty Returns: ₱{emptyReturns.toFixed(2)}</div>
             <div className="ml-4">
                 - Empty Discrepancies: ₱{parseFloat(emptyDiscrepancies || 0).toFixed(2)}
             </div>
-            <div className="ml-4">- Total Adjustments: ₱{totalAdjustments.toFixed(2)}</div>
+            
 
             <div className="text-blue-600 font-bold">
-              Total Amount Due: ₱{amountDue.toFixed(2)}
+              Total Amount Due: ₱{totalAmount.toFixed(2)}
             </div>
           </div>
         </div>
@@ -90,7 +108,7 @@ const PaymentModal = ({ open, onClose, onConfirm, amountDue, actualSales, produc
                 }`}
                 onClick={() => setPaymentMethod(method)}
               >
-                {method === "cash" ? "Cash" : method === "credit" ? "Credit Card" : "Bank Transfer"}
+                {method === "cash" ? "Cash" : method === "credit" ? "Credit" : "E-wallet"}
               </button>
             ))}
           </div>
@@ -126,6 +144,63 @@ const PaymentModal = ({ open, onClose, onConfirm, amountDue, actualSales, produc
               )}
             </div>
           )}
+
+          {/* ✅ CREDIT UI block */}
+          {paymentMethod === "credit" && (
+            <div className="border p-4 rounded space-y-4">
+              <div>
+                <h4 className="font-semibold text-blue-600 mb-2">📅 Credit Terms</h4>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block mb-1">Payment Terms (Days)</label>
+                    <select
+                      className="w-full border rounded px-2 py-1"
+                      value={paymentTerms}
+                      onChange={(e) => setPaymentTerms(e.target.value)}
+                    >
+                      <option>7 Days</option>
+                      <option>15 Days</option>
+                      <option>30 Days</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block mb-1">Payment Due Date</label>
+                    <input
+                      type="text"
+                      className="w-full border rounded px-2 py-1"
+                      value={formattedDueDate}
+                      readOnly
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block mb-1">Credit Notes (Optional)</label>
+                <textarea
+                  rows="3"
+                  className="w-full border rounded px-2 py-1"
+                  placeholder="Add any special arrangements or notes for this credit transaction..."
+                  value={creditNotes}
+                  onChange={(e) => setCreditNotes(e.target.value)}
+                />
+              </div>
+
+              <div className="bg-blue-100 border border-blue-300 p-4 rounded">
+                <div className="font-semibold text-blue-700">Credit Amount:</div>
+                <div className="flex justify-between items-center mt-1 text-sm">
+                  <div>
+                    <div><strong>Customer:</strong> Walk-in</div>
+                    <div><strong>Due:</strong> {formattedDueDate}</div>
+                  </div>
+                  <div className="text-2xl font-bold text-blue-800">₱{totalAmount.toFixed(2)}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+
+
         </div>
 
        {/* Footer Buttons */}

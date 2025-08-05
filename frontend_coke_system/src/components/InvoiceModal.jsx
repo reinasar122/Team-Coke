@@ -3,7 +3,26 @@ import React from "react";
 const InvoiceModal = ({ onClose }) => {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      
       <div className="bg-white w-full max-w-4xl p-6 rounded-lg overflow-y-auto max-h-[90vh] shadow-lg relative">
+
+        {/* Top Buttons */}
+        <div className="flex justify-between items-center mb-4">
+          <button className="bg-gray-100 text-black px-3 py-1 rounded hover:bg-gray-200">
+            🏠 New Sale
+          </button>
+
+          <div className="space-x-2">
+            <button className="bg-white border border-gray-300 px-3 py-1 rounded hover:bg-gray-100">
+              ⬇️ Download PDF
+            </button>
+            <button className="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+              🖨️ Print Invoice
+            </button>
+          </div>
+        </div>
+
+
         {/* Header */}
         <div className="bg-blue-500 text-white p-4 rounded-md flex justify-between items-center relative">
           <div>
