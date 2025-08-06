@@ -58,15 +58,13 @@ const InvoiceModal = ({ onClose, invoiceData }) => {
           </div>
           <div>
             <h4 className="font-semibold">To:</h4>
-            <p>Walk-in Customer<br />
-              Customer Address<br />
-              City, State</p>
+            <p>Walk-in Customer</p>
           </div>
         </div>
 
         {/* Meta Info */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm mt-4">
-          <p><strong>Invoice Date:</strong> 8/4/2025, 4:47:12 AM</p>
+          <p><strong>Invoice No:</strong> 2324</p>
           <p><strong>Transaction Date:</strong> 08/02/2025 09:13 PM</p>
           <p><strong>Payment Method:</strong> Cash</p>
           <p><strong>Handled By:</strong> Miyaku Kagura</p>
