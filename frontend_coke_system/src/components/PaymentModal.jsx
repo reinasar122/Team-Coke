@@ -61,6 +61,7 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
                 <th className="p-2 text-left">Sold Qty (Shell)</th>
                 <th className="p-2 text-left">Sold Qty (PC)</th>
                 <th className="p-2 text-left">Unit Price</th>
+                <th className="p-2 text-left">Discount</th>
                 <th className="p-2 text-left">Total</th>
               </tr>
             </thead>
@@ -71,6 +72,7 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
                   <td className="p-2">{row.soldShell || 0}</td>
                   <td className="p-2">{row.soldPcs || 0}</td>
                   <td className="p-2">₱{Number(row.unitPrice || 0).toFixed(2)}</td>
+                  <td className="p-2">{(Number(row.discount) || 0).toFixed(2)}</td>
                   <td className="p-2">₱{Number(row.actualSale || 0).toFixed(2)}</td>
                 </tr>
               ))}
@@ -217,11 +219,17 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
                 cashReceived,
                 change,
                 amountDue,
+                rows,                    // ✅ pass product summary
+                emptyReturns,
+                emptyDiscrepancies,
+                actualSales,
+                emptiesPriceTotal
+                
               };
               setInvoiceData(data);              // ✅ store invoice data
               setShowInvoiceModal(true);         // ✅ show the invoice modal
             }}
-            disabled={cashReceived < amountDue} // Optional: prevent underpayment
+            disabled={paymentMethod === "cash" && parseFloat(cashReceived) < amountDue} // Optional: prevent underpayment
           >
             Confirm Payment & Generate Invoice
           </button>

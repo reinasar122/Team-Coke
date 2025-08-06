@@ -1,6 +1,19 @@
 import React from "react";
 
-const InvoiceModal = ({ onClose }) => {
+const InvoiceModal = ({ onClose, invoiceData }) => {
+  const {
+    paymentMethod,
+    cashReceived,
+    change,
+    amountDue,
+    rows,
+    actualSales,
+    emptyReturns,
+    emptyDiscrepancies,
+    emptiesPriceTotal
+  } = invoiceData;
+
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       
@@ -59,73 +72,127 @@ const InvoiceModal = ({ onClose }) => {
           <p><strong>Handled By:</strong> Miyaku Kagura</p>
         </div>
 
-        {/* Product Details */}
+        {/* SOLD PRODUCTS */}
         <div className="mt-6">
-          <h4 className="font-semibold mb-2">Product Details</h4>
+          <h4 className="font-bold mb-2 text-gray-700">SOLD PRODUCTS</h4>
           <table className="w-full text-sm border border-gray-300">
             <thead className="bg-gray-100">
               <tr>
-                <th className="border px-2 py-1 text-left">Product</th>
-                <th className="border px-2 py-1 text-left">Dispatched</th>
-                <th className="border px-2 py-1 text-left">Sold</th>
-                <th className="border px-2 py-1 text-left">Unit Price</th>
-                <th className="border px-2 py-1 text-left">Amount</th>
+                <th className="p-2 text-left">Product</th>
+                <th className="p-2 text-left">Dispatched</th>
+                <th className="p-2 text-left">Sold</th>
+                <th className="p-2 text-left">Unit Price</th>
+                <th className="p-2 text-left">Discount</th>
+                <th className="p-2 text-left">Amount</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="border px-2 py-1">Red Horse Strong Beer</td>
-                <td className="border px-2 py-1">2 shells (24 pcs)</td>
-                <td className="border px-2 py-1">2 shells (24 pcs)</td>
-                <td className="border px-2 py-1">₱60.00</td>
-                <td className="border px-2 py-1">₱1440.00</td>
-              </tr>
+              {Array.isArray(rows) && rows.map((row, index) => (
+                <tr key={index}>
+                  <td className="border px-2 py-1">{row.productName || row.product_name || "-"}</td>
+                  <td className="border px-2 py-1">{`${row.soldShell || 0} shells (${row.soldPcs || 0} pcs)`}</td>
+                  <td className="border px-2 py-1">{`${row.soldShell || 0} shells (${row.soldPcs || 0} pcs)`}</td>
+                  <td className="border px-2 py-1">₱{(Number(row.unitPrice) || 0).toFixed(2)}</td>
+                  <td className="border px-2 py-1">{(Number(row.discount) || 0).toFixed(2)}</td>
+                  <td className="border px-2 py-1">₱{(Number(row.actualSale) || 0).toFixed(2)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
+          <p className="text-right font-semibold mt-1">
+            SUBTOTAL: ₱{(Number(actualSales) || 0).toFixed(2)}
+          </p>
         </div>
 
-        {/* Returns & Discrepancies */}
+        {/* EMPTY PRICE */}
         <div className="mt-6">
-          <h4 className="font-semibold mb-2">Returns & Discrepancies</h4>
+          <h4 className="font-bold mb-2 text-gray-700">EMPTY PRICE</h4>
           <table className="w-full text-sm border border-gray-300">
             <thead className="bg-gray-100">
               <tr>
-                <th className="border px-2 py-1">Product</th>
-                <th className="border px-2 py-1">Empty Returns</th>
-                <th className="border px-2 py-1">Empty Discrepancies</th>
-                <th className="border px-2 py-1">Non-Empty Returns</th>
-                <th className="border px-2 py-1">Non-Empty Discrepancies</th>
-                <th className="border px-2 py-1">Empty Price</th>
+                <th className="p-2 text-left">Product</th>
+                <th className="p-2 text-left">Shell Price</th>
+                <th className="p-2 text-left">Bottle Price</th>
+                <th className="p-2 text-left">Total Shells</th>
+                <th className="p-2 text-left">Total Pieces</th>
+                <th className="p-2 text-left">Amount</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td className="border px-2 py-1">Red Horse Strong Beer</td>
-                <td className="border px-2 py-1">1 shell (12 pcs)</td>
-                <td className="border px-2 py-1">1 shell (12 pcs)</td>
-                <td className="border px-2 py-1">0 shell (0 pcs)</td>
-                <td className="border px-2 py-1">0 shell (0 pcs)</td>
-                <td className="border px-2 py-1">Shell: ₱50<br />Bottle: ₱5</td>
-              </tr>
+              {Array.isArray(rows) && rows.map((row, index) => (
+                <tr key={index}>
+                  <td className="border px-2 py-1">{row.productName || row.product_name || "-"}</td>
+                  <td className="border px-2 py-1">₱{(Number(row.shellPrice) || 0).toFixed(2)}</td>
+                  <td className="border px-2 py-1">₱{(Number(row.bottlePrice) || 0).toFixed(2)}</td>
+                  <td className="border px-2 py-1">{row.soldShell || 0}</td>
+                  <td className="border px-2 py-1">{row.soldPcs || 0}</td>
+                  <td className="border px-2 py-1">₱{(Number(emptiesPriceTotal) || 0).toFixed(2)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
+          <p className="text-right font-semibold mt-1">
+            SUBTOTAL: ₱{(Number(emptiesPriceTotal) || 0).toFixed(2)}
+          </p>
+        </div>
+
+        {/* RETURNS */}
+        <div className="mt-6">
+          <h4 className="font-bold mb-2 text-gray-700">RETURNS</h4>
+          <table className="w-full text-sm border border-gray-300">
+            <thead className="bg-gray-100">
+              <tr>
+                <th className="p-2 text-left">Product</th>
+                <th className="p-2 text-left">Shell Price</th>
+                <th className="p-2 text-left">Bottle Price</th>
+                <th className="p-2 text-left">Returned Shells</th>
+                <th className="p-2 text-left">Returned Pieces</th>
+                <th className="p-2 text-left">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Array.isArray(rows) && rows.map((row, index) => {
+                const shellPrice = Number(row.shellPrice) || 0;
+                const bottlePrice = Number(row.bottlePrice) || 0;
+                const returnedShells = Number(row.expectedReturnShellEmpty) || 0;
+                const returnedPcs = Number(row.expectedReturnPcsEmpty) || 0;
+                const totalValue = (returnedShells * shellPrice) + (returnedPcs * bottlePrice);
+
+                return (
+                  <tr key={index}>
+                    <td className="border px-2 py-1">{row.productName || row.product_name || "-"}</td>
+                    <td className="border px-2 py-1">₱{shellPrice.toFixed(2)}</td>
+                    <td className="border px-2 py-1">₱{bottlePrice.toFixed(2)}</td>
+                    <td className="border px-2 py-1">{returnedShells}</td>
+                    <td className="border px-2 py-1">{returnedPcs}</td>
+                    <td className="border px-2 py-1">₱{totalValue.toFixed(2)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {/* Subtotal for all returns */}
+          <p className="text-right font-semibold mt-1">
+            SUBTOTAL: ₱{(Number(emptyReturns) || 0).toFixed(2)}
+          </p>
         </div>
 
         {/* Payment Summary */}
         <div className="mt-6 text-sm">
-          <h4 className="font-semibold mb-2">Payment Summary</h4>
-          <p><strong>Actual Sales:</strong> ₱1440.00</p>
-          <div className="pl-4 mt-2">
-            <p className="font-medium">Adjustments & Credits:</p>
-            <ul className="list-disc list-inside">
-              <li>Empty Returns Credit: + ₱110.00</li>
-              <li>Empty Discrepancies Credit: + ₱110.00</li>
-            </ul>
-            <p className="mt-1"><strong>Total Credits:</strong> ₱220.00</p>
-          </div>
-          <p className="mt-2 text-lg font-bold text-blue-600">
-            Total Amount Paid: ₱1550.00
-          </p>
+    
+            <p className="mt-2 text-lg font-bold text-blue-600">
+              Total Amount Paid: ₱{(actualSales + emptyReturns + parseFloat(emptyDiscrepancies || 0)).toFixed(2)}
+            </p>
+
+            <p className="mt-1 text-sm text-gray-700">
+              <strong>Cash Received:</strong> ₱{(Number(cashReceived) || 0).toFixed(2)}
+            </p>
+            <p className="mt-1 text-sm text-gray-700">
+              <strong>Change:</strong> ₱{(Number(change) || 0).toFixed(2)}
+            </p>
+
+
         </div>
 
         {/* Close Button */}

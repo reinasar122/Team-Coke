@@ -336,6 +336,9 @@ const handleFinalizeSale = async () => {
 
 
 
+
+
+
   return (
     <div className="bg-sky-300 min-h-screen p-3 text-black">
 
@@ -611,6 +614,7 @@ const handleFinalizeSale = async () => {
         amountDue={totalExpectedSale}
         actualSales={totalActualSale}
         emptyReturns={refundablesTotal}
+        emptiesPriceTotal={emptiesPriceTotal}
         emptyDiscrepancies={discrepancy}
         totalAdjustments
         mspNo={mspNo}
