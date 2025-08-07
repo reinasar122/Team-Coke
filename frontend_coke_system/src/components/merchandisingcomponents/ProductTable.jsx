@@ -21,7 +21,6 @@ const ProductTable = ({
   refundablesTotal,
   discrepancy,
   totalAmount,  // ✅ pass this
-  
 
 
 }) => {
@@ -51,6 +50,8 @@ const ProductTable = ({
     });
     return map;
   }, [unitTypes]);
+
+
 
   // Fetch available stock for a product/warehouse combo
 const fetchStockQuantity = async (productId) => {
@@ -99,6 +100,17 @@ useEffect(() => {
 }, []);
 
 
+
+//prevent the same product from being selected in multiple rows
+const getSelectedProductIds = (currentIndex) => {
+  return rows
+    .filter((_, i) => i !== currentIndex) // exclude the current row
+    .map((row) => row.productId)
+    .filter((id) => id); // exclude empty or undefined
+};
+
+
+
 const handleProductChange = (index, value) => {
   const updatedRows = [...rows];
   const productId = parseInt(value);
@@ -118,6 +130,20 @@ const handleProductChange = (index, value) => {
       updatedRows[index].shellPrice = fullPrice.shell_price ?? "";
       updatedRows[index].bottlePrice = fullPrice.bottle_price ?? "";
 
+
+    // ✅ NEW: Check if product has NO shell/bottle price → auto-zero returnables
+      const shellPrice = fullPrice.shell_price ?? 0;
+      const bottlePrice = fullPrice.bottle_price ?? 0;
+
+      if (shellPrice === 0 && bottlePrice === 0) {
+        updatedRows[index].expectedReturnShellEmpty = 0;
+        updatedRows[index].expectedReturnPcsEmpty = 0;
+        updatedRows[index].discrepancyShellEmpty = 0;
+        updatedRows[index].discrepancyPcsEmpty = 0;
+
+      }
+
+      
       // Optionally cache to pricingMap
       setPricingMap((prev) => ({
         ...prev,
@@ -132,6 +158,7 @@ const handleProductChange = (index, value) => {
       updatedRows[index].bottlePrice = "";
     }
   }
+  
 
   setRows(updatedRows);
   fetchStockQuantity(productId);
@@ -351,15 +378,15 @@ useEffect(() => {
   expectedTotal += miscCharges;
   actualTotal += miscCharges;
 
-  setTotalExpectedSale(expectedTotal);
+  //setTotalExpectedSale(expectedTotal);
   setTotalActualSale(actualTotal);
 }, [rows, miscItems]); // ✅ recalculate when rows or misc items change
 
 // Totals
-  const totalExpectedSale = useMemo(
-    () => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0),
-    [rows]
-  );
+  //const totalExpectedSale = useMemo(
+    //() => rows.reduce((sum, row) => sum + Number(row.expectedSale || 0), 0),
+   // [rows]
+  //);
 
   const totalActualSale = useMemo(
     () => rows.reduce((sum, row) => sum + Number(row.actualSale || 0), 0),
@@ -419,10 +446,10 @@ return (
           <th className="border border-gray-300 py-2 px-1" colSpan={2}>EMPTY PRICE (Shell/Bottle)</th>
           <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
           <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
-          <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
+          {/*<th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
+          <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>*/}
           <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
-          <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
+          {/*<th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>*/}
           <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
         </tr>
         {/* Subheaders */}
@@ -435,7 +462,7 @@ return (
           <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
           <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
           <td className="border border-gray-300 py-1 text-[11px] font-medium">Bottle</td>
-              {Array(8).fill(null).map((_, i) => (
+              {Array(3).fill(null).map((_, i) => (
                 <td key={i} className="border border-gray-300 py-1 text-[11px] font-medium">
                   {i % 2 === 0 ? "Shell" : "PCS"}
                 </td>
@@ -456,11 +483,20 @@ return (
               onChange={(e) => handleProductChange(index, e.target.value)}
             >
               <option value="">Select Product</option>
-              {products.map((product) => (
-                <option key={product.id} value={product.id}>
-                  {product.product_name}
-                </option>
-              ))}
+              {products.map((product) => {
+                const selectedIds = getSelectedProductIds(index);
+                const isDisabled = selectedIds.includes(product.id);
+
+                return (
+                  <option
+                    key={product.id}
+                    value={product.id}
+                    disabled={isDisabled}
+                  >
+                    {product.product_name} {isDisabled ? " (Already Selected)" : ""}
+                  </option>
+                );
+              })}
             </select>
           </td>
 
@@ -537,9 +573,7 @@ return (
         {/* RETURN & DISCREPANCY FIELDS */}
         {[
           "expectedReturnShellEmpty", "expectedReturnPcsEmpty",
-          "discrepancyShellEmpty", "discrepancyPcsEmpty",
-          "expectedReturnShellNonempty", "expectedReturnPcsNonempty",
-          "discrepancyShellNonempty", "discrepancyPcsNonempty"
+          "discrepancyShellEmpty", "discrepancyPcsEmpty"
         ].map((field, i) => (
           <td key={i} className="border border-gray-200 py-1 px-1">
             <input
@@ -560,7 +594,7 @@ return (
               }}
 
               className={`w-full p-1 text-sm text-center rounded
-                ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty"].includes(field)
+                ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)
                   ? "bg-yellow-50"
                   : "bg-gray-100"}
                 ${field.includes("discrepancy") && parseFloat(row[field]) !== 0
@@ -584,7 +618,7 @@ return (
         />
       </td>
 
-        {/* EXPECTED SALE */}
+        {/* EXPECTED SALE 
         <td className="border border-gray-200 py-1 px-1">
           <input
             className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
@@ -597,7 +631,7 @@ return (
                 : ""
             }
           />
-        </td>
+        </td>*/}
 
         {/* ACTUAL SALE */}
           <td className="border border-gray-200 py-1 px-1">
@@ -650,25 +684,25 @@ return (
             </td>
 
 
-              {/* RETURNED (Non-Empty) */}
+              {/* RETURNED (Non-Empty)
               <td className="py-2 px-1 bg-blue-100"></td>
-              <td className="py-2 px-1 bg-blue-100"></td>
+              <td className="py-2 px-1 bg-blue-100"></td> */}
 
 
-              {/* DISCREPANCY (Non-Empty) */}
+              {/* DISCREPANCY (Non-Empty) 
               <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
               ₱{parseFloat(totalDiscrepancyNonEmpty || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-            </td>
+            </td>*/}
 
 
 
               {/* DISCOUNT */}
               <td className="border border-gray-300 py-2 px-1 bg-blue-100"></td>
 
-          {/* EXPECTED SALE */}
+          {/* EXPECTED SALE 
           <td className="border border-gray-300 py-2 px-1 bg-green-100 text-green-700 font-bold text-center">
             ₱{isNaN(totalExpectedSale) ? "0.00" : totalExpectedSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
-          </td>
+          </td>*/}
 
             <td className="border border-gray-300 py-2 px-1 bg-gray-200 text-blue-700 font-bold text-center">
               ₱{isNaN(totalActualSale) ? "0.00" : totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}

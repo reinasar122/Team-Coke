@@ -611,7 +611,7 @@ const handleFinalizeSale = async () => {
         onConfirm={handleConfirmPayment}
         rows={rows}  // ✅ pass sold items
         products={products} // optional
-        amountDue={totalExpectedSale}
+        amountDue={totalAmount}
         actualSales={totalActualSale}
         emptyReturns={refundablesTotal}
         emptiesPriceTotal={emptiesPriceTotal}
