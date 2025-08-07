@@ -6,6 +6,7 @@ const InvoiceModal = ({ onClose, invoiceData }) => {
     cashReceived,
     change,
     amountDue,
+    totalAmount,
     rows,
     actualSales,
     emptyReturns,
@@ -172,15 +173,15 @@ const InvoiceModal = ({ onClose, invoiceData }) => {
 
           {/* Subtotal for all returns */}
           <p className="text-right font-semibold mt-1">
-            SUBTOTAL: ₱{(Number(emptyReturns) || 0).toFixed(2)}
+            SUBTOTAL: ₱-{(Number(emptyReturns) || 0).toFixed(2)}
           </p>
         </div>
 
         {/* Payment Summary */}
         <div className="mt-6 text-sm">
     
-            <p className="mt-2 text-lg font-bold text-blue-600">
-              Total Amount Paid: ₱{(actualSales + emptyReturns + parseFloat(emptyDiscrepancies || 0)).toFixed(2)}
+            <p className="mt-2 text-lg font-bold text-green-600">
+              Total Amount Due: ₱{parseFloat(totalAmount || 0).toFixed(2)}
             </p>
 
             <p className="mt-1 text-sm text-gray-700">
