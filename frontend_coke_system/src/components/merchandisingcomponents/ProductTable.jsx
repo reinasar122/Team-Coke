@@ -185,6 +185,9 @@ const handleRowChange = (index, field, value) => {
       row.priceId = priceId;
       row.conversion = conversion;
 
+      row.productName = product.name; // ✅ Store for summary display
+
+
       row.shellPrice = fullPrice?.shell_price ?? "";
       row.bottlePrice = fullPrice?.bottle_price ?? "";
     }
@@ -196,6 +199,8 @@ const handleRowChange = (index, field, value) => {
     product?.price?.selling_price ||
     pricingData.find((p) => p.id === row.priceId)?.selling_price ||
     0;
+
+  row.unitPrice = price; 
 
   // Handle PCS ↔ Shell conversion
   if (field === "dispatchedShell") {
