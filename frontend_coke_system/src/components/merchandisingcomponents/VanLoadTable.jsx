@@ -76,6 +76,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId,setTotalExpectedSal
     if (fullPrice) {
       updatedRows[index].shellPrice = fullPrice.shell_price ?? "";
       updatedRows[index].bottlePrice = fullPrice.bottle_price ?? "";
+      updatedRows[index].sellingPrice = fullPrice.selling_price ?? "";
 
       // Optionally cache to pricingMap
       setPricingMap((prev) => ({
@@ -108,6 +109,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId,setTotalExpectedSal
         dispatchedPcs: "",
         expectedSale: "",
         contentNo: "",
+        sellingPrice:"",
         shellPrice: "",     
         bottlePrice: "",    
       },
@@ -125,22 +127,21 @@ const handleRowChange = (index, field, value) => {
     const product = products.find((p) => p.id === parseInt(value));
     if (product) {
       const priceId = product.price?.id;
-      const fullPrice = pricingData.find((price) => price.id === priceId);
       const conversion = parseFloat(product.unit_type?.content_no || 1);
 
       row.priceId = priceId;
       row.conversion = conversion;
-      row.shellPrice = fullPrice?.shell_price ?? "";
-      row.bottlePrice = fullPrice?.bottle_price ?? "";
     }
   }
 
   const product = products.find((p) => p.id === parseInt(row.productId));
   const conversion = parseFloat(product?.unit_type?.content_no || 1);
-  const price =
-    product?.price?.selling_price ||
-    pricingData.find((p) => p.id === row.priceId)?.selling_price ||
-    0;
+
+  const fullPrice = pricingData.find((p) => p.id === row.priceId) || product?.price || {};
+  const contentPrice = parseFloat(fullPrice.selling_price || 0);
+  const emptyPrice = parseFloat(fullPrice.shell_price || 0);
+
+  row.selling_price = contentPrice;
 
   // 🛑 Validate against available stock
   const available = availableStock[row.productId] ?? Infinity;
@@ -148,7 +149,7 @@ const handleRowChange = (index, field, value) => {
     const pcsValue = parseFloat(value || 0);
     if (pcsValue > available) {
       alert("Dispatched PCS exceeds available stock!");
-      return; // stop here if exceeding
+      return;
     }
   }
 
@@ -159,13 +160,28 @@ const handleRowChange = (index, field, value) => {
     row.dispatchedShell = (parseFloat(value || 0) / conversion).toFixed(2);
   }
 
-  // 💰 Expected sale calculation
+  // 💰 Expected sale calculation (now excludes refundables)
   const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
-  row.expectedSale = parseFloat((price * dispatchedPcs).toFixed(2));
+  const dispatchedShell = parseFloat(row.dispatchedShell || 0);
+  const returnedWithContentPcs = parseFloat(row.return_with_content_pcs || 0);
+  const returnedWithContentShell = parseFloat(row.return_with_content_shell || 0);
+  const refundablePcs = parseFloat(row.refundable_pcs || 0);
+  const refundableShell = parseFloat(row.refundable_shell || 0);
+
+  const returnPcsTotal = returnedWithContentPcs + (returnedWithContentShell * conversion);
+  const refundableTotal = refundablePcs + (refundableShell * conversion);
+
+  const netContentPcs = dispatchedPcs - returnPcsTotal - refundableTotal;
+  const contentValue = netContentPcs * contentPrice;
+
+  const netShells = dispatchedShell - returnedWithContentShell - refundableShell;
+  const emptyValue = netShells * emptyPrice;
+
+  row.expectedSale = parseFloat((contentValue + emptyValue).toFixed(2));
+
 
   setRows(updatedRows);
 
-  // 🔢 Total Calculations
   const expectedTotal = updatedRows.reduce(
     (sum, r) => sum + (parseFloat(r.expectedSale) || 0),
     0
@@ -173,6 +189,7 @@ const handleRowChange = (index, field, value) => {
 
   setTotalExpectedSale(expectedTotal);
 };
+
 
 
   const addRow = () => {
@@ -200,7 +217,8 @@ const handleRowChange = (index, field, value) => {
       <tr>
         <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
         <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
-        <th className="border border-gray-300 py-2 px-1" colSpan={2}>SELLING PRICE</th>
+        <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
+        <th className="border border-gray-300 py-2 px-1" colSpan={2}>Empty Price</th>
         <th className="border border-gray-300 py-2 px-1">Expected Sale</th>
         <th className="border border-gray-300 py-2 px-1">Available</th>
         <th className="border border-gray-300 py-2 px-1">Actions</th>
@@ -209,6 +227,7 @@ const handleRowChange = (index, field, value) => {
         <td className="border border-gray-300 py-1"></td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+        <td className="border border-gray-300 py-1"></td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
         <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
         <td className="border border-gray-300 py-1"></td>
@@ -259,7 +278,17 @@ const handleRowChange = (index, field, value) => {
               />
             </td>
 
-            {/* SELLING PRICE Shell */}
+            {/* SELLING PRICE */}
+            <td className="border border-gray-200 py-1 px-1">
+              <input
+                type="number"
+                disabled
+                className="w-full p-1 text-sm text-center bg-gray-100"
+                value={row.sellingPrice ?? ""}
+              />
+            </td>
+
+            {/* EMPTY PRICE - Shell */}
             <td className="border border-gray-200 py-1 px-1">
               <input
                 type="number"
@@ -269,7 +298,7 @@ const handleRowChange = (index, field, value) => {
               />
             </td>
 
-            {/* SELLING PRICE PCS */}
+            {/* EMPTY PRICE - PCS */}
             <td className="border border-gray-200 py-1 px-1">
               <input
                 type="number"
@@ -314,6 +343,7 @@ const handleRowChange = (index, field, value) => {
         );
       })}
     </tbody>
+
 </table>
 
 

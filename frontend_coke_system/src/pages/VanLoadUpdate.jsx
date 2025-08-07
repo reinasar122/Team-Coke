@@ -7,7 +7,7 @@ import ExpensesSection from '../components/merchandisingcomponents/ExpensesSecti
 
 
 const VanLoadUpdate = () => {
-  
+  const [refundablesTotal, setRefundablesTotal] = useState(0);
   const location = useLocation();
   const navigate = useNavigate();
   const saleId = location.state?.id;
@@ -15,6 +15,7 @@ const VanLoadUpdate = () => {
   const [rows, setRows] = useState([]);
   const [unitTypes, setUnitTypes] = useState([]);
   const [remarks, setRemarks] = useState("");
+  const [overallTotal, setOverallTotal] = useState(0);
 
   // Expense-related states
   const [activeTab, setActiveTab] = useState('expenses');
@@ -22,107 +23,45 @@ const VanLoadUpdate = () => {
   const [newDesc, setNewDesc] = useState('');
   const [newAmt, setNewAmt] = useState('');
 
+  const [products, setProducts] = useState([]);
+  const [pricingData, setPricingData] = useState([]);
+
 const calculateTotalExpenses = () => {
   return miscItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
 };
 
 
-  const totalExpectedSale = rows.reduce((sum, row) => sum + (parseFloat(row.expected_sale) || 0), 0);
-  const totalActualSale = rows.reduce((sum, row) => sum + (parseFloat(row.actual_sale) || 0), 0);
+// Total expected sale
+const totalExpectedSale = useMemo(() => {
+  return rows.reduce((sum, row) => sum + (parseFloat(row.expected_sale) || 0), 0);
+}, [rows]);
 
-  const totalAmount = totalActualSale + calculateTotalExpenses(); // ✅ Add this
+// Total actual sale
+const totalActualSale = useMemo(() => {
+  return rows.reduce((sum, row) => sum + (parseFloat(row.actual_sale) || 0), 0);
+}, [rows]);
+
+// Total expenses
+const totalExpenses = useMemo(() => {
+  return miscItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
+}, [miscItems]);
+
+// Total refunds (from empty shells and pcs)
+const totalRefunds = useMemo(() => {
+  return rows.reduce((sum, row) => {
+    const shellRefund = (parseFloat(row.empty_return_shell) || 0) * (parseFloat(row.empty_price_shell) || 0);
+    const pcRefund = (parseFloat(row.empty_return_pcs) || 0) * (parseFloat(row.empty_price_pc) || 0);
+    return sum + shellRefund + pcRefund;
+  }, 0);
+}, [rows]);
+
+// Grand total: Actual Sale + Expenses - Refunds
+const grandTotal = useMemo(() => {
+  return totalActualSale + totalExpenses - totalRefunds;
+}, [totalActualSale, totalExpenses, totalRefunds]);
+
  
-
-useEffect(() => {
-  if (!saleId) return;
-
-  axios.get(`http://localhost:8080/api/merchandising-set/${saleId}/`)
-    .then((res) => {
-      setSale(res.data);
-
-      if (res.data.items && Array.isArray(res.data.items)) {
-       setRows(res.data.items.map(item => {
-          const product = item.product_detail ?? item.product ?? {};
-          const unitTypeId = product.unit_type ?? null;
-          const contentNo = unitTypeMap[unitTypeId] ?? 1;
-
-          const dispatchedShell = parseFloat(item.dispatched_shell ?? 0);
-          const dispatchedPcs = Math.round(dispatchedShell * contentNo);
-
-          const soldShell = parseFloat(item.sold_shell ?? 0);
-          const soldPcs = Math.round(soldShell * contentNo);
-
-          const price = parseFloat(item.selling_price ?? 0);
-          const discount = parseFloat(item.discount_percent ?? item.discount ?? 0);
-          const actualSale = parseFloat((soldPcs * price * (1 - discount / 100)).toFixed(2));
-
-          const emptyReturnShell = parseFloat(item.empty_return_shell ?? 0);
-          const emptyReturnPcs = Math.round(emptyReturnShell * contentNo);
-
-          // Returned with content (Non-empty/full bottles)
-          const discrepancyShell = dispatchedShell - soldShell;
-          const discrepancyPcs = dispatchedPcs - soldPcs;
-
-          const actualReturnShell = item.actual_return_shell != null
-            ? parseFloat(item.actual_return_shell)
-            : discrepancyShell;
-
-          const actualReturnPcs = item.actual_return_pcs != null
-            ? Math.round(parseFloat(item.actual_return_pcs))
-            : discrepancyPcs;
-
-          return {
-            ...item,
-            productId: product.id,
-            product_name: product.product_name ?? "",
-            unit_type_id: unitTypeId,
-            content_no: contentNo,
-
-            dispatched_shell: dispatchedShell,
-            dispatched_pcs: dispatchedPcs,
-
-            sold_shell: soldShell,
-            sold_pcs: soldPcs,
-            selling_price: price,
-            discount: discount,
-            actual_sale: actualSale,
-
-            empty_price_shell: parseFloat(item.empty_price_shell ?? 0),
-            empty_price_pc: parseFloat(item.empty_price_pc ?? 0),
-
-            // Empties (expected return = sold)
-            expected_return_shell_empty: soldShell,
-            expected_return_pcs_empty: soldPcs,
-
-            // Non-empty return (expected = dispatched - sold)
-            expected_return_shell_nonempty: discrepancyShell,
-            expected_return_pcs_nonempty: discrepancyPcs,
-
-            // Actual returned
-            empty_return_shell: emptyReturnShell,
-            empty_return_pcs: emptyReturnPcs,
-            actual_return_shell: actualReturnShell,
-            actual_return_pcs: actualReturnPcs,
-
-            // Discrepancy for empties (sold - returned empty)
-            discrepancy_empties_shell: soldShell - emptyReturnShell,
-            discrepancy_empties_pc: soldPcs - emptyReturnPcs,
-
-            // ✅ Discrepancy for non-empty (dispatched - sold - returned full)
-            discrepancy_full_shell: dispatchedShell - soldShell - actualReturnShell,
-            discrepancy_full_pcs: dispatchedPcs - soldPcs - actualReturnPcs,
-          };
-
-        }));
-      }
-    })
-    .catch((err) => {
-      console.error(err);
-      alert("Failed to fetch sale data.");
-    });
-}, [saleId, navigate]);
-
-
+// Fetch unit types first
 useEffect(() => {
   const fetchUnitTypes = async () => {
     try {
@@ -135,6 +74,7 @@ useEffect(() => {
   fetchUnitTypes();
 }, []);
 
+// Create unitTypeMap once unitTypes are fetched
 const unitTypeMap = useMemo(() => {
   const map = {};
   unitTypes.forEach(ut => {
@@ -142,6 +82,100 @@ const unitTypeMap = useMemo(() => {
   });
   return map;
 }, [unitTypes]);
+
+// Fetch sale data
+useEffect(() => {
+  if (!saleId) return;
+
+  axios.get(`http://localhost:8080/api/merchandising-set/${saleId}/`)
+    .then((res) => {
+      setSale(res.data); // just store the raw sale
+    })
+    .catch((err) => {
+      console.error(err);
+      alert("Failed to fetch sale data.");
+    });
+}, [saleId]);
+
+// Process rows AFTER unitTypeMap is ready and sale is loaded
+useEffect(() => {
+  if (!sale || !unitTypes.length) return;
+
+  if (sale.items && Array.isArray(sale.items)) {
+    const processedRows = sale.items.map(item => {
+      const product = item.product_detail ?? item.product ?? {};
+      const unitTypeId = product.unit_type ?? null;
+      const contentNo = unitTypeMap[unitTypeId] ?? 1;
+
+      // (rest of your row mapping logic...)
+      const dispatchedShell = parseFloat(item.dispatched_shell ?? 0);
+      const dispatchedPcs = Math.round(dispatchedShell * contentNo);
+
+      const soldShell = parseFloat(item.sold_shell ?? 0);
+      const soldPcs = Math.round(soldShell * contentNo);
+
+      const price = parseFloat(item.selling_price ?? 0);
+      const discount = parseFloat(item.discount_percent ?? item.discount ?? 0);
+      const actualSale = parseFloat((soldPcs * price * (1 - discount / 100)).toFixed(2));
+
+      const emptyReturnShell = parseFloat(item.empty_return_shell ?? 0);
+      const emptyReturnPcs = Math.round(emptyReturnShell * contentNo);
+
+      const discrepancyShell = dispatchedShell - soldShell;
+      const discrepancyPcs = dispatchedPcs - soldPcs;
+
+      const actualReturnShell = item.actual_return_shell != null
+        ? parseFloat(item.actual_return_shell)
+        : discrepancyShell;
+
+      const actualReturnPcs = item.actual_return_pcs != null
+        ? Math.round(parseFloat(item.actual_return_pcs))
+        : discrepancyPcs;
+
+      return {
+        ...item,
+        productId: product.id,
+        product_name: product.product_name ?? "",
+        unit_type_id: unitTypeId,
+        content_no: contentNo,
+
+        dispatched_shell: dispatchedShell,
+        dispatched_pcs: dispatchedPcs,
+
+        sold_shell: soldShell,
+        sold_pcs: soldPcs,
+        selling_price: price,
+        discount: discount,
+        actual_sale: actualSale,
+
+        empty_price_shell: parseFloat(item.empty_price_shell ?? 0),
+        empty_price_pc: parseFloat(item.empty_price_pc ?? 0),
+
+        expected_return_shell_empty: soldShell,
+        expected_return_pcs_empty: soldPcs,
+
+        expected_return_shell_nonempty: discrepancyShell,
+        expected_return_pcs_nonempty: discrepancyPcs,
+
+        empty_return_shell: emptyReturnShell,
+        empty_return_pcs: emptyReturnPcs,
+        actual_return_shell: actualReturnShell,
+        actual_return_pcs: actualReturnPcs,
+
+        discrepancy_empties_shell: soldShell - emptyReturnShell,
+        discrepancy_empties_pc: soldPcs - emptyReturnPcs,
+
+        discrepancy_full_shell: dispatchedShell - soldShell - actualReturnShell,
+        discrepancy_full_pcs: dispatchedPcs - soldPcs - actualReturnPcs,
+      };
+    });
+
+    setRows(processedRows);
+  }
+}, [sale, unitTypeMap]);
+
+
+
 
 
 const handleRowChange = (index, field, value) => {
@@ -172,22 +206,36 @@ const handleRowChange = (index, field, value) => {
     row.actual_return_shell = parseFloat((numericValue / contentNo).toFixed(2));
   }
 
-  // 💰 Actual Sale Calculation
-  if (["sold_pcs", "sold_shell", "discount"].includes(field)) {
-    const price = parseFloat(row.selling_price) || 0;
-    const pcs = parseFloat(row.sold_pcs) || 0;
-    const discount = parseFloat(row.discount || row.discount_percent || 0);
-    const rawTotal = pcs * price;
-    row.actual_sale = parseFloat((rawTotal * (1 - discount / 100)).toFixed(2));
-  }
+ // 💰 Actual Sale Calculation (NOW includes shell/empty price!)
+if (["sold_pcs", "sold_shell", "discount"].includes(field)) {
+  const pcsPrice = parseFloat(row.selling_price) || 0;
+  const shellPrice = parseFloat(row.empty_price_shell || 0);
+  const pcs = parseFloat(row.sold_pcs) || 0;
+  const shells = parseFloat(row.sold_shell) || 0;
+  const discount = parseFloat(row.discount || row.discount_percent || 0);
+
+  const contentValue = pcs * pcsPrice;
+  const shellValue = shells * shellPrice;
+  const rawTotal = contentValue + shellValue;
+
+  row.actual_sale = parseFloat((rawTotal * (1 - discount / 100)).toFixed(2));
+}
+
 
   // 📦 Returned With Content (dispatched - sold)
   row.returned_with_content_pcs = (parseFloat(row.dispatched_pcs) || 0) - (parseFloat(row.sold_pcs) || 0);
   row.returned_with_content_shell = (parseFloat(row.dispatched_shell) || 0) - (parseFloat(row.sold_shell) || 0);
 
   // 📉 Discrepancy (Empty)
+  const hasEmptyPrice = parseFloat(row.empty_price_shell || 0) > 0;
+
+if (hasEmptyPrice) {
   row.discrepancy_empties_pc = (parseFloat(row.sold_pcs) || 0) - (parseFloat(row.empty_return_pcs) || 0);
   row.discrepancy_empties_shell = (parseFloat(row.sold_shell) || 0) - (parseFloat(row.empty_return_shell) || 0);
+} else {
+  row.discrepancy_empties_pc = 0;
+  row.discrepancy_empties_shell = 0;
+}
 
     // ⚠️ Discrepancy (Non-Empty) = Returned with content - Actual returned (with content)
   row.discrepancy_full_pcs = row.returned_with_content_pcs - (parseFloat(row.actual_return_pcs) || 0);
@@ -197,6 +245,41 @@ const handleRowChange = (index, field, value) => {
   setRows(updatedRows);
 };
 
+// Compute refundables total
+useEffect(() => {
+  const totalRefundables = rows.reduce((sum, row) => {
+    const shellQty = parseFloat(row.empty_return_shell || 0);
+    const pcsQty = parseFloat(row.empty_return_pcs || 0);
+    const shellPrice = parseFloat(row.empty_price_shell || 0);
+    const pcsPrice = parseFloat(row.empty_price_pc || 0);
+
+    const shellTotal = shellQty * shellPrice;
+    const pcsTotal = pcsQty * pcsPrice;
+
+    return sum + (isNaN(shellTotal) ? 0 : shellTotal) + (isNaN(pcsTotal) ? 0 : pcsTotal);
+  }, 0);
+
+  setRefundablesTotal(totalRefundables.toFixed(2)); // Optional: round to 2 decimals
+}, [rows]);
+
+// Compute expected sale + misc - refundables
+useEffect(() => {
+  const actualSaleTotal = rows.reduce((sum, row) => {
+    const val = parseFloat(row.actual_sale || 0);
+    return sum + (isNaN(val) ? 0 : val);
+  }, 0);
+
+  const totalExpenses = miscItems.reduce((sum, item) => {
+    const val = parseFloat(item.amount || 0);
+    return sum + (isNaN(val) ? 0 : val);
+  }, 0);
+
+  const refundables = parseFloat(refundablesTotal || 0);
+
+  const finalTotal = actualSaleTotal - refundables - totalExpenses;
+  setOverallTotal(finalTotal.toFixed(2));
+
+}, [rows, miscItems, refundablesTotal]);
 
   if (!sale) {
     return (
@@ -442,14 +525,18 @@ const handleRowChange = (index, field, value) => {
 
         </tbody>
       </table>
-      <div className="flex justify-end mt-2 pr-4">
-        <div className="flex items-center gap-2 bg-blue-100 px-4 py-2 rounded shadow text-right">
-          <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>
-          <span className="text-lg font-bold text-blue-800">
-          ₱{(parseFloat(totalAmount) || 0).toLocaleString("en-PH", {minimumFractionDigits: 2,})}
-          </span>
-        </div>
-      </div>
+   <div className="mt-4 space-y-2 text-right">
+  <p>Expected Sale: <span className="font-medium">₱{totalExpectedSale.toFixed(2)}</span></p>
+  <p>Actual Sale: <span className="font-medium">₱{totalActualSale.toFixed(2)}</span></p>
+  <p className="text-red-600"> Expenses - ₱{totalExpenses.toFixed(2)}</p>
+  <p className="text-red-600"> Refundables - ₱{totalRefunds.toFixed(2)}</p>
+  <hr className="my-2 border-t border-gray-300" />
+  <p className="font-bold text-lg">
+    Net Sale (Overall Total): ₱{grandTotal.toFixed(2)}
+  </p>
+</div>
+
+
 
       <div className="md:col-span-2">
         <label className="font-semibold">Remarks:</label>
