@@ -437,7 +437,7 @@ const handleFinalizeSale = async () => {
                         try {
                           const res = await axios.post("http://localhost:8080/api/customers/", {
                             name: newCustomer,
-                            warehouse: selectedWarehouseId,
+                            warehouse: currentWarehouse?.id,
                           });
                           setCustomers((prev) => [...prev, res.data]);
                           setSelectedCustomerId(res.data.id);

@@ -29,6 +29,24 @@ const ProductTable = ({
   const [unitTypes, setUnitTypes] = useState([]);
   
 
+  const handleRemoveRow = (rowIndex) => {
+    const removedProduct = rows[rowIndex];
+
+    // Optional: restore stock if you manage stock levels
+    if (removedProduct.productId && availableStock[removedProduct.productId] !== undefined) {
+      setAvailableStock((prevStock) => ({
+        ...prevStock,
+        [removedProduct.productId]: prevStock[removedProduct.productId] + (removedProduct.actualSale || 0)
+      }));
+    }
+
+    // Remove row from state
+    const updatedRows = rows.filter((_, idx) => idx !== rowIndex);
+    setRows(updatedRows);
+  };
+
+
+
   // Fetch unit types on mount
   useEffect(() => {
     const fetchUnitTypes = async () => {
@@ -140,10 +158,20 @@ const handleProductChange = (index, value) => {
         updatedRows[index].expectedReturnPcsEmpty = 0;
         updatedRows[index].discrepancyShellEmpty = 0;
         updatedRows[index].discrepancyPcsEmpty = 0;
-
+      } else {
+        // ✅ Only run your existing discrepancy logic for returnable products
+        // Example:
+        updatedRows[index].discrepancyShellEmpty = 
+          (updatedRows[index].expectedReturnShellEmpty || 0) -
+          (updatedRows[index].actualReturnShellEmpty || 0);
+        
+        updatedRows[index].discrepancyPcsEmpty = 
+          (updatedRows[index].expectedReturnPcsEmpty || 0) -
+          (updatedRows[index].actualReturnPcsEmpty || 0);
       }
 
-      
+
+
       // Optionally cache to pricingMap
       setPricingMap((prev) => ({
         ...prev,
@@ -265,8 +293,24 @@ const returnedEmptyShell = parseFloat(row.expectedReturnShellEmpty || 0);
 const returnedEmptyPcs = parseFloat(row.expectedReturnPcsEmpty || 0);
 
 // Compute discrepancy for empties
-row.discrepancyPcsEmpty = soldPcs - returnedEmptyPcs;
-row.discrepancyShellEmpty = soldShell - returnedEmptyShell;
+
+// ✅ Check if product is non-returnable
+const isNonReturnable =
+  (parseFloat(row.shellPrice) || 0) === 0 &&
+  (parseFloat(row.bottlePrice) || 0) === 0;
+
+if (isNonReturnable) {
+  // Force everything to zero
+  row.expectedReturnShellEmpty = 0;
+  row.expectedReturnPcsEmpty = 0;
+  row.discrepancyShellEmpty = 0;
+  row.discrepancyPcsEmpty = 0;
+} else {
+  // Normal discrepancy calculation for returnable products
+  row.discrepancyPcsEmpty = soldPcs - returnedEmptyPcs;
+  row.discrepancyShellEmpty = soldShell - returnedEmptyShell;
+}
+
 
 // Compute returned with content
 // Compute returned with content (user can override)
@@ -451,7 +495,10 @@ return (
           <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
           {/*<th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>*/}
           <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
+          <th className="border border-gray-300 py-2 px-1">ACTION</th>
+          
         </tr>
+
         {/* Subheaders */}
         <tr className="bg-gray-200">
           <td className="border border-gray-300 py-1"></td>
@@ -462,16 +509,20 @@ return (
           <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
           <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
           <td className="border border-gray-300 py-1 text-[11px] font-medium">Bottle</td>
-              {Array(3).fill(null).map((_, i) => (
-                <td key={i} className="border border-gray-300 py-1 text-[11px] font-medium">
-                  {i % 2 === 0 ? "Shell" : "PCS"}
-                </td>
-              ))}
-              <td className="border border-gray-300 py-1"></td>
+          {Array(3).fill(null).map((_, i) => (
+            <td key={i} className="border border-gray-300 py-1 text-[11px] font-medium">
+              {i % 2 === 0 ? "Shell" : "PCS"}
+            </td>
+          ))}
           <td className="border border-gray-300 py-1"></td>
           <td className="border border-gray-300 py-1"></td>
+          <td className="border border-gray-300 py-1"></td> {/* Placeholder for Action column */}
+          <td className="border border-gray-300 py-1"></td>
+
         </tr>
       </thead>
+
+
       <tbody>
      {rows.map((row, index) => (
         <tr key={row.id} className="bg-white hover:bg-gray-50 transition duration-150">
@@ -647,8 +698,24 @@ return (
               }
             />
           </td>
+
+          {/* Action Button */}
+          <td className="border border-gray-200 py-1 px-1 text-center">
+            {row.productId && (
+              <button
+                type="button"
+                onClick={() => handleRemoveRow(index)}
+                className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
+              >
+                Remove
+              </button>
+            )}
+          </td>
+
+
       </tr>
     ))}
+    
 
         <tr className="bg-blue-100 font-semibold text-[13px] text-right">
           <td className="py-2 px-1 text-center text-black">TOTAL</td>
@@ -707,9 +774,11 @@ return (
             <td className="border border-gray-300 py-2 px-1 bg-gray-200 text-blue-700 font-bold text-center">
               ₱{isNaN(totalActualSale) ? "0.00" : totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
             </td>
+
+            {/* Empty Action cell for alignment */}
+            <td className="border border-gray-300 py-2 px-1 bg-blue-100"></td>
+
         </tr>
-
-
         </tbody>
       </table>
 
