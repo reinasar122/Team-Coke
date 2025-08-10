@@ -4,7 +4,7 @@ import InvoiceModal from "./InvoiceModal";
 
 
 
-const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount, amountDue, actualSales, products, emptyReturns, emptyDiscrepancies, rows }) => {
+const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount, onSave, amountDue, actualSales, products, emptyReturns, emptyDiscrepancies, rows }) => {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
   const showChange = cashReceived !== "";
@@ -212,25 +212,40 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
           </button>
           <button
             className="bg-blue-600 text-white px-4 py-2 rounded"
-            onClick={() => {
+            onClick={async () => {
               const data = {
                 products,
                 paymentMethod,
-                cashReceived,
+                amount: parseFloat(cashReceived || totalAmount) || 0,
+                cashReceived: parseFloat(cashReceived || 0) || 0,
                 change,
                 amountDue,
-                rows,                    // ✅ pass product summary
+                rows,
                 emptyReturns,
                 emptyDiscrepancies,
                 actualSales,
                 emptiesPriceTotal,
                 totalAmount
-                
               };
-              setInvoiceData(data);              // ✅ store invoice data
-              setShowInvoiceModal(true);         // ✅ show the invoice modal
+
+              // 1️⃣ Send payment object to parent first
+              if (typeof onConfirm === "function") {
+                await new Promise((resolve) => {
+                  onConfirm(data);
+                  resolve();
+                });
+              }
+
+              // 2️⃣ Now call parent's handleSubmit via onSave
+              if (typeof onSave === "function") {
+                await onSave();
+              }
+
+              // 3️⃣ Show invoice after save
+              setInvoiceData(data);
+              setShowInvoiceModal(true);
             }}
-            disabled={paymentMethod === "cash" && parseFloat(cashReceived) < amountDue} // Optional: prevent underpayment
+            disabled={paymentMethod === "cash" && parseFloat(cashReceived) < amountDue}
           >
             Confirm Payment & Generate Invoice
           </button>

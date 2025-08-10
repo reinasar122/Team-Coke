@@ -45,8 +45,8 @@ const MerchandisingSale = () => {
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceData, setInvoiceData] = useState(null); // store invoice info
   
-
-  
+  const [payments, setPayments] = useState([]);
+ 
 
 
 
@@ -144,6 +144,9 @@ const MerchandisingSale = () => {
     }
   }, [currentWarehouse, fetchUsers]);
 
+
+
+
   const [rows, setRows] = useState([
     {
       id: 1,
@@ -156,6 +159,9 @@ const MerchandisingSale = () => {
       discrepancy: 0,
     },
   ]);
+
+
+
 
   // ✅ Only fetch routes and customers here (not users/products)
   useEffect(() => {
@@ -244,10 +250,7 @@ const handleSubmit = async () => {
     transaction_type: parseInt(transactionType),
     route: route ? parseInt(route) : null,
     van: selectedVan ? parseInt(selectedVan) : null,
-    handled_by: (() => {
-      const user = users.find((u) => u.id === parseInt(selectedUser));
-      return user ? `${user.first_name} ${user.last_name}` : null;
-    })(),
+    handled_by: parseInt(selectedUser),
     date_time: new Date().toISOString(),
     expected_sale: parseFloat(totalExpectedSale) || 0,
     actual_sale: parseFloat(totalActualSale) || 0,
@@ -291,9 +294,18 @@ const handleSubmit = async () => {
     misc_items: miscItems.map((item) => ({
       description: item.description,
       amount: parseFloat(item.amount) || 0,
-      receipt_file: item.file,
+      // DO NOT include actual File objects in JSON. See note below.
+      receipt_file: item.file ?? null,
     })),
-    payments: [],
+
+    // include payments created/confirmed by PaymentModal and stored in parent
+    payments: payments.map((p) => ({
+      payment_method: p.paymentMethod || p.payment_method || p.method || "cash",
+      amount: parseFloat(p.amount || p.cashReceived || 0) || 0,
+      change: parseFloat(p.change || 0) || 0,
+      // add extra fields as needed (notes, credit_terms, etc.)
+    })),
+   
   };
 
   console.log("Submitting payload:", payload);
@@ -328,11 +340,18 @@ const handleFinalizeSale = async () => {
   };
 
 
+  // Parent receives payment from PaymentModal and stores it
   const handleConfirmPayment = (paymentData) => {
-  console.log("Payment confirmed:", paymentData);
-  // TODO: Add your logic to save payment to backend, etc.
-  setIsPaymentModalOpen(false);
-};
+    console.log("Payment confirmed (parent):", paymentData);
+
+    // Add to payments array kept in parent state
+    setPayments((prev) => [...prev, paymentData]);
+
+    // Do NOT forcibly close the modal here if PaymentModal itself shows the InvoiceModal.
+    // PaymentModal can call onClose when it wants to finish; if you prefer parent to
+    // close it immediately, uncomment the next line:
+    // setIsPaymentModalOpen(false);
+  };
 
 
 
@@ -608,7 +627,10 @@ const handleFinalizeSale = async () => {
       <PaymentModal
         open={isPaymentModalOpen}
         onClose={handleClosePayment}
-        onConfirm={handleConfirmPayment}
+        onConfirm={(paymentData) => {
+    // store payment in parent
+    setPayments((prev) => [...prev, paymentData]);
+  }}
         rows={rows}  // ✅ pass sold items
         products={products} // optional
         amountDue={totalAmount}
@@ -621,6 +643,7 @@ const handleFinalizeSale = async () => {
         customerName={customerName}
         handledBy={handledBy}
         totalAmount={totalAmount}
+        onSave={handleSubmit}
       />
 
     </div>
