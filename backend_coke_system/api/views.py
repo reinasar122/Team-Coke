@@ -517,99 +517,159 @@ class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CustomerSerializer
 
 
-# Merchandising Views
+# ------------------------------------------------------------
+# MerchandisingSale (summary list) – simple list/create/update
+# ------------------------------------------------------------
 class MerchandisingSaleViewSet(viewsets.ModelViewSet):
-    queryset = MerchandisingSale.objects.all()
+    queryset = MerchandisingSale.objects.all().order_by("-id")
     serializer_class = MerchandisingSaleSerializer
 
+    # Totals are better computed on the backend that creates this record,
+    # but if you want to accept client-provided numbers, keep perform_*.
     def perform_create(self, serializer):
-        # You can compute the totals here if needed
         data = self.request.data
-
-        trading_total = data.get("total_trading_amount", 0)
-        expenses_total = data.get("total_expenses_amount", 0)
-
         serializer.save(
-            total_trading_amount=trading_total,
-            total_expenses_amount=expenses_total
+            total_trading_amount=data.get("total_trading_amount", 0) or 0,
+            total_expenses_amount=data.get("total_expenses_amount", 0) or 0
         )
 
     def perform_update(self, serializer):
         data = self.request.data
-
-        trading_total = data.get("total_trading_amount", 0)
-        expenses_total = data.get("total_expenses_amount", 0)
-
         serializer.save(
-            total_trading_amount=trading_total,
-            total_expenses_amount=expenses_total
+            total_trading_amount=data.get("total_trading_amount", 0) or 0,
+            total_expenses_amount=data.get("total_expenses_amount", 0) or 0
         )
 
+
+
+# ------------------------------------------------------------
+# Merchandising CRUD (nested create handled by serializer)
+# ------------------------------------------------------------
 class MerchandisingListCreateView(generics.ListCreateAPIView):
     serializer_class = MerchandisingSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_queryset(self):
+        qs = Merchandising.objects.select_related(
+            "transaction_type", "route", "van", "warehouse"
+        ).prefetch_related(
+            "items", "misc_items", "payments"
+        ).order_by("-id")
         warehouse_id = get_user_warehouse(self.request)
         if warehouse_id:
-            return Merchandising.objects.filter(warehouse=warehouse_id)
-        return Merchandising.objects.all()
+            qs = qs.filter(warehouse_id=warehouse_id)
+        return qs
 
     def perform_create(self, serializer):
+        # Always attach warehouse from logged-in user (if present)
         warehouse_id = get_user_warehouse(self.request)
         if warehouse_id:
             serializer.save(warehouse_id=warehouse_id)
         else:
             serializer.save()
 
+
+
 class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Merchandising.objects.all()
+    queryset = Merchandising.objects.select_related(
+        "transaction_type", "route", "van", "warehouse"
+    ).prefetch_related("items", "misc_items", "payments")
     serializer_class = MerchandisingSerializer
+
 
 class MerchandisingListView(generics.ListAPIView):
     serializer_class = MerchandisingSerializer
 
-@api_view(['GET'])
-def merchandising_sales_list(request):
-    sales = MerchandisingSale.objects.all().order_by('-created_at')  # type: ignore # Optional: filter by user or status
-    serializer = MerchandisingSaleSerializer(sales, many=True)
-    return Response(serializer.data)
     def get_queryset(self):
+        qs = Merchandising.objects.select_related(
+            "transaction_type", "route", "van", "warehouse"
+        ).prefetch_related("items", "misc_items", "payments").order_by("-id")
         warehouse_id = get_user_warehouse(self.request)
         if warehouse_id:
-            return Merchandising.objects.filter(warehouse=warehouse_id)
-        return Merchandising.objects.all()
+            qs = qs.filter(warehouse_id=warehouse_id)
+        return qs
 
+
+
+
+@api_view(['GET'])
+def merchandising_sales_list(request):
+    sales = MerchandisingSale.objects.all().order_by('-id')
+    serializer = MerchandisingSaleSerializer(sales, many=True)
+    return Response(serializer.data)
+
+
+# ------------------------------------------------------------
+# Next MSP number preview (mirrors model save() logic)
+# ------------------------------------------------------------
 class NextMspNoView(APIView):
+    """
+    Query params:
+      - transaction_type: int (required)
+      - warehouse: int (required for correct scoping)
+    """
     def get(self, request):
-        transaction_type_id = request.query_params.get("transaction_type")
+        tt_id = request.query_params.get("transaction_type")
+        warehouse_id = request.query_params.get("warehouse")
 
-        if not transaction_type_id:
-            return Response({"detail": "Transaction type is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not tt_id:
+            return Response({"detail": "Transaction type is required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not warehouse_id:
+            return Response({"detail": "Warehouse is required."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            transaction_type = TransactionType.objects.get(id=transaction_type_id)
+            tt = TransactionType.objects.get(id=tt_id)
         except TransactionType.DoesNotExist:
-            return Response({"detail": "Invalid transaction type ID."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid transaction type ID."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        # generate and return MSP number...
-        msp_no = f"{transaction_type.name[:2].upper()}-001"
-        return Response({"msp_no": msp_no})
+        tt_name = (tt.name or "").strip().lower()
+        today = timezone.localdate()
+
+        # Prefix helper (kept inline to avoid import loops)
+        prefix = "WA" if tt_name == "warehouse" else ("VA" if tt_name == "van load" else "XX")
+
+        if tt_name == "warehouse":
+            # Reuse today's WA number for this warehouse if exists, else WA-0001
+            first_today = Merchandising.objects.filter(
+                warehouse_id=warehouse_id,
+                transaction_type=tt,
+                date_time__date=today
+            ).order_by("id").first()
+            msp_no = first_today.msp_no if first_today else f"{prefix}-0001"
+            return Response({"msp_no": msp_no})
+
+        if tt_name == "van load":
+            # Peek the next number without incrementing the sequence
+            seq = MSPSequence.objects.filter(
+                date=today, warehouse_id=warehouse_id, transaction_type=tt
+            ).first()
+            next_num = (seq.last_number + 1) if seq else 1
+            msp_no = f"{prefix}-{next_num:04d}"
+            return Response({"msp_no": msp_no})
+
+        # Fallback
+        return Response({"msp_no": f"{prefix}-0001"})
 
 
+# ------------------------------------------------------------
+# Stock endpoints (warehouse-scoped, safe math)
+# ------------------------------------------------------------
 class StockAvailabilityView(APIView):
     def get(self, request, product_id):
         warehouse_id = get_user_warehouse(request)
-        
         try:
             if warehouse_id:
-                stock = Stock.objects.get(product_id=product_id, warehouse=warehouse_id)
+                stock = Stock.objects.get(product_id=product_id, warehouse_id=warehouse_id)
             else:
-                stock = Stock.objects.get(product_id=product_id)
-                
+                stock = Stock.objects.filter(product_id=product_id).order_by("-id").first()
+                if not stock:
+                    raise Stock.DoesNotExist
             return Response({
                 "product_id": product_id,
-                "quantity_available": stock.quantity_available
+                "quantity_available": int(stock.quantity_available or 0)
             })
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -618,21 +678,26 @@ class StockAvailabilityView(APIView):
 class UpdateStockView(APIView):
     def put(self, request, product_id):
         warehouse_id = get_user_warehouse(request)
-        
         try:
             if warehouse_id:
-                stock = Stock.objects.get(product_id=product_id, warehouse=warehouse_id)
+                stock = Stock.objects.get(product_id=product_id, warehouse_id=warehouse_id)
             else:
-                stock = Stock.objects.get(product_id=product_id)
-                
-            quantity_sold = request.data.get('quantity_available')
-            stock.quantity_available -= quantity_sold
-            stock.save()
+                stock = Stock.objects.filter(product_id=product_id).order_by("-id").first()
+                if not stock:
+                    raise Stock.DoesNotExist
 
-            return Response({"message": "Stock updated successfully"}, status=status.HTTP_200_OK)
+            try:
+                delta = int(request.data.get('quantity_available', 0))
+            except (TypeError, ValueError):
+                return Response({"error": "Invalid quantity."}, status=status.HTTP_400_BAD_REQUEST)
 
-        except (ValueError, TypeError):
-            return Response({"error": "Invalid quantity."}, status=status.HTTP_400_BAD_REQUEST)
+            new_qty = int(stock.quantity_available or 0) - max(delta, 0)
+            if new_qty < 0:
+                return Response({"error": "Insufficient stock."}, status=status.HTTP_400_BAD_REQUEST)
+
+            stock.quantity_available = new_qty
+            stock.save(update_fields=["quantity_available"])
+            return Response({"message": "Stock updated", "new_quantity": new_qty}, status=status.HTTP_200_OK)
 
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -641,47 +706,50 @@ class UpdateStockView(APIView):
 @api_view(['PATCH'])
 def restore_stock(request, pk):
     warehouse_id = get_user_warehouse(request)
-    
     try:
         if warehouse_id:
-            stock = Stock.objects.get(product_id=pk, warehouse=warehouse_id)
+            stock = Stock.objects.get(product_id=pk, warehouse_id=warehouse_id)
         else:
-            stock = Stock.objects.get(product_id=pk)
-            
-        quantity = int(request.data.get('quantity', 0))
+            stock = Stock.objects.filter(product_id=pk).order_by("-id").first()
+            if not stock:
+                raise Stock.DoesNotExist
 
-        if quantity <= 0:
+        try:
+            qty = int(request.data.get('quantity', 0))
+        except (TypeError, ValueError):
+            return Response({'error': 'Invalid quantity.'}, status=400)
+
+        if qty <= 0:
             return Response({'error': 'Quantity must be greater than zero.'}, status=400)
 
-        stock.quantity_available += quantity
-        stock.save()
+        stock.quantity_available = int(stock.quantity_available or 0) + qty
+        stock.save(update_fields=["quantity_available"])
         return Response({'status': 'restored', 'new_quantity': stock.quantity_available})
 
-    except (ValueError, TypeError):
-        return Response({'error': 'Invalid quantity.'}, status=400)
     except Stock.DoesNotExist:
         return Response({'error': 'Stock not found'}, status=404)
 
 
-
-
-# MerchandisingItem Views
+# ------------------------------------------------------------
+# MerchandisingItem (optional simple endpoints)
+# ------------------------------------------------------------
 class MerchandisingItemListCreateView(generics.ListCreateAPIView):
-    queryset = MerchandisingItem.objects.all()
+    queryset = MerchandisingItem.objects.select_related("merchandising", "product").all()
     serializer_class = MerchandisingItemSerializer
+
 
 class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = MerchandisingItem.objects.all()
+    queryset = MerchandisingItem.objects.select_related("merchandising", "product").all()
     serializer_class = MerchandisingItemSerializer
-
-class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
-    queryset = MiscellaneousItem.objects.all()
-    serializer_class = MiscellaneousItemSerializer
-    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
 class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MiscellaneousItem.objects.all()
     serializer_class = MiscellaneousItemSerializer
+
+class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
+    queryset = MiscellaneousItem.objects.all()
+    serializer_class = MiscellaneousItemSerializer
+
 
 class PaymentListCreateView(generics.ListCreateAPIView):
     queryset = Payment.objects.all()
