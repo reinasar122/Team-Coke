@@ -224,8 +224,13 @@ const MerchandisingSale = () => {
 
 
 const handleSubmit = async () => {
-  const isVanLoad = parseInt(transactionType) === 1;
+  
   const warehouseId = currentWarehouse?.id;
+
+  // Derive van-load flag from the LABEL, not the numeric id
+  const isVanLoad =
+    (selectedTransactionTypeName || "").trim().toLowerCase() === "van load";
+
 
   // ✅ VALIDATION BEFORE SUBMIT
   if (!warehouseId) {
@@ -248,8 +253,9 @@ const handleSubmit = async () => {
     msp_no: mspNo,
     warehouse: Number(warehouseId) || null,
     transaction_type: parseInt(transactionType),
-    route: route ? parseInt(route) : null,
-    van: selectedVan ? parseInt(selectedVan) : null,
+    route: isVanLoad && route ? parseInt(route) : null,
+    van: isVanLoad && selectedVan ? parseInt(selectedVan) : null,
+
     handled_by: parseInt(selectedUser),
     date_time: new Date().toISOString(),
     expected_sale: parseFloat(totalExpectedSale) || 0,
@@ -261,12 +267,9 @@ const handleSubmit = async () => {
     remarks: "",
     total_trading_amount: parseFloat(totalAmount) || 0,
     total_expenses_amount: calculateTotalExpenses(),
+
     items: rows
-      .filter((r) =>
-        isVanLoad
-          ? r.productId && !isNaN(parseFloat(r.expectedSale))
-          : r.productId
-      )
+      .filter(r => r.productId) // keep only rows with a product
       .map((row) => {
         const item = {
           product: row.productId ? parseInt(row.productId) : null,
