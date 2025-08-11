@@ -182,16 +182,21 @@ const MerchandisingSale = () => {
       .catch(err => console.error("Failed to fetch transaction types:", err));
   }, []);
 
+
   useEffect(() => {
-    if (transactionType && selectedTransactionTypeName) {
-      axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
-        params: { transaction_type: transactionType }
-      }).then(res => {
-        console.log("✅ MSP Prefix check:", selectedTransactionTypeName, res.data.msp_no);
-        setMspNo(res.data.msp_no);
-      });
-    }
-  }, [transactionType, selectedTransactionTypeName]);
+    const warehouseId = getCurrentWarehouse();
+    if (!transactionType || !selectedTransactionTypeName || !warehouseId) return;
+
+    axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
+      params: { 
+        transaction_type: transactionType,
+        warehouse: warehouseId          // ✅ include warehouse scope
+      }
+    })
+    .then(res => setMspNo(res.data.msp_no))
+    .catch(err => console.error("MSP preview error:", err));
+  }, [transactionType, selectedTransactionTypeName, currentWarehouse]);  // ✅ include warehouse change
+
 
   const [dateTime, setDateTime] = useState(() => {
     const date = new Date();
@@ -217,8 +222,9 @@ const MerchandisingSale = () => {
   const customer = customers.find((c) => c.id === selectedCustomerId);
   const customerName = customer ? customer.name : "Walk-in";
 
-  const handledByUser = users.find((user) => user.id === selectedUser);
-  const handledBy = handledByUser ? handledByUser.name : "";
+  const handledByUser = users.find(u => String(u.id) === String(selectedUser));
+  const handledBy = handledByUser ? `${handledByUser.first_name} ${handledByUser.last_name}`.trim() : "";
+
 
 
 
@@ -250,50 +256,56 @@ const handleSubmit = async () => {
   }
 
   const payload = {
+    // msp_no is read-only on backend; you may omit it, but keeping it is fine
     msp_no: mspNo,
-    warehouse: Number(warehouseId) || null,
+    warehouse: Number(currentWarehouse?.id) || null,
     transaction_type: parseInt(transactionType),
-    route: isVanLoad && route ? parseInt(route) : null,
-    van: isVanLoad && selectedVan ? parseInt(selectedVan) : null,
+    route: (selectedTransactionTypeName.toLowerCase() === "van load" && route) ? parseInt(route) : null,
+    van: (selectedTransactionTypeName.toLowerCase() === "van load" && selectedVan) ? parseInt(selectedVan) : null,
 
-    handled_by: parseInt(selectedUser),
-    date_time: new Date().toISOString(),
-    expected_sale: parseFloat(totalExpectedSale) || 0,
-    actual_sale: parseFloat(totalActualSale) || 0,
-    miscellaneous: calculateTotalExpenses(),
+    handled_by: handledBy,                 // ✅ send a string
+    date_time: transactionDate ? new Date(transactionDate).toISOString() : new Date().toISOString(),
+
+    expected_sale: Number(totalExpectedSale) || 0,
+    actual_sale: Number(totalActualSale) || 0,
+    miscellaneous: Number(calculateTotalExpenses()) || 0,
     payment_method: "",
     invoice_no: "",
-    status: isVanLoad ? "Pending" : "Complete",
+    status: (selectedTransactionTypeName === "Van Load") ? "Pending" : "Complete",
     remarks: "",
-    total_trading_amount: parseFloat(totalAmount) || 0,
-    total_expenses_amount: calculateTotalExpenses(),
+
+    // These two are only for MerchandisingSale summary; OK to keep for now
+    total_trading_amount: Number(totalAmount) || 0,
+    total_expenses_amount: Number(calculateTotalExpenses()) || 0,
+
 
     items: rows
-      .filter(r => r.productId) // keep only rows with a product
-      .map((row) => {
-        const item = {
-          product: row.productId ? parseInt(row.productId) : null,
-          dispatched_pcs: parseInt(row.dispatchedPcs) || 0,
-          dispatched_shell: parseInt(row.dispatchedShell) || 0,
-          actual_return_pcs: parseInt(row.expectedReturnPcsNonempty) || 0,
-          actual_return_shell: parseInt(row.expectedReturnShellNonempty) || 0,
-          discrepancy_empties_pc: parseInt(row.discrepancyPcsEmpty) || 0,
-          discrepancy_empties_shell: parseInt(row.discrepancyShellEmpty) || 0,
-          discrepancy_full_pcs: parseInt(row.discrepancyPcsNonempty) || 0,
-          discrepancy_full_shell: parseInt(row.discrepancyShellNonempty) || 0,
-          discount_percent: parseFloat(row.discount) || 0,
-          expected_sale: parseFloat(row.expectedSale) || 0,
-          actual_sale: parseFloat(row.actualSale) || 0,
-        };
+    .filter(r => r.productId)
+    .map(row => {
+      const base = {
+        product: parseInt(row.productId),
+        dispatched_pcs: parseInt(row.dispatchedPcs) || 0,
+        dispatched_shell: parseInt(row.dispatchedShell) || 0,
+        actual_return_pcs: parseInt(row.expectedReturnPcsNonempty) || 0,
+        actual_return_shell: parseInt(row.expectedReturnShellNonempty) || 0,
+        discrepancy_empties_pc: parseInt(row.discrepancyPcsEmpty) || 0,
+        discrepancy_empties_shell: parseInt(row.discrepancyShellEmpty) || 0,
+        discrepancy_full_pcs: parseInt(row.discrepancyPcsNonempty) || 0,
+        discrepancy_full_shell: parseInt(row.discrepancyShellNonempty) || 0,
+        discount_percent: parseFloat(row.discount) || 0,
+        expected_sale: parseFloat(row.expectedSale) || 0,
+        actual_sale: parseFloat(row.actualSale) || 0,
+      };
+      // For Warehouse we include sold + empties returned
+      if (selectedTransactionTypeName.toLowerCase() === "warehouse") {
+        base.sold_pcs = parseInt(row.soldPcs) || 0;
+        base.sold_shell = parseInt(row.soldShell) || 0;
+        base.empty_return_pcs = parseInt(row.expectedReturnPcsEmpty) || 0;
+      }
+      return base;
+    }),
 
-        if (!isVanLoad) {
-          item.sold_pcs = parseInt(row.soldPcs) || 0;
-          item.sold_shell = parseInt(row.soldShell) || 0;
-          item.empty_return_pcs = parseInt(row.expectedReturnPcsEmpty) || 0;
-        }
 
-        return item;
-      }),
     misc_items: miscItems.map((item) => ({
       description: item.description,
       amount: parseFloat(item.amount) || 0,
