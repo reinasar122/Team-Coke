@@ -304,6 +304,11 @@ class Customer(models.Model):
         return self.name
     
 
+
+def _local_day(dt):
+    # Equivalent to your astimezone logic, but clearer/shorter
+    return timezone.localdate(dt or timezone.now())  
+    
 # ------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------

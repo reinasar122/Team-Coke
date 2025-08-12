@@ -120,7 +120,18 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# settings.py
+TIME_ZONE = "Asia/Manila"   # local timezone
+USE_TZ = True               # store UTC in DB, convert on input/output
+
+# DRF: return proper ISO 8601 with timezone (e.g., "...Z")
+REST_FRAMEWORK = {
+    # Other settings...
+    "DATETIME_FORMAT": None,  # ISO-8601 with TZ (default, but set explicitly)
+    # Optional: accept naive inputs as Manila time (safety net)
+    # "DATETIME_INPUT_FORMATS": ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"]
+}
+
 
 USE_I18N = True
 

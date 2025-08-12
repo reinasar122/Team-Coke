@@ -445,6 +445,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     msp_no = serializers.CharField(read_only=True)  # ← server owns MSP
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
     customer_name = serializers.SerializerMethodField()
+    date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
 
     # Nested
     items = MerchandisingItemSerializer(many=True)
