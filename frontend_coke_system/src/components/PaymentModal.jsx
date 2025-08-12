@@ -86,7 +86,10 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
           <div className="border p-4 rounded space-y-2">
             <div><strong>Actual Sales:</strong> ₱{actualSales.toFixed(2)}</div>
             <div className="ml-4">- Empties Price Total: ₱{Number(emptiesPriceTotal || 0).toFixed(2)}</div>
-            <div className="ml-4">- Empty Returns: ₱-{emptyReturns.toFixed(2)}</div>
+          <div className="ml-4">
+            - Empty Returns: ₱-{parseFloat(emptyReturns || 0).toFixed(2)}
+          </div>
+
             <div className="ml-4">
                 - Empty Discrepancies: ₱{parseFloat(emptyDiscrepancies || 0).toFixed(2)}
             </div>

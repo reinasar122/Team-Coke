@@ -437,7 +437,7 @@ const handleFinalizeSale = async () => {
                         try {
                           const res = await axios.post("http://localhost:8080/api/customers/", {
                             name: newCustomer,
-                            warehouse: selectedWarehouseId,
+                            warehouse: currentWarehouse?.id,
                           });
                           setCustomers((prev) => [...prev, res.data]);
                           setSelectedCustomerId(res.data.id);
@@ -571,7 +571,6 @@ const handleFinalizeSale = async () => {
         setRows={setRows}
         products={products}
         warehouseId={currentWarehouse}
-        setTotalActualSale={setTotalActualSale}
         setTotalExpectedSale={setTotalExpectedSale}
       />
     ) : (
@@ -612,7 +611,7 @@ const handleFinalizeSale = async () => {
         onConfirm={handleConfirmPayment}
         rows={rows}  // ✅ pass sold items
         products={products} // optional
-        amountDue={totalExpectedSale}
+        amountDue={totalAmount}
         actualSales={totalActualSale}
         emptyReturns={refundablesTotal}
         emptiesPriceTotal={emptiesPriceTotal}
@@ -622,6 +621,7 @@ const handleFinalizeSale = async () => {
         customerName={customerName}
         handledBy={handledBy}
         totalAmount={totalAmount}
+        transactionType={transactionType}
       />
 
     </div>

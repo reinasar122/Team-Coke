@@ -160,24 +160,11 @@ const handleRowChange = (index, field, value) => {
     row.dispatchedShell = (parseFloat(value || 0) / conversion).toFixed(2);
   }
 
-  // 💰 Expected sale calculation (now excludes refundables)
-  const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
-  const dispatchedShell = parseFloat(row.dispatchedShell || 0);
-  const returnedWithContentPcs = parseFloat(row.return_with_content_pcs || 0);
-  const returnedWithContentShell = parseFloat(row.return_with_content_shell || 0);
-  const refundablePcs = parseFloat(row.refundable_pcs || 0);
-  const refundableShell = parseFloat(row.refundable_shell || 0);
+ // 💰 Expected sale calculation
+// 💰 Expected sale calculation
+const dispatchedPcs = parseFloat(row.dispatchedPcs || 0);
 
-  const returnPcsTotal = returnedWithContentPcs + (returnedWithContentShell * conversion);
-  const refundableTotal = refundablePcs + (refundableShell * conversion);
-
-  const netContentPcs = dispatchedPcs - returnPcsTotal - refundableTotal;
-  const contentValue = netContentPcs * contentPrice;
-
-  const netShells = dispatchedShell - returnedWithContentShell - refundableShell;
-  const emptyValue = netShells * emptyPrice;
-
-  row.expectedSale = parseFloat((contentValue + emptyValue).toFixed(2));
+row.expectedSale = parseFloat((contentPrice * dispatchedPcs).toFixed(2));
 
 
   setRows(updatedRows);
@@ -187,10 +174,9 @@ const handleRowChange = (index, field, value) => {
     0
   );
 
+  // 🔄 Update totals in parent
   setTotalExpectedSale(expectedTotal);
 };
-
-
 
   const addRow = () => {
     setRows([
