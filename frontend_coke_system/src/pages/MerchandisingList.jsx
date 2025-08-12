@@ -7,6 +7,22 @@ const MerchandisingList = () => {
   const navigate = useNavigate();
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
+
+  const formatToManila = (isoString) => {
+  if (!isoString) return "";
+  const d = new Date(isoString); // backend returns ISO (UTC)
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+};
+
+
   // Get current warehouse from localStorage or user data
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -106,7 +122,7 @@ const MerchandisingList = () => {
                 onClick={() => handleRowClick(sale)}
               >
                 <td className="p-2">{sale.msp_no}</td>
-                <td className="p-2">{sale.date_time}</td>
+                <td className="p-2">{formatToManila(sale.date_time)}</td>
                 <td className="p-2">{sale.transaction_type_name}</td>
                 <td className="p-2">{sale.handled_by}</td>
                 <td className="p-2">

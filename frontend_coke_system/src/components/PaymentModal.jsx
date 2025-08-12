@@ -4,7 +4,7 @@ import InvoiceModal from "./InvoiceModal";
 
 
 
-const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount, onSave, amountDue, actualSales, products, emptyReturns, emptyDiscrepancies, rows }) => {
+const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount, onSave, amountDue, actualSales, products, emptyReturns, emptyDiscrepancies, rows, mspNo, customerName, handledBy, transactionDate }) => {
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
   const showChange = cashReceived !== "";
@@ -33,6 +33,20 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
   if (!open) return null;
 
 
+  const formatLocalToManila = (localStr) => {
+  if (!localStr) return "";
+  // localStr is "YYYY-MM-DDTHH:mm" from <input type="datetime-local">
+  const d = new Date(localStr); // interpreted as local
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d);
+};
   
 
   return (
@@ -41,14 +55,15 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
         <div className="border-b pb-2 mb-4">
           <h2 className="text-xl font-bold">Payment Confirmation</h2>
         </div>
+        
 
         {/* Header Info */}
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><strong>MSP No.</strong>: WA-001</div>
-          <div><strong>Date</strong>: 08/02/2025 09:13 PM</div>
-          <div><strong>Customer</strong>: Walk-in</div>
-          <div><strong>Handled By</strong>: Miyaku Kagura</div>
-        </div>
+        <div><strong>MSP No.</strong>: {mspNo || "—"}</div>
+        <div><strong>Date</strong>: {formatLocalToManila(transactionDate) || "—"}</div>
+        <div><strong>Customer</strong>: {customerName || "Walk-in"}</div>
+        <div><strong>Handled By</strong>: {handledBy || "—"}</div>
+      </div>
 
 
         {/* Product Summary */}

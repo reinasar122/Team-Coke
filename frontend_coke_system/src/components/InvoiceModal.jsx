@@ -1,6 +1,9 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
+
 
 const InvoiceModal = ({ onClose, invoiceData }) => {
+  const navigate = useNavigate();
   const {
     paymentMethod,
     cashReceived,
@@ -13,6 +16,13 @@ const InvoiceModal = ({ onClose, invoiceData }) => {
     emptyDiscrepancies,
     emptiesPriceTotal
   } = invoiceData;
+
+  const handleClose = () => {
+    // Close modal first
+    if (onClose) onClose();
+    // Navigate to MerchandisingSale
+    navigate("/merchandising-sale");
+  };
 
 
   return (
@@ -197,7 +207,7 @@ const InvoiceModal = ({ onClose, invoiceData }) => {
         {/* Close Button */}
         <div className="text-right mt-6">
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
           >
             Close

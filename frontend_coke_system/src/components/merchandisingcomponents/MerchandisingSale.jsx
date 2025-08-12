@@ -9,6 +9,15 @@ import PaymentModal from "../PaymentModal";
 import InvoiceModal from "../InvoiceModal";
 
 
+
+ // Convert a Date to a value usable by <input type="datetime-local"> in LOCAL time
+  const toDatetimeLocalValue = (date = new Date()) => {
+    const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return d.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
+  };
+
+
+
 const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [users, setUsers] = useState([]);
@@ -28,7 +37,7 @@ const MerchandisingSale = () => {
   const [activeTab, setActiveTab] = useState("Trading");
   const [editMode, setEditMode] = useState(false);
   const navigate = useNavigate();
-  const [transactionDate, setTransactionDate] = useState("");
+  const [transactionDate, setTransactionDate] = useState(() => toDatetimeLocalValue());
   const [transactionType, setTransactionType] = useState("");
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
   const [transactionTypes, setTransactionTypes] = useState([]);
@@ -44,11 +53,9 @@ const MerchandisingSale = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceData, setInvoiceData] = useState(null); // store invoice info
+ 
   
   const [payments, setPayments] = useState([]);
- 
-
-
 
 
   const getCurrentWarehouse = () => {
@@ -198,21 +205,16 @@ const MerchandisingSale = () => {
   }, [transactionType, selectedTransactionTypeName, currentWarehouse]);  // ✅ include warehouse change
 
 
-  const [dateTime, setDateTime] = useState(() => {
-    const date = new Date();
-    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-    return date.toISOString().slice(0, 16);
-  });
-
-    useEffect(() => {
-    const now = new Date();
-    const formatted = now.toISOString().slice(0, 16); // Format: "YYYY-MM-DDTHH:MM"
-    setTransactionDate(formatted);
+  useEffect(() => {
+    // optional: keep it synced to "now" when page opens
+    setTransactionDate(toDatetimeLocalValue(new Date()));
   }, []);
 
-  const calculateTotalExpenses = () => {
-    return miscItems.reduce((total, item) => total + parseFloat(item.amount || 0), 0);
-  };
+
+
+    const calculateTotalExpenses = () => {
+      return miscItems.reduce((total, item) => total + parseFloat(item.amount || 0), 0);
+    };
 
   const handleBack = () => {
     navigate("/merchandising-list");
@@ -255,6 +257,10 @@ const handleSubmit = async () => {
     }
   }
 
+  // ✅ Convert local input time to UTC ISO before sending
+  const utcIso = new Date(transactionDate).toISOString();
+
+
   const payload = {
     // msp_no is read-only on backend; you may omit it, but keeping it is fine
     msp_no: mspNo,
@@ -264,7 +270,8 @@ const handleSubmit = async () => {
     van: (selectedTransactionTypeName.toLowerCase() === "van load" && selectedVan) ? parseInt(selectedVan) : null,
 
     handled_by: handledBy,                 // ✅ send a string
-    date_time: transactionDate ? new Date(transactionDate).toISOString() : new Date().toISOString(),
+    date_time: utcIso,
+
 
     expected_sale: Number(totalExpectedSale) || 0,
     actual_sale: Number(totalActualSale) || 0,
@@ -659,6 +666,7 @@ const handleFinalizeSale = async () => {
         handledBy={handledBy}
         totalAmount={totalAmount}
         onSave={handleSubmit}
+        transactionDate={transactionDate}  
       />
 
     </div>
