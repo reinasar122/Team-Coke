@@ -21,7 +21,7 @@ const InvoiceModal = ({ onClose, invoiceData }) => {
     // Close modal first
     if (onClose) onClose();
     // Navigate to MerchandisingSale
-    navigate("/merchandising-sale");
+    navigate("/merchandising-sale", { replace: true, state: { reset: true } });
   };
 
 

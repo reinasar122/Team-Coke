@@ -267,13 +267,19 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
         </div>
       </div>
 
-      {/* ✅ Render InvoiceModal */}
+      // inside PaymentModal render:
       {showInvoiceModal && (
         <InvoiceModal
-          onClose={() => setShowInvoiceModal(false)}
+          onClose={() => {
+            // 1) hide the invoice
+            setShowInvoiceModal(false);
+            // 2) close the payment modal (bubble to parent)
+            if (typeof onClose === "function") onClose();
+          }}
           invoiceData={invoiceData}
         />
       )}
+
     </div>
   );
 };

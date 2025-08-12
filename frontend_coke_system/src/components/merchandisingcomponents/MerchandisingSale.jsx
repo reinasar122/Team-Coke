@@ -58,6 +58,25 @@ const MerchandisingSale = () => {
   const [payments, setPayments] = useState([]);
 
 
+ 
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.reset === true) {
+      // reset your form state here (rows, totals, selected values, etc.)
+      setRows([{ id: 1, productId: "", priceId: null, dispatched: 0, sold: 0, expected_sale: 0, actual_sale: 0, discrepancy: 0 }]);
+      setSelectedUser(null);
+      setSelectedCustomerId("");
+      setRoute("");
+      setSelectedVan("");
+      setPayments([]);
+      // ...any other fields you want to clear
+    }
+  }, [location.state]);
+
+
+
+
   const getCurrentWarehouse = () => {
     const userData = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
