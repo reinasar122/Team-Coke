@@ -13,6 +13,9 @@ const MerchandisingSaleDetailPage = () => {
   const [handlerInfo, setHandlerInfo] = useState(null);
   const [warehouseStock, setWarehouseStock] = useState([]);
   const [warehouseUsers, setWarehouseUsers] = useState([]);
+// helpers
+  const isVanLoad = (sale?.transaction_type_name || '').toLowerCase() === 'van load';
+  const isComplete = (sale?.status || '').toLowerCase() === 'complete';
 
   // Get current warehouse from localStorage or user data
   useEffect(() => {
@@ -244,12 +247,13 @@ const MerchandisingSaleDetailPage = () => {
         </div>
       </div>
 
-      {/* ✅ Top bar with Receive Return button */}
       <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
-        {sale.transaction_type_name === "Van Load" && (
+        {isVanLoad && !isComplete && (
           <button
             className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition"
-            onClick={() => navigate('/van-load-update', { state: { id: sale.id, warehouse: currentWarehouse } })}
+            onClick={() =>
+              navigate('/van-load-update', { state: { id: sale.id, warehouse: currentWarehouse } })
+            }
           >
             Receive Return
           </button>
