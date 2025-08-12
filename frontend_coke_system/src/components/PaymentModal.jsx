@@ -1,26 +1,59 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import InvoiceModal from "./InvoiceModal";
 
+const PaymentModal = ({
+  open,
+  onClose,
+  onConfirm,
+  onSave,
+  onPaymentSuccess, // 👈 NEW: parent callback to save Van Load & mark complete
 
+  // data
+  rows = [],
 
+  // money coming from parent (falls back to recompute if missing)
+  amountDue = 0,
+  totalAmount = 0,
+  actualSales = 0,
+  emptiesPriceTotal = 0,
+  emptyReturns = 0,
+  emptyDiscrepancies = 0,
 
-const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount, amountDue, actualSales, products, emptyReturns, emptyDiscrepancies, rows }) => {
+  // header info
+  mspNo,
+  customerName,
+  handledBy,
+  transactionDate,
+
+  // Van Load extras
+  transactionTypeName, // "Warehouse" | "Van Load"
+  expensesTotal = 0,
+  remarks = "",
+  onRemarksChange,
+}) => {
+  // ------------ hooks (must be before any early return) ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
-  const showChange = cashReceived !== "";
-  const change = Math.max(parseFloat(cashReceived || 0) - amountDue, 0);
-  
-  const [invoiceData, setInvoiceData] = useState(null);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-
   const [paymentTerms, setPaymentTerms] = useState("30 Days");
   const [creditNotes, setCreditNotes] = useState("");
+  const [invoiceData, setInvoiceData] = useState(null);
+  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
+  const [submitting, setSubmitting] = useState(false); // 👈 optional guard
+
+  // ------------ helpers ------------
+  const n = (v) => Number(v || 0);
+  const fmt = (v) => n(v).toFixed(2);
+
+  const isVanLoad = (transactionTypeName || "").toLowerCase() === "van load";
+  const isWarehouse = (transactionTypeName || "").toLowerCase() === "warehouse";
+
+  const showChange = cashReceived !== "";
+  const change = Math.max(n(cashReceived) - n(amountDue), 0);
 
   const getDaysFromTerm = (term) => {
-  const num = parseInt(term);
-  return isNaN(num) ? 30 : num;
-};
-
+    const num = parseInt(term, 10);
+    return Number.isNaN(num) ? 30 : num;
+  };
   const days = getDaysFromTerm(paymentTerms);
   const paymentDueDate = new Date();
   paymentDueDate.setDate(paymentDueDate.getDate() + days);
@@ -30,10 +63,89 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
     day: "2-digit",
   });
 
+  const formatLocalToManila = (localStr) => {
+    if (!localStr) return "";
+    const d = new Date(localStr);
+    return new Intl.DateTimeFormat("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d);
+  };
+
+  // ---- robust accessors (ignore "", null, undefined) ----
+  const pickNum = (...vals) => {
+    for (const v of vals) {
+      if (v !== "" && v !== null && v !== undefined) {
+        const num = Number(v);
+        if (!Number.isNaN(num)) return num;
+      }
+    }
+    return 0;
+  };
+
+  const getProdName = (row) =>
+    row.productName || row.product_name || row.product_detail?.product_name || "—";
+  const getSoldShell = (row) => pickNum(row.sold_shell, row.soldShell);
+  const getSoldPcs = (row) => pickNum(row.sold_pcs, row.soldPcs, row.qty, row.quantity);
+
+  // ✅ prefer unitPrice (Warehouse sets this), then selling_price, then price
+  const getUnitPrice = (row) => pickNum(row.unitPrice, row.selling_price, row.price);
+
+  const getEmptyShellPrice = (row) =>
+    pickNum(row.empty_price_shell, row.emptyPriceShell, row.shellPrice);
+  const getDiscountPercent = (row) => pickNum(row.discount_percent, row.discount);
+  const getDiscountAmount = (row) => pickNum(row.discount_amount, row.discount_amt);
+
+  const getDirectTotal = (row) =>
+    pickNum(row.actualSale, row.actual_sale, row.total, row.line_total, row.lineTotal);
+
+  // Compute a line total if not directly provided
+  const getLineTotal = (row) => {
+    const direct = getDirectTotal(row);
+    if (direct) return direct;
+
+    const pcs = getSoldPcs(row);
+    const shell = getSoldShell(row);
+    const price = getUnitPrice(row);
+
+    if (isWarehouse) {
+      // actualSale = price * soldPcs - (price * soldPcs * discount% / 100)
+      const discPct = getDiscountPercent(row);
+      const discAmtFromPct = (price * pcs * discPct) / 100;
+      const discAmt = getDiscountAmount(row) || discAmtFromPct;
+      return Number((pcs * price - discAmt).toFixed(2));
+    }
+
+    // Van Load math: percent over (pcs*unit + shells*emptyShell)
+    const emptyShellPrice = getEmptyShellPrice(row);
+    const discPct = getDiscountPercent(row);
+    const gross = pcs * price + shell * emptyShellPrice;
+    return Number((gross * (1 - discPct / 100)).toFixed(2));
+  };
+
+  // Filter out blank/placeholder rows in the table
+  const tableRows = (rows || []).filter(
+    (r) =>
+      getProdName(r) !== "—" ||
+      getSoldPcs(r) > 0 ||
+      getSoldShell(r) > 0 ||
+      getUnitPrice(r) > 0
+  );
+
+  // Modal "Actual Sales" fallback: recompute from rows if parent didn't pass
+  const actualSalesValue = useMemo(() => {
+    const fromParent = n(actualSales);
+    if (fromParent > 0) return fromParent;
+    return tableRows.reduce((sum, r) => sum + getLineTotal(r), 0);
+  }, [actualSales, tableRows]);
+
+  // ------------- early return AFTER hooks -------------
   if (!open) return null;
-
-
-  
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-30 flex items-center justify-center">
@@ -44,12 +156,19 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
 
         {/* Header Info */}
         <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><strong>MSP No.</strong>: WA-001</div>
-          <div><strong>Date</strong>: 08/02/2025 09:13 PM</div>
-          <div><strong>Customer</strong>: Walk-in</div>
-          <div><strong>Handled By</strong>: Miyaku Kagura</div>
+          <div>
+            <strong>MSP No.</strong>: {mspNo || "—"}
+          </div>
+          <div>
+            <strong>Date</strong>: {formatLocalToManila(transactionDate) || "—"}
+          </div>
+          <div>
+            <strong>Customer</strong>: {customerName || "Walk-in"}
+          </div>
+          <div>
+            <strong>Handled By</strong>: {handledBy || "—"}
+          </div>
         </div>
-
 
         {/* Product Summary */}
         <div className="mt-6">
@@ -61,19 +180,19 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
                 <th className="p-2 text-left">Sold Qty (Shell)</th>
                 <th className="p-2 text-left">Sold Qty (PC)</th>
                 <th className="p-2 text-left">Unit Price</th>
-                <th className="p-2 text-left">Discount</th>
+                <th className="p-2 text-left">Discount (%)</th>
                 <th className="p-2 text-left">Total</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, index) => (
+              {tableRows.map((row, index) => (
                 <tr key={index} className="border-t">
-                  <td className="p-2">{row.productName || row.product_name}</td>
-                  <td className="p-2">{row.soldShell || 0}</td>
-                  <td className="p-2">{row.soldPcs || 0}</td>
-                  <td className="p-2">₱{Number(row.unitPrice || 0).toFixed(2)}</td>
-                  <td className="p-2">{(Number(row.discount) || 0).toFixed(2)}</td>
-                  <td className="p-2">₱{Number(row.actualSale || 0).toFixed(2)}</td>
+                  <td className="p-2">{getProdName(row)}</td>
+                  <td className="p-2">{getSoldShell(row)}</td>
+                  <td className="p-2">{getSoldPcs(row)}</td>
+                  <td className="p-2">₱{fmt(getUnitPrice(row))}</td>
+                  <td className="p-2">{fmt(getDiscountPercent(row))}</td>
+                  <td className="p-2">₱{fmt(getLineTotal(row))}</td>
                 </tr>
               ))}
             </tbody>
@@ -84,28 +203,42 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
         <div className="mt-6 text-sm">
           <h3 className="font-semibold mb-2">Payment Breakdown</h3>
           <div className="border p-4 rounded space-y-2">
-            <div><strong>Actual Sales:</strong> ₱{actualSales.toFixed(2)}</div>
-            <div className="ml-4">- Empties Price Total: ₱{Number(emptiesPriceTotal || 0).toFixed(2)}</div>
-          <div className="ml-4">
-            - Empty Returns: ₱-{parseFloat(emptyReturns || 0).toFixed(2)}
-          </div>
-
-            <div className="ml-4">
-                - Empty Discrepancies: ₱{parseFloat(emptyDiscrepancies || 0).toFixed(2)}
+            <div>
+              <strong>Actual Sales:</strong> ₱{fmt(actualSalesValue)}
             </div>
-            
-
+            <div className="ml-4">- Empties Price Total: ₱{fmt(emptiesPriceTotal)}</div>
+            <div className="ml-4">- Empty Returns: ₱{fmt(emptyReturns)}</div>
+            <div className="ml-4">- Empty Discrepancies: ₱{fmt(emptyDiscrepancies)}</div>
+            {isVanLoad && <div className="ml-4">- Expenses: ₱{fmt(expensesTotal)}</div>}
             <div className="text-blue-600 font-bold">
-              Total Amount Due: ₱{totalAmount.toFixed(2)}
+              Total Amount Due: ₱{fmt(totalAmount)}
             </div>
           </div>
         </div>
+
+        {/* Van Load only: Remarks */}
+        {isVanLoad && (
+          <div className="mt-4">
+            <label className="block text-sm font-semibold mb-1">
+              Remarks (Van Load)
+            </label>
+            <textarea
+              rows={3}
+              className="w-full border rounded px-2 py-1"
+              value={remarks}
+              onChange={(e) =>
+                onRemarksChange ? onRemarksChange(e.target.value) : null
+              }
+              placeholder="Add remarks for this Van Load transaction..."
+            />
+          </div>
+        )}
 
         {/* Payment Method */}
         <div className="mt-6 text-sm">
           <h3 className="font-semibold mb-2">Payment Method</h3>
           <div className="flex gap-4 mb-4">
-            {["cash", "credit", "bank"].map(method => (
+            {["cash", "credit", "bank"].map((method) => (
               <button
                 key={method}
                 className={`px-4 py-2 rounded border ${
@@ -113,7 +246,11 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
                 }`}
                 onClick={() => setPaymentMethod(method)}
               >
-                {method === "cash" ? "Cash" : method === "credit" ? "Credit" : "E-wallet"}
+                {method === "cash"
+                  ? "Cash"
+                  : method === "credit"
+                  ? "Credit"
+                  : "E-wallet"}
               </button>
             ))}
           </div>
@@ -133,7 +270,7 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
                 <label className="block mb-1">Amount Due</label>
                 <input
                   className="w-full border rounded px-2 py-1"
-                  value={`₱${amountDue.toFixed(2)}`}
+                  value={`₱${fmt(amountDue)}`}
                   readOnly
                 />
               </div>
@@ -142,7 +279,7 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
                   <label className="block mb-1">Change</label>
                   <input
                     className="w-full border rounded px-2 py-1"
-                    value={`₱${change.toFixed(2)}`}
+                    value={`₱${fmt(change)}`}
                     readOnly
                   />
                 </div>
@@ -150,7 +287,6 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
             </div>
           )}
 
-          {/* ✅ CREDIT UI block */}
           {paymentMethod === "credit" && (
             <div className="border p-4 rounded space-y-4">
               <div>
@@ -195,55 +331,104 @@ const PaymentModal = ({ open, onClose, onConfirm, emptiesPriceTotal, totalAmount
                 <div className="font-semibold text-blue-700">Credit Amount:</div>
                 <div className="flex justify-between items-center mt-1 text-sm">
                   <div>
-                    <div><strong>Customer:</strong> Walk-in</div>
-                    <div><strong>Due:</strong> {formattedDueDate}</div>
+                    <div>
+                      <strong>Customer:</strong> {customerName || "Walk-in"}
+                    </div>
+                    <div>
+                      <strong>Due:</strong> {formattedDueDate}
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold text-blue-800">₱{totalAmount.toFixed(2)}</div>
+                  <div className="text-2xl font-bold text-blue-800">
+                    ₱{fmt(totalAmount)}
+                  </div>
                 </div>
               </div>
             </div>
           )}
-
-
-
         </div>
 
-       {/* Footer Buttons */}
+        {/* Footer Buttons */}
         <div className="mt-6 flex justify-between">
-          <button className="border px-4 py-2 rounded" onClick={onClose}>
+          <button className="border px-4 py-2 rounded" onClick={onClose} disabled={submitting}>
             Back to Sale
           </button>
           <button
-            className="bg-blue-600 text-white px-4 py-2 rounded"
-            onClick={() => {
+            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60"
+            disabled={
+              submitting || (paymentMethod === "cash" && n(cashReceived) < n(amountDue))
+            }
+            onClick={async () => {
               const data = {
-                products,
+                // payment
                 paymentMethod,
-                cashReceived,
+                amount: n(cashReceived || totalAmount),
+                cashReceived: n(cashReceived),
                 change,
-                amountDue,
-                rows,                    // ✅ pass product summary
-                emptyReturns,
-                emptyDiscrepancies,
-                actualSales,
-                emptiesPriceTotal,
-                totalAmount
-                
+                amountDue: n(amountDue),
+
+                // breakdown
+                actualSales: n(actualSalesValue),
+                emptiesPriceTotal: n(emptiesPriceTotal),
+                emptyReturns: n(emptyReturns),
+                emptyDiscrepancies: n(emptyDiscrepancies),
+                totalAmount: n(totalAmount),
+
+                // rows + headers
+                rows,
+                mspNo,
+                customerName,
+                handledBy,
+                transactionDate,
+
+                // van load extras
+                transactionTypeName,
+                expensesTotal: n(expensesTotal),
+                remarks,
               };
-              setInvoiceData(data);              // ✅ store invoice data
-              setShowInvoiceModal(true);         // ✅ show the invoice modal
+
+              const paymentOk =
+                paymentMethod === "cash" ? n(cashReceived) >= n(amountDue) : true;
+
+              try {
+                setSubmitting(true);
+
+                // 1) Save Van Load + mark complete ONLY if Van Load & payment is OK
+                if (isVanLoad && paymentOk && typeof onPaymentSuccess === "function") {
+                  await onPaymentSuccess(data);
+                }
+
+                // 2) Optional: notify parent with the assembled data
+                if (typeof onConfirm === "function") {
+                  await onConfirm(data);
+                }
+
+                // 3) Optional: parent onSave (if you still need it)
+                if (typeof onSave === "function") {
+                  await onSave();
+                }
+
+                // 4) Show invoice
+                setInvoiceData(data);
+                setShowInvoiceModal(true);
+              } catch (e) {
+                console.error(e);
+                alert("Payment save failed. Please try again.");
+              } finally {
+                setSubmitting(false);
+              }
             }}
-            disabled={paymentMethod === "cash" && parseFloat(cashReceived) < amountDue} // Optional: prevent underpayment
           >
-            Confirm Payment & Generate Invoice
+            {submitting ? "Processing..." : "Confirm Payment & Generate Invoice"}
           </button>
         </div>
       </div>
 
-      {/* ✅ Render InvoiceModal */}
       {showInvoiceModal && (
         <InvoiceModal
-          onClose={() => setShowInvoiceModal(false)}
+          onClose={() => {
+            setShowInvoiceModal(false);
+            if (typeof onClose === "function") onClose();
+          }}
           invoiceData={invoiceData}
         />
       )}

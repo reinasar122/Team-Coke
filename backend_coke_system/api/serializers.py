@@ -9,6 +9,9 @@ from .models import User, RoleAccessibility
 import re
 from .models import SupplierReturnForm, SupplierReturnFormItem, Product
 from .models import *
+from django.db import transaction
+
+
 
 class RoleAccessibilitySerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
@@ -438,24 +441,33 @@ class PaymentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MerchandisingSerializer(serializers.ModelSerializer):
+    # Read-only derived fields
+    msp_no = serializers.CharField(read_only=True)  # ← server owns MSP
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
     customer_name = serializers.SerializerMethodField()
+    date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
+
+    # Nested
     items = MerchandisingItemSerializer(many=True)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False)
-    route = serializers.PrimaryKeyRelatedField(
-            queryset=Route.objects.all(), allow_null=True, required=False)
 
+    # FK inputs
+    route = serializers.PrimaryKeyRelatedField(
+        queryset=Route.objects.all(), allow_null=True, required=False
+    )
+
+    # Computed aggregates for response
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
 
     class Meta:
         model = Merchandising
         fields = '__all__'
+        read_only_fields = ['msp_no', 'transaction_type_name', 'total_trading_amount', 'total_expenses_amount']
 
     def validate(self, data):
-        print("🚨 VALIDATE TRIGGERED")
-        transaction_type = data.get("transaction_type")  # This is an instance
+        transaction_type = data.get("transaction_type")
         route = data.get("route")
         van = data.get("van")
 
@@ -464,25 +476,29 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"route": "Route is required for Van Load transactions."})
             if not van:
                 raise serializers.ValidationError({"van": "Van is required for Van Load transactions."})
-
         return data
 
     def get_total_trading_amount(self, obj):
-        return sum([item.actual_sale or 0 for item in obj.items.all()])
+        return sum([(item.actual_sale or 0) for item in obj.items.all()])
 
     def get_total_expenses_amount(self, obj):
-        return sum([item.amount for item in obj.misc_items.all()])
+        return sum([(item.amount or 0) for item in obj.misc_items.all()])
 
     def get_customer_name(self, obj):
-        # You might need to add customer field to Merchandising model
-        return "N/A"  # Placeholder
+        # Placeholder until you add a customer FK to Merchandising
+        return "N/A"
 
+    @transaction.atomic  # ← ensure all-or-nothing
     def create(self, validated_data):
-        items_data = validated_data.pop('items')
+        items_data = validated_data.pop('items', [])
         misc_items_data = validated_data.pop('misc_items', [])
         payments_data = validated_data.pop('payments', [])
 
+        # Safety: client must NOT override msp_no
+        validated_data.pop('msp_no', None)
+
         merchandising = Merchandising.objects.create(**validated_data)
+        # At this point, Merchandising.save() has generated msp_no
 
         for item_data in items_data:
             product = item_data.get("product")
@@ -509,34 +525,34 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 actual_sale=item_data.get("actual_sale", 0),
             )
 
-            # Handle returned empties (ReturnableStock)
+            # Returnables (empties) → ReturnableStock
             if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
                 ReturnableStock.objects.create(
                     product=product,
                     empty_bottle_qty=merchandising_item.empty_return_pcs,
                     empty_shell_qty=merchandising_item.empty_return_shell,
                     source='customer',
-                    supplier=product.supplier,
-                    warehouse=merchandising.warehouse  # ADD THIS
+                    supplier=getattr(product, 'supplier', None),
+                    warehouse=merchandising.warehouse
                 )
 
-            # Handle returned full items (restock)
+            # Restock non-empty returns
             if merchandising_item.actual_return_pcs > 0:
                 stock, _ = Stock.objects.get_or_create(
-                    product=product, 
+                    product=product,
                     warehouse=merchandising.warehouse
                 )
-                stock.quantity_available += merchandising_item.actual_return_pcs
-                stock.save()
+                stock.quantity_available = (stock.quantity_available or 0) + merchandising_item.actual_return_pcs
+                stock.save(update_fields=['quantity_available'])
 
-            # Deduct sold quantity from stock
+            # Deduct sold pcs
             if merchandising_item.sold_pcs > 0:
                 stock, _ = Stock.objects.get_or_create(
-                    product=product, 
+                    product=product,
                     warehouse=merchandising.warehouse
                 )
-                stock.quantity_available -= merchandising_item.sold_pcs
-                stock.save()
+                stock.quantity_available = (stock.quantity_available or 0) - merchandising_item.sold_pcs
+                stock.save(update_fields=['quantity_available'])
 
         for misc_data in misc_items_data:
             MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
@@ -547,7 +563,11 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         return merchandising
 
     def update(self, instance, validated_data):
+        # Prevent clients from altering msp_no on update as well
+        validated_data.pop('msp_no', None)
         return super().update(instance, validated_data)
+
+
 
 class ReturnableStockSerializer(serializers.ModelSerializer):
     class Meta:

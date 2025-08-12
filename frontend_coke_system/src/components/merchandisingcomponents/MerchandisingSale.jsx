@@ -9,6 +9,15 @@ import PaymentModal from "../PaymentModal";
 import InvoiceModal from "../InvoiceModal";
 
 
+
+ // Convert a Date to a value usable by <input type="datetime-local"> in LOCAL time
+  const toDatetimeLocalValue = (date = new Date()) => {
+    const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return d.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
+  };
+
+
+
 const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [users, setUsers] = useState([]);
@@ -28,7 +37,7 @@ const MerchandisingSale = () => {
   const [activeTab, setActiveTab] = useState("Trading");
   const [editMode, setEditMode] = useState(false);
   const navigate = useNavigate();
-  const [transactionDate, setTransactionDate] = useState("");
+  const [transactionDate, setTransactionDate] = useState(() => toDatetimeLocalValue());
   const [transactionType, setTransactionType] = useState("");
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
   const [transactionTypes, setTransactionTypes] = useState([]);
@@ -44,9 +53,26 @@ const MerchandisingSale = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [invoiceData, setInvoiceData] = useState(null); // store invoice info
+ 
   
+  const [payments, setPayments] = useState([]);
 
-  
+
+ 
+  const location = useLocation();
+
+  useEffect(() => {
+    if (location.state?.reset === true) {
+      // reset your form state here (rows, totals, selected values, etc.)
+      setRows([{ id: 1, productId: "", priceId: null, dispatched: 0, sold: 0, expected_sale: 0, actual_sale: 0, discrepancy: 0 }]);
+      setSelectedUser(null);
+      setSelectedCustomerId("");
+      setRoute("");
+      setSelectedVan("");
+      setPayments([]);
+      // ...any other fields you want to clear
+    }
+  }, [location.state]);
 
 
 
@@ -144,6 +170,9 @@ const MerchandisingSale = () => {
     }
   }, [currentWarehouse, fetchUsers]);
 
+
+
+
   const [rows, setRows] = useState([
     {
       id: 1,
@@ -156,6 +185,9 @@ const MerchandisingSale = () => {
       discrepancy: 0,
     },
   ]);
+
+
+
 
   // ✅ Only fetch routes and customers here (not users/products)
   useEffect(() => {
@@ -176,32 +208,32 @@ const MerchandisingSale = () => {
       .catch(err => console.error("Failed to fetch transaction types:", err));
   }, []);
 
+
   useEffect(() => {
-    if (transactionType && selectedTransactionTypeName) {
-      axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
-        params: { transaction_type: transactionType }
-      }).then(res => {
-        console.log("✅ MSP Prefix check:", selectedTransactionTypeName, res.data.msp_no);
-        setMspNo(res.data.msp_no);
-      });
-    }
-  }, [transactionType, selectedTransactionTypeName]);
+    const warehouseId = getCurrentWarehouse();
+    if (!transactionType || !selectedTransactionTypeName || !warehouseId) return;
 
-  const [dateTime, setDateTime] = useState(() => {
-    const date = new Date();
-    date.setMinutes(date.getMinutes() - date.getTimezoneOffset());
-    return date.toISOString().slice(0, 16);
-  });
+    axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
+      params: { 
+        transaction_type: transactionType,
+        warehouse: warehouseId          // ✅ include warehouse scope
+      }
+    })
+    .then(res => setMspNo(res.data.msp_no))
+    .catch(err => console.error("MSP preview error:", err));
+  }, [transactionType, selectedTransactionTypeName, currentWarehouse]);  // ✅ include warehouse change
 
-    useEffect(() => {
-    const now = new Date();
-    const formatted = now.toISOString().slice(0, 16); // Format: "YYYY-MM-DDTHH:MM"
-    setTransactionDate(formatted);
+
+  useEffect(() => {
+    // optional: keep it synced to "now" when page opens
+    setTransactionDate(toDatetimeLocalValue(new Date()));
   }, []);
 
-  const calculateTotalExpenses = () => {
-    return miscItems.reduce((total, item) => total + parseFloat(item.amount || 0), 0);
-  };
+
+
+    const calculateTotalExpenses = () => {
+      return miscItems.reduce((total, item) => total + parseFloat(item.amount || 0), 0);
+    };
 
   const handleBack = () => {
     navigate("/merchandising-list");
@@ -211,15 +243,21 @@ const MerchandisingSale = () => {
   const customer = customers.find((c) => c.id === selectedCustomerId);
   const customerName = customer ? customer.name : "Walk-in";
 
-  const handledByUser = users.find((user) => user.id === selectedUser);
-  const handledBy = handledByUser ? handledByUser.name : "";
+  const handledByUser = users.find(u => String(u.id) === String(selectedUser));
+  const handledBy = handledByUser ? `${handledByUser.first_name} ${handledByUser.last_name}`.trim() : "";
+
 
 
 
 
 const handleSubmit = async () => {
-  const isVanLoad = parseInt(transactionType) === 1;
+  
   const warehouseId = currentWarehouse?.id;
+
+  // Derive van-load flag from the LABEL, not the numeric id
+  const isVanLoad =
+    (selectedTransactionTypeName || "").trim().toLowerCase() === "van load";
+
 
   // ✅ VALIDATION BEFORE SUBMIT
   if (!warehouseId) {
@@ -238,62 +276,77 @@ const handleSubmit = async () => {
     }
   }
 
+  // ✅ Convert local input time to UTC ISO before sending
+  const utcIso = new Date(transactionDate).toISOString();
+
+
   const payload = {
+    // msp_no is read-only on backend; you may omit it, but keeping it is fine
     msp_no: mspNo,
-    warehouse: Number(warehouseId) || null,
+    warehouse: Number(currentWarehouse?.id) || null,
     transaction_type: parseInt(transactionType),
-    route: route ? parseInt(route) : null,
-    van: selectedVan ? parseInt(selectedVan) : null,
-    handled_by: (() => {
-      const user = users.find((u) => u.id === parseInt(selectedUser));
-      return user ? `${user.first_name} ${user.last_name}` : null;
-    })(),
-    date_time: new Date().toISOString(),
-    expected_sale: parseFloat(totalExpectedSale) || 0,
-    actual_sale: parseFloat(totalActualSale) || 0,
-    miscellaneous: calculateTotalExpenses(),
+    route: (selectedTransactionTypeName.toLowerCase() === "van load" && route) ? parseInt(route) : null,
+    van: (selectedTransactionTypeName.toLowerCase() === "van load" && selectedVan) ? parseInt(selectedVan) : null,
+
+    handled_by: handledBy,                 // ✅ send a string
+    date_time: utcIso,
+
+
+    expected_sale: Number(totalExpectedSale) || 0,
+    actual_sale: Number(totalActualSale) || 0,
+    miscellaneous: Number(calculateTotalExpenses()) || 0,
     payment_method: "",
     invoice_no: "",
-    status: isVanLoad ? "Pending" : "Complete",
+    status: (selectedTransactionTypeName === "Van Load") ? "Pending" : "Complete",
     remarks: "",
-    total_trading_amount: parseFloat(totalAmount) || 0,
-    total_expenses_amount: calculateTotalExpenses(),
+
+    // These two are only for MerchandisingSale summary; OK to keep for now
+    total_trading_amount: Number(totalAmount) || 0,
+    total_expenses_amount: Number(calculateTotalExpenses()) || 0,
+
+
     items: rows
-      .filter((r) =>
-        isVanLoad
-          ? r.productId && !isNaN(parseFloat(r.expectedSale))
-          : r.productId
-      )
-      .map((row) => {
-        const item = {
-          product: row.productId ? parseInt(row.productId) : null,
-          dispatched_pcs: parseInt(row.dispatchedPcs) || 0,
-          dispatched_shell: parseInt(row.dispatchedShell) || 0,
-          actual_return_pcs: parseInt(row.expectedReturnPcsNonempty) || 0,
-          actual_return_shell: parseInt(row.expectedReturnShellNonempty) || 0,
-          discrepancy_empties_pc: parseInt(row.discrepancyPcsEmpty) || 0,
-          discrepancy_empties_shell: parseInt(row.discrepancyShellEmpty) || 0,
-          discrepancy_full_pcs: parseInt(row.discrepancyPcsNonempty) || 0,
-          discrepancy_full_shell: parseInt(row.discrepancyShellNonempty) || 0,
-          discount_percent: parseFloat(row.discount) || 0,
-          expected_sale: parseFloat(row.expectedSale) || 0,
-          actual_sale: parseFloat(row.actualSale) || 0,
-        };
+    .filter(r => r.productId)
+    .map(row => {
+      const base = {
+        product: parseInt(row.productId),
+        dispatched_pcs: parseInt(row.dispatchedPcs) || 0,
+        dispatched_shell: parseInt(row.dispatchedShell) || 0,
+        actual_return_pcs: parseInt(row.expectedReturnPcsNonempty) || 0,
+        actual_return_shell: parseInt(row.expectedReturnShellNonempty) || 0,
+        discrepancy_empties_pc: parseInt(row.discrepancyPcsEmpty) || 0,
+        discrepancy_empties_shell: parseInt(row.discrepancyShellEmpty) || 0,
+        discrepancy_full_pcs: parseInt(row.discrepancyPcsNonempty) || 0,
+        discrepancy_full_shell: parseInt(row.discrepancyShellNonempty) || 0,
+        discount_percent: parseFloat(row.discount) || 0,
+        expected_sale: parseFloat(row.expectedSale) || 0,
+        actual_sale: parseFloat(row.actualSale) || 0,
+      };
+      // For Warehouse we include sold + empties returned
+      if (selectedTransactionTypeName.toLowerCase() === "warehouse") {
+        base.sold_pcs = parseInt(row.soldPcs) || 0;
+        base.sold_shell = parseInt(row.soldShell) || 0;
+        base.empty_return_pcs = parseInt(row.expectedReturnPcsEmpty) || 0;
+      }
+      return base;
+    }),
 
-        if (!isVanLoad) {
-          item.sold_pcs = parseInt(row.soldPcs) || 0;
-          item.sold_shell = parseInt(row.soldShell) || 0;
-          item.empty_return_pcs = parseInt(row.expectedReturnPcsEmpty) || 0;
-        }
 
-        return item;
-      }),
     misc_items: miscItems.map((item) => ({
       description: item.description,
       amount: parseFloat(item.amount) || 0,
-      receipt_file: item.file,
+      // DO NOT include actual File objects in JSON. See note below.
+      receipt_file: item.file ?? null,
     })),
-    payments: [],
+
+    // include payments created/confirmed by PaymentModal and stored in parent
+    payments: payments.map((p) => ({
+      payment_method: p.paymentMethod || p.payment_method || p.method || "cash",
+      amount: parseFloat(p.amount || p.cashReceived || 0) || 0,
+      change: parseFloat(p.change || 0) || 0,
+      // add extra fields as needed (notes, credit_terms, etc.)
+    })),
+   
   };
 
   console.log("Submitting payload:", payload);
@@ -328,11 +381,18 @@ const handleFinalizeSale = async () => {
   };
 
 
+  // Parent receives payment from PaymentModal and stores it
   const handleConfirmPayment = (paymentData) => {
-  console.log("Payment confirmed:", paymentData);
-  // TODO: Add your logic to save payment to backend, etc.
-  setIsPaymentModalOpen(false);
-};
+    console.log("Payment confirmed (parent):", paymentData);
+
+    // Add to payments array kept in parent state
+    setPayments((prev) => [...prev, paymentData]);
+
+    // Do NOT forcibly close the modal here if PaymentModal itself shows the InvoiceModal.
+    // PaymentModal can call onClose when it wants to finish; if you prefer parent to
+    // close it immediately, uncomment the next line:
+    // setIsPaymentModalOpen(false);
+  };
 
 
 
@@ -608,7 +668,10 @@ const handleFinalizeSale = async () => {
       <PaymentModal
         open={isPaymentModalOpen}
         onClose={handleClosePayment}
-        onConfirm={handleConfirmPayment}
+        onConfirm={(paymentData) => {
+    // store payment in parent
+    setPayments((prev) => [...prev, paymentData]);
+  }}
         rows={rows}  // ✅ pass sold items
         products={products} // optional
         amountDue={totalAmount}
@@ -621,7 +684,8 @@ const handleFinalizeSale = async () => {
         customerName={customerName}
         handledBy={handledBy}
         totalAmount={totalAmount}
-        transactionType={transactionType}
+        onSave={handleSubmit}
+        transactionDate={transactionDate}  
       />
 
     </div>

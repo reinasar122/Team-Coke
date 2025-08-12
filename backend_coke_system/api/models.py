@@ -1,4 +1,4 @@
-from django.db import models
+from django.db import models, transaction
 import uuid
 import string
 import random
@@ -167,7 +167,7 @@ class Product(models.Model):
     unit_type = models.ForeignKey(UnitType, on_delete=models.SET_NULL, null=True)
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
-    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE)  # NEW: Add warehouse field
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE,  null=True, blank=True)  # NEW: Add warehouse field
 
     def save(self, *args, **kwargs):
         if not self.system_code:
@@ -188,7 +188,7 @@ class Receiving(models.Model):
     date_time = models.DateTimeField(default=timezone.now)
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
     invoice_no = models.CharField(max_length=100, blank=True, null=True)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
 
     return_total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     receive_total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
@@ -254,7 +254,7 @@ class ReceivingItem(models.Model):
 # === STOCK  ===
 class Stock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
     quantity_available = models.PositiveIntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
 
@@ -298,35 +298,78 @@ class TransactionType(models.Model):
     
 class Customer(models.Model):
     name = models.CharField(max_length=255)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
 
     def __str__(self):
         return self.name
     
 
+
+def _local_day(dt):
+    # Equivalent to your astimezone logic, but clearer/shorter
+    return timezone.localdate(dt or timezone.now())  
+    
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+def _tt_lower(tt):
+    return (tt.name or '').strip().lower()
+
+def _local_day(dt):
+    tz = timezone.get_current_timezone()
+    return (dt or timezone.now()).astimezone(tz).date()
+
+def _prefix_for(tt):
+    name = _tt_lower(tt)
+    if name == 'warehouse': return 'WA'
+    if name == 'van load':  return 'VA'
+    return 'XX'
+
+
+# ------------------------------------------------------------
+# MerchandisingSale (your separate listing/summary model)
+# ------------------------------------------------------------
 class MerchandisingSale(models.Model):
     msp_no = models.CharField(max_length=100)
     date_time = models.DateTimeField()
     transaction_type_name = models.CharField(max_length=100)
     customer_name = models.CharField(max_length=255)
-    route = models.ForeignKey(Route, null=True, blank=True, on_delete=models.SET_NULL)
+    route = models.ForeignKey('Route', null=True, blank=True, on_delete=models.SET_NULL)
     handled_by = models.CharField(max_length=100)
     total_trading_amount = models.DecimalField(max_digits=10, decimal_places=2)
     total_expenses_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     status = models.CharField(max_length=50)
-    # etc...
 
     def __str__(self):
         return f"{self.msp_no} - {self.customer_name}"
 
-    #   Merchandising (Main Header)
+
+# ------------------------------------------------------------
+# MSP daily sequence (for Van Load)
+# ------------------------------------------------------------
+class MSPSequence(models.Model):
+    date = models.DateField()
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)
+    transaction_type = models.ForeignKey('TransactionType', on_delete=models.CASCADE)
+    last_number = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        unique_together = ('date', 'warehouse', 'transaction_type')
+
+    def __str__(self):
+        return f"{self.date} {self.warehouse_id} {self.transaction_type_id} -> {self.last_number}"
+
+
+# ------------------------------------------------------------
+# Merchandising (main header)
+# ------------------------------------------------------------
 class Merchandising(models.Model):
-    msp_no = models.CharField(max_length=20, unique=True, editable=False)
-    transaction_type = models.ForeignKey(TransactionType, on_delete=models.CASCADE)
+    msp_no = models.CharField(max_length=20, editable=False)  # not unique (by design)
+    transaction_type = models.ForeignKey('TransactionType', on_delete=models.CASCADE)
     handled_by = models.CharField(max_length=100)
-    route = models.ForeignKey(Route, null=True, blank=True, on_delete=models.SET_NULL)
-    van = models.ForeignKey(Van, on_delete=models.SET_NULL, null=True, blank=True)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
+    route = models.ForeignKey('Route', null=True, blank=True, on_delete=models.SET_NULL)
+    van = models.ForeignKey('Van', on_delete=models.SET_NULL, null=True, blank=True)
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
 
     date_time = models.DateTimeField(default=timezone.now)
 
@@ -344,27 +387,44 @@ class Merchandising(models.Model):
     change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     def save(self, *args, **kwargs):
-        if not self.msp_no:
-            prefix = ''
-            if self.transaction_type.name.lower() == 'warehouse':
-                prefix = 'W'
-            elif self.transaction_type.name.lower() == 'van load':
-                prefix = 'V'
-            else:
-                prefix = 'X'
+        is_new = self._state.adding
+        if is_new and not self.msp_no:
+            if not self.date_time:
+                self.date_time = timezone.now()
 
-            # Filter by warehouse to get warehouse-specific numbering
-            last = Merchandising.objects.filter(
-                transaction_type=self.transaction_type,
-                warehouse=self.warehouse
-            ).order_by('-id').first()
-            
-            next_number = 1 if not last else int(last.msp_no.split('-')[-1]) + 1
-            self.msp_no = f"{prefix}-{next_number:04d}"
+            day = _local_day(self.date_time)
+            tt = self.transaction_type
+            tt_name = _tt_lower(tt)
+            prefix = _prefix_for(tt)
+
+            if tt_name == 'warehouse':
+                # Reuse same MSP for this day + warehouse
+                existing = Merchandising.objects.filter(
+                    warehouse=self.warehouse,
+                    transaction_type=tt,
+                    date_time__date=day
+                ).order_by('id').first()
+                self.msp_no = existing.msp_no if existing else f'{prefix}-0001'
+
+            elif tt_name == 'van load':
+                # Daily counter per warehouse (race-safe)
+                with transaction.atomic():
+                    seq, _ = MSPSequence.objects.select_for_update().get_or_create(
+                        date=day, warehouse=self.warehouse, transaction_type=tt,
+                        defaults={'last_number': 0}
+                    )
+                    seq.last_number += 1
+                    seq.save(update_fields=['last_number'])
+                    self.msp_no = f'{prefix}-{seq.last_number:04d}'
+            else:
+                self.msp_no = f'{prefix}-0001'
 
         super().save(*args, **kwargs)
 
-# Keep all other models the same but add warehouse field where needed
+
+# ------------------------------------------------------------
+# MerchandisingItem
+# ------------------------------------------------------------
 class MerchandisingItem(models.Model):
     merchandising = models.ForeignKey(Merchandising, related_name='items', on_delete=models.CASCADE)
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
@@ -397,14 +457,14 @@ class MerchandisingItem(models.Model):
     actual_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     def __str__(self):
-        return f"{self.product.name} - {self.merchandising.msp_no}"
+         return f"{self.product.product_name} - {self.merchandising.msp_no}"
 
     def save(self, *args, **kwargs):
-        if self.product and self.product.price:
+        if self.product and getattr(self.product, 'price', None):
             self.selling_price = self.product.price.selling_price or 0
             self.empty_price_pc = self.product.price.bottle_price or 0
             self.empty_price_shell = self.product.price.shell_price or 0
-            super().save(*args, **kwargs)
+        super().save(*args, **kwargs)
 
 
 class MiscellaneousItem(models.Model):
@@ -426,18 +486,21 @@ class ReturnableStock(models.Model):
         default='customer'
     )
     supplier = models.ForeignKey('Supplier', on_delete=models.SET_NULL, null=True, blank=True)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
     last_updated = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.product.name} Returnables from {self.source}"
+          return f"{self.product.product_name} Returnables from {self.source}"
+    
+    class Meta:
+        unique_together = ("product", "warehouse", "source", "supplier")
 
 class SupplierReturn(models.Model):
     supplier = models.ForeignKey('Supplier', on_delete=models.CASCADE)
     return_no = models.CharField(max_length=20, unique=True)
     date_returned = models.DateTimeField(auto_now_add=True)
     remarks = models.TextField(blank=True, null=True)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
 
     def __str__(self):
         return self.return_no
@@ -465,7 +528,7 @@ class Payment(models.Model):
 class SupplierReturnForm(models.Model):
     sup_no = models.CharField(max_length=20, unique=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)  # ADD THIS
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
     date = models.DateTimeField()
     total_amount = models.DecimalField(max_digits=12, decimal_places=2)
 

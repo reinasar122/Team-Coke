@@ -1,3 +1,7 @@
+from decimal import Decimal, InvalidOperation          # 👈 for to_decimal()
+from django.db import transaction
+from django.shortcuts import get_object_or_404  
+from django.db.models import F, Case, When, Value, IntegerField
 from rest_framework import viewsets
 from rest_framework import generics
 from rest_framework.exceptions import NotFound
@@ -7,8 +11,13 @@ from .serializers import WarehouseSerializer
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
 from django.db import connection
+from django.db.models import F   
 from .models import Supplier, User, Role, Van, Receiving, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, Payment, ReturnableStock, SupplierReturn, SupplierReturnItem, Customer
 
+from .models import (
+    Merchandising, MerchandisingItem,
+    Stock, ReturnableStock, Product
+)
 
 from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
@@ -517,99 +526,159 @@ class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CustomerSerializer
 
 
-# Merchandising Views
+# ------------------------------------------------------------
+# MerchandisingSale (summary list) – simple list/create/update
+# ------------------------------------------------------------
 class MerchandisingSaleViewSet(viewsets.ModelViewSet):
-    queryset = MerchandisingSale.objects.all()
+    queryset = MerchandisingSale.objects.all().order_by("-id")
     serializer_class = MerchandisingSaleSerializer
 
+    # Totals are better computed on the backend that creates this record,
+    # but if you want to accept client-provided numbers, keep perform_*.
     def perform_create(self, serializer):
-        # You can compute the totals here if needed
         data = self.request.data
-
-        trading_total = data.get("total_trading_amount", 0)
-        expenses_total = data.get("total_expenses_amount", 0)
-
         serializer.save(
-            total_trading_amount=trading_total,
-            total_expenses_amount=expenses_total
+            total_trading_amount=data.get("total_trading_amount", 0) or 0,
+            total_expenses_amount=data.get("total_expenses_amount", 0) or 0
         )
 
     def perform_update(self, serializer):
         data = self.request.data
-
-        trading_total = data.get("total_trading_amount", 0)
-        expenses_total = data.get("total_expenses_amount", 0)
-
         serializer.save(
-            total_trading_amount=trading_total,
-            total_expenses_amount=expenses_total
+            total_trading_amount=data.get("total_trading_amount", 0) or 0,
+            total_expenses_amount=data.get("total_expenses_amount", 0) or 0
         )
 
+
+
+# ------------------------------------------------------------
+# Merchandising CRUD (nested create handled by serializer)
+# ------------------------------------------------------------
 class MerchandisingListCreateView(generics.ListCreateAPIView):
     serializer_class = MerchandisingSerializer
     parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_queryset(self):
+        qs = Merchandising.objects.select_related(
+            "transaction_type", "route", "van", "warehouse"
+        ).prefetch_related(
+            "items", "misc_items", "payments"
+        ).order_by("-id")
         warehouse_id = get_user_warehouse(self.request)
         if warehouse_id:
-            return Merchandising.objects.filter(warehouse=warehouse_id)
-        return Merchandising.objects.all()
+            qs = qs.filter(warehouse_id=warehouse_id)
+        return qs
 
     def perform_create(self, serializer):
+        # Always attach warehouse from logged-in user (if present)
         warehouse_id = get_user_warehouse(self.request)
         if warehouse_id:
             serializer.save(warehouse_id=warehouse_id)
         else:
             serializer.save()
 
+
+
 class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Merchandising.objects.all()
+    queryset = Merchandising.objects.select_related(
+        "transaction_type", "route", "van", "warehouse"
+    ).prefetch_related("items", "misc_items", "payments")
     serializer_class = MerchandisingSerializer
+
 
 class MerchandisingListView(generics.ListAPIView):
     serializer_class = MerchandisingSerializer
 
-@api_view(['GET'])
-def merchandising_sales_list(request):
-    sales = MerchandisingSale.objects.all().order_by('-created_at')  # type: ignore # Optional: filter by user or status
-    serializer = MerchandisingSaleSerializer(sales, many=True)
-    return Response(serializer.data)
     def get_queryset(self):
+        qs = Merchandising.objects.select_related(
+            "transaction_type", "route", "van", "warehouse"
+        ).prefetch_related("items", "misc_items", "payments").order_by("-id")
         warehouse_id = get_user_warehouse(self.request)
         if warehouse_id:
-            return Merchandising.objects.filter(warehouse=warehouse_id)
-        return Merchandising.objects.all()
+            qs = qs.filter(warehouse_id=warehouse_id)
+        return qs
 
+
+
+
+@api_view(['GET'])
+def merchandising_sales_list(request):
+    sales = MerchandisingSale.objects.all().order_by('-id')
+    serializer = MerchandisingSaleSerializer(sales, many=True)
+    return Response(serializer.data)
+
+
+# ------------------------------------------------------------
+# Next MSP number preview (mirrors model save() logic)
+# ------------------------------------------------------------
 class NextMspNoView(APIView):
+    """
+    Query params:
+      - transaction_type: int (required)
+      - warehouse: int (required for correct scoping)
+    """
     def get(self, request):
-        transaction_type_id = request.query_params.get("transaction_type")
+        tt_id = request.query_params.get("transaction_type")
+        warehouse_id = request.query_params.get("warehouse")
 
-        if not transaction_type_id:
-            return Response({"detail": "Transaction type is required."}, status=status.HTTP_400_BAD_REQUEST)
+        if not tt_id:
+            return Response({"detail": "Transaction type is required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        if not warehouse_id:
+            return Response({"detail": "Warehouse is required."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
         try:
-            transaction_type = TransactionType.objects.get(id=transaction_type_id)
+            tt = TransactionType.objects.get(id=tt_id)
         except TransactionType.DoesNotExist:
-            return Response({"detail": "Invalid transaction type ID."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid transaction type ID."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        # generate and return MSP number...
-        msp_no = f"{transaction_type.name[:2].upper()}-001"
-        return Response({"msp_no": msp_no})
+        tt_name = (tt.name or "").strip().lower()
+        today = timezone.localdate()
+
+        # Prefix helper (kept inline to avoid import loops)
+        prefix = "WA" if tt_name == "warehouse" else ("VA" if tt_name == "van load" else "XX")
+
+        if tt_name == "warehouse":
+            # Reuse today's WA number for this warehouse if exists, else WA-0001
+            first_today = Merchandising.objects.filter(
+                warehouse_id=warehouse_id,
+                transaction_type=tt,
+                date_time__date=today
+            ).order_by("id").first()
+            msp_no = first_today.msp_no if first_today else f"{prefix}-0001"
+            return Response({"msp_no": msp_no})
+
+        if tt_name == "van load":
+            # Peek the next number without incrementing the sequence
+            seq = MSPSequence.objects.filter(
+                date=today, warehouse_id=warehouse_id, transaction_type=tt
+            ).first()
+            next_num = (seq.last_number + 1) if seq else 1
+            msp_no = f"{prefix}-{next_num:04d}"
+            return Response({"msp_no": msp_no})
+
+        # Fallback
+        return Response({"msp_no": f"{prefix}-0001"})
 
 
+# ------------------------------------------------------------
+# Stock endpoints (warehouse-scoped, safe math)
+# ------------------------------------------------------------
 class StockAvailabilityView(APIView):
     def get(self, request, product_id):
         warehouse_id = get_user_warehouse(request)
-        
         try:
             if warehouse_id:
-                stock = Stock.objects.get(product_id=product_id, warehouse=warehouse_id)
+                stock = Stock.objects.get(product_id=product_id, warehouse_id=warehouse_id)
             else:
-                stock = Stock.objects.get(product_id=product_id)
-                
+                stock = Stock.objects.filter(product_id=product_id).order_by("-id").first()
+                if not stock:
+                    raise Stock.DoesNotExist
             return Response({
                 "product_id": product_id,
-                "quantity_available": stock.quantity_available
+                "quantity_available": int(stock.quantity_available or 0)
             })
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -618,21 +687,26 @@ class StockAvailabilityView(APIView):
 class UpdateStockView(APIView):
     def put(self, request, product_id):
         warehouse_id = get_user_warehouse(request)
-        
         try:
             if warehouse_id:
-                stock = Stock.objects.get(product_id=product_id, warehouse=warehouse_id)
+                stock = Stock.objects.get(product_id=product_id, warehouse_id=warehouse_id)
             else:
-                stock = Stock.objects.get(product_id=product_id)
-                
-            quantity_sold = request.data.get('quantity_available')
-            stock.quantity_available -= quantity_sold
-            stock.save()
+                stock = Stock.objects.filter(product_id=product_id).order_by("-id").first()
+                if not stock:
+                    raise Stock.DoesNotExist
 
-            return Response({"message": "Stock updated successfully"}, status=status.HTTP_200_OK)
+            try:
+                delta = int(request.data.get('quantity_available', 0))
+            except (TypeError, ValueError):
+                return Response({"error": "Invalid quantity."}, status=status.HTTP_400_BAD_REQUEST)
 
-        except (ValueError, TypeError):
-            return Response({"error": "Invalid quantity."}, status=status.HTTP_400_BAD_REQUEST)
+            new_qty = int(stock.quantity_available or 0) - max(delta, 0)
+            if new_qty < 0:
+                return Response({"error": "Insufficient stock."}, status=status.HTTP_400_BAD_REQUEST)
+
+            stock.quantity_available = new_qty
+            stock.save(update_fields=["quantity_available"])
+            return Response({"message": "Stock updated", "new_quantity": new_qty}, status=status.HTTP_200_OK)
 
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -641,47 +715,50 @@ class UpdateStockView(APIView):
 @api_view(['PATCH'])
 def restore_stock(request, pk):
     warehouse_id = get_user_warehouse(request)
-    
     try:
         if warehouse_id:
-            stock = Stock.objects.get(product_id=pk, warehouse=warehouse_id)
+            stock = Stock.objects.get(product_id=pk, warehouse_id=warehouse_id)
         else:
-            stock = Stock.objects.get(product_id=pk)
-            
-        quantity = int(request.data.get('quantity', 0))
+            stock = Stock.objects.filter(product_id=pk).order_by("-id").first()
+            if not stock:
+                raise Stock.DoesNotExist
 
-        if quantity <= 0:
+        try:
+            qty = int(request.data.get('quantity', 0))
+        except (TypeError, ValueError):
+            return Response({'error': 'Invalid quantity.'}, status=400)
+
+        if qty <= 0:
             return Response({'error': 'Quantity must be greater than zero.'}, status=400)
 
-        stock.quantity_available += quantity
-        stock.save()
+        stock.quantity_available = int(stock.quantity_available or 0) + qty
+        stock.save(update_fields=["quantity_available"])
         return Response({'status': 'restored', 'new_quantity': stock.quantity_available})
 
-    except (ValueError, TypeError):
-        return Response({'error': 'Invalid quantity.'}, status=400)
     except Stock.DoesNotExist:
         return Response({'error': 'Stock not found'}, status=404)
 
 
-
-
-# MerchandisingItem Views
+# ------------------------------------------------------------
+# MerchandisingItem (optional simple endpoints)
+# ------------------------------------------------------------
 class MerchandisingItemListCreateView(generics.ListCreateAPIView):
-    queryset = MerchandisingItem.objects.all()
+    queryset = MerchandisingItem.objects.select_related("merchandising", "product").all()
     serializer_class = MerchandisingItemSerializer
+
 
 class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = MerchandisingItem.objects.all()
+    queryset = MerchandisingItem.objects.select_related("merchandising", "product").all()
     serializer_class = MerchandisingItemSerializer
-
-class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
-    queryset = MiscellaneousItem.objects.all()
-    serializer_class = MiscellaneousItemSerializer
-    parser_classes = [parsers.MultiPartParser, parsers.FormParser]
 
 class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MiscellaneousItem.objects.all()
     serializer_class = MiscellaneousItemSerializer
+
+class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
+    queryset = MiscellaneousItem.objects.all()
+    serializer_class = MiscellaneousItemSerializer
+
 
 class PaymentListCreateView(generics.ListCreateAPIView):
     queryset = Payment.objects.all()
@@ -941,3 +1018,146 @@ class ProcessEmptiesReturnView(APIView):
                 {"error": f"Failed to process empties return: {str(e)}"}, 
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+        
+def to_decimal(v, default="0"):
+    try:
+        if v in (None, ""):
+            return Decimal(default)
+        return Decimal(str(v))
+    except (InvalidOperation, TypeError, ValueError):
+        return Decimal(default)
+
+def to_int(v, default=0):
+    try:
+        if v in (None, ""):
+            return int(default)
+        return int(Decimal(str(v)))
+    except Exception:
+        return int(default)
+
+
+class VanLoadReturnUpdateAPIView(APIView):
+    def post(self, request, *args, **kwargs):
+        sale_id = request.data.get("sale_id")
+        items = request.data.get("products", [])
+
+        if not sale_id:
+            return Response({"error": "Missing sale_id"}, status=status.HTTP_400_BAD_REQUEST)
+
+        sale = get_object_or_404(Merchandising, id=sale_id)
+
+        if not sale.warehouse_id:
+            return Response({"error": "Sale has no warehouse set"}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated_items = []
+
+        try:
+            with transaction.atomic():
+                # 1) Update item rows
+                for data in items:
+                    product_id = data.get("productId")
+                    if not product_id:
+                        continue
+
+                    mi = MerchandisingItem.objects.filter(
+                        merchandising=sale, product_id=product_id
+                    ).first()
+                    if not mi:
+                        continue
+
+                    # Int fields
+                    for f in [
+                        "sold_shell", "sold_pcs",
+                        "empty_return_shell", "empty_return_pcs",
+                        "discrepancy_empties_shell", "discrepancy_empties_pc",
+                        "actual_return_shell", "actual_return_pcs",
+                        "discrepancy_full_shell", "discrepancy_full_pcs",
+                    ]:
+                        if f in data:
+                            setattr(mi, f, to_int(data.get(f)))
+
+                    # Decimal fields
+                    if "discount" in data or "discount_percent" in data:
+                        mi.discount_percent = to_decimal(
+                            data.get("discount", data.get("discount_percent"))
+                        )
+                    if "actual_sale" in data:
+                        mi.actual_sale = to_decimal(data.get("actual_sale"))
+                    if "expected_sale" in data:
+                        mi.expected_sale = to_decimal(data.get("expected_sale"))
+
+                    mi.save()
+                    updated_items.append(MerchandisingItemSerializer(mi).data)
+
+                # 2) Remarks (optional)
+                if "remarks" in request.data:
+                    sale.remarks = request.data.get("remarks") or sale.remarks
+
+                # 3) Mark COMPLETE
+                sale.status = "COMPLETE"
+                sale.save(update_fields=["remarks", "status"])
+
+                # 4) Stock movements
+                for data in items:
+                    product_id = data.get("productId")
+                    if not product_id:
+                        continue
+
+                    # saleable stock deduction (pcs)
+                    sold_pcs = to_int(data.get("sold_pcs"))
+                    if sold_pcs:
+                        stock_obj, _ = Stock.objects.get_or_create(
+                            product_id=product_id, warehouse_id=sale.warehouse_id,
+                            defaults={"quantity_available": 0}
+                        )
+                        # clamp to 0, avoid negative on PositiveIntegerField
+                        Stock.objects.filter(pk=stock_obj.pk).update(
+                            quantity_available=Case(
+                                When(quantity_available__gte=sold_pcs,
+                                     then=F("quantity_available") - sold_pcs),
+                                default=Value(0),
+                                output_field=IntegerField(),
+                            )
+                        )
+
+                    # returnables increment (empties) — robust single-row update
+                    empty_shells = to_int(data.get("empty_return_shell"))
+                    empty_pcs    = to_int(data.get("empty_return_pcs"))
+                    if empty_shells or empty_pcs:
+                        qs = ReturnableStock.objects.select_for_update().filter(
+                            product_id=product_id,
+                            warehouse_id=sale.warehouse_id,
+                            source="customer",
+                        )
+
+                        # Prefer the "no supplier" bucket; fall back to any "customer" row
+                        obj = qs.filter(supplier__isnull=True).order_by("id").first() or qs.order_by("id").first()
+
+                        if not obj:
+                            obj = ReturnableStock.objects.create(
+                                product_id=product_id,
+                                warehouse_id=sale.warehouse_id,
+                                source="customer",
+                                supplier=None,
+                                empty_shell_qty=0,
+                                empty_bottle_qty=0,
+                            )
+
+                        ReturnableStock.objects.filter(pk=obj.pk).update(
+                            empty_shell_qty=F("empty_shell_qty") + empty_shells,
+                            empty_bottle_qty=F("empty_bottle_qty") + empty_pcs,
+                        )
+
+            return Response(
+                {
+                    "message": "Van load return updated successfully",
+                    "sale_id": sale.id,
+                    "updated_items": updated_items,
+                    "status": sale.status,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        except Exception as e:
+            import traceback; traceback.print_exc()
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

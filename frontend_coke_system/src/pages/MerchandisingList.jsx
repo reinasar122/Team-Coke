@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -7,26 +7,36 @@ const MerchandisingList = () => {
   const navigate = useNavigate();
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
+  const formatToManila = (isoString) => {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    return new Intl.DateTimeFormat('en-PH', {
+      timeZone: 'Asia/Manila',
+      year: 'numeric',
+      month: 'short',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(d);
+  };
+
   // Get current warehouse from localStorage or user data
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-    
-    // For admin users, use selected warehouse or fallback to enrolled warehouse
-    if (user.role?.toLowerCase() === "admin") {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const selectedWarehouse = JSON.parse(localStorage.getItem('selectedWarehouse') || 'null');
+
+    if ((user.role || '').toLowerCase() === 'admin') {
       setCurrentWarehouse(selectedWarehouse || { id: user.warehouse_id, name: user.warehouse });
     } else {
-      // For non-admin users, always use their enrolled warehouse
       setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
     }
 
-    // Listen for warehouse changes (from Header component)
     const handleWarehouseChange = (event) => {
-      const { warehouse } = event.detail;
+      const { warehouse } = event.detail || {};
       if (warehouse) {
         setCurrentWarehouse(warehouse);
       } else {
-        // Reset to user's enrolled warehouse
         setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
       }
     };
@@ -39,23 +49,32 @@ const MerchandisingList = () => {
   useEffect(() => {
     if (!currentWarehouse?.id) return;
 
-    axios.get('http://localhost:8080/api/merchandising-set/', {
-      params: { warehouse: currentWarehouse.id }
-    })
-      .then(res => setSales(res.data))
-      .catch(err => console.error('Error fetching sales:', err));
+    axios
+      .get('http://localhost:8080/api/merchandising-set/', {
+        params: { warehouse: currentWarehouse.id },
+      })
+      .then((res) => setSales(res.data || []))
+      .catch((err) => console.error('Error fetching sales:', err));
   }, [currentWarehouse]);
 
+  // 🔽 Sort by most recent first (falls back gracefully if date is missing)
+  const sortedSales = useMemo(() => {
+    return [...sales].sort((a, b) => {
+      const ad = a?.date_time ? new Date(a.date_time).getTime() : 0;
+      const bd = b?.date_time ? new Date(b.date_time).getTime() : 0;
+      // If equal timestamps, tie-break by id desc so newest created still on top
+      if (bd === ad) return (b.id || 0) - (a.id || 0);
+      return bd - ad; // recent first
+    });
+  }, [sales]);
+
   const handleCreateNew = () => {
-    navigate('/merchandising-sale'); // for creating new sales
+    navigate('/merchandising-sale');
   };
 
   const handleRowClick = (sale) => {
     navigate(`/merchandising-sale/${sale.id}`, {
-      state: {
-        data: sale,
-        editMode: true,
-      },
+      state: { data: sale, editMode: true },
     });
   };
 
@@ -67,7 +86,7 @@ const MerchandisingList = () => {
           <div>
             <span className="text-blue-100">Current Warehouse:</span>
             <span className="ml-2 text-white font-bold text-lg">
-              {currentWarehouse?.name || "No Warehouse Selected"}
+              {currentWarehouse?.name || 'No Warehouse Selected'}
             </span>
           </div>
         </div>
@@ -94,7 +113,7 @@ const MerchandisingList = () => {
           </tr>
         </thead>
         <tbody>
-          {sales.map((sale) => {
+          {sortedSales.map((sale) => {
             const totalAmount =
               (parseFloat(sale.total_trading_amount) || 0) +
               (parseFloat(sale.total_expenses_amount) || 0);
@@ -106,7 +125,7 @@ const MerchandisingList = () => {
                 onClick={() => handleRowClick(sale)}
               >
                 <td className="p-2">{sale.msp_no}</td>
-                <td className="p-2">{sale.date_time}</td>
+                <td className="p-2">{formatToManila(sale.date_time)}</td>
                 <td className="p-2">{sale.transaction_type_name}</td>
                 <td className="p-2">{sale.handled_by}</td>
                 <td className="p-2">
@@ -116,7 +135,7 @@ const MerchandisingList = () => {
               </tr>
             );
           })}
-          {sales.length === 0 && (
+          {sortedSales.length === 0 && (
             <tr>
               <td colSpan="7" className="text-center py-4 text-gray-600">
                 No sales data found for this warehouse.
