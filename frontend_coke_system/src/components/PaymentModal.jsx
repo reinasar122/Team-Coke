@@ -6,7 +6,7 @@ const PaymentModal = ({
   onClose,
   onConfirm,
   onSave,
-  onPaymentSuccess, // 👈 NEW: parent callback to save Van Load & mark complete
+  onPaymentSuccess,
 
   // data
   rows = [],
@@ -31,24 +31,22 @@ const PaymentModal = ({
   remarks = "",
   onRemarksChange,
 }) => {
-  // ------------ hooks (must be before any early return) ------------
+  // ------------ hooks ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("30 Days");
   const [creditNotes, setCreditNotes] = useState("");
   const [invoiceData, setInvoiceData] = useState(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [submitting, setSubmitting] = useState(false); // 👈 optional guard
+  const [submitting, setSubmitting] = useState(false);
 
   // ------------ helpers ------------
   const n = (v) => Number(v || 0);
   const fmt = (v) => n(v).toFixed(2);
 
-  const isVanLoad = (transactionTypeName || "").toLowerCase() === "van load";
-  const isWarehouse = (transactionTypeName || "").toLowerCase() === "warehouse";
-
-  const showChange = cashReceived !== "";
-  const change = Math.max(n(cashReceived) - n(amountDue), 0);
+  // robust “Van Load” check (tolerates spaces/case)
+  const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
+  const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
 
   const getDaysFromTerm = (term) => {
     const num = parseInt(term, 10);
@@ -77,7 +75,7 @@ const PaymentModal = ({
     }).format(d);
   };
 
-  // ---- robust accessors (ignore "", null, undefined) ----
+  // ---- robust accessors ----
   const pickNum = (...vals) => {
     for (const v of vals) {
       if (v !== "" && v !== null && v !== undefined) {
@@ -92,15 +90,11 @@ const PaymentModal = ({
     row.productName || row.product_name || row.product_detail?.product_name || "—";
   const getSoldShell = (row) => pickNum(row.sold_shell, row.soldShell);
   const getSoldPcs = (row) => pickNum(row.sold_pcs, row.soldPcs, row.qty, row.quantity);
-
-  // ✅ prefer unitPrice (Warehouse sets this), then selling_price, then price
   const getUnitPrice = (row) => pickNum(row.unitPrice, row.selling_price, row.price);
-
   const getEmptyShellPrice = (row) =>
     pickNum(row.empty_price_shell, row.emptyPriceShell, row.shellPrice);
   const getDiscountPercent = (row) => pickNum(row.discount_percent, row.discount);
   const getDiscountAmount = (row) => pickNum(row.discount_amount, row.discount_amt);
-
   const getDirectTotal = (row) =>
     pickNum(row.actualSale, row.actual_sale, row.total, row.line_total, row.lineTotal);
 
@@ -114,21 +108,21 @@ const PaymentModal = ({
     const price = getUnitPrice(row);
 
     if (isWarehouse) {
-      // actualSale = price * soldPcs - (price * soldPcs * discount% / 100)
+      // Warehouse: price * pcs - discount
       const discPct = getDiscountPercent(row);
       const discAmtFromPct = (price * pcs * discPct) / 100;
       const discAmt = getDiscountAmount(row) || discAmtFromPct;
       return Number((pcs * price - discAmt).toFixed(2));
     }
 
-    // Van Load math: percent over (pcs*unit + shells*emptyShell)
+    // Van Load: (pcs*unit + shell*emptyShell) * (1 - discount%)
     const emptyShellPrice = getEmptyShellPrice(row);
     const discPct = getDiscountPercent(row);
     const gross = pcs * price + shell * emptyShellPrice;
     return Number((gross * (1 - discPct / 100)).toFixed(2));
   };
 
-  // Filter out blank/placeholder rows in the table
+  // Filter out blank/placeholder rows
   const tableRows = (rows || []).filter(
     (r) =>
       getProdName(r) !== "—" ||
@@ -143,6 +137,32 @@ const PaymentModal = ({
     if (fromParent > 0) return fromParent;
     return tableRows.reduce((sum, r) => sum + getLineTotal(r), 0);
   }, [actualSales, tableRows]);
+
+  // ---- THE IMPORTANT PART: compute a consistent total due inside the modal ----
+  const computedTotalDue = useMemo(() => {
+    const base =
+      n(actualSalesValue) -
+      n(emptiesPriceTotal) -
+      n(emptyReturns) -
+      n(emptyDiscrepancies) -
+      (isVanLoad ? n(expensesTotal) : 0);
+    // never negative
+    return Math.max(base, 0);
+  }, [
+    actualSalesValue,
+    emptiesPriceTotal,
+    emptyReturns,
+    emptyDiscrepancies,
+    expensesTotal,
+    isVanLoad,
+  ]);
+
+  // Prefer parent values only if they’re explicitly positive
+  const amountDueFinal = n(amountDue) > 0 ? n(amountDue) : computedTotalDue;
+  const totalAmountFinal = n(totalAmount) > 0 ? n(totalAmount) : computedTotalDue;
+
+  const showChange = String(cashReceived).trim() !== "";
+  const change = Math.max(n(cashReceived) - amountDueFinal, 0);
 
   // ------------- early return AFTER hooks -------------
   if (!open) return null;
@@ -211,7 +231,7 @@ const PaymentModal = ({
             <div className="ml-4">- Empty Discrepancies: ₱{fmt(emptyDiscrepancies)}</div>
             {isVanLoad && <div className="ml-4">- Expenses: ₱{fmt(expensesTotal)}</div>}
             <div className="text-blue-600 font-bold">
-              Total Amount Due: ₱{fmt(totalAmount)}
+              Total Amount Due: ₱{fmt(totalAmountFinal)}
             </div>
           </div>
         </div>
@@ -219,16 +239,12 @@ const PaymentModal = ({
         {/* Van Load only: Remarks */}
         {isVanLoad && (
           <div className="mt-4">
-            <label className="block text-sm font-semibold mb-1">
-              Remarks (Van Load)
-            </label>
+            <label className="block text-sm font-semibold mb-1">Remarks (Van Load)</label>
             <textarea
               rows={3}
               className="w-full border rounded px-2 py-1"
               value={remarks}
-              onChange={(e) =>
-                onRemarksChange ? onRemarksChange(e.target.value) : null
-              }
+              onChange={(e) => (onRemarksChange ? onRemarksChange(e.target.value) : null)}
               placeholder="Add remarks for this Van Load transaction..."
             />
           </div>
@@ -246,11 +262,7 @@ const PaymentModal = ({
                 }`}
                 onClick={() => setPaymentMethod(method)}
               >
-                {method === "cash"
-                  ? "Cash"
-                  : method === "credit"
-                  ? "Credit"
-                  : "E-wallet"}
+                {method === "cash" ? "Cash" : method === "credit" ? "Credit" : "E-wallet"}
               </button>
             ))}
           </div>
@@ -270,7 +282,7 @@ const PaymentModal = ({
                 <label className="block mb-1">Amount Due</label>
                 <input
                   className="w-full border rounded px-2 py-1"
-                  value={`₱${fmt(amountDue)}`}
+                  value={`₱${fmt(amountDueFinal)}`}
                   readOnly
                 />
               </div>
@@ -339,7 +351,7 @@ const PaymentModal = ({
                     </div>
                   </div>
                   <div className="text-2xl font-bold text-blue-800">
-                    ₱{fmt(totalAmount)}
+                    ₱{fmt(totalAmountFinal)}
                   </div>
                 </div>
               </div>
@@ -354,24 +366,23 @@ const PaymentModal = ({
           </button>
           <button
             className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60"
-            disabled={
-              submitting || (paymentMethod === "cash" && n(cashReceived) < n(amountDue))
-            }
+            disabled={submitting || (paymentMethod === "cash" && n(cashReceived) < amountDueFinal)}
             onClick={async () => {
               const data = {
                 // payment
                 paymentMethod,
-                amount: n(cashReceived || totalAmount),
+                amount: n(cashReceived || totalAmountFinal),
                 cashReceived: n(cashReceived),
                 change,
-                amountDue: n(amountDue),
+                amountDue: amountDueFinal,
 
                 // breakdown
                 actualSales: n(actualSalesValue),
                 emptiesPriceTotal: n(emptiesPriceTotal),
                 emptyReturns: n(emptyReturns),
                 emptyDiscrepancies: n(emptyDiscrepancies),
-                totalAmount: n(totalAmount),
+                expensesTotal: n(expensesTotal),
+                totalAmount: totalAmountFinal,
 
                 // rows + headers
                 rows,
@@ -382,32 +393,26 @@ const PaymentModal = ({
 
                 // van load extras
                 transactionTypeName,
-                expensesTotal: n(expensesTotal),
                 remarks,
               };
 
-              const paymentOk =
-                paymentMethod === "cash" ? n(cashReceived) >= n(amountDue) : true;
+              const paymentOk = paymentMethod === "cash" ? n(cashReceived) >= amountDueFinal : true;
 
               try {
                 setSubmitting(true);
 
-                // 1) Save Van Load + mark complete ONLY if Van Load & payment is OK
                 if (isVanLoad && paymentOk && typeof onPaymentSuccess === "function") {
                   await onPaymentSuccess(data);
                 }
 
-                // 2) Optional: notify parent with the assembled data
                 if (typeof onConfirm === "function") {
                   await onConfirm(data);
                 }
 
-                // 3) Optional: parent onSave (if you still need it)
                 if (typeof onSave === "function") {
                   await onSave();
                 }
 
-                // 4) Show invoice
                 setInvoiceData(data);
                 setShowInvoiceModal(true);
               } catch (e) {
