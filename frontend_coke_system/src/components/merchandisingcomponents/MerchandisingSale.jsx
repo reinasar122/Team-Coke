@@ -250,103 +250,92 @@ const MerchandisingSale = () => {
 
 
 
-const handleSubmit = async () => {
-  
+const handleSubmit = async (paymentData = null) => {
   const warehouseId = currentWarehouse?.id;
-
-  // Derive van-load flag from the LABEL, not the numeric id
-  const isVanLoad =
-    (selectedTransactionTypeName || "").trim().toLowerCase() === "van load";
-
-
-  // ✅ VALIDATION BEFORE SUBMIT
-  if (!warehouseId) {
-    alert("Warehouse is required.");
-    return false;
-  }
-
+  const isVanLoad = (selectedTransactionTypeName || "").trim().toLowerCase() === "van load";
+  if (!warehouseId) { alert("Warehouse is required."); return false; }
   if (isVanLoad) {
-    if (!route) {
-      alert("Route is required for Van Load.");
-      return false;
-    }
-    if (!selectedVan) {
-      alert("Van is required for Van Load.");
-      return false;
-    }
+    if (!route) { alert("Route is required for Van Load."); return false; }
+    if (!selectedVan) { alert("Van is required for Van Load."); return false; }
   }
 
-  // ✅ Convert local input time to UTC ISO before sending
   const utcIso = new Date(transactionDate).toISOString();
 
+  // ✅ Build payments from the freshly-confirmed modal data if present
+  const paymentsPayload = paymentData ? [{
+    payment_method: paymentData.paymentMethod || "cash",
+    amount: Number(paymentData.amount) || 0,
+    change: Number(paymentData.change) || 0,
+  }] : (payments || []).map(p => ({
+    payment_method: p.paymentMethod || p.payment_method || p.method || "cash",
+    amount: Number(p.amount || p.cashReceived || 0) || 0,
+    change: Number(p.change || 0) || 0,
+  }));
+
+  const paymentMethodForHeader = (paymentsPayload[0] && paymentsPayload[0].payment_method) || "cash";
+
+  // helper to avoid negatives if your serializer forbids them
+  const nz = v => Math.max(0, parseInt(v) || 0);
 
   const payload = {
-    // msp_no is read-only on backend; you may omit it, but keeping it is fine
     msp_no: mspNo,
-    warehouse: Number(currentWarehouse?.id) || null,
+    warehouse: Number(warehouseId),
     transaction_type: parseInt(transactionType),
-    route: (selectedTransactionTypeName.toLowerCase() === "van load" && route) ? parseInt(route) : null,
-    van: (selectedTransactionTypeName.toLowerCase() === "van load" && selectedVan) ? parseInt(selectedVan) : null,
+    route: isVanLoad ? Number(route) : null,
+    van: isVanLoad ? Number(selectedVan) : null,
 
-    handled_by: handledBy,                 // ✅ send a string
+    // ✅ send FK id, not the display name
+    handled_by: selectedUser ? Number(selectedUser) : null,
+
     date_time: utcIso,
-
-
     expected_sale: Number(totalExpectedSale) || 0,
     actual_sale: Number(totalActualSale) || 0,
     miscellaneous: Number(calculateTotalExpenses()) || 0,
-    payment_method: "",
+
+    // ✅ make sure this isn't blank when status is Complete
+    payment_method: paymentMethodForHeader,
+
     invoice_no: "",
     status: (selectedTransactionTypeName === "Van Load") ? "Pending" : "Complete",
     remarks: "",
 
-    // These two are only for MerchandisingSale summary; OK to keep for now
-    total_trading_amount: Number(totalAmount) || 0,
-    total_expenses_amount: Number(calculateTotalExpenses()) || 0,
+    // ❗️OPTIONAL: comment out if your serializer doesn’t accept these fields
+    // total_trading_amount: Number(totalAmount) || 0,
+    // total_expenses_amount: Number(calculateTotalExpenses()) || 0,
 
-
-    items: rows
-    .filter(r => r.productId)
-    .map(row => {
+    items: rows.filter(r => r.productId).map(row => {
       const base = {
-        product: parseInt(row.productId),
-        dispatched_pcs: parseInt(row.dispatchedPcs) || 0,
-        dispatched_shell: parseInt(row.dispatchedShell) || 0,
-        actual_return_pcs: parseInt(row.expectedReturnPcsNonempty) || 0,
-        actual_return_shell: parseInt(row.expectedReturnShellNonempty) || 0,
-        discrepancy_empties_pc: parseInt(row.discrepancyPcsEmpty) || 0,
-        discrepancy_empties_shell: parseInt(row.discrepancyShellEmpty) || 0,
-        discrepancy_full_pcs: parseInt(row.discrepancyPcsNonempty) || 0,
-        discrepancy_full_shell: parseInt(row.discrepancyShellNonempty) || 0,
-        discount_percent: parseFloat(row.discount) || 0,
-        expected_sale: parseFloat(row.expectedSale) || 0,
-        actual_sale: parseFloat(row.actualSale) || 0,
+        product: Number(row.productId),
+        dispatched_pcs: nz(row.dispatchedPcs),
+        dispatched_shell: nz(row.dispatchedShell),
+        actual_return_pcs: nz(row.expectedReturnPcsNonempty),
+        actual_return_shell: nz(row.expectedReturnShellNonempty),
+        discrepancy_empties_pc: nz(row.discrepancyPcsEmpty),
+        discrepancy_empties_shell: nz(row.discrepancyShellEmpty),
+
+        // ✅ clamp potential negatives
+        discrepancy_full_pcs: nz(row.discrepancyPcsNonempty),
+        discrepancy_full_shell: nz(row.discrepancyShellNonempty),
+
+        discount_percent: Number(row.discount) || 0,
+        expected_sale: Number(row.expectedSale) || 0,
+        actual_sale: Number(row.actualSale) || 0,
       };
-      // For Warehouse we include sold + empties returned
-      if (selectedTransactionTypeName.toLowerCase() === "warehouse") {
-        base.sold_pcs = parseInt(row.soldPcs) || 0;
-        base.sold_shell = parseInt(row.soldShell) || 0;
-        base.empty_return_pcs = parseInt(row.expectedReturnPcsEmpty) || 0;
+      if (!isVanLoad) {
+        base.sold_pcs = nz(row.soldPcs);
+        base.sold_shell = nz(row.soldShell);
+        base.empty_return_pcs = nz(row.expectedReturnPcsEmpty);
       }
       return base;
     }),
 
-
-    misc_items: miscItems.map((item) => ({
+    // ✅ omit file blobs in JSON
+    misc_items: (miscItems || []).map(item => ({
       description: item.description,
-      amount: parseFloat(item.amount) || 0,
-      // DO NOT include actual File objects in JSON. See note below.
-      receipt_file: item.file ?? null,
+      amount: Number(item.amount) || 0,
     })),
 
-    // include payments created/confirmed by PaymentModal and stored in parent
-    payments: payments.map((p) => ({
-      payment_method: p.paymentMethod || p.payment_method || p.method || "cash",
-      amount: parseFloat(p.amount || p.cashReceived || 0) || 0,
-      change: parseFloat(p.change || 0) || 0,
-      // add extra fields as needed (notes, credit_terms, etc.)
-    })),
-   
+    payments: paymentsPayload,
   };
 
   console.log("Submitting payload:", payload);
@@ -361,6 +350,7 @@ const handleSubmit = async () => {
     return false;
   }
 };
+
 
 
 
@@ -686,6 +676,8 @@ const handleFinalizeSale = async () => {
         totalAmount={totalAmount}
         onSave={handleSubmit}
         transactionDate={transactionDate}  
+        transactionTypeName={selectedTransactionTypeName}  // ✅ pass it
+
       />
 
     </div>
