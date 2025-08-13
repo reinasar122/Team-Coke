@@ -449,6 +449,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     customer_name = serializers.SerializerMethodField()
     date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
 
+
     # Nested
     items = MerchandisingItemSerializer(many=True)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
@@ -462,6 +463,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     # Computed aggregates for response
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
+    
 
     class Meta:
         model = Merchandising
