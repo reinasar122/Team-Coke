@@ -152,7 +152,7 @@ const MerchandisingList = () => {
                   <td className="p-2">{sale.msp_no}</td>
                   <td className="p-2">{formatToManila(sale.date_time)}</td>
                   <td className="p-2">{sale.transaction_type_name}</td>
-                  <td className="p-2">{sale.handled_by}</td>
+                  <td className="p-2">{sale.handled_by_name || sale.handled_by_username || sale.handled_by || "—"} </td>
                   <td className="p-2">
                     <StatusPill status={sale.status} />
                   </td>
