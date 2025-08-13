@@ -214,14 +214,16 @@ const MerchandisingSale = () => {
     if (!transactionType || !selectedTransactionTypeName || !warehouseId) return;
 
     axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
-      params: { 
+      params: {
         transaction_type: transactionType,
-        warehouse: warehouseId          // ✅ include warehouse scope
+        warehouse: warehouseId
       }
     })
-    .then(res => setMspNo(res.data.msp_no))
+    .then(res => {
+      setMspNo(res.data.msp_no || "");
+    })
     .catch(err => console.error("MSP preview error:", err));
-  }, [transactionType, selectedTransactionTypeName, currentWarehouse]);  // ✅ include warehouse change
+  }, [transactionType, selectedTransactionTypeName, currentWarehouse?.id]);
 
 
   useEffect(() => {
@@ -259,7 +261,16 @@ const handleSubmit = async (paymentData = null) => {
     if (!selectedVan) { alert("Van is required for Van Load."); return false; }
   }
 
-  const utcIso = new Date(transactionDate).toISOString();
+  let utcIso;
+  if ((selectedTransactionTypeName || "").toLowerCase() === "warehouse") {
+    // Let backend set/override; skip sending date_time
+    utcIso = null;
+  } else {
+    utcIso = new Date(transactionDate).toISOString();
+  }
+
+
+
 
   // ✅ Build payments from the freshly-confirmed modal data if present
   const paymentsPayload = paymentData ? [{
@@ -297,8 +308,8 @@ const handleSubmit = async (paymentData = null) => {
 
     // ✅ send FK id, not the display name
     handled_by: handledBy || "",
+    ...(utcIso ? { date_time: utcIso } : {}),  
 
-    date_time: utcIso,
     expected_sale: Number(totalExpectedSale) || 0,
     actual_sale: Number(totalActualSale) || 0,
     miscellaneous: Number(calculateTotalExpenses()) || 0,
