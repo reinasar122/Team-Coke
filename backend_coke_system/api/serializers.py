@@ -10,6 +10,8 @@ import re
 from .models import SupplierReturnForm, SupplierReturnFormItem, Product
 from .models import *
 from django.db import transaction
+from django.db.models import F
+
 
 
 
@@ -525,16 +527,32 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 actual_sale=item_data.get("actual_sale", 0),
             )
 
-            # Returnables (empties) → ReturnableStock
+            # Returnables (empties) → ReturnableStock (UPSERT)
             if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
-                ReturnableStock.objects.create(
-                    product=product,
-                    empty_bottle_qty=merchandising_item.empty_return_pcs,
-                    empty_shell_qty=merchandising_item.empty_return_shell,
-                    source='customer',
-                    supplier=getattr(product, 'supplier', None),
-                    warehouse=merchandising.warehouse
+                # Clamp to >= 0 to be safe with validators
+                add_bottle = max(0, int(merchandising_item.empty_return_pcs or 0))
+                add_shell  = max(0, int(merchandising_item.empty_return_shell or 0))
+
+                # Match the UNIQUE constraint fields used by your model:
+                # product, warehouse, source, supplier  (inferred from the error)
+                rs, created = (
+                    ReturnableStock.objects
+                    .select_for_update()  # lock row if it exists (inside atomic txn)
+                    .get_or_create(
+                        product=product,
+                        warehouse=merchandising.warehouse,
+                        source='customer',                           # keep your current source
+                        supplier=getattr(product, 'supplier', None),# same supplier you use now
+                        defaults={'empty_bottle_qty': 0, 'empty_shell_qty': 0},
+                    )
                 )
+
+                # Atomic SQL increment to avoid race conditions
+                ReturnableStock.objects.filter(pk=rs.pk).update(
+                    empty_bottle_qty=F('empty_bottle_qty') + add_bottle,
+                    empty_shell_qty=F('empty_shell_qty') + add_shell,
+                )
+
 
             # Restock non-empty returns
             if merchandising_item.actual_return_pcs > 0:
