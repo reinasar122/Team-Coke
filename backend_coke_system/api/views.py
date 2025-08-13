@@ -641,14 +641,36 @@ class NextMspNoView(APIView):
         prefix = "WA" if tt_name == "warehouse" else ("VA" if tt_name == "van load" else "XX")
 
         if tt_name == "warehouse":
-            # Reuse today's WA number for this warehouse if exists, else WA-0001
-            first_today = Merchandising.objects.filter(
-                warehouse_id=warehouse_id,
-                transaction_type=tt,
-                date_time__date=today
-            ).order_by("id").first()
-            msp_no = first_today.msp_no if first_today else f"{prefix}-0001"
+            today = timezone.localdate()
+
+            # If today's sequence exists → reuse its number
+            seq = MSPSequence.objects.filter(
+                date=today, warehouse_id=warehouse_id, transaction_type=tt
+            ).first()
+
+            if seq and seq.last_number:
+                msp_no = f"{prefix}-{seq.last_number:04d}"
+                return Response({"msp_no": msp_no})
+
+            # Else, preview the number that will be set for today on first save
+            last_rec = (
+                Merchandising.objects
+                .filter(warehouse_id=warehouse_id, transaction_type=tt)
+                .exclude(msp_no__isnull=True)
+                .order_by('-id')
+                .first()
+            )
+            if last_rec and '-' in last_rec.msp_no:
+                try:
+                    prev_num = int(last_rec.msp_no.split('-')[1])
+                except ValueError:
+                    prev_num = 0
+            else:
+                prev_num = 0
+
+            msp_no = f"{prefix}-{(prev_num + 1):04d}"
             return Response({"msp_no": msp_no})
+
 
         if tt_name == "van load":
             # Peek the next number without incrementing the sequence
