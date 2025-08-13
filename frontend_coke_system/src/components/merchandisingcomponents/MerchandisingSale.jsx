@@ -277,6 +277,17 @@ const handleSubmit = async (paymentData = null) => {
   // helper to avoid negatives if your serializer forbids them
   const nz = v => Math.max(0, parseInt(v) || 0);
 
+    // Find the selected user's object from your users list
+  const handledByUser = users.find(
+    u => String(u.id) === String(selectedUser)
+  );
+
+  // Build the full name
+  const handledBy = handledByUser
+    ? `${handledByUser.first_name} ${handledByUser.last_name}`.trim()
+    : "";
+
+
   const payload = {
     msp_no: mspNo,
     warehouse: Number(warehouseId),
@@ -285,7 +296,7 @@ const handleSubmit = async (paymentData = null) => {
     van: isVanLoad ? Number(selectedVan) : null,
 
     // ✅ send FK id, not the display name
-    handled_by: selectedUser ? Number(selectedUser) : null,
+    handled_by: handledBy || "",
 
     date_time: utcIso,
     expected_sale: Number(totalExpectedSale) || 0,
