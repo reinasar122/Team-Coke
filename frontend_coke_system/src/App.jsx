@@ -46,6 +46,8 @@ import SupplierReturnForm from "./pages/SupplierReturnForm";
 import SupplierReturnList from "./pages/SupplierReturnList";
 import ReturnEmpties from "./pages/ReturnEmpties";
 import PaymentModal from "./components/PaymentModal";
+import WarehouseProductDetails from "./pages/WarehouseProductDetails";
+
 
 
 // Icons
@@ -127,6 +129,8 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/merchandising" element={<><h1 className="text-2xl flex items-center gap-2 mb-4"><FaChartLine /> Create New Sale</h1><Merchandising /></>} />
             <Route path="/merchandising-sale" element={<MerchandisingSale />} />
             <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
+            <Route path="/warehouse-details/:mspNo"element={<WarehouseProductDetails />}/>
+
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -330,12 +330,16 @@ const handleSubmit = async (paymentData = null) => {
         product: Number(row.productId),
         dispatched_pcs: nz(row.dispatchedPcs),
         dispatched_shell: nz(row.dispatchedShell),
+
+        // non-empty (full) returns
         actual_return_pcs: nz(row.expectedReturnPcsNonempty),
         actual_return_shell: nz(row.expectedReturnShellNonempty),
+
+        // empty returns (discrepancy buckets)
         discrepancy_empties_pc: nz(row.discrepancyPcsEmpty),
         discrepancy_empties_shell: nz(row.discrepancyShellEmpty),
 
-        // ✅ clamp potential negatives
+        // full discrepancies
         discrepancy_full_pcs: nz(row.discrepancyPcsNonempty),
         discrepancy_full_shell: nz(row.discrepancyShellNonempty),
 
@@ -343,11 +347,14 @@ const handleSubmit = async (paymentData = null) => {
         expected_sale: Number(row.expectedSale) || 0,
         actual_sale: Number(row.actualSale) || 0,
       };
+
       if (!isVanLoad) {
         base.sold_pcs = nz(row.soldPcs);
         base.sold_shell = nz(row.soldShell);
         base.empty_return_pcs = nz(row.expectedReturnPcsEmpty);
+        base.empty_return_shell = nz(row.expectedReturnShellEmpty); // ⬅️ NEW
       }
+
       return base;
     }),
 

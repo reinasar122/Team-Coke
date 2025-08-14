@@ -26,11 +26,15 @@ const StatusPill = ({ status }) => {
   return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
 };
 
+
+
 const MerchandisingList = () => {
   const [sales, setSales] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const asYmd = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : "");
+
 
   // Load current warehouse (admin can switch)
   useEffect(() => {
@@ -78,7 +82,8 @@ const MerchandisingList = () => {
       return 1;                                            // middle
     };
 
-    return [...sales].sort((a, b) => {
+
+     return [...sales].sort((a, b) => {
       const ra = rank(a);
       const rb = rank(b);
       if (ra !== rb) return ra - rb; // bucket order
@@ -91,13 +96,60 @@ const MerchandisingList = () => {
     });
   }, [sales]);
 
+
+      // NEW: group Warehouse rows by msp_no + date
+  const groupedWarehouseRows = useMemo(() => {
+    const groups = new Map();
+    for (const r of sortedSales) {
+      const tname = (r.transaction_type_name || "").toLowerCase();
+      if (tname !== "warehouse") continue;
+      const day = asYmd(r.date_time);        // group per calendar day
+      const key = `${r.msp_no}__${day}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          _kind: "warehouse-group",
+          msp_no: r.msp_no,
+          date: day,
+          txn_count: 0,
+          total_actual_sale: 0,
+        });
+      }
+      const g = groups.get(key);
+      g.txn_count += 1;
+      g.total_actual_sale += Number(r.actual_sale || 0);
+    }
+    return Array.from(groups.values());
+  }, [sortedSales]);
+
+  // NEW: keep non-warehouse rows as-is
+  const nonWarehouseRows = useMemo(() => {
+    return sortedSales
+      .filter((r) => (r.transaction_type_name || "").toLowerCase() !== "warehouse")
+      .map((r) => ({ _kind: "normal", record: r }));
+  }, [sortedSales]);
+
+  // NEW: final list to render
+  const displayRows = useMemo(() => {
+    const groupsSorted = [...groupedWarehouseRows].sort((a, b) => b.date.localeCompare(a.date));
+    return [...groupsSorted, ...nonWarehouseRows];
+  }, [groupedWarehouseRows, nonWarehouseRows]);
+
+ 
+
   const handleCreateNew = () => navigate("/merchandising-sale");
 
-  const handleRowClick = (sale) => {
-    navigate(`/merchandising-sale/${sale.id}`, {
-      state: { data: sale, editMode: true },
-    });
+  // REPLACE: handle click for both grouped + normal rows
+  const handleAnyRowClick = (row) => {
+    if (row._kind === "warehouse-group") {
+      navigate(`/warehouse-details/${encodeURIComponent(row.msp_no)}`);
+    } else {
+      const sale = row.record;
+      navigate(`/merchandising-sale/${sale.id}`, {
+        state: { data: sale, editMode: true },
+      });
+    }
   };
+
 
   return (
     <div className="p-6 bg-sky-200 min-h-screen">
@@ -134,38 +186,49 @@ const MerchandisingList = () => {
             </tr>
           </thead>
           <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={5} className="text-center py-6 text-gray-600">
-                  Loading…
-                </td>
-              </tr>
-            )}
-
             {!loading &&
-              sortedSales.map((sale) => (
-                <tr
-                  key={sale.id}
-                  className="text-center border-t bg-gray-100 hover:bg-blue-100 cursor-pointer"
-                  onClick={() => handleRowClick(sale)}
-                >
-                  <td className="p-2">{sale.msp_no}</td>
-                  <td className="p-2">{formatToManila(sale.date_time)}</td>
-                  <td className="p-2">{sale.transaction_type_name}</td>
-                  <td className="p-2">{sale.handled_by_name || sale.handled_by_username || sale.handled_by || "—"} </td>
-                  <td className="p-2">
-                    <StatusPill status={sale.status} />
-                  </td>
-                </tr>
-              ))}
+              displayRows.map((row) => {
+                if (row._kind === "warehouse-group") {
+                  return (
+                    <tr
+                      key={`wa-${row.msp_no}-${row.date}`}
+                      className="text-center border-t bg-gray-100 hover:bg-blue-100 cursor-pointer"
+                      onClick={() => handleAnyRowClick(row)}
+                      title="View warehouse products for this MSP (grouped)"
+                    >
+                      <td className="p-2 font-semibold">{row.msp_no}</td>
+                      <td className="p-2">{row.date}</td>
+                      <td className="p-2">Warehouse</td>
+                      <td className="p-2">—</td>
+                      <td className="p-2">
+                        <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
+                          {row.txn_count} txn • ₱{row.total_actual_sale.toFixed(2)}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                }
 
-            {!loading && sortedSales.length === 0 && (
-              <tr>
-                <td colSpan={5} className="text-center py-6 text-gray-600">
-                  No sales data found for this warehouse.
-                </td>
-              </tr>
-            )}
+                // normal (non-warehouse) rows render like before
+                const sale = row.record;
+                return (
+                  <tr
+                    key={sale.id}
+                    className="text-center border-t bg-white hover:bg-blue-100 cursor-pointer"
+                    onClick={() => handleAnyRowClick(row)}
+                  >
+                    <td className="p-2">{sale.msp_no}</td>
+                    <td className="p-2">{formatToManila(sale.date_time)}</td>
+                    <td className="p-2">{sale.transaction_type_name}</td>
+                    <td className="p-2">
+                      {sale.handled_by_name || sale.handled_by_username || sale.handled_by || "—"}
+                    </td>
+                    <td className="p-2">
+                      <StatusPill status={sale.status} />
+                    </td>
+                  </tr>
+                );
+              })}
           </tbody>
         </table>
       </div>
