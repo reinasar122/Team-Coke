@@ -73,66 +73,80 @@ const MerchandisingList = () => {
       .finally(() => setLoading(false));
   }, [currentWarehouse]);
 
-  // Pending bucket at top, completed bucket at bottom — each bucket newest→oldest
-  const sortedSales = useMemo(() => {
-    const rank = (s) => {
-      const st = (s?.status || "").toLowerCase();
-      if (st === "pending") return 0;                      // top
-      if (st === "complete" || st === "completed") return 2; // bottom
-      return 1;                                            // middle
-    };
+  // 1) If you still want to keep a pre-sort, make it a simple newest-first by date_time
+const timeSorted = useMemo(() => {
+  return [...sales].sort((a, b) => {
+    const at = a?.date_time ? new Date(a.date_time).getTime() : 0;
+    const bt = b?.date_time ? new Date(b.date_time).getTime() : 0;
+    return bt - at; // newest first
+  });
+}, [sales]);
 
+// 2) Group warehouse rows by msp_no + day, but keep a precise max timestamp for sorting
+const groupedWarehouseRows = useMemo(() => {
+  const groups = new Map();
+  for (const r of timeSorted) {
+    const tname = (r.transaction_type_name || "").toLowerCase();
+    if (tname !== "warehouse") continue;
 
-     return [...sales].sort((a, b) => {
-      const ra = rank(a);
-      const rb = rank(b);
-      if (ra !== rb) return ra - rb; // bucket order
+    const day = asYmd(r.date_time); // same-day grouping
+    const key = `${r.msp_no}__${day}`;
+    const ts = r?.date_time ? new Date(r.date_time).getTime() : 0;
+    const actualSale = Number(r.actual_sale || 0);
 
-      // inside each bucket: most recent first, tie-break by id desc
-      const ad = a?.date_time ? new Date(a.date_time).getTime() : 0;
-      const bd = b?.date_time ? new Date(b.date_time).getTime() : 0;
-      if (bd !== ad) return bd - ad;
-      return (b.id ?? 0) - (a.id ?? 0);
-    });
-  }, [sales]);
-
-
-      // NEW: group Warehouse rows by msp_no + date
-  const groupedWarehouseRows = useMemo(() => {
-    const groups = new Map();
-    for (const r of sortedSales) {
-      const tname = (r.transaction_type_name || "").toLowerCase();
-      if (tname !== "warehouse") continue;
-      const day = asYmd(r.date_time);        // group per calendar day
-      const key = `${r.msp_no}__${day}`;
-      if (!groups.has(key)) {
-        groups.set(key, {
-          _kind: "warehouse-group",
-          msp_no: r.msp_no,
-          date: day,
-          txn_count: 0,
-          total_actual_sale: 0,
-        });
-      }
-      const g = groups.get(key);
-      g.txn_count += 1;
-      g.total_actual_sale += Number(r.actual_sale || 0);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        _kind: "warehouse-group",
+        msp_no: r.msp_no,
+        dateYmd: day,
+        txn_count: 0,
+        total_actual_sale: 0,
+        sortTime: ts,                 // track max date_time among the group
+      });
     }
-    return Array.from(groups.values());
-  }, [sortedSales]);
 
-  // NEW: keep non-warehouse rows as-is
-  const nonWarehouseRows = useMemo(() => {
-    return sortedSales
-      .filter((r) => (r.transaction_type_name || "").toLowerCase() !== "warehouse")
-      .map((r) => ({ _kind: "normal", record: r }));
-  }, [sortedSales]);
+    const g = groups.get(key);
+    g.txn_count += 1;
+    g.total_actual_sale += actualSale;
+    if (ts > g.sortTime) g.sortTime = ts; // keep the latest timestamp in group
+  }
 
-  // NEW: final list to render
-  const displayRows = useMemo(() => {
-    const groupsSorted = [...groupedWarehouseRows].sort((a, b) => b.date.localeCompare(a.date));
-    return [...groupsSorted, ...nonWarehouseRows];
-  }, [groupedWarehouseRows, nonWarehouseRows]);
+  // Optional: keep a human display for the group’s latest time
+  const arr = Array.from(groups.values()).map(g => ({
+    ...g,
+    date_display: new Intl.DateTimeFormat("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(g.sortTime)),
+  }));
+
+  return arr;
+}, [timeSorted]);
+
+// 3) Non-warehouse rows, with their own sortTime
+const nonWarehouseRows = useMemo(() => {
+  return timeSorted
+    .filter((r) => (r.transaction_type_name || "").toLowerCase() !== "warehouse")
+    .map((r) => ({
+      _kind: "normal",
+      record: r,
+      sortTime: r?.date_time ? new Date(r.date_time).getTime() : 0,
+    }));
+}, [timeSorted]);
+
+// 4) Merge everything and do ONE final sort by sortTime desc
+const displayRows = useMemo(() => {
+  const merged = [
+    ...groupedWarehouseRows,   // each has sortTime
+    ...nonWarehouseRows,       // each has sortTime
+  ];
+  return merged.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
+}, [groupedWarehouseRows, nonWarehouseRows]);
 
  
 
@@ -186,50 +200,50 @@ const MerchandisingList = () => {
             </tr>
           </thead>
           <tbody>
-            {!loading &&
-              displayRows.map((row) => {
-                if (row._kind === "warehouse-group") {
-                  return (
-                    <tr
-                      key={`wa-${row.msp_no}-${row.date}`}
-                      className="text-center border-t bg-gray-100 hover:bg-blue-100 cursor-pointer"
-                      onClick={() => handleAnyRowClick(row)}
-                      title="View warehouse products for this MSP (grouped)"
-                    >
-                      <td className="p-2 font-semibold">{row.msp_no}</td>
-                      <td className="p-2">{row.date}</td>
-                      <td className="p-2">Warehouse</td>
-                      <td className="p-2">—</td>
-                      <td className="p-2">
-                        <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
-                          {row.txn_count} txn • ₱{row.total_actual_sale.toFixed(2)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                // normal (non-warehouse) rows render like before
-                const sale = row.record;
+            {!loading && displayRows.map((row) => {
+              if (row._kind === "warehouse-group") {
                 return (
                   <tr
-                    key={sale.id}
-                    className="text-center border-t bg-white hover:bg-blue-100 cursor-pointer"
+                    key={`wa-${row.msp_no}-${row.dateYmd}`}
+                    className="text-center border-t bg-gray-100 hover:bg-blue-100 cursor-pointer"
                     onClick={() => handleAnyRowClick(row)}
+                    title="View warehouse products for this MSP (grouped)"
                   >
-                    <td className="p-2">{sale.msp_no}</td>
-                    <td className="p-2">{formatToManila(sale.date_time)}</td>
-                    <td className="p-2">{sale.transaction_type_name}</td>
+                    <td className="p-2 font-semibold">{row.msp_no}</td>
+                    <td className="p-2">{row.date_display}</td> {/* precise latest time */}
+                    <td className="p-2">Warehouse</td>
+                    <td className="p-2">—</td>
                     <td className="p-2">
-                      {sale.handled_by_name || sale.handled_by_username || sale.handled_by || "—"}
-                    </td>
-                    <td className="p-2">
-                      <StatusPill status={sale.status} />
+                      <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
+                        {row.txn_count} txn • ₱{row.total_actual_sale.toFixed(2)}
+                      </span>
                     </td>
                   </tr>
                 );
-              })}
+              }
+
+              // normal row
+              const sale = row.record;
+              return (
+                <tr
+                  key={sale.id}
+                  className="text-center border-t bg-white hover:bg-blue-100 cursor-pointer"
+                  onClick={() => handleAnyRowClick(row)}
+                >
+                  <td className="p-2">{sale.msp_no}</td>
+                  <td className="p-2">{formatToManila(sale.date_time)}</td>
+                  <td className="p-2">{sale.transaction_type_name}</td>
+                  <td className="p-2">
+                    {sale.handled_by_name || sale.handled_by_username || sale.handled_by || "—"}
+                  </td>
+                  <td className="p-2">
+                    <StatusPill status={sale.status} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
+
         </table>
       </div>
     </div>
