@@ -437,11 +437,9 @@ class Merchandising(models.Model):
                     self.msp_no = f'{prefix}-{seq.last_number:04d}'
 
             elif tt_name == 'van load':
-                # Daily counter per warehouse – increment every delivery
-                day = timezone.localdate(self.date_time)
+                # Continuous counter per warehouse – increment every delivery (no daily reset)
                 with transaction.atomic():
                     seq, _ = MSPSequence.objects.select_for_update().get_or_create(
-                        date=day,
                         warehouse=self.warehouse,
                         transaction_type=tt,
                         defaults={'last_number': 0}
@@ -449,6 +447,7 @@ class Merchandising(models.Model):
                     seq.last_number += 1
                     seq.save(update_fields=['last_number'])
                     self.msp_no = f'{prefix}-{seq.last_number:04d}'
+
 
             else:
                 self.msp_no = f'{prefix}-0001'

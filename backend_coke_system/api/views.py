@@ -677,13 +677,13 @@ class NextMspNoView(APIView):
 
 
         if tt_name == "van load":
-            # Peek the next number without incrementing the sequence
             seq = MSPSequence.objects.filter(
-                date=today, warehouse_id=warehouse_id, transaction_type=tt
+                warehouse_id=warehouse_id, transaction_type=tt
             ).first()
             next_num = (seq.last_number + 1) if seq else 1
             msp_no = f"{prefix}-{next_num:04d}"
             return Response({"msp_no": msp_no})
+
 
         # Fallback
         return Response({"msp_no": f"{prefix}-0001"})
