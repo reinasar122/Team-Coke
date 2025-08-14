@@ -14,6 +14,31 @@ const toDatetimeLocalValue = (date = new Date()) => {
   return d.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
 };
 
+/** Build stock deductions from rows (in PCS). delta is NEGATIVE for deduction. */
+const buildVanLoadStockAdjustments = (rows, products) => {
+  const productMap = new Map((products || []).map(p => [Number(p.id), p]));
+  const n = v => parseFloat(v) || 0;
+
+  const items = [];
+  for (const r of rows) {
+    const pid = Number(r.productId);
+    if (!pid) continue;
+
+    const prod = productMap.get(pid);
+    const conversion = n(prod?.unit_type?.content_no || r?.contentNo || 1);
+
+    // Prefer explicit PCS; else derive from shell
+    const pcs = Number.isFinite(n(r.dispatchedPcs)) && n(r.dispatchedPcs) > 0
+      ? Math.round(n(r.dispatchedPcs))
+      : Math.round(n(r.dispatchedShell) * conversion);
+
+    if (pcs > 0) {
+      items.push({ product_id: pid, delta: -pcs });
+    }
+  }
+  return items;
+};
+
 const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [users, setUsers] = useState([]);
@@ -353,12 +378,30 @@ const MerchandisingSale = () => {
     };
 
     try {
-      await axios.post("http://localhost:8080/api/merchandisings/", payload);
+      // 1) Save merchandising record
+      const txRes = await axios.post("http://localhost:8080/api/merchandisings/", payload);
+
+      // 2) If Van Load → deduct dispatched from stocks in one atomic call
+      if (isVanLoad) {
+        const adjustments = buildVanLoadStockAdjustments(rows, products);
+        if (adjustments.length) {
+          await axios.post("http://localhost:8080/api/stocks/bulk-adjust/", {
+            warehouse: Number(warehouseId),
+            items: adjustments, // [{ product_id, delta: -PCS }]
+            reason: "van_load_dispatch",
+            reference: txRes?.data?.msp_no || "",
+          });
+
+          // Notify tables to refresh "Available" instantly
+          window.dispatchEvent(new Event("stocksChanged"));
+        }
+      }
+
       alert("Transaction saved successfully!");
       return true;
     } catch (error) {
-      console.error("Save error:", error.response?.data || error.message);
-      alert("Failed to save transaction.");
+      console.error("Save error:", error?.response?.data || error.message);
+      alert(error?.response?.data?.detail || "Failed to save transaction.");
       return false;
     }
   };

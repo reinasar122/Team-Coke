@@ -33,7 +33,7 @@ from .views import (
     NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
     CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock, LoginAPIView, RoleAccessibilityListView ,
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
-    VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView
+    VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView, BulkAdjustStockView
 
 
 
@@ -152,6 +152,8 @@ urlpatterns = [
        path('process-empties-return/', ProcessEmptiesReturnView.as_view(), name='process-empties-return'),
 
      path("van-load-return/", VanLoadReturnUpdateAPIView.as_view(), name="van-load-return"),
+
+       path('stocks/bulk-adjust/', BulkAdjustStockView.as_view(), name='bulk-adjust-stocks'),
 ]
 
 router = DefaultRouter()

@@ -1169,6 +1169,81 @@ def to_int(v, default=0):
         return int(Decimal(str(v)))
     except Exception:
         return int(default)
+    
+    
+# --- BULK stock adjustments (add/deduct in PCS) -----------------------
+class BulkAdjustStockView(APIView):
+
+    def post(self, request):
+        data = request.data or {}
+        wid = data.get("warehouse") or get_user_warehouse(request)
+        items = data.get("items") or []
+
+        if not wid:
+            return Response({"detail": "warehouse is required (explicitly or via user)"}, status=status.HTTP_400_BAD_REQUEST)
+        if not isinstance(items, list) or not items:
+            return Response({"detail": "`items` must be a non-empty list"}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Check warehouse exists
+        try:
+            Warehouse.objects.get(id=wid)
+        except Warehouse.DoesNotExist:
+            return Response({"detail": f"warehouse {wid} not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+        results = []
+        try:
+            with transaction.atomic():
+                for it in items:
+                    pid = it.get("product_id")
+                    try:
+                        delta = int(it.get("delta", 0))
+                    except (TypeError, ValueError):
+                        return Response({"detail": f"invalid delta for product {pid}"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    if not pid or delta == 0:
+                        continue
+
+                    # Ensure product exists
+                    try:
+                        Product.objects.only("id").get(id=pid)
+                    except Product.DoesNotExist:
+                        return Response({"detail": f"product {pid} not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    # Lock row to avoid race conditions. Create if missing.
+                    stock = (Stock.objects
+                             .select_for_update()
+                             .filter(product_id=pid, warehouse_id=wid)
+                             .first())
+
+                    if stock is None:
+                        stock = Stock(product_id=pid, warehouse_id=wid, quantity_available=0)
+
+                    old_qty = int(stock.quantity_available or 0)
+                    new_qty = old_qty + delta
+                    if new_qty < 0:
+                        return Response(
+                            {"detail": f"Insufficient stock for product {pid}. Available={old_qty}, requested change={delta}"},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+
+                    stock.quantity_available = new_qty
+                    # Save (insert or update). We only update the field we changed.
+                    if stock.pk:
+                        stock.save(update_fields=["quantity_available"])
+                    else:
+                        stock.save()
+
+                    results.append({
+                        "product_id": int(pid),
+                        "old_qty": old_qty,
+                        "applied_delta": int(delta),
+                        "new_qty": int(stock.quantity_available),
+                    })
+
+            return Response({"warehouse": int(wid), "results": results}, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({"detail": f"bulk-adjust failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 class VanLoadReturnUpdateAPIView(APIView):

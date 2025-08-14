@@ -5,7 +5,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
   const [availableStock, setAvailableStock] = useState({});
   const [pricingData, setPricingData] = useState([]);
 
-  // ---- helpers -----------------------------------------------------
+  // ---------------- helpers ----------------
   const n = (v) => parseFloat(v) || 0;
 
   // Normalize various shapes to a number id
@@ -32,7 +32,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     return toWid(user.warehouse_id ?? user.warehouse ?? null);
   };
 
-  // ---- Fetch ALL stocks once per warehouse; build { productId:number -> qty }
+  // ---------------- fetch stocks (by warehouse, once + when signaled) ----------------
   const fetchAllStocks = useCallback(async () => {
     try {
       const wid = getCurrentWarehouseId();
@@ -52,7 +52,8 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
       );
 
       const map = {};
-      for (const row of (Array.isArray(data) ? data : [data]).filter(Boolean)) {
+      const list = Array.isArray(data) ? data : [data];
+      for (const row of list.filter(Boolean)) {
         // prefer numeric id from payload; else fallback to name
         const pidDirect = row.product_id ?? row.product;
         let pid = pidDirect != null ? Number(pidDirect) : undefined;
@@ -73,11 +74,16 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
   useEffect(() => {
     fetchAllStocks();
     const onWhChange = () => fetchAllStocks();
+    const onStocksChanged = () => fetchAllStocks(); // refresh after deductions
     window.addEventListener("warehouseChanged", onWhChange);
-    return () => window.removeEventListener("warehouseChanged", onWhChange);
+    window.addEventListener("stocksChanged", onStocksChanged);
+    return () => {
+      window.removeEventListener("warehouseChanged", onWhChange);
+      window.removeEventListener("stocksChanged", onStocksChanged);
+    };
   }, [fetchAllStocks]);
 
-  // ---- Pricing catalog (used to fill row prices) -------------------
+  // ---------------- pricing catalog (fill row prices) ----------------
   useEffect(() => {
     const fetchPricing = async () => {
       try {
@@ -90,7 +96,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     fetchPricing();
   }, []);
 
-  // ---- Row handlers -------------------------------------------------
+  // ---------------- row handlers ----------------
   const handleProductChange = (index, value) => {
     const updatedRows = [...rows];
     const productId = parseInt(value, 10);
@@ -100,21 +106,30 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
       const priceId = selectedProduct.price?.id || null;
       const fullPrice = pricingData.find((price) => price.id === priceId);
 
-      updatedRows[index].productId = productId;
-      updatedRows[index].productName = selectedProduct.product_name;
-      updatedRows[index].priceId = priceId;
-      updatedRows[index].contentNo = selectedProduct.unit_type?.content_no || 1;
-
-      // Fill prices directly into the row
-      if (fullPrice) {
-        updatedRows[index].shellPrice = fullPrice.shell_price ?? "";
-        updatedRows[index].bottlePrice = fullPrice.bottle_price ?? "";
-        updatedRows[index].sellingPrice = fullPrice.selling_price ?? "";
-      } else {
-        updatedRows[index].shellPrice = "";
-        updatedRows[index].bottlePrice = "";
-        updatedRows[index].sellingPrice = "";
-      }
+      updatedRows[index] = {
+        ...(updatedRows[index] || {}),
+        productId,
+        productName: selectedProduct.product_name,
+        priceId,
+        contentNo: selectedProduct.unit_type?.content_no || 1,
+        shellPrice: fullPrice?.shell_price ?? "",
+        bottlePrice: fullPrice?.bottle_price ?? "",
+        sellingPrice: fullPrice?.selling_price ?? "",
+      };
+    } else {
+      updatedRows[index] = {
+        ...(updatedRows[index] || {}),
+        productId: "",
+        productName: "",
+        priceId: "",
+        contentNo: 1,
+        shellPrice: "",
+        bottlePrice: "",
+        sellingPrice: "",
+        dispatchedShell: "",
+        dispatchedPcs: "",
+        expectedSale: "",
+      };
     }
 
     setRows(updatedRows);
@@ -157,25 +172,28 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     row.sellingPrice = sellingPrice;
 
     // Available stock for this product (PCS)
-    const availablePcs = availableStock[Number(row.productId)] ?? Infinity;
+    const availablePcs = availableStock[Number(row.productId)];
+    const hasAvail = typeof availablePcs === "number";
+    const cap = hasAvail ? availablePcs : Infinity;
 
-    // PCS ↔ Shell conversions with validation
+    // PCS ↔ Shell conversions with validation vs available
     if (field === "dispatchedShell") {
       const pcsCalc = Math.round(n(value) * conversion);
-      if (pcsCalc > availablePcs) {
-        alert(`Dispatched PCS (${pcsCalc}) exceeds available stock (${availablePcs}).`);
-        row.dispatchedPcs = availablePcs;
-        row.dispatchedShell = (availablePcs / conversion).toFixed(2);
+      if (pcsCalc > cap) {
+        if (hasAvail) alert(`Dispatched PCS (${pcsCalc}) exceeds available stock (${availablePcs}).`);
+        row.dispatchedPcs = hasAvail ? cap : pcsCalc;
+        row.dispatchedShell = ( (hasAvail ? cap : pcsCalc) / conversion ).toFixed(2);
       } else {
         row.dispatchedPcs = pcsCalc;
       }
     } else if (field === "dispatchedPcs") {
-      const pcsVal = n(value);
-      if (pcsVal > availablePcs) {
-        alert(`Dispatched PCS (${pcsVal}) exceeds available stock (${availablePcs}).`);
-        row.dispatchedPcs = availablePcs;
-        row.dispatchedShell = (availablePcs / conversion).toFixed(2);
+      const pcsVal = Math.max(0, Math.round(n(value))); // avoid negatives / decimals
+      if (pcsVal > cap) {
+        if (hasAvail) alert(`Dispatched PCS (${pcsVal}) exceeds available stock (${availablePcs}).`);
+        row.dispatchedPcs = hasAvail ? cap : pcsVal;
+        row.dispatchedShell = ( (hasAvail ? cap : pcsVal) / conversion ).toFixed(2);
       } else {
+        row.dispatchedPcs = pcsVal;
         row.dispatchedShell = (pcsVal / conversion).toFixed(2);
       }
     }
@@ -201,7 +219,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     setTotalExpectedSale(expectedTotal);
   };
 
-  // ---- Render -------------------------------------------------------
+  // ---------------- render ----------------
   return (
     <div className="overflow-x-auto border rounded-md mt-4">
       <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
@@ -231,11 +249,13 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
         <tbody>
           {rows.map((row, index) => {
             const productId = Number(row.productId);
+            const avail = availableStock[productId];
+            const showAvail = (avail === 0 || typeof avail === "number") ? avail : "--";
 
             return (
               <tr key={row.id ?? index} className="bg-white border-t">
                 {/* PRODUCT SELECT */}
-                <td className="border border-gray-200 py-1 px-1 w-[120px]">
+                <td className="border border-gray-200 py-1 px-1 w-[160px]">
                   <select
                     className="w-full p-1 text-sm text-center rounded bg-white border"
                     value={row.productId ?? ""}
@@ -254,6 +274,8 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
+                    min="0"
+                    step="0.01"
                     className="w-full p-1 text-sm text-center rounded bg-white"
                     value={row.dispatchedShell ?? ""}
                     onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
@@ -264,6 +286,8 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
+                    min="0"
+                    step="1"
                     className="w-full p-1 text-sm text-center rounded bg-white"
                     value={row.dispatchedPcs ?? ""}
                     onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
@@ -309,18 +333,16 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
                       row.expectedSale !== undefined && row.expectedSale !== null
                         ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
                             minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
                           })}`
                         : ""
                     }
                   />
                 </td>
 
-                {/* AVAILABLE STOCK */}
+                {/* AVAILABLE STOCK (PCS) */}
                 <td className="border border-gray-200 py-1 px-1 text-sm text-center">
-                  {(() => {
-                    const v = availableStock[productId];
-                    return (v === 0 || typeof v === "number") ? v : "--";
-                  })()}
+                  {showAvail}
                 </td>
 
                 {/* ACTION BUTTONS */}
