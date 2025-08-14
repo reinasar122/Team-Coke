@@ -132,7 +132,7 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
 
   const handleClose = () => {
     onClose?.();
-    navigate("/trading", { replace: true, state: { reset: true } });
+    navigate("/merchandising-sale", { replace: true, state: { reset: true } });
   };
 
   // ----------------------------------------------------------------

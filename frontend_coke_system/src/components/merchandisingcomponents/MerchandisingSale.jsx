@@ -1,3 +1,4 @@
+// src/components/merchandisingcomponents/MerchandisingSale.jsx
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -6,7 +7,6 @@ import ExpensesSection from "./ExpensesSection";
 import ActionButtons from "./ActionButtons";
 import VanLoadTable from "./VanLoadTable";
 import PaymentModal from "../PaymentModal";
-import InvoiceModal from "../InvoiceModal";
 
 // Convert a Date to a value usable by <input type="datetime-local"> in LOCAL time
 const toDatetimeLocalValue = (date = new Date()) => {
@@ -40,18 +40,21 @@ const MerchandisingSale = () => {
   const [mspNo, setMspNo] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
-  const [route, setRoute] = useState(""); // can be id (number) or name (string) before submit
+  const [route, setRoute] = useState(""); // may be "" or number
   const [selectedVan, setSelectedVan] = useState("");
   const [isAddingRoute, setIsAddingRoute] = useState(false);
-  const [newRoute, setNewRoute] = useState("");
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [vans, setVans] = useState([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
-  const [showInvoiceModal, setShowInvoiceModal] = useState(false);
-  const [invoiceData, setInvoiceData] = useState(null);
   const [payments, setPayments] = useState([]);
 
   const location = useLocation();
+
+  // helper: coerce a value to a positive numeric id or ""
+  const asId = (v) => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : "";
+  };
 
   useEffect(() => {
     if (location.state?.reset === true) {
@@ -130,30 +133,20 @@ const MerchandisingSale = () => {
     };
   }, [fetchProducts]);
 
-  // Fetch users
+  // Fetch users for dropdown
   const fetchUsers = useCallback(() => {
     if (!currentWarehouse?.id) {
-      console.log("❌ Skipping users fetch - no warehouse ID");
       return;
     }
-
-    console.log(
-      `🔄 Fetching users for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`
-    );
-
     const config = {
       headers: {
         Authorization: `Bearer ${localStorage.getItem("token")}`,
       },
     };
-
     axios
       .get("http://localhost:8080/api/users/", config)
-      .then((res) => {
-        console.log(`✅ Loaded ${res.data.length} users`);
-        setUsers(res.data);
-      })
-      .catch((err) => console.error("❌ Error fetching users:", err));
+      .then((res) => setUsers(res.data))
+      .catch((err) => console.error("Error fetching users:", err));
   }, [currentWarehouse]);
 
   useEffect(() => {
@@ -163,7 +156,7 @@ const MerchandisingSale = () => {
         .then((res) => setVans(res.data))
         .catch((err) => console.error("Failed to fetch vans:", err));
     }
-  }, [transactionType]);
+  }, [transactionType, selectedTransactionTypeName]);
 
   useEffect(() => {
     if (currentWarehouse?.id) {
@@ -184,30 +177,37 @@ const MerchandisingSale = () => {
     },
   ]);
 
-  // Only fetch routes and customers here
+  // Fetch routes & customers scoped to current warehouse
   useEffect(() => {
     if (!currentWarehouse?.id) return;
-
     const warehouseId = currentWarehouse.id;
 
     axios
-      .get(`http://localhost:8080/api/routes/?warehouse=${warehouseId}`)
-      .then((res) => setRoutes(res.data));
+      .get("http://localhost:8080/api/routes/", { params: { warehouse: warehouseId } })
+      .then((res) => setRoutes(res.data))
+      .catch((err) => {
+        console.error("Failed to fetch routes:", err);
+        setRoutes([]);
+      });
+
     axios
-      .get(`http://localhost:8080/api/customers/?warehouse=${warehouseId}`)
-      .then((res) => setCustomers(res.data));
+      .get("http://localhost:8080/api/customers/", { params: { warehouse: warehouseId } })
+      .then((res) => setCustomers(res.data))
+      .catch((err) => {
+        console.error("Failed to fetch customers:", err);
+        setCustomers([]);
+      });
   }, [currentWarehouse]);
 
+  // Transaction types
   useEffect(() => {
     axios
       .get("http://localhost:8080/api/transaction-types/")
-      .then((res) => {
-        console.log("Transaction Types:", res.data);
-        setTransactionTypes(res.data);
-      })
+      .then((res) => setTransactionTypes(res.data))
       .catch((err) => console.error("Failed to fetch transaction types:", err));
   }, []);
 
+  // MSP preview
   useEffect(() => {
     const warehouseId = getCurrentWarehouse();
     if (!transactionType || !selectedTransactionTypeName || !warehouseId) return;
@@ -216,15 +216,16 @@ const MerchandisingSale = () => {
       .get("http://localhost:8080/api/merchandisings/msp-next/", {
         params: {
           transaction_type: transactionType,
-          warehouse: warehouseId, // include warehouse scope
+          warehouse: warehouseId,
         },
       })
-      .then((res) => setMspNo(res.data.msp_no))
+      .then((res) => {
+        setMspNo(res.data.msp_no || "");
+      })
       .catch((err) => console.error("MSP preview error:", err));
-  }, [transactionType, selectedTransactionTypeName, currentWarehouse]);
+  }, [transactionType, selectedTransactionTypeName, currentWarehouse?.id]);
 
   useEffect(() => {
-    // optional: keep it synced to "now" when page opens
     setTransactionDate(toDatetimeLocalValue(new Date()));
   }, []);
 
@@ -236,137 +237,120 @@ const MerchandisingSale = () => {
     navigate("/merchandising-list");
   };
 
-  const customer = customers.find((c) => c.id === selectedCustomerId);
+  const customer = customers.find((c) => String(c.id) === String(selectedCustomerId));
   const customerName = customer ? customer.name : "Walk-in";
 
   const handledByUser = users.find((u) => String(u.id) === String(selectedUser));
   const handledBy = handledByUser ? `${handledByUser.first_name} ${handledByUser.last_name}`.trim() : "";
 
-  // ---------- NEW: ensureRouteId helper ----------
-  const ensureRouteId = async () => {
-    if (!selectedTransactionTypeName || selectedTransactionTypeName.toLowerCase() !== "van load") {
-      return null; // not required
-    }
-    const wId = currentWarehouse?.id;
-    if (!wId) return null;
-
-    // Already numeric?
-    if (typeof route === "number") return route;
-    if (!route) return null;
-
-    const name = String(route).trim();
-    if (!name) return null;
-
-    // 1) check existing list (case-insensitive)
-    const existing = routes.find(
-      (r) => (r.route_name || "").trim().toLowerCase() === name.toLowerCase()
-    );
-    if (existing) return existing.id;
-
-    // 2) create if missing (include warehouse)
-    try {
-      const res = await axios.post("http://localhost:8080/api/routes/", {
-        route_name: name,
-        warehouse: wId,
-      });
-      const created = res.data;
-      setRoutes((prev) => [...prev, created]); // keep local list updated
-      return created.id;
-    } catch (err) {
-      console.error("Failed to create route:", err?.response?.data || err.message);
-      return null;
-    }
-  };
-  // ---------- END helper ----------
-
-  const handleSubmit = async () => {
+  const handleSubmit = async (paymentData = null) => {
     const warehouseId = currentWarehouse?.id;
-
     const isVanLoad = (selectedTransactionTypeName || "").trim().toLowerCase() === "van load";
-
-    // VALIDATION BEFORE SUBMIT
     if (!warehouseId) {
       alert("Warehouse is required.");
       return false;
     }
-
-    // Resolve/ensure route id if Van Load
-    let routeId = null;
     if (isVanLoad) {
-      routeId = await ensureRouteId();
-      if (!routeId) {
-        alert("Route is required for Van Load (select or create one).");
+      if (!Number.isFinite(Number(route)) || Number(route) <= 0) {
+        alert("Route is required for Van Load.");
         return false;
       }
-      if (!selectedVan) {
+      if (!Number.isFinite(Number(selectedVan)) || Number(selectedVan) <= 0) {
         alert("Van is required for Van Load.");
         return false;
       }
     }
 
-    // Convert local input time to UTC ISO before sending
-    const utcIso = new Date(transactionDate).toISOString();
+    // date handling
+    let utcIso;
+    if ((selectedTransactionTypeName || "").toLowerCase() === "warehouse") {
+      utcIso = null; // backend decides
+    } else {
+      utcIso = new Date(transactionDate).toISOString();
+    }
+
+    // payments payload
+    const paymentsPayload = paymentData
+      ? [
+          {
+            payment_method: paymentData.paymentMethod || "cash",
+            amount: Number(paymentData.amount) || 0,
+            change: Number(paymentData.change) || 0,
+          },
+        ]
+      : (payments || []).map((p) => ({
+          payment_method: p.paymentMethod || p.payment_method || p.method || "cash",
+          amount: Number(p.amount || p.cashReceived || 0) || 0,
+          change: Number(p.change || 0) || 0,
+        }));
+
+    const paymentMethodForHeader = (paymentsPayload[0] && paymentsPayload[0].payment_method) || "cash";
+
+    // helper: non-negative int
+    const nz = (v) => Math.max(0, parseInt(v) || 0);
 
     const payload = {
       msp_no: mspNo,
-      warehouse: Number(warehouseId) || null,
+      warehouse: Number(warehouseId),
       transaction_type: parseInt(transactionType),
-      route: isVanLoad ? Number(routeId) : null, // always id now
-      van: isVanLoad ? parseInt(selectedVan) : null,
+      route: isVanLoad ? Number(route) : null,
+      van: isVanLoad ? Number(selectedVan) : null,
 
-      handled_by: handledBy,
-      date_time: utcIso,
+      handled_by: handledBy || "",
+      ...(utcIso ? { date_time: utcIso } : {}),
 
       expected_sale: Number(totalExpectedSale) || 0,
       actual_sale: Number(totalActualSale) || 0,
       miscellaneous: Number(calculateTotalExpenses()) || 0,
-      payment_method: "",
-      invoice_no: "",
-      status: isVanLoad ? "Pending" : "Complete",
-      remarks: "",
 
-      total_trading_amount: Number(totalAmount) || 0,
-      total_expenses_amount: Number(calculateTotalExpenses()) || 0,
+      payment_method: paymentMethodForHeader,
+
+      invoice_no: "",
+      status: selectedTransactionTypeName === "Van Load" ? "Pending" : "Complete",
+      remarks: "",
 
       items: rows
         .filter((r) => r.productId)
         .map((row) => {
           const base = {
-            product: parseInt(row.productId),
-            dispatched_pcs: parseInt(row.dispatchedPcs) || 0,
-            dispatched_shell: parseInt(row.dispatchedShell) || 0,
-            actual_return_pcs: parseInt(row.expectedReturnPcsNonempty) || 0,
-            actual_return_shell: parseInt(row.expectedReturnShellNonempty) || 0,
-            discrepancy_empties_pc: parseInt(row.discrepancyPcsEmpty) || 0,
-            discrepancy_empties_shell: parseInt(row.discrepancyShellEmpty) || 0,
-            discrepancy_full_pcs: parseInt(row.discrepancyPcsNonempty) || 0,
-            discrepancy_full_shell: parseInt(row.discrepancyShellNonempty) || 0,
-            discount_percent: parseFloat(row.discount) || 0,
-            expected_sale: parseFloat(row.expectedSale) || 0,
-            actual_sale: parseFloat(row.actualSale) || 0,
+            product: Number(row.productId),
+            dispatched_pcs: nz(row.dispatchedPcs),
+            dispatched_shell: nz(row.dispatchedShell),
+
+            // non-empty (full) returns
+            actual_return_pcs: nz(row.expectedReturnPcsNonempty),
+            actual_return_shell: nz(row.expectedReturnShellNonempty),
+
+            // empty returns (discrepancy buckets)
+            discrepancy_empties_pc: nz(row.discrepancyPcsEmpty),
+            discrepancy_empties_shell: nz(row.discrepancyShellEmpty),
+
+            // full discrepancies
+            discrepancy_full_pcs: nz(row.discrepancyPcsNonempty),
+            discrepancy_full_shell: nz(row.discrepancyShellNonempty),
+
+            discount_percent: Number(row.discount) || 0,
+            expected_sale: Number(row.expectedSale) || 0,
+            actual_sale: Number(row.actualSale) || 0,
           };
-          if (selectedTransactionTypeName.toLowerCase() === "warehouse") {
-            base.sold_pcs = parseInt(row.soldPcs) || 0;
-            base.sold_shell = parseInt(row.soldShell) || 0;
-            base.empty_return_pcs = parseInt(row.expectedReturnPcsEmpty) || 0;
+
+          if (!isVanLoad) {
+            base.sold_pcs = nz(row.soldPcs);
+            base.sold_shell = nz(row.soldShell);
+            base.empty_return_pcs = nz(row.expectedReturnPcsEmpty);
+            base.empty_return_shell = nz(row.expectedReturnShellEmpty);
           }
+
           return base;
         }),
 
-      misc_items: miscItems.map((item) => ({
+      misc_items: (miscItems || []).map((item) => ({
         description: item.description,
-        amount: parseFloat(item.amount) || 0,
-        receipt_file: item.file ?? null,
+        amount: Number(item.amount) || 0,
       })),
 
-      payments: payments.map((p) => ({
-        payment_method: p.paymentMethod || p.payment_method || p.method || "cash",
-        amount: parseFloat(p.amount || p.cashReceived || 0) || 0,
-        change: parseFloat(p.change || 0) || 0,
-      })),
+      payments: paymentsPayload,
     };
-
-    console.log("Submitting payload:", payload);
 
     try {
       await axios.post("http://localhost:8080/api/merchandisings/", payload);
@@ -395,7 +379,6 @@ const MerchandisingSale = () => {
   };
 
   const handleConfirmPayment = (paymentData) => {
-    console.log("Payment confirmed (parent):", paymentData);
     setPayments((prev) => [...prev, paymentData]);
   };
 
@@ -406,7 +389,7 @@ const MerchandisingSale = () => {
           {editMode ? "View/Edit Merchandising Sale" : "New Merchandising Sale"}
         </h1>
 
-        {/* Original form layout block */}
+        {/* Header form */}
         <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
           {/* LEFT */}
           <div className="flex flex-col space-y-4 w-full md:w-1/2">
@@ -470,7 +453,7 @@ const MerchandisingSale = () => {
               />
             </div>
 
-            {/* Warehouse: CUSTOMER FIELD WITH ADD OPTION */}
+            {/* Warehouse: Customer field + add */}
             {selectedTransactionTypeName === "Warehouse" && (
               <div>
                 <label className="text-sm mb-1 block">Customer</label>
@@ -485,7 +468,7 @@ const MerchandisingSale = () => {
                         if (!newCustomer) return;
 
                         const exists = customers.some(
-                          (c) => c.name?.toLowerCase() === newCustomer.toLowerCase()
+                          (c) => (c.name || "").toLowerCase() === newCustomer.toLowerCase()
                         );
                         if (exists) {
                           alert(`Customer "${newCustomer}" already exists.`);
@@ -534,7 +517,7 @@ const MerchandisingSale = () => {
               </div>
             )}
 
-            {/* Van Load: VAN + ROUTE FIELD WITH ADD OPTION */}
+            {/* Van Load: Van + Route */}
             {selectedTransactionTypeName === "Van Load" && (
               <>
                 <div>
@@ -567,36 +550,29 @@ const MerchandisingSale = () => {
                       onKeyDown={async (e) => {
                         if (e.key === "Enter") {
                           e.preventDefault();
-                          const newRouteName = String(route).trim();
+                          const newRouteName = String(route || "").trim();
                           if (!newRouteName) return;
 
-                          // Check if the route already exists
                           const existing = routes.find(
-                            (r) =>
-                              (r.route_name || "").toLowerCase() === newRouteName.toLowerCase()
+                            (r) => (r.route_name || "").toLowerCase() === newRouteName.toLowerCase()
                           );
                           if (existing) {
-                            alert(
-                              `Route "${newRouteName}" already exists. Selected it for you.`
-                            );
-                            setRoute(existing.id); // use the existing route's ID
+                            alert(`Route "${newRouteName}" already exists. Selected it for you.`);
+                            setRoute(existing.id);
                             setIsAddingRoute(false);
                             return;
                           }
 
-                          // Add new route (include warehouse)
                           try {
-                            const res = await axios.post(
-                              "http://localhost:8080/api/routes/",
-                              {
-                                route_name: newRouteName,
-                                warehouse: currentWarehouse?.id, // IMPORTANT
-                              }
-                            );
+                            // include warehouse so backend attaches correctly
+                            const res = await axios.post("http://localhost:8080/api/routes/", {
+                              route_name: newRouteName,
+                              warehouse: currentWarehouse?.id,
+                            });
 
-                            const created = res.data;
-                            setRoutes((prev) => [...prev, created]);
-                            setRoute(created.id); // use new route ID
+                            const newRoute = res.data;
+                            setRoutes((prev) => [...prev, newRoute]);
+                            setRoute(newRoute.id);
                           } catch (error) {
                             console.error("Error saving new route:", error);
                           }
@@ -607,13 +583,13 @@ const MerchandisingSale = () => {
                     />
                   ) : (
                     <select
-                      value={route}
+                      value={route === "" ? "" : Number(route)}
                       onChange={(e) => {
                         if (e.target.value === "add_new") {
                           setIsAddingRoute(true);
                           setRoute("");
                         } else {
-                          setRoute(parseInt(e.target.value)); // ensure it's a number
+                          setRoute(asId(e.target.value)); // numeric id or ""
                         }
                       }}
                       className="w-full rounded-md px-2 py-1 bg-gray-200 text-black"
@@ -641,7 +617,7 @@ const MerchandisingSale = () => {
           rows={rows}
           setRows={setRows}
           products={products}
-          warehouseId={currentWarehouse?.id} 
+          warehouseId={currentWarehouse?.id} // pass just the ID
           setTotalExpectedSale={setTotalExpectedSale}
         />
       ) : (
@@ -677,9 +653,7 @@ const MerchandisingSale = () => {
       <PaymentModal
         open={isPaymentModalOpen}
         onClose={handleClosePayment}
-        onConfirm={(paymentData) => {
-          setPayments((prev) => [...prev, paymentData]);
-        }}
+        onConfirm={handleConfirmPayment}
         rows={rows}
         products={products}
         amountDue={totalAmount}
@@ -687,13 +661,13 @@ const MerchandisingSale = () => {
         emptyReturns={refundablesTotal}
         emptiesPriceTotal={emptiesPriceTotal}
         emptyDiscrepancies={discrepancy}
-        totalAdjustments
         mspNo={mspNo}
         customerName={customerName}
         handledBy={handledBy}
         totalAmount={totalAmount}
         onSave={handleSubmit}
         transactionDate={transactionDate}
+        transactionTypeName={selectedTransactionTypeName}
       />
     </div>
   );

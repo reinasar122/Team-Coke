@@ -389,33 +389,67 @@ class Merchandising(models.Model):
     def save(self, *args, **kwargs):
         is_new = self._state.adding
         if is_new and not self.msp_no:
+            # ensure there is some dt set
             if not self.date_time:
                 self.date_time = timezone.now()
 
-            day = _local_day(self.date_time)
             tt = self.transaction_type
-            tt_name = _tt_lower(tt)
+            tt_name = (tt.name or "").strip().lower()
             prefix = _prefix_for(tt)
 
             if tt_name == 'warehouse':
-                # Reuse same MSP for this day + warehouse
-                existing = Merchandising.objects.filter(
-                    warehouse=self.warehouse,
-                    transaction_type=tt,
-                    date_time__date=day
-                ).order_by('id').first()
-                self.msp_no = existing.msp_no if existing else f'{prefix}-0001'
+                # Always use server-local “today”
+                today = timezone.localdate()
+                # Also store server time (ignore client datetime for MSP purposes)
+                self.date_time = timezone.now()
+
+                with transaction.atomic():
+                    # 1) Get or create the daily row
+                    seq, created = MSPSequence.objects.select_for_update().get_or_create(
+                        date=today,
+                        warehouse=self.warehouse,
+                        transaction_type=tt,
+                        defaults={'last_number': 0}
+                    )
+
+                    if created or seq.last_number == 0:
+                        # 2) First Warehouse transaction today → decide today's number
+                        #    Find the last used number across any previous day for this warehouse
+                        last_rec = (
+                            Merchandising.objects
+                            .filter(warehouse=self.warehouse, transaction_type=tt)
+                            .exclude(msp_no__isnull=True)
+                            .order_by('-id')
+                            .first()
+                        )
+                        if last_rec and '-' in last_rec.msp_no:
+                            try:
+                                prev_num = int(last_rec.msp_no.split('-')[1])
+                            except ValueError:
+                                prev_num = 0
+                        else:
+                            prev_num = 0
+
+                        seq.last_number = prev_num + 1  # today’s fixed number
+                        seq.save(update_fields=['last_number'])
+
+                    # 3) Reuse the same number for the rest of the day
+                    self.msp_no = f'{prefix}-{seq.last_number:04d}'
 
             elif tt_name == 'van load':
-                # Daily counter per warehouse (race-safe)
+                # Daily counter per warehouse – increment every delivery
+                day = timezone.localdate(self.date_time)
                 with transaction.atomic():
                     seq, _ = MSPSequence.objects.select_for_update().get_or_create(
-                        date=day, warehouse=self.warehouse, transaction_type=tt,
+                        date=day,
+                        warehouse=self.warehouse,
+                        transaction_type=tt,
                         defaults={'last_number': 0}
                     )
                     seq.last_number += 1
                     seq.save(update_fields=['last_number'])
                     self.msp_no = f'{prefix}-{seq.last_number:04d}'
+
             else:
                 self.msp_no = f'{prefix}-0001'
 

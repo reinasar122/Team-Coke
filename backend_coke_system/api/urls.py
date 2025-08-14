@@ -38,6 +38,10 @@ from .views import (
 
 
 )
+from .views import warehouse_groups_view, warehouse_details_view
+
+
+
 from .views import SupplierReturnFormListCreateView
 from .views import SupplierReturnFormDetailView
 from .views import ProcessEmptiesReturnView
@@ -106,15 +110,20 @@ urlpatterns = [
     path('merchandisings/', MerchandisingListCreateView.as_view(), name='merchandising-list'),
     path('merchandisings/<int:pk>/', MerchandisingDetailView.as_view(), name='merchandising-detail'),
     path('merchandisings/msp-next/', NextMspNoView.as_view(), name='next-msp-no'),
+
     path('stocks/<int:product_id>/availability/', StockAvailabilityView.as_view(), name='stock-availability'),
     path('stocks/<int:product_id>/update/', UpdateStockView.as_view(), name='update-stock'),
-    path('api/stocks/<int:pk>/', StockDetailView.as_view()),
-    path('api/stocks/<int:pk>/restore/', restore_stock),
+    path('stocks/<int:pk>/', StockDetailView.as_view()),
+    path('stocks/<int:pk>/restore/', restore_stock),
 
 
     path('merchandising/', MerchandisingListView.as_view(), name='merchandising-list'),
     path('merchandising-items/', MerchandisingItemListCreateView.as_view(), name='merchandising-item-list'),
     path('merchandising-items/<int:pk>/', MerchandisingItemDetailView.as_view(), name='merchandising-item-detail'),
+
+    path('warehouse-groups/', warehouse_groups_view, name='warehouse-groups'),
+    path('warehouse-details/', warehouse_details_view, name='warehouse-details'),
+
 
     path('miscellaneous-items/', MiscellaneousItemListCreateView.as_view(), name='miscellaneous-item-list'),
     path('miscellaneous-items/<int:pk>/', MiscellaneousItemDetailView.as_view(), name='miscellaneous-item-detail'),
