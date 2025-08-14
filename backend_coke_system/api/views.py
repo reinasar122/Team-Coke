@@ -1,7 +1,7 @@
 from decimal import Decimal, InvalidOperation          # 👈 for to_decimal()
 from django.db import transaction
 from django.shortcuts import get_object_or_404  
-from django.db.models import F, Case, When, Value, IntegerField
+from django.db.models import F, Case, When, Value, IntegerField, Sum, Count
 from rest_framework import viewsets
 from rest_framework import generics
 from rest_framework.exceptions import NotFound
@@ -30,6 +30,10 @@ from .models import Product, UnitType, Pricing, ShellType, ContentType, ProductC
 from .serializers import RoleAccessibilitySerializer, ProductSerializer, ProductCategorySerializer, ChangePasswordSerializer
 from .serializers import MerchandisingSaleSerializer
 from .models import MerchandisingSale
+
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 
 from rest_framework import parsers
 from .serializers import LoginSerializer
@@ -772,6 +776,115 @@ class MerchandisingItemListCreateView(generics.ListCreateAPIView):
 class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MerchandisingItem.objects.select_related("merchandising", "product").all()
     serializer_class = MerchandisingItemSerializer
+
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def warehouse_groups_view(request):
+    """
+    Query params (optional):
+      - warehouse: int (defaults to logged-in user's warehouse if available)
+      - date: YYYY-MM-DD  (optional; if not provided, returns recent groups)
+    """
+    warehouse_id = request.query_params.get("warehouse") or get_user_warehouse(request)
+    day = request.query_params.get("date")
+
+    # Only 'Warehouse' transactions, scoped by warehouse
+    qs = (Merchandising.objects
+          .select_related("transaction_type", "warehouse")
+          .filter(transaction_type__name__iexact="warehouse"))
+
+    if warehouse_id:
+        qs = qs.filter(warehouse_id=warehouse_id)
+    if day:
+        qs = qs.filter(date_time__date=day)
+
+    # Group by MSP + calendar day (avoid accidental cross-day merges)
+    groups = (qs
+        .values("msp_no", "date_time__date")
+        .annotate(
+            txn_count=Count("id"),
+            total_actual_sale=Sum("actual_sale"),
+            last_id=Max("id"),  # for stable sort
+        )
+        .order_by("-date_time__date", "-last_id"))
+
+    data = [{
+        "msp_no": g["msp_no"],
+        "date": str(g["date_time__date"]),
+        "txn_count": g["txn_count"],
+        "total_actual_sale": float(g["total_actual_sale"] or 0),
+    } for g in groups]
+
+    return Response(data)
+
+
+# --- NEW: Details per Warehouse MSP (aggregate items by product) ---
+from django.db.models import Sum, Max
+
+@api_view(["GET"])
+@permission_classes([AllowAny])
+def warehouse_details_view(request):
+    """
+    Query params:
+      - msp_no: str (required)
+      - warehouse: int (defaults to logged-in user's warehouse if available)
+      - date: YYYY-MM-DD (optional but recommended to ensure same-day scope)
+    """
+    msp_no = request.query_params.get("msp_no")
+    if not msp_no:
+        return Response({"detail": "msp_no is required."}, status=400)
+
+    warehouse_id = request.query_params.get("warehouse") or get_user_warehouse(request)
+    day = request.query_params.get("date")
+
+    header_qs = Merchandising.objects.filter(
+        transaction_type__name__iexact="warehouse",
+        msp_no=msp_no,
+    )
+    if warehouse_id:
+        header_qs = header_qs.filter(warehouse_id=warehouse_id)
+    if day:
+        header_qs = header_qs.filter(date_time__date=day)
+
+    if not header_qs.exists():
+        return Response({"detail": "No records found for that MSP No."}, status=404)
+
+    item_qs = MerchandisingItem.objects.filter(merchandising__in=header_qs)
+
+    agg = (item_qs
+        .values("product", "product__product_name")
+        .annotate(
+            sold_shell_sum=Sum("sold_shell"),
+            sold_pcs_sum=Sum("sold_pcs"),
+            ret_shell_sum=Sum("empty_return_shell"),
+            ret_pcs_sum=Sum("empty_return_pcs"),
+            actual_sale_sum=Sum("actual_sale"),
+        )
+        .order_by("product__product_name"))
+
+    items = [{
+        "product": r["product"],
+        "product_name": r["product__product_name"],
+        "sold_shell": int(r["sold_shell_sum"] or 0),
+        "sold_pcs": int(r["sold_pcs_sum"] or 0),
+        "returned_empty_shell": int(r["ret_shell_sum"] or 0),
+        "returned_empty_pcs": int(r["ret_pcs_sum"] or 0),
+        "actual_sale": float(r["actual_sale_sum"] or 0),
+    } for r in agg]
+
+    overall_total = sum(i["actual_sale"] for i in items)
+
+    # Use the most recent header's timestamp for display
+    latest_dt = header_qs.aggregate(dt=Max("date_time"))["dt"]
+
+    return Response({
+        "msp_no": msp_no,
+        "date": latest_dt.date().isoformat() if latest_dt else day,
+        "items": items,
+        "overall_total": overall_total,
+    })
+
 
 class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MiscellaneousItem.objects.all()
