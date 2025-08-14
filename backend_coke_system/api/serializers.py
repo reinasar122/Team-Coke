@@ -11,6 +11,116 @@ from .models import SupplierReturnForm, SupplierReturnFormItem, Product
 from .models import *
 from django.db import transaction
 from django.db.models import F
+# api/serializers.py
+from rest_framework import serializers
+from .models import CreditLedger, CreditPayment
+
+class CreditLedgerCreateSerializer(serializers.ModelSerializer):
+    # Map camelCase (frontend) → snake_case (model)
+    customerName = serializers.CharField(source="customer_name", required=False, allow_blank=True, default="Walk-in")
+    handledBy = serializers.CharField(source="handled_by", required=False, allow_blank=True, default="")
+    transactionTypeName = serializers.CharField(source="transaction_type", required=False, allow_blank=True, default="")
+    payment_terms_days = serializers.IntegerField(required=False, default=30)
+    due_date = serializers.DateTimeField(required=False, allow_null=True)
+    transactionDate = serializers.DateTimeField(source="created_at", required=False)
+    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)  # optional
+    totalAmount = serializers.DecimalField(source="total_amount", max_digits=12, decimal_places=2)
+    rows = serializers.ListField(child=serializers.DictField(), source="rows_json", required=False, default=list)
+    creditNotes = serializers.CharField(required=False, allow_blank=True, default="")
+
+    class Meta:
+        model = CreditLedger
+        fields = [
+            "msp_no",
+            "customerName",
+            "handledBy",
+            "transactionTypeName",
+            "remarks",
+            "payment_terms_days",
+            "due_date",
+            "amountDue",       # optional: used only for client-side display/validation
+            "totalAmount",     # ← this populates model.total_amount
+            "rows",
+            "transactionDate", # ← maps to created_at
+            "creditNotes",
+        ]
+
+    def create(self, validated):
+        # validated has model keys thanks to `source=...` mapping
+        # Pull extra fields that don't exist on the model (we just ignore them)
+        validated.pop("creditNotes", None)
+        validated.pop("amountDue", None)
+
+        # Ensure numbers default properly
+        if validated.get("total_amount") is None:
+            validated["total_amount"] = 0
+
+        # Create ledger; amount_paid defaults to 0 in model
+        ledger = CreditLedger.objects.create(**validated)
+        # Save the rows snapshot if provided
+        # (already mapped to rows_json via source)
+        # Recompute status (PENDING/PARTIAL/PAID)
+        ledger.recalc_status(save=True)
+        return ledger
+
+
+class CreditLedgerListSerializer(serializers.ModelSerializer):
+    balance = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CreditLedger
+        fields = [
+            "id", "msp_no", "created_at", "handled_by", "customer_name",
+            "total_amount", "amount_paid", "status", "balance",
+        ]
+
+    def get_balance(self, obj):
+        return obj.balance
+
+
+class CreditLedgerDetailSerializer(serializers.ModelSerializer):
+    balance = serializers.SerializerMethodField()
+    payments = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CreditLedger
+        fields = [
+            "id", "msp_no", "created_at", "handled_by", "customer_name",
+            "transaction_type", "remarks",
+            "payment_terms_days", "due_date",
+            "total_amount", "amount_paid", "status", "balance",
+            "rows_json", "payments",
+        ]
+
+    def get_balance(self, obj):
+        return obj.balance
+
+    def get_payments(self, obj):
+        return [
+            {
+                "id": p.id,
+                "amount": str(p.amount),
+                "method": p.method,
+                "note": p.note,
+                "created_at": p.created_at,
+                "recorded_by": p.recorded_by,
+            }
+            for p in obj.payments.all().order_by("-created_at")
+        ]
+
+
+class CreditPaymentCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CreditPayment
+        fields = ["amount", "method", "note", "recorded_by"]
+
+    def create(self, validated_data):
+        credit = self.context["credit"]
+        payment = CreditPayment.objects.create(credit=credit, **validated_data)
+        credit.apply_payment(validated_data["amount"])
+        return payment
+
+
 
 
 

@@ -89,7 +89,11 @@ const Sidebar = ({ isSidebarOpen }) => {
                 <DisabledSubItem text="Invoice" />
               )}
               {canView("Credit") ? (
-                <li><Link to="/credit" className="block p-2 text-sm hover:bg-gray-600 rounded">Credit</Link></li>
+                <li>
+                  <Link to="/credit" className="block p-2 text-sm hover:bg-gray-600 rounded">
+                    Credit
+                  </Link>
+                </li>
               ) : (
                 <DisabledSubItem text="Credit" />
               )}

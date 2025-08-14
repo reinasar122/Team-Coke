@@ -1,5 +1,37 @@
+// src/components/PaymentModal.jsx
 import React, { useState, useMemo } from "react";
 import InvoiceModal from "./InvoiceModal";
+import axios from "axios";
+
+// ---- Helper to create a Credit Ledger on the backend (POST /api/credits/) ----
+async function createCreditLedgerFromModalPayload(payload) {
+  if (payload.paymentMethod !== "credit") return null;
+
+  // Build the body to match your DRF CreditLedgerCreateSerializer
+  const body = {
+    msp_no: payload.mspNo,
+    customerName: payload.customerName,
+    handledBy: payload.handledBy,
+    transactionTypeName: payload.transactionTypeName,
+    remarks: payload.remarks || "",
+    payment_terms_days: payload.paymentTermsDays,           // 7/15/30
+    due_date: payload.dueDate,                              // ISO string
+    amountDue: payload.amountDue,
+    totalAmount: payload.totalAmount,
+    rows: payload.rows || [],
+    transactionDate: payload.transactionDate || new Date().toISOString(),
+    creditNotes: payload.creditNotes || "",
+  };
+
+  try {
+    // Backend is on 8080
+    const res = await axios.post("http://127.0.0.1:8080/api/credits/", body);
+    return res.data;
+  } catch (err) {
+    // rethrow so caller can show the real message
+    throw err;
+  }
+}
 
 const PaymentModal = ({
   open,
@@ -138,7 +170,7 @@ const PaymentModal = ({
     return tableRows.reduce((sum, r) => sum + getLineTotal(r), 0);
   }, [actualSales, tableRows]);
 
-  // ---- THE IMPORTANT PART: compute a consistent total due inside the modal ----
+  // ---- Compute a consistent total due inside the modal ----
   const computedTotalDue = useMemo(() => {
     const base =
       n(actualSalesValue) -
@@ -146,8 +178,7 @@ const PaymentModal = ({
       n(emptyReturns) -
       n(emptyDiscrepancies) -
       (isVanLoad ? n(expensesTotal) : 0);
-    // never negative
-    return Math.max(base, 0);
+    return Math.max(base, 0); // never negative
   }, [
     actualSalesValue,
     emptiesPriceTotal,
@@ -183,7 +214,8 @@ const PaymentModal = ({
             <strong>Date</strong>: {formatLocalToManila(transactionDate) || "—"}
           </div>
           <div>
-            <strong>Customer</strong>: {customerName || "Walk-in"}
+            <strong>Customer</strong>: {(customerName ?? "").trim() || "Walk-in"}
+
           </div>
           <div>
             <strong>Handled By</strong>: {handledBy || "—"}
@@ -394,25 +426,50 @@ const PaymentModal = ({
                 // van load extras
                 transactionTypeName,
                 remarks,
+
+                // credit extras to send
+                paymentTermsDays: days,                       // 7/15/30
+                dueDate: paymentDueDate.toISOString(),        // ISO
+                creditNotes,                                   // optional
               };
 
-              const paymentOk = paymentMethod === "cash" ? n(cashReceived) >= amountDueFinal : true;
+              const isCredit = data.paymentMethod === "credit";
+              const paymentOk =
+                data.paymentMethod === "cash" ? n(cashReceived) >= amountDueFinal : true;
 
               try {
                 setSubmitting(true);
 
+                // 1) If credit, create the ledger first
+                let createdLedger = null;
+                if (isCredit) {
+                  try {
+                    createdLedger = await createCreditLedgerFromModalPayload(data);
+                    data.creditLedger = createdLedger;
+                  } catch (err) {
+                    const resp = err?.response;
+                    const details = resp?.data
+                      ? JSON.stringify(resp.data, null, 2)
+                      : err?.message || String(err);
+                    console.error("Create credit failed:", err);
+                    alert("Credit save failed:\n" + details);
+                    setSubmitting(false);
+                    return; // stop; don't proceed to invoice
+                  }
+                }
+
+                // 2) Existing save logic
                 if (isVanLoad && paymentOk && typeof onPaymentSuccess === "function") {
                   await onPaymentSuccess(data);
                 }
-
                 if (typeof onConfirm === "function") {
                   await onConfirm(data);
                 }
-
                 if (typeof onSave === "function") {
                   await onSave();
                 }
 
+                // 3) Show invoice
                 setInvoiceData(data);
                 setShowInvoiceModal(true);
               } catch (e) {

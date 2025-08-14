@@ -7,12 +7,11 @@ import {
   useLocation,
 } from "react-router-dom";
 
-// Layout Components\
+// Layout Components
 import MerchandisingSale from "./components/merchandisingcomponents/MerchandisingSale";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
-// src/index.js or src/main.jsx
-import './index.css';
+import "./index.css";
 
 // Pages
 import Login from "./pages/Login";
@@ -37,7 +36,7 @@ import ReceivingList from "./pages/ReceivingList";
 import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
 import Merchandising from "./pages/Merchandising";
-import MerchandisingSaleDetailPage from './pages/MerchandisingSaleDetailPage';
+import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
 import Expences from "./pages/Expences";
@@ -47,6 +46,9 @@ import SupplierReturnList from "./pages/SupplierReturnList";
 import ReturnEmpties from "./pages/ReturnEmpties";
 import PaymentModal from "./components/PaymentModal";
 
+// Credits
+import CreditList from "./pages/CreditList";
+import CreditDetail from "./pages/CreditDetail";
 
 // Icons
 import {
@@ -84,27 +86,154 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
           {!hideLayout && (
             <div className="page-title mb-4">
               <Routes>
-                <Route path="/" element={<h1 className="text-2xl flex items-center gap-2"><FaHome /> Home Page</h1>} />
-                <Route path="/dashboard" element={<h1 className="text-2xl flex items-center gap-2"><FaChartPie /> Dashboard</h1>} />
-                <Route path="/receiving" element={<h1 className="text-2xl flex items-center gap-2"><FaClipboardCheck /> Receiving</h1>} />
-                <Route path="/stocks" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes /> Stocks</h1>} />
-                <Route path="/products" element={<h1 className="text-2xl flex items-center gap-2"><FaBoxes /> Products</h1>} />
-                <Route path="/suppliers" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Suppliers</h1>} />
-                <Route path="/settings" element={<h1 className="text-2xl flex items-center gap-2"><FaCogs /> Settings</h1>} />
-                <Route path="/users" element={<h1 className="text-2xl flex items-center gap-2"><FaUsers /> Users</h1>} />
-                <Route path="/roles" element={<h1 className="text-2xl flex items-center gap-2"><FaUserShield /> Roles</h1>} />
-                <Route path="/warehouses" element={<h1 className="text-2xl flex items-center gap-2"><FaWarehouse className="text-red-500" /> Warehouses</h1>} />
-                <Route path="/trading" element={<h1 className="text-2xl flex items-center gap-2"><FaChartLine /> Trading</h1>} />
-                <Route path="/invoice" element={<h1 className="text-2xl flex items-center gap-2"><FaFileInvoice /> Invoice</h1>} />
-                <Route path="/StocksAdjustment" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Stocks Adjustment</h1>} />
-                <Route path="/supplier-returns" element={<h1 className="text-2xl flex items-center gap-2"><FaTruck /> Supplier Returns</h1>} />
-                <Route path="/return-empties" element={<h1 className="text-2xl flex items-center gap-2"><FaUndoAlt /> Return Empties</h1>} />
+                <Route
+                  path="/"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaHome /> Home Page
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaChartPie /> Dashboard
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/receiving"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaClipboardCheck /> Receiving
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/stocks"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaBoxes /> Stocks
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/products"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaBoxes /> Products
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/suppliers"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaTruck /> Suppliers
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaCogs /> Settings
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/users"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaUsers /> Users
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/roles"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaUserShield /> Roles
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/warehouses"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaWarehouse className="text-red-500" /> Warehouses
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/trading"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaChartLine /> Trading
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/invoice"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaFileInvoice /> Invoice
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/StocksAdjustment"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaTruck /> Stocks Adjustment
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/supplier-returns"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaTruck /> Supplier Returns
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/return-empties"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaUndoAlt /> Return Empties
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/credits"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaFileInvoice /> Credits
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/credits/:id"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaFileInvoice /> Credit Detail
+                    </h1>
+                  }
+                />
               </Routes>
             </div>
           )}
 
           {/* Page Routes */}
           <Routes>
+            {/* Credits */}
+            <Route path="/credits" element={<CreditList />} />
+            <Route path="/credit" element={<Navigate to="/credits" replace />} />
+            <Route path="/credits/:id" element={<CreditDetail />} />
+
+            {/* Default / Others */}
             <Route path="/" element={<Navigate to="/dashboard" />} />
             <Route path="/warehouses" element={<Warehouses />} />
             <Route path="/warehouseForm" element={<WarehouseForm />} />
@@ -124,7 +253,17 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/receiving" element={<ReceivingList />} />
             <Route path="/receiving/new" element={<ReceivingForm />} />
             <Route path="/trading" element={<MerchandisingList />} />
-            <Route path="/merchandising" element={<><h1 className="text-2xl flex items-center gap-2 mb-4"><FaChartLine /> Create New Sale</h1><Merchandising /></>} />
+            <Route
+              path="/merchandising"
+              element={
+                <>
+                  <h1 className="text-2xl flex items-center gap-2 mb-4">
+                    <FaChartLine /> Create New Sale
+                  </h1>
+                  <Merchandising />
+                </>
+              }
+            />
             <Route path="/merchandising-sale" element={<MerchandisingSale />} />
             <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
@@ -133,10 +272,6 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/verify-otp" element={<VerifyOTP />} />
             <Route path="/expences" element={<Expences />} />
             <Route path="/van-load-update" element={<VanLoadUpdate />} />
-
-
-            
-          
             <Route path="/supplier-returns" element={<SupplierReturnList />} />
             <Route path="/supplier-returns/new" element={<SupplierReturnForm />} />
             <Route path="/return-empties" element={<ReturnEmpties />} />

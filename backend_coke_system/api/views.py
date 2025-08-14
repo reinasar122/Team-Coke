@@ -56,6 +56,42 @@ from django.db.models import Q
 from .models import *
 from .serializers import *
 from datetime import datetime
+# api/views.py
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from django.shortcuts import get_object_or_404
+
+from .models import CreditLedger
+from .serializers import (
+    CreditLedgerCreateSerializer,
+    CreditLedgerListSerializer,
+    CreditLedgerDetailSerializer,
+    CreditPaymentCreateSerializer,
+)
+
+class CreditLedgerListCreateAPIView(generics.ListCreateAPIView):
+    queryset = CreditLedger.objects.all()
+
+    def get_serializer_class(self):
+        return CreditLedgerCreateSerializer if self.request.method == "POST" else CreditLedgerListSerializer
+
+class CreditLedgerDetailAPIView(generics.RetrieveAPIView):
+    queryset = CreditLedger.objects.all()
+    serializer_class = CreditLedgerDetailSerializer
+
+class CreditPaymentCreateAPIView(APIView):
+    def post(self, request, pk):
+        credit = get_object_or_404(CreditLedger, pk=pk)
+        serializer = CreditPaymentCreateSerializer(data=request.data, context={"credit": credit})
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        detail = CreditLedgerDetailSerializer(credit)
+        return Response(detail.data, status=status.HTTP_201_CREATED)
+
+
+
+
 # Temporary OTP store (for demo; use cache or DB for production)
 # Temporary OTP storage (in production use cache like Redis or DB)
 otp_storage = {}

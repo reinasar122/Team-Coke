@@ -7,6 +7,92 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 from django.core.exceptions import ValidationError
+# app: sales (or whatever app holds Merchandising)
+from django.db import models
+from django.utils import timezone
+from django.core.validators import MinValueValidator
+
+class CreditLedger(models.Model):
+    STATUS_PENDING = "PENDING"
+    STATUS_PARTIAL = "PARTIAL"
+    STATUS_PAID = "PAID"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_PARTIAL, "Partially Paid"),
+        (STATUS_PAID, "Fully Paid"),
+    ]
+
+    # Link to your real Merchandising model in the SAME app
+    merchandising = models.ForeignKey(
+        "api.Merchandising",  # ✅ fixed
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="credit_ledgers",
+    )
+
+    # header / identity
+    msp_no = models.CharField(max_length=50, db_index=True)
+    customer_name = models.CharField(max_length=255, blank=True, default="Walk-in")
+    handled_by = models.CharField(max_length=255, blank=True, default="")
+    transaction_type = models.CharField(max_length=50, blank=True, default="")  # "Warehouse" | "Van Load"
+    remarks = models.TextField(blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now)
+    due_date = models.DateTimeField(null=True, blank=True)
+    payment_terms_days = models.PositiveIntegerField(default=30)
+
+    # money
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
+    amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+
+    # optional raw rows snapshot (for the “receipt”)
+    rows_json = models.JSONField(default=list, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    @property
+    def balance(self):
+        return max(self.total_amount - self.amount_paid, 0)
+
+    def recalc_status(self, save=True):
+        if self.amount_paid <= 0:
+            self.status = self.STATUS_PENDING
+        elif self.amount_paid < self.total_amount:
+            self.status = self.STATUS_PARTIAL
+        else:
+            self.status = self.STATUS_PAID
+        if save:
+            self.save(update_fields=["status"])
+
+    def apply_payment(self, amount: float):
+        self.amount_paid = (self.amount_paid or 0) + amount
+        self.recalc_status(save=False)
+        self.save(update_fields=["amount_paid", "status"])
+
+
+
+class CreditPayment(models.Model):
+    METHOD_CASH = "cash"
+    METHOD_BANK = "bank"
+    METHOD_EWALLET = "ewallet"
+    METHOD_CHOICES = [
+        (METHOD_CASH, "Cash"),
+        (METHOD_BANK, "Bank"),
+        (METHOD_EWALLET, "E-wallet"),
+    ]
+
+    credit = models.ForeignKey(CreditLedger, on_delete=models.CASCADE, related_name="payments")
+    amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0.01)])
+    method = models.CharField(max_length=20, choices=METHOD_CHOICES, default=METHOD_CASH)
+    note = models.CharField(max_length=255, blank=True, default="")
+    created_at = models.DateTimeField(default=timezone.now)
+    recorded_by = models.CharField(max_length=255, blank=True, default="")  # optional: user name
+
+    class Meta:
+        ordering = ["-created_at"]
+
 
 class Warehouse(models.Model):
     name = models.CharField(max_length=255, unique=True)
@@ -544,9 +630,10 @@ class SupplierReturnItem(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
     returned_empty_pcs = models.PositiveIntegerField(default=0)
     returned_empty_shell = models.PositiveIntegerField(default=0)
-
+    
     def __str__(self):
-        return f"{self.product.name} returned"
+        return f"{self.product.product_name} returned"  # ✅ product_name
+
 
 class Payment(models.Model):
     merchandising = models.ForeignKey(Merchandising, on_delete=models.CASCADE, related_name='payments')
