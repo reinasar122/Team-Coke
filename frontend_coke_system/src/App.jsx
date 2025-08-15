@@ -45,7 +45,7 @@ import VanLoadUpdate from "./pages/VanLoadUpdate";
 import SupplierReturnForm from "./pages/SupplierReturnForm";
 import SupplierReturnList from "./pages/SupplierReturnList";
 import ReturnEmpties from "./pages/ReturnEmpties";
-import PaymentModal from "./components/PaymentModal";
+// import PaymentModal from "./components/PaymentModal";
 import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 
 
