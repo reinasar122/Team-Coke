@@ -676,13 +676,17 @@ class NextMspNoView(APIView):
             return Response({"msp_no": msp_no})
 
 
+        # api/views.py, in NextMspNoView.get()
         if tt_name == "van load":
             seq = MSPSequence.objects.filter(
-                warehouse_id=warehouse_id, transaction_type=tt
+                date__isnull=True,                # ← filter the timeless row
+                warehouse_id=warehouse_id,
+                transaction_type=tt
             ).first()
             next_num = (seq.last_number + 1) if seq else 1
             msp_no = f"{prefix}-{next_num:04d}"
             return Response({"msp_no": msp_no})
+
 
 
         # Fallback
