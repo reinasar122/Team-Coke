@@ -1,67 +1,20 @@
-.invoice-container {
-  background-color: white;
-  color: black;
-  font-size: 0.875rem;
-  padding: 1.5rem;
-  max-width: 42rem;
-  margin-left: auto;
-  margin-right: auto;
-  font-family: monospace;
-}
-.invoice-container .header-container {
-  text-align: center;
-  margin-bottom: 1rem;
-}
-.invoice-container .header-container .header-title {
-  font-size: 1.25rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.invoice-container .content-info-wrapper {
-  margin-bottom: 1rem;
-  font-size: 0.875rem;
-}
-.invoice-container .content-info-wrapper .content-info-container {
-  display: flex;
-  justify-content: space-between;
-}
-.invoice-container .sold-content-wrapper {
-  margin-bottom: 1rem;
-}
-.invoice-container .sold-content-wrapper .sold-title {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-.invoice-container .sold-content-wrapper .sold-table-container {
-  width: 100%;
-  border-width: 1px;
-  border-color: #D1D5DB;
-  font-size: 0.75rem;
-}
-.invoice-container .sold-content-wrapper .sold-table-container .sold-table-header {
-  background-color: #f3f4f6;
-}
-.invoice-container .empty-content-wrapper {
-  margin-bottom: 1rem;
-}
-.invoice-container .empty-content-wrapper .empty-title {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-.invoice-container .empty-content-wrapper .empty-table-container {
-  width: 100%;
-  border-width: 1px;
-  border-color: #D1D5DB;
-  font-size: 0.75rem;
-}
-.invoice-container .empty-content-wrapper .empty-table-container .empty-table-header {
-  background-color: #f3f4f6;
-}
-.invoice-container .container-subtotal {
-  display: flex;
-  justify-content: space-between;
-  padding-top: 1rem;
-}
+/* Error: There's already a module with namespace "invoice".
+ *     ,
+ * 1   | @use './pages/invoice' as invoice;
+ *     | ================================= original @use
+ * ... |
+ * 3   | @use './pages/stocks' as invoice;
+ *     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ new @use
+ *     '
+ *   frontend_coke_system\src\styles\styles.scss 3:1  root stylesheet */
 
-/*# sourceMappingURL=styles.css.map */
+body::before {
+  font-family: "Source Code Pro", "SF Mono", Monaco, Inconsolata, "Fira Mono",
+      "Droid Sans Mono", monospace, monospace;
+  white-space: pre;
+  display: block;
+  padding: 1em;
+  margin-bottom: 1em;
+  border-bottom: 2px solid black;
+  content: "Error: There's already a module with namespace \"invoice\".\a     \2577 \a 1   \2502  @use './pages/invoice' as invoice;\d\a     \2502  \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501  original @use\a... \2502 \a 3   \2502  @use './pages/stocks' as invoice;\a     \2502  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ new @use\a     \2575 \a   frontend_coke_system\\src\\styles\\styles.scss 3:1  root stylesheet";
+}

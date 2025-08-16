@@ -8,24 +8,7 @@ import {
   FaWarehouse,
 } from "react-icons/fa";
 
-const statusStyles = {
-  "Out of Stock": {
-    bg: "bg-red-600",
-    icon: <FaMinusCircle className="mr-1" />,
-  },
-  Low: {
-    bg: "bg-yellow-500",
-    icon: <FaExclamationTriangle className="mr-1" />,
-  },
-  Moderate: {
-    bg: "bg-blue-500",
-    icon: <FaCubes className="mr-1" />,
-  },
-  High: {
-    bg: "bg-green-500",
-    icon: <FaCheckCircle className="mr-1" />,
-  },
-};
+import "../styles/pages/stocks.scss";
 
 const statusOrder = {
   "Out of Stock": 0,
@@ -34,31 +17,46 @@ const statusOrder = {
   High: 3,
 };
 
+// Map status -> SCSS badge class
+const getBadgeClass = (s) => {
+  switch (s) {
+    case "High": return "badge badge--high";
+    case "Moderate": return "badge badge--moderate";
+    case "Low": return "badge badge--low";
+    case "Out of Stock": return "badge badge--low";
+    default: return "badge";
+  }
+};
+
+// Map status -> icon (gap handled by .badge)
+const getStatusIcon = (s) => {
+  switch (s) {
+    case "High": return <FaCheckCircle />;
+    case "Moderate": return <FaCubes />;
+    case "Low": return <FaExclamationTriangle />;
+    case "Out of Stock": return <FaMinusCircle />;
+    default: return null;
+  }
+};
+
 const Stocks = () => {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
-  // Function to get current warehouse ID
   const getCurrentWarehouseId = () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-    
-    // For admin users, use selected warehouse or fall back to their enrolled warehouse
-    if (user.role?.toLowerCase() === "admin") {
+    if ((user.role || "").toLowerCase() === "admin") {
       return selectedWarehouse?.id || user.warehouse_id;
     }
-    
-    // For non-admin users, always use their enrolled warehouse
     return user.warehouse_id;
   };
 
-  // Function to fetch stocks for current warehouse
   const fetchStocks = useCallback(async () => {
     setLoading(true);
     try {
       const warehouseId = getCurrentWarehouseId();
-      
       if (!warehouseId) {
         console.error("No warehouse ID found");
         setStocks([]);
@@ -67,17 +65,15 @@ const Stocks = () => {
 
       const response = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
       setStocks(response.data);
-      
-      // Update current warehouse display name
+
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-      
-      if (user.role?.toLowerCase() === "admin" && selectedWarehouse) {
+
+      if ((user.role || "").toLowerCase() === "admin" && selectedWarehouse) {
         setCurrentWarehouse(selectedWarehouse.name);
       } else {
         setCurrentWarehouse(user.warehouse || "Unknown Warehouse");
       }
-      
     } catch (err) {
       console.error("Failed to load stocks:", err);
       setStocks([]);
@@ -88,17 +84,9 @@ const Stocks = () => {
 
   useEffect(() => {
     fetchStocks();
-    
-    // Listen for warehouse changes (from Header component)
-    const handleWarehouseChange = () => {
-      fetchStocks();
-    };
-    
-    window.addEventListener('warehouseChanged', handleWarehouseChange);
-    
-    return () => {
-      window.removeEventListener('warehouseChanged', handleWarehouseChange);
-    };
+    const handleWarehouseChange = () => fetchStocks();
+    window.addEventListener("warehouseChanged", handleWarehouseChange);
+    return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, [fetchStocks]);
 
   const sortedStocks = [...stocks].sort(
@@ -107,87 +95,72 @@ const Stocks = () => {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
-        <div className="flex items-center justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <span className="ml-3 text-gray-600">Loading stocks...</span>
+      <div className="stocks-container">
+        <div className="loading">
+          <div className="spinner" />
+          <span className="loading-text">Loading stocks...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="mb-6">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-gray-800 dark:text-white">🧾 Stocks Table</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Overview of all inventory stock levels</p>
-          </div>
-          {currentWarehouse && (
-            <div className="flex items-center bg-primary/10 px-4 py-2 rounded-lg">
-              <FaWarehouse className="text-primary mr-2" />
-              <span className="text-primary font-medium">{currentWarehouse}</span>
-            </div>
-          )}
+    <div className="stocks-container">
+      <div className="stocks-title-header">
+        <div>
+          <h2>🧾 Stocks Table</h2>
+          <p className="muted">Overview of all inventory stock levels</p>
         </div>
+
+        {currentWarehouse && (
+          <div className="warehouse-chip">
+            <FaWarehouse />
+            <span>{currentWarehouse}</span>
+          </div>
+        )}
       </div>
 
-      <div className="overflow-x-auto border border-gray-200 dark:border-gray-700 shadow-md rounded-xl bg-white dark:bg-gray-800">
-        <table className="min-w-full text-sm">
+      <div className="stocks-table no-stripes">{/* light by default (#f4f4f4) */}
+        <table>
           <thead>
-            <tr className="bg-[#0b1120] text-white text-xs uppercase tracking-wider rounded-t-xl">
-              <th className="px-6 py-4 text-left rounded-tl-xl">Product</th>
-              <th className="px-6 py-4 text-center">Quantity</th>
-              <th className="px-6 py-4 text-center">Last Updated</th>
-              <th className="px-6 py-4 text-center rounded-tr-xl">Status</th>
+            <tr>
+              <th>Product</th>
+              <th className="text-center">Quantity</th>
+              <th className="text-center">Last Updated</th>
+              <th className="text-center">Status</th>
             </tr>
           </thead>
+
           <tbody>
             {stocks.length === 0 ? (
               <tr>
-                <td colSpan="4" className="text-center text-gray-500 dark:text-gray-400 py-12">
-                  {currentWarehouse ? 
-                    `No stock data available for ${currentWarehouse}.` : 
-                    "No warehouse assigned or no stock data available."
-                  }
+                <td colSpan="4" className="empty">
+                  {currentWarehouse
+                    ? `No stock data available for ${currentWarehouse}.`
+                    : "No warehouse assigned or no stock data available."}
                 </td>
               </tr>
             ) : (
-              sortedStocks.map((item, index) => {
-                const status = statusStyles[item.stock_status] || {};
-                return (
-                  <tr
-                    key={item.id}
-                    className={`transition duration-150 ${
-                      index % 2 === 0 ? "bg-gray-50 dark:bg-gray-700" : "bg-white dark:bg-gray-800"
-                    } hover:bg-gray-100 dark:hover:bg-gray-600`}
-                  >
-                    <td className="px-6 py-4 text-left font-medium text-gray-800 dark:text-white whitespace-nowrap">
-                      {item.product_name}
-                    </td>
-                    <td className="px-6 py-4 text-center font-semibold text-gray-700 dark:text-gray-300">
-                      {item.quantity_available}
-                    </td>
-                    <td className="px-6 py-4 text-center text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                      {new Date(item.last_updated).toLocaleString("en-US", {
-                        month: "short",
-                        day: "2-digit",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-white text-xs font-semibold shadow ${status.bg}`}
-                      >
-                        {status.icon}
-                        {item.stock_status}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })
+              sortedStocks.map((item) => (
+                <tr key={item.id}>
+                  <td className="cell-left nowrap">{item.product_name}</td>
+                  <td className="text-center">{item.quantity_available}</td>
+                  <td className="text-center nowrap">
+                    {new Date(item.last_updated).toLocaleString("en-US", {
+                      month: "short",
+                      day: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </td>
+                  <td className="text-center">
+                    <span className={getBadgeClass(item.stock_status)}>
+                      {getStatusIcon(item.stock_status)}
+                      {item.stock_status}
+                    </span>
+                  </td>
+                </tr>
+              ))
             )}
           </tbody>
         </table>
