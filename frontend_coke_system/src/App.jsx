@@ -12,6 +12,8 @@ import MerchandisingSale from "./components/merchandisingcomponents/Merchandisin
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import "./index.css";
+import './styles/global.scss';
+
 
 // Pages
 import Login from "./pages/Login";

@@ -11,6 +11,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
 from django.core.validators import MinValueValidator
+from django.db.models import Q
 
 class CreditLedger(models.Model):
     STATUS_PENDING = "PENDING"
@@ -434,17 +435,33 @@ class MerchandisingSale(models.Model):
 # MSP daily sequence (for Van Load)
 # ------------------------------------------------------------
 class MSPSequence(models.Model):
-    date = models.DateField()
+    # allow null for van-load (continuous) counter
+    date = models.DateField(null=True, blank=True)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE)
     transaction_type = models.ForeignKey('TransactionType', on_delete=models.CASCADE)
     last_number = models.PositiveIntegerField(default=0)
 
     class Meta:
-        unique_together = ('date', 'warehouse', 'transaction_type')
+        # remove old unique_together
+        # unique_together = ('date', 'warehouse', 'transaction_type')
+        constraints = [
+            # one row per DAY *only when date is not null*  → for Warehouse
+            models.UniqueConstraint(
+                fields=['date', 'warehouse', 'transaction_type'],
+                condition=Q(date__isnull=False),
+                name='uniq_msp_per_day'
+            ),
+            # one timeless row per (warehouse, tt) *only when date is null* → for Van Load
+            models.UniqueConstraint(
+                fields=['warehouse', 'transaction_type'],
+                condition=Q(date__isnull=True),
+                name='uniq_msp_vanload'
+            ),
+        ]
 
     def __str__(self):
-        return f"{self.date} {self.warehouse_id} {self.transaction_type_id} -> {self.last_number}"
-
+        d = self.date.isoformat() if self.date else 'None'
+        return f"{d} {self.warehouse_id} {self.transaction_type_id} -> {self.last_number}"
 
 # ------------------------------------------------------------
 # Merchandising (main header)
@@ -523,9 +540,9 @@ class Merchandising(models.Model):
                     self.msp_no = f'{prefix}-{seq.last_number:04d}'
 
             elif tt_name == 'van load':
-                # Continuous counter per warehouse – increment every delivery (no daily reset)
                 with transaction.atomic():
-                    seq, _ = MSPSequence.objects.select_for_update().get_or_create(
+                    seq, created = MSPSequence.objects.select_for_update().get_or_create(
+                        date=None,                        # ← ensure the single timeless row
                         warehouse=self.warehouse,
                         transaction_type=tt,
                         defaults={'last_number': 0}
@@ -533,7 +550,6 @@ class Merchandising(models.Model):
                     seq.last_number += 1
                     seq.save(update_fields=['last_number'])
                     self.msp_no = f'{prefix}-{seq.last_number:04d}'
-
 
             else:
                 self.msp_no = f'{prefix}-0001'

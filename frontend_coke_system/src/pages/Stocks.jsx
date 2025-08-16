@@ -120,8 +120,8 @@ const Stocks = () => {
         )}
       </div>
 
-      <div className="stocks-table no-stripes">{/* light by default (#f4f4f4) */}
-        <table>
+      <div className="card">{/* light by default (#f4f4f4) */}
+        <table className="table table-hover">
           <thead>
             <tr>
               <th>Product</th>

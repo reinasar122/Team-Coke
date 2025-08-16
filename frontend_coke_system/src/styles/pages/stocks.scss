@@ -1,7 +1,6 @@
 /* src/styles/pages/stocks.scss */
 
 .stocks-container {
-  /* container = p-6 max-w-7xl mx-auto */
   padding: 1.5rem;
   max-width: 80rem;
   margin: 0 auto;
@@ -19,12 +18,12 @@
       margin: 0;
       font-size: 1.875rem; /* ~text-3xl */
       font-weight: 700;
-      color: #111827;      /* gray-900 */
+      color: var(--text);
     }
   }
 
   .muted {
-    color: #6b7280; /* gray-500 */
+    color: var(--text-muted);
     margin-top: 0.125rem;
     font-size: 0.875rem;
   }
@@ -36,104 +35,13 @@
     padding: 6px 12px;
     border-radius: 10px;
     background: rgba(37, 99, 235, 0.10); /* primary @10% */
-    color: #2563eb; /* primary-600 */
+    color: var(--primary);
     font-weight: 600;
 
     svg { display: block; }
   }
 
-  /* ---------- loading ---------- */
-  .loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 12px;
-    padding: 3rem 0;
-  }
-  .loading-text { color: #6b7280; }
-  .spinner {
-    width: 3rem; height: 3rem;
-    border-radius: 9999px;
-    border: 3px solid #e5e7eb;
-    border-bottom-color: #2563eb;
-    animation: spin 1s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-
-  /* ---------- table (light variant) ---------- */
-  .stocks-table {
-    /* design tokens */
-    --table-bg:   #f4f4f4;  /* requested background */
-    --table-text: #111827;  /* gray-900 */
-    --header-bg:  #424242;  /* dark header bar */
-    --header-text:#ffffff;
-    --divider:    #e5e7eb;  /* gray-200 */
-    --row-hover:  #eeeeee;
-    --table-alt:  #fafafa;  /* for optional stripes */
-
-    background: var(--table-bg);
-    color: var(--table-text);
-    border: 1px solid var(--divider);
-    border-radius: 12px;
-    overflow: hidden;
-    box-shadow: 0 8px 24px rgba(0,0,0,.08);
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      table-layout: auto;
-      font-size: 0.9375rem; /* ~text-sm+ */
-    }
-
-    thead th {
-      background: var(--header-bg);
-      color: var(--header-text);
-      font-weight: 700;
-      text-align: left;
-      padding: 14px 16px;
-      border-bottom: 1px solid var(--header-bg);
-      text-transform: uppercase;
-      letter-spacing: .05em;
-      font-size: 0.75rem; /* text-xs */
-    }
-
-    tbody td {
-      padding: 14px 16px;
-      border-top: 1px solid var(--divider);
-      vertical-align: middle;
-      color: var(--table-text);
-    }
-
-    /* Row backgrounds + hover (works for ALL rows) */
-    tbody tr {
-      background: var(--table-bg);
-      transition: background-color .15s ease;
-    }
-
-    /* OPTIONAL zebra: add "striped" to .stocks-table if desired */
-    &.striped tbody tr:nth-child(even) {
-      background: var(--table-alt);
-    }
-
-    /* Hover — placed after any row background rules so it wins */
-    tbody tr:hover,
-    &.striped tbody tr:nth-child(even):hover {
-      background: var(--row-hover);
-    }
-
-    /* cell utilities */
-    .text-center { text-align: center; }
-    .nowrap { white-space: nowrap; }
-    .empty {
-      padding: 3rem 1rem;
-      color: #6b7280;
-      text-align: center;
-      font-size: 0.95rem;
-    }
-    .cell-left { font-weight: 600; }
-  }
-
-  /* ---------- status badges (accessible) ---------- */
+  /* ---------- status badges (specific to Stocks page) ---------- */
   .badge {
     display: inline-flex;
     align-items: center;
@@ -152,12 +60,3 @@
   .badge--moderate { background: #b45309; } /* amber-700 */
   .badge--low      { background: #dc2626; } /* red-600 */
 }
-
-/* ---------- OPTIONAL dark variant ----------
-.stocks-container .stocks-table.is-dark {
-  --table-bg: #1f2937;   --table-text: #e5e7eb;
-  --header-bg: #0f172a;  --header-text: #ffffff;
-  --divider: rgba(255,255,255,.10);
-  --row-hover: #2a3646;
-}
-*/

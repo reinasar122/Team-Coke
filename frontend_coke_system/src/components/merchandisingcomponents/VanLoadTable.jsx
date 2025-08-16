@@ -1,14 +1,12 @@
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react"; // ✅ NEW: useMemo
 import axios from "axios";
 
 const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSale }) => {
   const [availableStock, setAvailableStock] = useState({});
   const [pricingData, setPricingData] = useState([]);
 
-  // ---------------- helpers ----------------
   const n = (v) => parseFloat(v) || 0;
 
-  // Normalize various shapes to a number id
   const toWid = (val) => {
     if (val == null) return null;
     if (typeof val === "number" || typeof val === "string") return Number(val);
@@ -16,7 +14,6 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     return null;
   };
 
-  // Resolve current warehouse id (always returns a number or null)
   const getCurrentWarehouseId = () => {
     const fromProp = toWid(warehouseId);
     if (fromProp) return fromProp;
@@ -24,15 +21,11 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
 
-    // Admin: prefer selectedWarehouse, else their enrolled
     const fromSelected = toWid(selectedWarehouse);
     if ((user.role || "").toLowerCase() === "admin" && fromSelected) return fromSelected;
-
-    // Non-admin or no selected: use their enrolled warehouse
     return toWid(user.warehouse_id ?? user.warehouse ?? null);
   };
 
-  // ---------------- fetch stocks (by warehouse, once + when signaled) ----------------
   const fetchAllStocks = useCallback(async () => {
     try {
       const wid = getCurrentWarehouseId();
@@ -42,7 +35,6 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
         return;
       }
 
-      // Map product names -> ids for payloads that only include names
       const nameToId = new Map(
         (products || []).map((p) => [(p.product_name || "").trim().toLowerCase(), Number(p.id)])
       );
@@ -54,7 +46,6 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
       const map = {};
       const list = Array.isArray(data) ? data : [data];
       for (const row of list.filter(Boolean)) {
-        // prefer numeric id from payload; else fallback to name
         const pidDirect = row.product_id ?? row.product;
         let pid = pidDirect != null ? Number(pidDirect) : undefined;
         if (!pid) {
@@ -74,7 +65,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
   useEffect(() => {
     fetchAllStocks();
     const onWhChange = () => fetchAllStocks();
-    const onStocksChanged = () => fetchAllStocks(); // refresh after deductions
+    const onStocksChanged = () => fetchAllStocks();
     window.addEventListener("warehouseChanged", onWhChange);
     window.addEventListener("stocksChanged", onStocksChanged);
     return () => {
@@ -83,7 +74,6 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     };
   }, [fetchAllStocks]);
 
-  // ---------------- pricing catalog (fill row prices) ----------------
   useEffect(() => {
     const fetchPricing = async () => {
       try {
@@ -96,10 +86,29 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     fetchPricing();
   }, []);
 
-  // ---------------- row handlers ----------------
+  // ✅ NEW: live set of already-picked product IDs
+  const pickedIds = useMemo(() => {
+    const ids = new Set();
+    for (const r of rows) {
+      const id = Number(r?.productId);
+      if (id) ids.add(id);
+    }
+    return ids;
+  }, [rows]);
+
   const handleProductChange = (index, value) => {
     const updatedRows = [...rows];
-    const productId = parseInt(value, 10);
+    const productId = parseInt(value, 10) || null;
+
+    // ✅ NEW: block duplicates (allow re-selecting the same one in THIS row)
+    const usedElsewhere = rows.some(
+      (r, i) => i !== index && Number(r.productId) === productId
+    );
+    if (productId && usedElsewhere) {
+      alert("That product is already selected in another row.");
+      return; // don't modify the row
+    }
+
     const selectedProduct = products.find((p) => p.id === productId);
 
     if (selectedProduct) {
@@ -134,7 +143,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
 
     setRows(updatedRows);
 
-    // Auto-add a new blank row only if valid product chosen and this is the last row
+    // Auto-add new blank row only if valid product chosen and this is the last row
     if (index === rows.length - 1 && productId && selectedProduct) {
       setRows((prev) => [
         ...prev,
@@ -161,51 +170,45 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
 
     row[field] = value;
 
-    // Resolve product & conversion
     const product = products.find((p) => p.id === parseInt(row.productId, 10));
     const conversion = n(product?.unit_type?.content_no || row.contentNo || 1);
     row.contentNo = conversion;
 
-    // Resolve prices (prefer pricingData by priceId)
     const fullPrice = pricingData.find((p) => p.id === row.priceId) || product?.price || {};
     const sellingPrice = n(fullPrice.selling_price);
     row.sellingPrice = sellingPrice;
 
-    // Available stock for this product (PCS)
     const availablePcs = availableStock[Number(row.productId)];
     const hasAvail = typeof availablePcs === "number";
     const cap = hasAvail ? availablePcs : Infinity;
 
-    // PCS ↔ Shell conversions with validation vs available
     if (field === "dispatchedShell") {
       const pcsCalc = Math.round(n(value) * conversion);
       if (pcsCalc > cap) {
         if (hasAvail) alert(`Dispatched PCS (${pcsCalc}) exceeds available stock (${availablePcs}).`);
         row.dispatchedPcs = hasAvail ? cap : pcsCalc;
-        row.dispatchedShell = ( (hasAvail ? cap : pcsCalc) / conversion ).toFixed(2);
+        row.dispatchedShell = ((hasAvail ? cap : pcsCalc) / conversion).toFixed(2);
       } else {
         row.dispatchedPcs = pcsCalc;
       }
     } else if (field === "dispatchedPcs") {
-      const pcsVal = Math.max(0, Math.round(n(value))); // avoid negatives / decimals
+      const pcsVal = Math.max(0, Math.round(n(value)));
       if (pcsVal > cap) {
         if (hasAvail) alert(`Dispatched PCS (${pcsVal}) exceeds available stock (${availablePcs}).`);
         row.dispatchedPcs = hasAvail ? cap : pcsVal;
-        row.dispatchedShell = ( (hasAvail ? cap : pcsVal) / conversion ).toFixed(2);
+        row.dispatchedShell = ((hasAvail ? cap : pcsVal) / conversion).toFixed(2);
       } else {
         row.dispatchedPcs = pcsVal;
         row.dispatchedShell = (pcsVal / conversion).toFixed(2);
       }
     }
 
-    // Expected sale (content price × dispatched PCS)
     const dispatchedPcs = n(row.dispatchedPcs);
     row.expectedSale = Number((n(row.sellingPrice) * dispatchedPcs).toFixed(2));
 
     updatedRows[index] = row;
     setRows(updatedRows);
 
-    // Update parent total expected sale
     const expectedTotal = updatedRows.reduce((sum, r) => sum + n(r.expectedSale), 0);
     setTotalExpectedSale(expectedTotal);
   };
@@ -219,7 +222,6 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
     setTotalExpectedSale(expectedTotal);
   };
 
-  // ---------------- render ----------------
   return (
     <div className="overflow-x-auto border rounded-md mt-4">
       <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
@@ -262,11 +264,16 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
                     onChange={(e) => handleProductChange(index, e.target.value)}
                   >
                     <option value="">Select Product</option>
-                    {products.map((product) => (
-                      <option key={product.id} value={product.id}>
-                        {product.product_name}
-                      </option>
-                    ))}
+                    {products.map((product) => {
+                      const id = Number(product.id);
+                      const isPickedElsewhere =
+                        pickedIds.has(id) && id !== Number(row.productId); // ✅ NEW
+                      return (
+                        <option key={id} value={id} disabled={isPickedElsewhere}>
+                          {product.product_name}
+                        </option>
+                      );
+                    })}
                   </select>
                 </td>
 
@@ -330,7 +337,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
                     className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
                     disabled
                     value={
-                      row.expectedSale !== undefined && row.expectedSale !== null
+                      Number.isFinite(parseFloat(row.expectedSale))
                         ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
                             minimumFractionDigits: 2,
                             maximumFractionDigits: 2,
@@ -339,6 +346,7 @@ const VanLoadTable = ({ rows, setRows, products, warehouseId, setTotalExpectedSa
                     }
                   />
                 </td>
+
 
                 {/* AVAILABLE STOCK (PCS) */}
                 <td className="border border-gray-200 py-1 px-1 text-sm text-center">

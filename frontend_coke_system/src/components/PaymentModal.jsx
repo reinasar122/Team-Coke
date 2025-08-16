@@ -258,9 +258,9 @@ const PaymentModal = ({
             <div>
               <strong>Actual Sales:</strong> ₱{fmt(actualSalesValue)}
             </div>
-            <div className="ml-4">- Empties Price Total: ₱{fmt(emptiesPriceTotal)}</div>
-            <div className="ml-4">- Empty Returns: ₱{fmt(emptyReturns)}</div>
-            <div className="ml-4">- Empty Discrepancies: ₱{fmt(emptyDiscrepancies)}</div>
+            <div className="ml-4"> Empties Price Total: ₱{fmt(emptiesPriceTotal)}</div>
+            <div className="ml-4"> Empty Returns: ₱{fmt(emptyReturns)}</div>
+            <div className="ml-4"> Empty Discrepancies: ₱{fmt(emptyDiscrepancies)}</div>
             {isVanLoad && <div className="ml-4">- Expenses: ₱{fmt(expensesTotal)}</div>}
             <div className="text-blue-600 font-bold">
               Total Amount Due: ₱{fmt(totalAmountFinal)}

@@ -32,19 +32,6 @@ const VanLoadUpdate = () => {
   const calculateTotalExpenses = () =>
     miscItems.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
 
-  // Expected sale from API rows
-  const totalExpectedSale = useMemo(() => {
-    return rows.reduce((sum, row) => sum + (parseFloat(row.expected_sale) || 0), 0);
-  }, [rows]);
-
-  // 🔢 Page total of ACTUAL SALE (sum of each row.actual_sale)
-  const totalActualSale = useMemo(() => {
-    return rows.reduce((sum, row) => sum + (parseFloat(row.actual_sale) || 0), 0);
-  }, [rows]);
-
-  // Total expenses (from miscItems)
-  const totalExpenses = useMemo(() => calculateTotalExpenses(), [miscItems]);
-
   // Fetch unit types
   useEffect(() => {
     const fetchUnitTypes = async () => {
@@ -87,96 +74,92 @@ const VanLoadUpdate = () => {
         const contentNo = unitTypeMap[unitTypeId] ?? 1;
 
         const dispatchedShell = parseFloat(item.dispatched_shell ?? 0);
-        const dispatchedPcs = Math.round(dispatchedShell * contentNo);
+        const dispatchedPcs   = Math.round(dispatchedShell * contentNo);
 
         const soldShell = parseFloat(item.sold_shell ?? 0);
-        const soldPcs = Math.round(soldShell * contentNo);
+        const soldPcs   = Math.round(soldShell * contentNo);
 
         const price = parseFloat(item.selling_price ?? 0);
-        const discount = parseFloat(item.discount_percent ?? item.discount ?? 0);
+        const dPct  = parseFloat(item.discount_percent ?? item.discount ?? 0);
 
-        // If empties are priced when sold shells are sold
+        // ProductTable-style ACTUAL SALE (no empties revenue here)
+        const discountAmt  = (price * soldPcs * dPct) / 100;
+        const rowActualSale = (price * soldPcs) - discountAmt;
+
         const emptyShellPrice = parseFloat(item.empty_price_shell ?? 0);
-        const emptyPcPrice = parseFloat(item.empty_price_pc ?? 0);
-        const grossPcs = soldPcs * price;
-        const grossShells = soldShell * emptyShellPrice;
+        const emptyPcPrice    = parseFloat(item.empty_price_pc ?? 0);
 
-        // per-row actual sale: apply discount then round
-        const rowActualSale = (grossPcs + grossShells) * (1 - discount / 100);
+        // Expected non-empty auto = dispatched - sold
+        const autoNonEmptyShell = dispatchedShell - soldShell;
+        const autoNonEmptyPcs   = dispatchedPcs   - soldPcs;
 
-        const emptyReturnShell = parseFloat(item.empty_return_shell ?? 0);
-        const emptyReturnPcs = Math.round(emptyReturnShell * contentNo);
-
-        const discrepancyShell = dispatchedShell - soldShell;
-        const discrepancyPcs = dispatchedPcs - soldPcs;
-
-        // expected non-empty (auto = dispatched - sold)
         const expectedNonEmptyShell =
           item.expected_return_shell_nonempty != null
             ? parseFloat(item.expected_return_shell_nonempty)
-            : discrepancyShell;
+            : autoNonEmptyShell;
+
         const expectedNonEmptyPcs =
           item.expected_return_pcs_nonempty != null
             ? parseFloat(item.expected_return_pcs_nonempty)
-            : discrepancyPcs;
+            : autoNonEmptyPcs;
 
-        // actual returned with content (keep if API needs it)
-        const actualReturnShell =
-          item.actual_return_shell != null
-            ? parseFloat(item.actual_return_shell)
-            : discrepancyShell;
-        const actualReturnPcs =
-          item.actual_return_pcs != null
-            ? Math.round(parseFloat(item.actual_return_pcs))
-            : discrepancyPcs;
+        // Returned (empty) initial
+        const emptyReturnShell = parseFloat(item.empty_return_shell ?? 0);
+        const emptyReturnPcs   = Math.round(emptyReturnShell * contentNo);
+
+        // Empties discrepancy (respect non-returnable)
+        const isNonReturnable = emptyShellPrice === 0 && emptyPcPrice === 0;
+        const discrepancyEmptiesShell = isNonReturnable ? 0 : (soldShell - emptyReturnShell);
+        const discrepancyEmptiesPc    = isNonReturnable ? 0 : (soldPcs   - emptyReturnPcs);
+
+        // Non-empty discrepancy
+        const discrepancyFullShell = (dispatchedShell - soldShell) - expectedNonEmptyShell;
+        const discrepancyFullPcs   = (dispatchedPcs   - soldPcs)   - expectedNonEmptyPcs;
 
         return {
           ...item,
           productId: product.id,
           productName: product.product_name ?? '',
-
           unitTypeId,
           contentNo,
 
-          // dispatched
+          // dispatched (read-only)
           dispatched_shell: dispatchedShell,
           dispatched_pcs: dispatchedPcs,
 
-          // sold
+          // sold (editable)
           sold_shell: soldShell,
           sold_pcs: soldPcs,
 
-          // pricing/discount
+          // prices
           selling_price: price,
-          discount,
-          actual_sale: parseFloat(rowActualSale.toFixed(2)),
-
-          // empties prices
           empty_price_shell: emptyShellPrice,
           empty_price_pc: emptyPcPrice,
 
-          // expected returns (empty and non-empty)
-          expected_sale: parseFloat(item.expected_sale ?? 0),
-          expected_return_shell_empty: soldShell,
-          expected_return_pcs_empty: soldPcs,
+          // discount (%)
+          discount: dPct,
 
+          // expected/actual
+          expected_sale: Number((price * dispatchedPcs).toFixed(2)),
+          actual_sale:  Number(rowActualSale.toFixed(2)),
+
+          // expected empty return defaults to SOLD
+          expected_return_shell_empty: soldShell,
+          expected_return_pcs_empty:   soldPcs,
+
+          // expected non-empty (editable)
           expected_return_shell_nonempty: expectedNonEmptyShell,
-          expected_return_pcs_nonempty: expectedNonEmptyPcs,
+          expected_return_pcs_nonempty:   expectedNonEmptyPcs,
 
           // returned (empty)
-          empty_return_shell: emptyReturnShell,
-          empty_return_pcs: emptyReturnPcs,
+          empty_return_shell: isNonReturnable ? 0 : emptyReturnShell,
+          empty_return_pcs:   isNonReturnable ? 0 : emptyReturnPcs,
 
-          // returned (with content) — keep if you store "actual"
-          actual_return_shell: actualReturnShell,
-          actual_return_pcs: actualReturnPcs,
-
-          // discrepancies (initial)
-          discrepancy_empties_shell: soldShell - emptyReturnShell,
-          discrepancy_empties_pc: soldPcs - emptyReturnPcs,
-
-          discrepancy_full_shell: dispatchedShell - soldShell - expectedNonEmptyShell,
-          discrepancy_full_pcs: dispatchedPcs - soldPcs - expectedNonEmptyPcs,
+          // discrepancies
+          discrepancy_empties_shell: discrepancyEmptiesShell,
+          discrepancy_empties_pc:    discrepancyEmptiesPc,
+          discrepancy_full_shell:    discrepancyFullShell,
+          discrepancy_full_pcs:      discrepancyFullPcs,
         };
       });
 
@@ -190,59 +173,38 @@ const VanLoadUpdate = () => {
     const row = { ...updated[index] };
 
     const contentNo = parseFloat(unitTypeMap[row.unitTypeId]) || parseFloat(row.contentNo || 0) || 1;
-    const numericValue = parseFloat(value) || 0;
-    row[field] = numericValue;
+    const v = parseFloat(value) || 0;
+    row[field] = v;
 
-    // Sync SOLD pcs ↔ shell
-    if (field === 'sold_shell') row.sold_pcs = Math.round(numericValue * contentNo);
-    else if (field === 'sold_pcs') row.sold_shell = parseFloat((numericValue / contentNo).toFixed(2));
+    // SOLD sync
+    if (field === 'sold_shell') row.sold_pcs = Math.round(v * contentNo);
+    else if (field === 'sold_pcs') row.sold_shell = parseFloat((v / contentNo).toFixed(2));
 
-    // Sync empty returns pcs ↔ shell
-    if (field === 'empty_return_shell') row.empty_return_pcs = Math.round(numericValue * contentNo);
-    else if (field === 'empty_return_pcs') row.empty_return_shell = parseFloat((numericValue / contentNo).toFixed(2));
+    // EMPTY returns sync
+    if (field === 'empty_return_shell') row.empty_return_pcs = Math.round(v * contentNo);
+    else if (field === 'empty_return_pcs') row.empty_return_shell = parseFloat((v / contentNo).toFixed(2));
 
-    // Sync expected non-empty returns pcs ↔ shell (user-editable fields)
-    if (field === 'expected_return_shell_nonempty') row.expected_return_pcs_nonempty = Math.round(numericValue * contentNo);
-    else if (field === 'expected_return_pcs_nonempty') row.expected_return_shell_nonempty = parseFloat((numericValue / contentNo).toFixed(2));
+    // EXPECTED NON-EMPTY sync (editable)
+    if (field === 'expected_return_shell_nonempty') row.expected_return_pcs_nonempty = Math.round(v * contentNo);
+    else if (field === 'expected_return_pcs_nonempty') row.expected_return_shell_nonempty = parseFloat((v / contentNo).toFixed(2));
 
-    // Recompute actual sale
-    const pcsPrice = parseFloat(row.selling_price || 0);
+    // Pricing / discount
+    const price           = parseFloat(row.selling_price || 0);
     const shellEmptyPrice = parseFloat(row.empty_price_shell || 0);
-    const pcEmptyPrice = parseFloat(row.empty_price_pc || 0); // not used in actual_sale
-    const pcs = parseFloat(row.sold_pcs || 0);
-    const shells = parseFloat(row.sold_shell || 0);
-    const discount = parseFloat(row.discount || 0);
+    const pcEmptyPrice    = parseFloat(row.empty_price_pc || 0);
+    const dPct            = parseFloat(row.discount || 0);
 
-    const grossPcs = pcs * pcsPrice;
-    const grossShells = shells * shellEmptyPrice; // revenue if you price shells on sale
-    const rawTotal = grossPcs + grossShells;
-
-    row.expected_sale = parseFloat((pcsPrice * (parseFloat(row.dispatched_pcs || 0))).toFixed(2));
-    row.actual_sale = parseFloat((rawTotal * (1 - discount / 100)).toFixed(2));
-
-    // Returned with content (expected non-empty): auto = dispatched - sold, user can override
-    const dispatchedPcs = parseFloat(row.dispatched_pcs || 0);
+    const dispatchedPcs   = parseFloat(row.dispatched_pcs   || 0);
     const dispatchedShell = parseFloat(row.dispatched_shell || 0);
-    const soldPcs = parseFloat(row.sold_pcs || 0);
-    const soldShell = parseFloat(row.sold_shell || 0);
+    const soldPcs         = parseFloat(row.sold_pcs         || 0);
+    const soldShell       = parseFloat(row.sold_shell       || 0);
 
-    let returnedWithContentPcs =
-      field === 'expected_return_pcs_nonempty'
-        ? numericValue
-        : parseFloat(
-            row.expected_return_pcs_nonempty ??
-            (dispatchedPcs - soldPcs)
-          );
+    // ProductTable-style expected/actual
+    row.expected_sale = Number((price * dispatchedPcs).toFixed(2));
+    const discountAmt = (price * soldPcs * dPct) / 100;
+    row.actual_sale   = Number(((price * soldPcs) - discountAmt).toFixed(2));
 
-    let returnedWithContentShell =
-      field === 'expected_return_shell_nonempty'
-        ? numericValue
-        : parseFloat(
-            row.expected_return_shell_nonempty ??
-            (dispatchedShell - soldShell)
-          );
-
-    // Keep expected_* in sync with auto unless user is typing into them
+    // Auto expected non-empty = dispatched - sold (unless user is editing that field)
     if (field !== 'expected_return_pcs_nonempty') {
       row.expected_return_pcs_nonempty = dispatchedPcs - soldPcs;
     }
@@ -250,108 +212,135 @@ const VanLoadUpdate = () => {
       row.expected_return_shell_nonempty = dispatchedShell - soldShell;
     }
 
-    // Empties discrepancy (returnable vs non-returnable)
-    const returnedEmptyPcs = parseFloat(row.empty_return_pcs || 0);
+    // Empties discrepancy (respect non-returnable)
+    const returnedEmptyPcs   = parseFloat(row.empty_return_pcs || 0);
     const returnedEmptyShell = parseFloat(row.empty_return_shell || 0);
-    const hasEmptyPrice = shellEmptyPrice > 0 || pcEmptyPrice > 0;
+    const isNonReturnable    = shellEmptyPrice === 0 && pcEmptyPrice === 0;
 
-    if (!hasEmptyPrice) {
-      row.discrepancy_empties_pc = 0;
-      row.discrepancy_empties_shell = 0;
+    if (isNonReturnable) {
       row.empty_return_shell = 0;
-      row.empty_return_pcs = 0;
+      row.empty_return_pcs   = 0;
+      row.discrepancy_empties_pc    = 0;
+      row.discrepancy_empties_shell = 0;
     } else {
-      row.discrepancy_empties_pc = pcs - returnedEmptyPcs;
-      row.discrepancy_empties_shell = shells - returnedEmptyShell;
+      row.discrepancy_empties_pc    = soldPcs   - returnedEmptyPcs;
+      row.discrepancy_empties_shell = soldShell - returnedEmptyShell;
     }
 
-    // ✅ Final discrepancy computation (non-empty)
-    row.discrepancy_full_pcs = (dispatchedPcs - soldPcs) - returnedWithContentPcs;
-    row.discrepancy_full_shell = (dispatchedShell - soldShell) - returnedWithContentShell;
+    // Non-empty discrepancy
+    const expectedPcs   = parseFloat(row.expected_return_pcs_nonempty   || 0);
+    const expectedShell = parseFloat(row.expected_return_shell_nonempty || 0);
+    row.discrepancy_full_pcs   = (dispatchedPcs   - soldPcs)   - expectedPcs;
+    row.discrepancy_full_shell = (dispatchedShell - soldShell) - expectedShell;
 
     updated[index] = row;
     setRows(updated);
   };
 
-  // -------------------- Totals --------------------
+  // -------------------- Totals (single source of truth) --------------------
 
-  // Empties price total = SOLD (shell * empty_shell_price) + SOLD (pcs * empty_pc_price)
+  // Empties revenue on SOLD (shell+pcs)
   const emptiesPriceTotal = useMemo(() => {
-    return rows.reduce((sum, row) => {
-      const shells = parseFloat(row.sold_shell || 0);
-      const pcs    = parseFloat(row.sold_pcs || 0);
-      const shellPrice = parseFloat(row.empty_price_shell || 0);
-      const pcPrice    = parseFloat(row.empty_price_pc || 0);
-      return sum + shells * shellPrice + pcs * pcPrice;
+    return rows.reduce((sum, r) => {
+      const shells = parseFloat(r.sold_shell || 0);
+      const pcs    = parseFloat(r.sold_pcs   || 0);
+      const sp     = parseFloat(r.empty_price_shell || 0);
+      const bp     = parseFloat(r.empty_price_pc    || 0);
+      return sum + shells * sp + pcs * bp;
     }, 0);
   }, [rows]);
 
-  // Refundables (money returned for empties)
+  // Refundables = money returned for empties
   useEffect(() => {
-    const totalRefunds = rows.reduce((sum, row) => {
-      const shellQty  = parseFloat(row.empty_return_shell || 0);
-      const pcsQty    = parseFloat(row.empty_return_pcs || 0);
-      const shellPrice = parseFloat(row.empty_price_shell || 0);
-      const pcPrice    = parseFloat(row.empty_price_pc || 0);
-      return sum + shellQty * shellPrice + pcsQty * pcPrice;
+    const totalRefunds = rows.reduce((sum, r) => {
+      const shellQty = parseFloat(r.empty_return_shell || 0);
+      const pcsQty   = parseFloat(r.empty_return_pcs   || 0);
+      const sp       = parseFloat(r.empty_price_shell  || 0);
+      const bp       = parseFloat(r.empty_price_pc     || 0);
+      return sum + shellQty * sp + pcsQty * bp;
     }, 0);
     setRefundablesTotal(Number(totalRefunds.toFixed(2)));
   }, [rows]);
 
-  // Discrepancy (Empty) money = (pcs_disc * empty_pc_price) + (shell_disc * empty_shell_price)
+  // Discrepancy (Empty)
   const totalDiscrepancyEmpty = useMemo(() => {
-    return rows.reduce((sum, row) => {
-      const pcsDisc   = parseFloat(row.discrepancy_empties_pc || 0);
-      const shellDisc = parseFloat(row.discrepancy_empties_shell || 0);
-      const shellPrice = parseFloat(row.empty_price_shell || 0);
-      const pcPrice    = parseFloat(row.empty_price_pc || 0);
-      return sum + pcsDisc * pcPrice + shellDisc * shellPrice;
+    return rows.reduce((sum, r) => {
+      const pcsDisc   = parseFloat(r.discrepancy_empties_pc    || 0);
+      const shellDisc = parseFloat(r.discrepancy_empties_shell || 0);
+      const sp        = parseFloat(r.empty_price_shell || 0);
+      const bp        = parseFloat(r.empty_price_pc    || 0);
+      return sum + shellDisc * sp + pcsDisc * bp;
     }, 0);
   }, [rows]);
 
-  // Discrepancy (Non-Empty) money = (pcs_disc * selling_price) + (shell_disc * shell_price)
+  // Discrepancy (Non-Empty)
   const totalDiscrepancyNonEmpty = useMemo(() => {
-    return rows.reduce((sum, row) => {
-      const pcsDisc   = parseFloat(row.discrepancy_full_pcs || 0);
-      const shellDisc = parseFloat(row.discrepancy_full_shell || 0);
-      const sellingPrice = parseFloat(row.selling_price || 0);
-      const shellPrice   = parseFloat(row.empty_price_shell || 0);
-      return sum + pcsDisc * sellingPrice + shellDisc * shellPrice;
+    return rows.reduce((sum, r) => {
+      const pcsDisc   = parseFloat(r.discrepancy_full_pcs   || 0);
+      const shellDisc = parseFloat(r.discrepancy_full_shell || 0);
+      const selling   = parseFloat(r.selling_price || 0);
+      const shellP    = parseFloat(r.empty_price_shell || 0); // mirror ProductTable logic
+      return sum + pcsDisc * selling + shellDisc * shellP;
     }, 0);
   }, [rows]);
 
-  // Total Returned (With Content/s) — peso value, using expected non-empty returns (or auto)
+  const overallDiscrepancy = useMemo(
+    () => totalDiscrepancyEmpty + totalDiscrepancyNonEmpty,
+    [totalDiscrepancyEmpty, totalDiscrepancyNonEmpty]
+  );
+
+  // Page totals (single declarations)
+  const totalExpectedSale = useMemo(
+    () => rows.reduce((s, r) => s + (parseFloat(r.expected_sale || 0)), 0),
+    [rows]
+  );
+  const totalActualSale = useMemo(
+    () => rows.reduce((s, r) => s + (parseFloat(r.actual_sale  || 0)), 0),
+    [rows]
+  );
+  const totalExpenses = useMemo(
+    () => miscItems.reduce((s, i) => s + (parseFloat(i.amount) || 0), 0),
+    [miscItems]
+  );
+
+  // Total Returned (With Content/s) — peso value using expected non‑empty returns
+  // Total Returned (With Content) — peso value from PCS only
   const totalReturnedWithContent = useMemo(() => {
     return rows.reduce((sum, row) => {
-      const sellingPrice = parseFloat(row.selling_price || 0);
-      const conversion =
-        parseFloat(row.contentNo || 0) ||
-        parseFloat(unitTypeMap[row.unitTypeId] || 0) ||
-        1;
+      const price = parseFloat(row.selling_price || 0);
+      const dispatchedPcs = parseFloat(row.dispatched_pcs || 0);
+      const soldPcs = parseFloat(row.sold_pcs || 0);
 
-      const dispatchedPcs   = parseFloat(row.dispatched_pcs   || 0);
-      const dispatchedShell = parseFloat(row.dispatched_shell || 0);
-      const soldPcs         = parseFloat(row.sold_pcs         || 0);
-      const soldShell       = parseFloat(row.sold_shell       || 0);
-
-      const expectedPcs =
+      // if the field is null/undefined, auto = dispatched - sold
+      const expectedPcs = 
         row.expected_return_pcs_nonempty != null
           ? parseFloat(row.expected_return_pcs_nonempty)
           : (dispatchedPcs - soldPcs);
 
-      const expectedShell =
-        row.expected_return_shell_nonempty != null
-          ? parseFloat(row.expected_return_shell_nonempty)
-          : (dispatchedShell - soldShell);
+      // optional: prevent negatives if ever over-edited
+      const pcs = Math.max(expectedPcs, 0);
 
-      return sum + (expectedPcs + expectedShell * conversion) * sellingPrice;
+      return sum + pcs * price;
     }, 0);
-  }, [rows, unitTypeMap]);
+  }, [rows]);
 
-  // Overall total (display) — actual only
+
+  // ✅ Van Load overall total identical to ProductTable:
+  // Van Load total = totalActualSale - misc + overallDiscrepancy
   useEffect(() => {
-    setOverallTotal(Number(totalActualSale.toFixed(2)));
-  }, [totalActualSale]);
+    const isVanLoad = (sale?.transaction_type_name || '').toLowerCase() === 'van load';
+    const next = isVanLoad
+      ? (totalActualSale - totalExpenses + overallDiscrepancy)
+      : (emptiesPriceTotal - refundablesTotal + totalActualSale); // Warehouse style if ever reused
+    setOverallTotal(Number(next.toFixed(2)));
+  }, [
+    sale?.transaction_type_name,
+    totalActualSale,
+    totalExpenses,
+    overallDiscrepancy,
+    emptiesPriceTotal,
+    refundablesTotal
+  ]);
 
   // (Optional) Submit to backend to finalize van-load returns
   const handleSubmit = () => {
@@ -694,7 +683,7 @@ const VanLoadUpdate = () => {
         </tbody>
       </table>
 
-      {/* Overall total (actual only) */}
+      {/* Overall total */}
       <div className="flex justify-end mt-2 pr-4">
         <div className="flex items-center gap-2 bg-blue-100 px-4 py-2 rounded shadow text-right">
           <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>

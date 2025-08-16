@@ -1,0 +1,345 @@
+/* =========================
+   Global Design Tokens
+   ========================= */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  /* Colors */
+  --bg: #f8fafc;                /* slate-50 */
+  --surface: #ffffff;           /* white */
+  --text: #1e293b;              /* slate-800 */
+  --text-muted: #64748b;        /* slate-500 */
+  --border: #e2e8f0;            /* slate-200 */
+  --shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+
+  --primary: #2563eb;           /* blue-600 */
+  --primary-600: #1d4ed8;       /* hover */
+  --danger: #dc2626;            /* red-600 */
+  --danger-600: #b91c1c;        /* hover */
+  --ghost-hover: rgba(15, 23, 42, 0.04);
+
+  --table-head: #f1f5f9;        /* slate-100 */
+  --row-hover: #f8fafc;         /* subtle */
+//   --stripe: #fafafa;
+
+  /* Radii & spacing */
+  --r-md: 12px;
+  --r-sm: 8px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-6: 24px;
+
+  /* Sizing helpers */
+  --w-128: 8rem; /* ~128px for actions col */
+}
+
+/* Dark mode */
+// @media (prefers-color-scheme: dark) {
+//   :root {
+//     --bg: #0b1220;               /* dark base */
+//     --surface: #0f172a;          /* slate-900 */
+//     --text: #e2e8f0;             /* slate-200 */
+//     --text-muted: #94a3b8;       /* slate-400 */
+//     --border: #1f2937;           /* gray-800 */
+//     --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+
+//     --table-head: #111827;       /* gray-900 */
+//     --row-hover: #0b1220;
+//     --stripe: #0c1426;
+//     --ghost-hover: rgba(255, 255, 255, 0.04);
+//   }
+// }
+
+/* =========================
+   Base
+   ========================= */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+/* Accessible hide */
+.sr-only {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+/* =========================
+   Layout
+   ========================= */
+
+.page {
+  padding: var(--sp-6);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-6);
+}
+
+.page-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+/* =========================
+   Card
+   ========================= */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 0;
+}
+
+/* =========================
+   Table
+   ========================= */
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+
+  th, td {
+    text-align: center;
+    padding: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  thead th {
+    background: var(--table-head);
+    font-weight: 600;
+    color: var(--text);
+    position: sticky;
+    top: 0; /* for long tables */
+    z-index: 1;
+  }
+
+  tbody tr:hover {
+    background: var(--row-hover);
+  }
+
+  /* Soft borders on the card edges */
+  th:first-child, td:first-child {
+    padding-left: 16px;
+  }
+  th:last-child, td:last-child {
+    padding-right: 16px;
+  }
+
+  /* Rounded corners for the outer table when wrapped in .card */
+//   &.table-striped tbody tr:nth-child(even) {
+//     background: var(--stripe);
+//   }
+
+  &.table-hover tbody tr {
+    transition: background 120ms ease;
+  }
+}
+
+.w-128 { width: var(--w-128); }
+
+/* =========================
+   Buttons
+   ========================= */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: var(--r-sm);
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+
+  &-primary {
+    background: var(--primary);
+    color: #fff;
+  }
+  &-primary:hover { background: var(--primary-600); }
+
+  &-danger {
+    background: var(--danger);
+    color: #fff;
+  }
+  &-danger:hover { background: var(--danger-600); }
+
+  &-ghost {
+    background: transparent;
+    color: var(--text);
+    border-color: var(--border);
+  }
+  &-ghost:hover { background: var(--ghost-hover); }
+
+  &-disabled,
+  &.btn-disabled {
+    background: #e5e7eb; /* gray-200 */
+    color: #9ca3af;      /* gray-400 */
+    cursor: not-allowed;
+    border-color: #e5e7eb;
+  }
+}
+
+/* Icon-only buttons for actions column */
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  transition: transform 80ms ease, background 120ms ease, color 120ms ease;
+
+  &:hover { transform: translateY(-1px); }
+}
+
+.icon-btn-primary { color: var(--primary); }
+.icon-btn-primary:hover { background: var(--ghost-hover); }
+
+.icon-btn-danger { color: var(--danger); }
+.icon-btn-danger:hover { background: var(--ghost-hover); }
+
+.icon-btn-disabled {
+  color: var(--text-muted);
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Group for action buttons */
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: center;
+}
+
+/* =========================
+   Empty state
+   ========================= */
+
+.empty-state {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 40px;
+  text-align: center;
+}
+
+/* =========================
+   Loading
+   ========================= */
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-3);
+  height: 128px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(37, 99, 235, 0.25);
+  border-top-color: var(--primary);
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+.loading-text {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* =========================
+   Modal
+   ========================= */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.55); /* slate-950 with opacity */
+  display: grid;
+  place-items: center;
+  z-index: 999;
+  padding: 16px;
+}
+
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  width: 100%;
+  max-width: 420px;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+/* =========================
+   Utilities
+   ========================= */
+
+.text-muted { color: var(--text-muted); }

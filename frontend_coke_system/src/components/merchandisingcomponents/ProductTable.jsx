@@ -535,12 +535,14 @@ const ProductTable = ({
                   className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
                   disabled
                   value={
-                    row.actualSale !== undefined && row.actualSale !== null
+                    Number.isFinite(parseFloat(row.actualSale))
                       ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
                       : ""
                   }
                 />
               </td>
+
+
 
               {/* Action */}
               <td className="border border-gray-200 py-1 px-1 text-center">
