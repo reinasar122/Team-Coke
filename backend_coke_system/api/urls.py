@@ -33,7 +33,9 @@ from .views import (
     NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
     CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock, LoginAPIView, RoleAccessibilityListView ,
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
-    VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView, BulkAdjustStockView
+    VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
+    CreditLedgerDetailAPIView,
+    CreditPaymentCreateAPIView,BulkAdjustStockView,
 
 
 
@@ -54,6 +56,10 @@ urlpatterns = [
     path('change-password/', ChangePasswordAPIView.as_view(), name='change-password'),
     path('forgot-password/send-otp/', SendOTPAPIView.as_view(), name='send-otp'),
     path('forgot-password/verify-otp/', VerifyOTPAPIView.as_view(), name='verify-otp'),
+    # --- CREDIT LEDGER ---
+path("credits/", CreditLedgerListCreateAPIView.as_view(), name="credit-list-create"),  # GET list, POST create
+path("credits/<int:pk>/", CreditLedgerDetailAPIView.as_view(), name="credit-detail"),  # GET detail/receipt
+path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="credit-add-payment"),  # POST payment
 
 
     # ✅ New Role URLs
