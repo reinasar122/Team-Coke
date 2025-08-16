@@ -47,6 +47,8 @@ const MerchandisingSale = () => {
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
   const [route, setRoute] = useState("");
+
+  
   const [selectedVan, setSelectedVan] = useState("");
   const [isAddingRoute, setIsAddingRoute] = useState(false);
   const [newRoute, setNewRoute] = useState("");
@@ -524,60 +526,63 @@ const MerchandisingSale = () => {
 
                 <div>
                   <label className="text-sm mb-1 block">Route</label>
+
                   {isAddingRoute ? (
                     <input
                       type="text"
                       className="w-full rounded-md px-2 py-1 bg-gray-200 text-black"
                       placeholder="Enter new route"
-                      value={typeof route === "string" ? route : ""}
+                      value={route}                                 // ✅ keep as string
                       onChange={(e) => setRoute(e.target.value)}
                       onKeyDown={async (e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          const newRouteName = (route || "").trim();
-                          if (!newRouteName) return;
+                        if (e.key !== "Enter") return;
+                        e.preventDefault();
 
-                          // Check if the route already exists
-                          const existing = routes.find(
-                            (r) =>
-                              (r.route_name || "").toLowerCase() === newRouteName.toLowerCase()
-                          );
-                          if (existing) {
-                            alert(
-                              `Route "${newRouteName}" already exists. Selected it for you.`
-                            );
-                            setRoute(existing.id); // ✅ existing route's ID
-                            setIsAddingRoute(false);
-                            return;
-                          }
+                        const newRouteName = (route || "").trim();
+                        if (!newRouteName) return;
 
-                          // Add new route
-                          try {
-                            const res = await axios.post(
-                              "http://localhost:8080/api/routes/",
-                              { route_name: newRouteName }
-                            );
-
-                            const newR = res.data;
-                            setRoutes((prev) => [...prev, newR]);
-                            setRoute(newR.id); // ✅ new route ID
-                          } catch (error) {
-                            console.error("Error saving new route:", error);
-                          }
-
+                        // ✅ 1) Check duplicates (case-insensitive)
+                        const existing = routes.find(
+                          (r) => (r.route_name || "").toLowerCase() === newRouteName.toLowerCase()
+                        );
+                        if (existing) {
+                          alert(`Route "${newRouteName}" already exists. Selected it for you.`);
+                          setRoute(String(existing.id));            // ✅ use String ID in UI
                           setIsAddingRoute(false);
+                          return;
                         }
+
+                        // ✅ 2) Create new route and attach to the current warehouse
+                        try {
+                          const res = await axios.post(
+                            "http://localhost:8080/api/routes/",
+                            {
+                              route_name: newRouteName,
+                              warehouse: currentWarehouse?.id,      // ✅ IMPORTANT
+                            }
+                            // , { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } } // if your API needs auth
+                          );
+
+                          const newR = res.data;                    // { id, route_name, ... }
+                          setRoutes((prev) => [...prev, newR]);
+                          setRoute(String(newR.id));                // ✅ keep as String in UI
+                        } catch (error) {
+                          console.error("Error saving new route:", error?.response?.data || error);
+                          alert("Failed to save new route.");
+                        }
+
+                        setIsAddingRoute(false);
                       }}
                     />
                   ) : (
                     <select
-                      value={route}
+                      value={route}                                 // ✅ string
                       onChange={(e) => {
                         if (e.target.value === "add_new") {
                           setIsAddingRoute(true);
-                          setRoute("");
+                          setRoute("");                             // prepare text input
                         } else {
-                          setRoute(parseInt(e.target.value, 10)); // ensure number
+                          setRoute(e.target.value);                 // ✅ DO NOT parseInt here
                         }
                       }}
                       className="w-full rounded-md px-2 py-1 bg-gray-200 text-black"
@@ -585,15 +590,18 @@ const MerchandisingSale = () => {
                       <option value="" disabled hidden>
                         Select a route
                       </option>
+
                       {routes.map((r) => (
-                        <option key={r.id} value={r.id}>
+                        <option key={r.id} value={String(r.id)}>    {/* ✅ option values are strings */}
                           {r.route_name}
                         </option>
                       ))}
+
                       <option value="add_new">+ Add a new route</option>
                     </select>
                   )}
                 </div>
+
               </>
             )}
           </div>
