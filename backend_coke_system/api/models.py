@@ -489,6 +489,9 @@ class Merchandising(models.Model):
     cash_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
+    # ✅ NEW: used by the /api/van-load-return/ endpoint so stocks aren’t added twice
+    full_returns_applied = models.BooleanField(default=False)
+
     def save(self, *args, **kwargs):
         is_new = self._state.adding
         if is_new and not self.msp_no:

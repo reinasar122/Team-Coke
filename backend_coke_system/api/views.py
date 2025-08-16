@@ -926,6 +926,71 @@ def warehouse_details_view(request):
     })
 
 
+class VanLoadReturnView(APIView):
+    # keep auth if the rest of your API uses it
+    # permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        sale_id  = request.data.get("sale_id")
+        items    = request.data.get("products", [])
+
+        if not sale_id or not isinstance(items, list):
+            return Response({"detail": "sale_id and products[] are required."}, status=400)
+
+        # Find the sale to get the warehouse
+        try:
+            sale = (Merchandising.objects
+                    .select_related("warehouse")
+                    .get(pk=sale_id))
+        except Merchandising.DoesNotExist:
+            return Response({"detail": "Sale not found."}, status=404)
+
+        # idempotency guard (don’t double-add)
+        if getattr(sale, "full_returns_applied", False):
+            return Response({"detail": "Returns already applied for this sale."}, status=409)
+
+        with transaction.atomic():
+            for it in items:
+                product_id = it.get("productId") or it.get("product")
+                if not product_id:
+                    continue
+
+                # Prefer PCS; if missing, compute from shell × content_no
+                pcs = it.get("expected_return_pcs_nonempty")
+                if pcs is None:
+                    shell = float(it.get("expected_return_shell_nonempty") or 0)
+                    try:
+                        prod = Product.objects.select_related("unit_type").get(pk=product_id)
+                        content_no = int(getattr(prod.unit_type, "content_no", 1) or 1)
+                    except Product.DoesNotExist:
+                        continue
+                    pcs = int(round(shell * content_no))
+                else:
+                    pcs = int(float(pcs))
+
+                if pcs <= 0:
+                    continue
+
+                # Upsert + lock the stock row for this (product, warehouse)
+                wh_id = sale.warehouse_id
+                stk = (Stock.objects
+                           .select_for_update()
+                           .filter(product_id=product_id, warehouse_id=wh_id)
+                           .first())
+                if stk is None:
+                    stk = Stock(product_id=product_id, warehouse_id=wh_id, quantity_available=0)
+
+                stk.quantity_available = int(stk.quantity_available or 0) + pcs
+                stk.save()
+
+            # mark so we can’t apply twice
+            if hasattr(sale, "full_returns_applied"):
+                sale.full_returns_applied = True
+                sale.save(update_fields=["full_returns_applied"])
+
+        return Response({"ok": True}, status=200)
+
+
 class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MiscellaneousItem.objects.all()
     serializer_class = MiscellaneousItemSerializer
