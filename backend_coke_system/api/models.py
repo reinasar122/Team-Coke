@@ -96,15 +96,16 @@ class CreditPayment(models.Model):
 
 
 class Warehouse(models.Model):
-    name = models.CharField(max_length=255, unique=True)
-    street = models.CharField(max_length=255)
-    city = models.CharField(max_length=100)
-    country = models.CharField(max_length=100)
-    region = models.CharField(max_length=100)
-    zip_code = models.CharField(max_length=20)
-    phone_number = models.CharField(max_length=50)
-    email = models.EmailField(unique=True)
-
+    name = models.CharField(max_length=255)
+    country = models.CharField(max_length=100, default="Philippines")
+    region = models.CharField(max_length=100, default="", blank=True)
+    province = models.CharField(max_length=100, default="", blank=True)
+    city = models.CharField(max_length=100, default="", blank=True)
+    barangay = models.CharField(max_length=255, default="", blank=True)
+    street_address = models.CharField(max_length=255, default="", blank=True)
+    zip_code = models.CharField(max_length=10, default="", blank=True)
+    phone_number = models.CharField(max_length=20, default="", blank=True)
+    email = models.EmailField(default="", blank=True)
     def __str__(self):
         return self.name
 
@@ -115,10 +116,13 @@ class Supplier(models.Model):
     contact_person = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=50)
-    street_address = models.CharField(max_length=255)
-    city = models.CharField(max_length=100)
-    region = models.CharField(max_length=100)
-    zip_code = models.CharField(max_length=20)
+    country = models.CharField(max_length=100, default="Philippines")
+    region = models.CharField(max_length=100, default="", blank=True)
+    province = models.CharField(max_length=100, default="", blank=True)
+    city = models.CharField(max_length=100, default="", blank=True)
+    barangay = models.CharField(max_length=255, default="", blank=True)
+    street_address = models.CharField(max_length=255, default="", blank=True)
+    zip_code = models.CharField(max_length=10, default="", blank=True)
 
     def save(self, *args, **kwargs):
         if not self.registration_number:

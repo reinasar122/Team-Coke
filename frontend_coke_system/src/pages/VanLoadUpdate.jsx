@@ -725,6 +725,9 @@ const VanLoadUpdate = () => {
           emptiesPriceTotal={Number(emptiesPriceTotal) || 0}
           emptyReturns={Number(refundablesTotal) || 0}
           emptyDiscrepancies={Number(totalDiscrepancyEmpty) || 0}
+          totalReturnedWithContent={Number(totalReturnedWithContent) || 0} //kath
+          totalDiscrepancyNonEmpty={Number(totalDiscrepancyNonEmpty) || 0} //Kath
+          expectedSale={Number(totalExpectedSale) || 0} //Kath
           totalAmount={Number(overallTotal) || 0}
           mspNo={sale.msp_no}
           transactionDate={sale.date_time}

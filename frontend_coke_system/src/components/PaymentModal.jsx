@@ -62,6 +62,16 @@ const PaymentModal = ({
   expensesTotal = 0,
   remarks = "",
   onRemarksChange,
+
+  //van load breakdown props: Kath
+  expectedSale = 0,
+  totalReturnedWithContent = 0,
+  //totalDiscrepancyEmpty = 0,
+  totalDiscrepancyNonEmpty = 0,
+  totalActualRetrievedVL = 0,
+  overallTotalVL = 0,
+  grandTotalVL = 0,
+
 }) => {
   // ------------ hooks ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -188,9 +198,33 @@ const PaymentModal = ({
     isVanLoad,
   ]);
 
+    // ---- VAN LOAD totals (with safe fallbacks) ---- : Kath
+  const vl_actual = n(actualSalesValue);
+  const vl_retWc = n(totalReturnedWithContent);
+  const vl_discNE = n(totalDiscrepancyNonEmpty);
+  const vl_discE = n(emptyDiscrepancies);
+
+  const vl_totalActualRetrieved =
+    n(totalActualRetrievedVL) || (vl_actual + vl_retWc + vl_discNE);
+
+  const vl_overallTotal =
+    n(overallTotalVL) || (vl_actual + vl_discE + vl_discNE);
+
+  const vl_grandTotal =
+    n(grandTotalVL) || (vl_overallTotal - n(expensesTotal));
+
+
   // Prefer parent values only if they’re explicitly positive
-  const amountDueFinal = n(amountDue) > 0 ? n(amountDue) : computedTotalDue;
-  const totalAmountFinal = n(totalAmount) > 0 ? n(totalAmount) : computedTotalDue;
+  //const amountDueFinal = n(amountDue) > 0 ? n(amountDue) : computedTotalDue;
+  //const totalAmountFinal = n(totalAmount) > 0 ? n(totalAmount) : computedTotalDue;
+  //replaced by Kath
+  const amountDueFinal = isVanLoad
+    ? vl_grandTotal
+    : (n(amountDue) > 0 ? n(amountDue) : computedTotalDue);
+
+  const totalAmountFinal = isVanLoad
+    ? vl_grandTotal
+    : (n(totalAmount) > 0 ? n(totalAmount) : computedTotalDue);
 
   const showChange = String(cashReceived).trim() !== "";
   const change = Math.max(n(cashReceived) - amountDueFinal, 0);
@@ -252,7 +286,7 @@ const PaymentModal = ({
         </div>
 
         {/* Payment Breakdown */}
-        <div className="mt-6 text-sm">
+        {/*<div className="mt-6 text-sm">
           <h3 className="font-semibold mb-2">Payment Breakdown</h3>
           <div className="border p-4 rounded space-y-2">
             <div>
@@ -266,21 +300,119 @@ const PaymentModal = ({
               Total Amount Due: ₱{fmt(totalAmountFinal)}
             </div>
           </div>
-        </div>
+        </div> */}
 
-        {/* Van Load only: Remarks */}
-        {isVanLoad && (
-          <div className="mt-4">
-            <label className="block text-sm font-semibold mb-1">Remarks (Van Load)</label>
-            <textarea
-              rows={3}
-              className="w-full border rounded px-2 py-1"
-              value={remarks}
-              onChange={(e) => (onRemarksChange ? onRemarksChange(e.target.value) : null)}
-              placeholder="Add remarks for this Van Load transaction..."
-            />
+        {/* Payment Breakdown */}
+        <h3 className="font-semibold mt-4 mb-0">Payment Breakdown</h3>
+        <div className="mt-6 text-sm">
+          <div className="flex flex-col bg-transparent p-6 border-[1px] border-black">
+            {isVanLoad ? (
+              // ---------- VAN LOAD layout (matches screenshot) ----------
+              <div className="space-y-8">
+                {/* Expected Sale */}
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Expected Sale</h3>
+                  <div className="tabular-nums">₱{fmt(expectedSale)}</div>
+                </div>
+
+                {/* Total Actual Retrieved */}
+                <div>
+                  <div className="font-semibold mb-2">Total Actual Retrieved:</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span>Actual Sale:</span>
+                      <span className="tabular-nums">₱{fmt(vl_actual)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Returned With Content:</span>
+                      <span className="tabular-nums">+ ₱{fmt(vl_retWc)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Discrepancies (non-empty):</span>
+                      <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
+                    </div>
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                      <span>Total:</span>
+                      <span className="tabular-nums">₱{fmt(vl_totalActualRetrieved)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Overall Total */}
+                <div>
+                  <div className="font-semibold mb-2">Overall Total:</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span>Actual Sale:</span>
+                      <span className="tabular-nums">₱{fmt(vl_actual)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Discrepancies (empty):</span>
+                      <span className="tabular-nums">+ ₱{fmt(vl_discE)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Discrepancies (non-empty):</span>
+                      <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
+                    </div>
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                      <span>Total:</span>
+                      <span className="tabular-nums">₱{fmt(vl_overallTotal)}</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Expenses:</span>
+                      <span className="tabular-nums">- ₱{fmt(expensesTotal)}</span>
+                    </div>
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-bold">
+                      <span>Grand Total:</span>
+                      <span className="tabular-nums">₱{fmt(vl_grandTotal)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // ---------- WAREHOUSE: original block ----------
+              <>
+                <h3 className="font-semibold mb-2">Payment Breakdown</h3>
+                  <div className="space-y-1">
+                    <div className="font-semibold mb-2 flex justify-between">
+                      <span>Actual Sales:</span>
+                      <span className="tabular-nums">₱{fmt(actualSalesValue)}</span>
+                    </div>
+                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                      <span>Discrepancy:</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Empties Price Total: </span>
+                      <span className="tabular-nums"> ₱{fmt(emptiesPriceTotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Empty Returns:</span>
+                      <span className="tabular-nums">- ₱{fmt(emptyReturns)}</span>
+                    </div>
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                      <span>Total:</span>
+                      <span className="tabular-nums">₱{fmt(emptyDiscrepancies)}</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Actual Sales</span>
+                      <span className="tabular-nums">+ ₱{fmt(actualSalesValue)}</span>
+                    </div>
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-bold">
+                      <span>Total Amount Due:</span>
+                      <span className="tabular-nums">₱{fmt(totalAmountFinal)}</span>
+                    </div>
+                  </div>
+              </>
+            )}
           </div>
-        )}
+        </div>
 
         {/* Payment Method */}
         <div className="mt-6 text-sm">
@@ -298,6 +430,20 @@ const PaymentModal = ({
               </button>
             ))}
           </div>
+
+           {/* Van Load only: Remarks
+          {isVanLoad && (
+            <div className="mt-4">
+              <label className="block text-sm font-semibold mb-1">Remarks (Van Load)</label>
+              <textarea
+                rows={3}
+                className="w-full border rounded px-2 py-1"
+                value={remarks}
+                onChange={(e) => (onRemarksChange ? onRemarksChange(e.target.value) : null)}
+                placeholder="Add remarks for this Van Load transaction..."
+              />
+            </div>
+          )} */}
 
           {paymentMethod === "cash" && (
             <div className="grid grid-cols-2 gap-4">
@@ -329,7 +475,7 @@ const PaymentModal = ({
                 </div>
               )}
             </div>
-          )}
+          )}      
 
           {paymentMethod === "credit" && (
             <div className="border p-4 rounded space-y-4">

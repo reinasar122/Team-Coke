@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-toastify";
+import { errorStyle } from "../utils/toastStyles"
 import RoleForm from "./RoleForm";
 import EditRoleAccess from "./EditRoleAccess";
+import { FaEdit, FaTrash } from "react-icons/fa";
 
 const RoleList = () => {
   const [roles, setRoles] = useState([]);
@@ -8,6 +11,10 @@ const RoleList = () => {
   const [isRoleFormVisible, setIsRoleFormVisible] = useState(false);
   const [showEditAccessModal, setShowEditAccessModal] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState(null);
+
+  // New states for delete modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [roleToDelete, setRoleToDelete] = useState(null);
 
   useEffect(() => {
     fetchRoles();
@@ -34,18 +41,32 @@ const RoleList = () => {
     setIsRoleFormVisible(false);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this role?")) return;
-    try {
-      const response = await fetch(`http://127.0.0.1:8080/api/roles/${id}/`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Failed to delete role");
-      setRoles((prev) => prev.filter((r) => r.id !== id));
-    } catch (error) {
-      console.error("Error deleting role:", error);
-    }
+  // Trigger delete modal instead of immediate delete
+  const confirmDelete = (role) => {
+    setRoleToDelete(role);
+    setShowDeleteModal(true);
   };
+
+  // Actual delete function
+  const handleDelete = async () => {
+  if (!roleToDelete) return;
+  try {
+    const response = await fetch(`http://127.0.0.1:8080/api/roles/${roleToDelete.id}/`, {
+      method: "DELETE",
+    });
+    if (!response.ok) throw new Error("Failed to delete role");
+
+    setRoles((prev) => prev.filter((r) => r.id !== roleToDelete.id));
+    toast.error(`Role '${roleToDelete.name}' has been deleted.`, {style: errorStyle});
+  } catch (error) {
+    console.error("Error deleting role:", error);
+    toast.error("Error deleting role.", errorStyle);
+  } finally {
+    setShowDeleteModal(false);
+    setRoleToDelete(null);
+  }
+};
+
 
   const handleEditAccess = (roleId) => {
     setSelectedRoleId(roleId);
@@ -69,7 +90,7 @@ const RoleList = () => {
 
         <button
           onClick={() => setIsRoleFormVisible(true)}
-          className="px-4 py-2 rounded-lg bg-red-500 text-white hover:bg-red-600"
+          className="bg-green-500 text-white px-4 py-2 rounded-lg"
         >
           + Create Role
         </button>
@@ -77,30 +98,34 @@ const RoleList = () => {
 
       <div className="overflow-x-auto w-full bg-white shadow-md rounded-lg">
         <table className="w-full border-collapse">
-          <thead className="bg-gray-200 text-left">
+          <thead className="bg-gray-200">
             <tr>
-              <th className="py-3 px-4">ROLE NAME</th>
-              <th className="py-3 px-14 text-right">ACTIONS</th>
+              <th className="py-3 px-4 text-left">ROLE NAME</th>
+              <th className="py-3 px-7 text-right">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {filteredRoles.length > 0 ? (
               filteredRoles.map((role) => (
                 <tr key={role.id} className="border-t hover:bg-gray-100">
-                  <td className="py-3 px-4">{role.name}</td>
-                  <td className="py-3 px-7 text-right space-x-2">
-                    <button
-                      onClick={() => handleEditAccess(role.id)}
-                      className="px-3 py-1 rounded bg-blue-600 text-white hover:bg-blue-700"
-                    >
-                      Edit Access
-                    </button>
-                    <button
-                      onClick={() => handleDelete(role.id)}
-                      className="px-3 py-1 rounded bg-red-500 text-white hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
+                  <td className="py-3 px-4 text-left">{role.name}</td>
+                  <td className="py-3 px-7 text-right">
+                    <div className="flex justify-end items-center gap-3">
+                      <button
+                        onClick={() => handleEditAccess(role.id)}
+                        className="text-blue-500"
+                        title="Edit Access"
+                      >
+                        <FaEdit size={20} />
+                      </button>
+                      <button
+                        onClick={() => confirmDelete(role)}
+                        className="text-red-500"
+                        title="Delete Role"
+                      >
+                        <FaTrash size={20} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -129,6 +154,34 @@ const RoleList = () => {
               roleId={selectedRoleId}
               onClose={() => setShowEditAccessModal(false)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && roleToDelete && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
+          <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
+            <p className="text-lg font-semibold mb-6">
+              Are you sure you want to delete <strong>{roleToDelete.name}</strong>?
+            </p>
+            <div className="flex justify-between">
+              <button
+                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                onClick={() => {
+                  setShowDeleteModal(false);
+                  setRoleToDelete(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                onClick={handleDelete}
+              >
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
