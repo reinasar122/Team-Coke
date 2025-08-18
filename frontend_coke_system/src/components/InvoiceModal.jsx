@@ -71,7 +71,7 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
 
     // van load only
     expensesTotal = 0,
-    remarks = "",
+    remarks = "", 
   } = invoiceData;
 
   const isVanLoad = (transactionTypeName || "").toLowerCase() === "van load";

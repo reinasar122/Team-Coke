@@ -1,12 +1,12 @@
-// src/pages/WarehouseProductDetails.jsx
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 
+// Access API base URL using process.env for compatibility
 const API_BASE =
-  (import.meta?.env?.VITE_API_BASE ||
-   process.env.REACT_APP_API_BASE ||
-   "http://localhost:8080"); // make sure this is correct for your backend
+  (import.meta && import.meta.env && import.meta.env.VITE_API_BASE) ||
+  process.env.REACT_APP_API_BASE ||
+  "http://localhost:8080"; // Default fallback
 
 const Peso = (n) => `₱${Number(n || 0).toFixed(2)}`;
 
@@ -43,9 +43,6 @@ export default function WarehouseProductDetails() {
     // quick visibility while debugging:
     console.log("GET", url, params);
 
-    
-
-
     axios
       .get(url, { params })
       .then((res) => setData(res.data || { items: [], overall_total: 0 }))
@@ -64,14 +61,12 @@ export default function WarehouseProductDetails() {
   const handleBack = () => navigate("/trading");
   const handleNewSale = () => navigate("/merchandising-sale");
 
-
   return (
     <div className="p-6 bg-sky-200 min-h-screen">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">
           Warehouse Product Details — {mspNo}{data?.date ? ` (${data.date})` : ""}
         </h2>
-
 
          {/* Button group */}
         <div className="flex gap-2">
@@ -108,7 +103,7 @@ export default function WarehouseProductDetails() {
               </tr>
             </thead>
             <tbody>
-              {data.items?.map(it => (
+              {data.items?.map((it) => (
                 <tr key={it.product} className="text-center border-b">
                   <td className="p-2 text-left">{it.product_name}</td>
                   <td className="p-2">{it.sold_shell}</td>

@@ -62,13 +62,25 @@ const SupplierReturnForm = () => {
     return { id: userData.warehouse_id, name: userData.warehouse };
   }, []);
 
-  // Function to fetch return empties for selected supplier FROM MERCHANDISING DATA
+  // FIXED: Function to fetch return empties for selected supplier FROM MERCHANDISING DATA
   const fetchReturnEmpties = useCallback(async (supplierId) => {
     try {
       console.log("🔍 Fetching return empties from merchandising for supplier:", supplierId, "warehouse:", currentWarehouse?.id);
       
-      const warehouseParam = currentWarehouse?.id ? `?warehouse_id=${currentWarehouse.id}` : '';
-      const response = await axios.get(`http://localhost:8080/api/merchandisings/${warehouseParam}`);
+      if (!currentWarehouse?.id) {
+        console.log("❌ No warehouse selected");
+        return [];
+      }
+      
+      if (products.length === 0) {
+        console.log("❌ Products not loaded yet, count:", products.length);
+        return [];
+      }
+      
+      console.log("✅ Products loaded, count:", products.length);
+      
+      // Fetch merchandising data with warehouse filter
+      const response = await axios.get(`http://localhost:8080/api/merchandisings/?warehouse_id=${currentWarehouse.id}`);
       console.log("📦 All merchandising data:", response.data);
       
       let merchandisingData = response.data;
@@ -79,28 +91,49 @@ const SupplierReturnForm = () => {
       const itemsToClean = []; // Track ALL items that will be used
       
       if (Array.isArray(merchandisingData)) {
+        console.log(`🔄 Processing ${merchandisingData.length} merchandising records for supplier ${supplierId}...`);
+        
         merchandisingData.forEach(merchandising => {
           // Check for both "Complete" and "COMPLETE" status
           if ((merchandising.status === "Complete" || merchandising.status === "COMPLETE") && merchandising.items) {
-            merchandising.items.forEach(item => {
+            console.log(`📋 Processing MSP ${merchandising.msp_no} with ${merchandising.items.length} items`);
+            
+            merchandising.items.forEach((item, itemIndex) => {
               const emptyShell = item.empty_return_shell || 0;
               const emptyPcs = item.empty_return_pcs || 0;
+              
+              console.log(`  Item ${itemIndex + 1} in MSP ${merchandising.msp_no}: Shell=${emptyShell}, PCs=${emptyPcs}, Product ID=${item.product}`);
               
               if (emptyShell > 0 || emptyPcs > 0) {
                 // Get product info
                 const product = products.find(p => p.id === item.product);
                 
-                if (product && String(product.supplier) === String(supplierId)) {
-                  // Check if product has pricing (shell or bottle price)
-                  const productPrice = product.price || {};
+                if (!product) {
+                  console.log(`    ❌ Product not found for ID: ${item.product}`);
+                  return;
+                }
+                
+                console.log(`    📦 Found product: ${product.product_name}, Supplier: ${product.supplier}`);
+                
+                // Check if this product belongs to the selected supplier
+                if (String(product.supplier) === String(supplierId)) {
+                  console.log(`    ✅ Product matches supplier ${supplierId}`);
                   
-                  const hasShellPrice = productPrice.shell_price && 
-                                      productPrice.shell_price > 0;
-                  const hasBottlePrice = productPrice.bottle_price && 
-                                       productPrice.bottle_price > 0;
+                  // Get pricing info - first try from product.price, then from separate pricing API
+                  let shellPrice = 0;
+                  let bottlePrice = 0;
+                  
+                  if (product.price) {
+                    shellPrice = product.price.shell_price || 0;
+                    bottlePrice = product.price.bottle_price || 0;
+                  }
+                  
+                  console.log(`    💰 Prices - Shell: ₱${shellPrice}, Bottle: ₱${bottlePrice}`);
                   
                   // Only include products with shell or bottle pricing
-                  if (hasShellPrice || hasBottlePrice) {
+                  if (shellPrice > 0 || bottlePrice > 0) {
+                    console.log(`    ✅ Product has valid pricing, adding to return empties`);
+                    
                     const returnItem = {
                       id: `${merchandising.id}-${item.id}`,
                       product_id: item.product,
@@ -113,7 +146,10 @@ const SupplierReturnForm = () => {
                       merchandising_id: merchandising.id,
                       item_id: item.id,
                       msp_no: merchandising.msp_no,
-                      warehouse_id: currentWarehouse?.id
+                      warehouse_id: currentWarehouse?.id,
+                      shell_price: shellPrice,
+                      bottle_price: bottlePrice,
+                      content_no: product.unit_type?.content_no || 0
                     };
                     
                     emptyReturns.push(returnItem);
@@ -130,7 +166,11 @@ const SupplierReturnForm = () => {
                       original_empty_shell: emptyShell,
                       original_empty_pcs: emptyPcs
                     });
+                  } else {
+                    console.log(`    ⚠️ Product has no shell/bottle price, skipping`);
                   }
+                } else {
+                  console.log(`    ❌ Product supplier ${product.supplier} doesn't match selected supplier ${supplierId}`);
                 }
               }
             });
@@ -138,7 +178,8 @@ const SupplierReturnForm = () => {
         });
       }
       
-      console.log("✅ Filtered return empties from merchandising for supplier ID:", supplierId, "in warehouse:", currentWarehouse?.name, emptyReturns);
+      console.log(`✅ Found ${emptyReturns.length} return empties for supplier ${supplierId} in warehouse ${currentWarehouse?.name}`);
+      console.log("📋 Return empties data:", emptyReturns);
       console.log("📋 Items to clean after return:", itemsToClean);
       
       // Store the data for later processing
@@ -182,40 +223,34 @@ const SupplierReturnForm = () => {
 
     console.log("🔄 Processing return empties data:", returnEmptiesData);
     
-    // Group products by product name to combine duplicates
+    // Group products by product ID to combine duplicates
     const productGroups = {};
 
     returnEmptiesData.forEach(empty => {
-      const product = products.find(p => 
-        p.id === empty.product_id || p.id === empty.product
-      );
+      const productId = empty.product_id;
+      const productName = empty.product_name;
+      const contentNo = empty.content_no || 0;
+      const bottlePrice = formatDecimal(empty.bottle_price);
+      const shellPrice = formatDecimal(empty.shell_price);
       
-      if (product) {
-        const productName = product.product_name;
-        const contentNo = product.unit_type?.content_no || 0;
-        const price = product.price || {};
-        const bottlePrice = formatDecimal(price.bottle_price);
-        const shellPrice = formatDecimal(price.shell_price);
-        
-        const qtyShell = parseInt(empty.empty_shell_qty || empty.qty_shell || 0, 10);
-        const qtyPcs = parseInt(empty.empty_bottle_qty || (qtyShell * contentNo), 10);
-        
-        // If this product name already exists, add to it
-        if (productGroups[productName]) {
-          productGroups[productName].qty_shell += qtyShell;
-          productGroups[productName].qty_pcs += qtyPcs;
-        } else {
-          // Create new entry for this product
-          productGroups[productName] = {
-            product: product.id,
-            product_name: productName,
-            content_no: contentNo,
-            bottle_price: bottlePrice,
-            shell_price: shellPrice,
-            qty_shell: qtyShell,
-            qty_pcs: qtyPcs,
-          };
-        }
+      const qtyShell = parseInt(empty.empty_shell_qty || empty.qty_shell || 0, 10);
+      const qtyPcs = parseInt(empty.empty_bottle_qty || empty.qty_pcs || 0, 10);
+      
+      // If this product ID already exists, add to it
+      if (productGroups[productId]) {
+        productGroups[productId].qty_shell += qtyShell;
+        productGroups[productId].qty_pcs += qtyPcs;
+      } else {
+        // Create new entry for this product
+        productGroups[productId] = {
+          product: productId,
+          product_name: productName,
+          content_no: contentNo,
+          bottle_price: bottlePrice,
+          shell_price: shellPrice,
+          qty_shell: qtyShell,
+          qty_pcs: qtyPcs,
+        };
       }
     });
 
@@ -252,7 +287,7 @@ const SupplierReturnForm = () => {
       items: newItems,
       total_amount: totalAmount
     }));
-  }, [products]);
+  }, []);
 
   // Handle supplier change
   const handleSupplierChange = useCallback(async (supplierId) => {
@@ -286,7 +321,7 @@ const SupplierReturnForm = () => {
     }
   }, [currentWarehouse, fetchReturnEmpties, populateTableWithReturnEmpties]);
 
-  // Initial data loading useEffect
+  // FIXED: Initial data loading useEffect
   useEffect(() => {
     // Get current warehouse on component mount
     const warehouse = getCurrentWarehouse();
@@ -312,13 +347,80 @@ const SupplierReturnForm = () => {
       const pricing = pricingRes.data;
       console.log("Pricing data loaded:", pricing);
       
-      // Filter content products
-      const contentProducts = productsRes.data.filter(
-        p => p.product_category?.name === "Content"
-      );
+      // DEBUG: Check raw products data structure
+      console.log("Raw products response:", productsRes.data);
+      console.log("Sample product structure:", productsRes.data[0]);
       
-      console.log("Content products:", contentProducts);
-      setProducts(contentProducts);
+      // Handle different possible response structures
+      let allProducts = productsRes.data;
+      if (allProducts.results) allProducts = allProducts.results;
+      if (allProducts.data) allProducts = allProducts.data;
+      
+      console.log("All products after normalization:", allProducts);
+      
+      // Check for different possible product category field names
+      const sampleProduct = allProducts[0];
+      if (sampleProduct) {
+        console.log("Sample product keys:", Object.keys(sampleProduct));
+        console.log("Product category field:", sampleProduct.product_category);
+        console.log("Category field:", sampleProduct.category);
+        console.log("Type field:", sampleProduct.type);
+      }
+      
+      // Try different filtering approaches
+      let contentProducts = [];
+      
+      // Approach 1: product_category.name === "Content"
+      contentProducts = allProducts.filter(p => p.product_category?.name === "Content");
+      console.log("Approach 1 - product_category.name === 'Content':", contentProducts.length);
+      
+      // Approach 2: product_category === "Content" 
+      if (contentProducts.length === 0) {
+        contentProducts = allProducts.filter(p => p.product_category === "Content");
+        console.log("Approach 2 - product_category === 'Content':", contentProducts.length);
+      }
+      
+      // Approach 3: category.name === "Content"
+      if (contentProducts.length === 0) {
+        contentProducts = allProducts.filter(p => p.category?.name === "Content");
+        console.log("Approach 3 - category.name === 'Content':", contentProducts.length);
+      }
+      
+      // Approach 4: category === "Content"
+      if (contentProducts.length === 0) {
+        contentProducts = allProducts.filter(p => p.category === "Content");
+        console.log("Approach 4 - category === 'Content':", contentProducts.length);
+      }
+      
+      // Approach 5: type === "Content"
+      if (contentProducts.length === 0) {
+        contentProducts = allProducts.filter(p => p.type === "Content");
+        console.log("Approach 5 - type === 'Content':", contentProducts.length);
+      }
+      
+      // Approach 6: If still no content products, use all products but log warning
+      if (contentProducts.length === 0) {
+        console.warn("⚠️ No content products found with any approach. Using all products.");
+        console.log("Available product categories:", [...new Set(allProducts.map(p => 
+          p.product_category?.name || p.product_category || p.category?.name || p.category || p.type || 'Unknown'
+        ))]);
+        contentProducts = allProducts; // Use all products as fallback
+      }
+      
+      console.log("Final content products selected:", contentProducts);
+      
+      // Merge pricing data into products
+      const productsWithPricing = contentProducts.map(product => {
+        const productPricing = pricing.find(p => p.id === product.id || p.product === product.id);
+        return {
+          ...product,
+          price: productPricing || {}
+        };
+      });
+      
+      console.log("Content products with pricing:", productsWithPricing);
+      console.log("Products with pricing count:", productsWithPricing.length);
+      setProducts(productsWithPricing);
     })
     .catch(err => {
       console.error("Error fetching data:", err);
