@@ -134,7 +134,8 @@ const ReturnEmpties = () => {
         merchandisingData.forEach(merchandising => {
           console.log("Processing merchandising item:", merchandising);
           
-          if (merchandising.status === "Complete" && merchandising.items) {
+          // FIXED: Check for both "Complete" and "COMPLETE" status to include van load transactions
+          if ((merchandising.status === "Complete" || merchandising.status === "COMPLETE") && merchandising.items) {
             merchandising.items.forEach(item => {
               console.log("Full item structure:", JSON.stringify(item, null, 2));
               
@@ -224,7 +225,8 @@ const ReturnEmpties = () => {
                   shell_price: productPricing ? productPricing.shell_price : 0,
                   bottle_price: productPricing ? productPricing.bottle_price : 0,
                   warehouse_id: currentWarehouse.id,
-                  warehouse_name: currentWarehouse.name
+                  warehouse_name: currentWarehouse.name,
+                  transaction_type: merchandising.status // Add transaction type for better visibility
                 });
               }
             });
@@ -244,6 +246,10 @@ const ReturnEmpties = () => {
           groupedReturns[key].empty_return_pcs += item.empty_return_pcs;
           groupedReturns[key].msp_numbers.push(item.msp_no);
           groupedReturns[key].transaction_count += 1;
+          // Keep track of transaction types
+          if (!groupedReturns[key].transaction_types.includes(item.transaction_type)) {
+            groupedReturns[key].transaction_types.push(item.transaction_type);
+          }
           // Keep track of all dates, take the most recent
           if (item.date > groupedReturns[key].date) {
             groupedReturns[key].date = item.date;
@@ -254,6 +260,7 @@ const ReturnEmpties = () => {
             ...item,
             msp_numbers: [item.msp_no],
             transaction_count: 1,
+            transaction_types: [item.transaction_type],
             id: `grouped-${key}` // New ID for grouped item
           };
         }
@@ -371,7 +378,7 @@ const ReturnEmpties = () => {
       {/* Warehouse Info Header */}
       <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
         <h2 className="text-lg font-bold text-blue-800">Return Empties - {currentWarehouse.name}</h2>
-        <p className="text-sm text-blue-600">Showing return empties data for this warehouse only</p>
+        <p className="text-sm text-blue-600">Showing return empties data for this warehouse only (includes both regular and van load transactions)</p>
       </div>
       
       <div className="mb-6">
@@ -411,6 +418,7 @@ const ReturnEmpties = () => {
               <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Total Empty Returns</th>
               <th className="px-4 py-3 text-left text-gray-700 font-medium border-b">Supplier</th>
               <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Transactions</th>
+              <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Type</th>
               <th className="px-4 py-3 text-center text-gray-700 font-medium border-b">Latest Date</th>
             </tr>
           </thead>
@@ -461,12 +469,28 @@ const ReturnEmpties = () => {
                       {item.transaction_count || 1}
                     </span>
                   </td>
+                  <td className="px-4 py-3 border-b text-center text-gray-800">
+                    <div className="flex flex-col gap-1">
+                      {item.transaction_types && item.transaction_types.map((type, i) => (
+                        <span 
+                          key={i}
+                          className={`text-xs px-2 py-1 rounded ${
+                            type === 'COMPLETE' 
+                              ? 'bg-purple-100 text-purple-600' 
+                              : 'bg-green-100 text-green-600'
+                          }`}
+                        >
+                          {type === 'COMPLETE' ? 'Van Load' : 'Regular'}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                   <td className="px-4 py-3 border-b text-center text-gray-800">{item.date}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="6" className="px-4 py-8 text-center text-gray-500">
+                <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
                   No returned empties available for {currentWarehouse.name}
                 </td>
               </tr>

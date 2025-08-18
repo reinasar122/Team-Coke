@@ -1,4 +1,3 @@
-// SupplierReturnForm.js - Fixed React Hook warning
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -9,7 +8,7 @@ const SupplierReturnForm = () => {
   const [products, setProducts] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
-  // ✅ Returns local date & time in YYYY-MM-DDTHH:MM format
+  // Returns local date & time in YYYY-MM-DDTHH:MM format
   const getLocalDateTime = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60000;
@@ -29,7 +28,7 @@ const SupplierReturnForm = () => {
   const [form, setForm] = useState({
     sup_no: generateRandomCode(),
     supplier: "",
-    warehouse: "", // ADD THIS
+    warehouse: "",
     date: getLocalDateTime(),
     total_amount: 0,
     items: [{
@@ -44,9 +43,9 @@ const SupplierReturnForm = () => {
     }],
   });
 
-  // Store the original returnable stock entries for removal
-  const [originalReturnableStocks, setOriginalReturnableStocks] = useState([]);
-  // NEW: Store merchandising items that need to be cleared
+  // Store the original return empties data for processing
+  const [originalReturnEmpties, setOriginalReturnEmpties] = useState([]);
+  // Store ALL merchandising items that contributed to the supplier return
   const [merchandisingItemsToClean, setMerchandisingItemsToClean] = useState([]);
 
   // Function to get current warehouse
@@ -63,89 +62,95 @@ const SupplierReturnForm = () => {
     return { id: userData.warehouse_id, name: userData.warehouse };
   }, []);
 
-  // NEW: Function to find merchandising items that need to be cleaned
-  const findMerchandisingItemsToClean = useCallback(async (supplierId) => {
-    try {
-      console.log("🔍 Finding merchandising items to clean for supplier:", supplierId);
-      
-      // Add warehouse filter to merchandising query
-      const warehouseParam = currentWarehouse?.id ? `?warehouse_id=${currentWarehouse.id}` : '';
-      const merchandisingResponse = await axios.get(`http://localhost:8080/api/merchandisings/${warehouseParam}`);
-      const merchandisingData = merchandisingResponse.data;
-      
-      const itemsToClean = [];
-      
-      merchandisingData.forEach(merchandising => {
-        if (merchandising.status === "Complete" && merchandising.items) {
-          merchandising.items.forEach(item => {
-            const emptyShell = item.empty_return_shell || 0;
-            const emptyPcs = item.empty_return_pcs || 0;
-            
-            if (emptyShell > 0 || emptyPcs > 0) {
-              // Find the product to get supplier info
-              const product = products.find(p => p.id === item.product);
-              
-              if (product && String(product.supplier) === String(supplierId)) {
-                itemsToClean.push({
-                  merchandising_id: merchandising.id,
-                  item_id: item.id,
-                  product_id: item.product,
-                  supplier_id: supplierId,
-                  empty_shell_qty: emptyShell,
-                  empty_bottle_qty: emptyPcs,
-                  msp_no: merchandising.msp_no
-                });
-              }
-            }
-          });
-        }
-      });
-      
-      console.log("📋 Merchandising items to clean:", itemsToClean);
-      setMerchandisingItemsToClean(itemsToClean);
-      
-    } catch (err) {
-      console.error("❌ Error finding merchandising items to clean:", err);
-    }
-  }, [currentWarehouse, products]);
-
-  // Function to fetch return empties for selected supplier FROM RETURNABLE STOCKS (filtered by warehouse)
+  // Function to fetch return empties for selected supplier FROM MERCHANDISING DATA
   const fetchReturnEmpties = useCallback(async (supplierId) => {
     try {
-      console.log("🔍 Fetching returnable stocks for supplier:", supplierId, "warehouse:", currentWarehouse?.id);
+      console.log("🔍 Fetching return empties from merchandising for supplier:", supplierId, "warehouse:", currentWarehouse?.id);
       
-      // Get returnable stocks data with warehouse filter
       const warehouseParam = currentWarehouse?.id ? `?warehouse_id=${currentWarehouse.id}` : '';
-      const response = await axios.get(`http://localhost:8080/api/returnable-stocks/${warehouseParam}`);
-      console.log("📦 All returnable stocks data:", response.data);
+      const response = await axios.get(`http://localhost:8080/api/merchandisings/${warehouseParam}`);
+      console.log("📦 All merchandising data:", response.data);
       
-      // Filter by supplier_id AND warehouse to get empties for the selected supplier in current warehouse
-      const filteredData = response.data.filter(item => {
-        const supplierMatch = String(item.supplier_id) === String(supplierId) || String(item.supplier) === String(supplierId);
-        const warehouseMatch = !currentWarehouse?.id || String(item.warehouse_id) === String(currentWarehouse.id);
-        
-        console.log("🔍 Checking item:", item, 
-          "Supplier match:", supplierMatch, 
-          "Warehouse match:", warehouseMatch
-        );
-        
-        return supplierMatch && warehouseMatch;
-      });
+      let merchandisingData = response.data;
+      if (merchandisingData.results) merchandisingData = merchandisingData.results;
+      if (merchandisingData.data) merchandisingData = merchandisingData.data;
       
-      console.log("✅ Filtered returnable stocks for supplier ID:", supplierId, "in warehouse:", currentWarehouse?.name, filteredData);
+      const emptyReturns = [];
+      const itemsToClean = []; // Track ALL items that will be used
       
-      // Store the original data for removal later
-      setOriginalReturnableStocks(filteredData);
-
-      // NEW: Also find corresponding merchandising items that need to be cleared
-      await findMerchandisingItemsToClean(supplierId);
+      if (Array.isArray(merchandisingData)) {
+        merchandisingData.forEach(merchandising => {
+          // Check for both "Complete" and "COMPLETE" status
+          if ((merchandising.status === "Complete" || merchandising.status === "COMPLETE") && merchandising.items) {
+            merchandising.items.forEach(item => {
+              const emptyShell = item.empty_return_shell || 0;
+              const emptyPcs = item.empty_return_pcs || 0;
+              
+              if (emptyShell > 0 || emptyPcs > 0) {
+                // Get product info
+                const product = products.find(p => p.id === item.product);
+                
+                if (product && String(product.supplier) === String(supplierId)) {
+                  // Check if product has pricing (shell or bottle price)
+                  const productPrice = product.price || {};
+                  
+                  const hasShellPrice = productPrice.shell_price && 
+                                      productPrice.shell_price > 0;
+                  const hasBottlePrice = productPrice.bottle_price && 
+                                       productPrice.bottle_price > 0;
+                  
+                  // Only include products with shell or bottle pricing
+                  if (hasShellPrice || hasBottlePrice) {
+                    const returnItem = {
+                      id: `${merchandising.id}-${item.id}`,
+                      product_id: item.product,
+                      product_name: product.product_name,
+                      empty_shell_qty: emptyShell,
+                      empty_bottle_qty: emptyPcs,
+                      qty_shell: emptyShell,
+                      qty_pcs: emptyPcs,
+                      supplier_id: supplierId,
+                      merchandising_id: merchandising.id,
+                      item_id: item.id,
+                      msp_no: merchandising.msp_no,
+                      warehouse_id: currentWarehouse?.id
+                    };
+                    
+                    emptyReturns.push(returnItem);
+                    
+                    // Add to items that need to be cleaned
+                    itemsToClean.push({
+                      merchandising_id: merchandising.id,
+                      item_id: item.id,
+                      product_id: item.product,
+                      supplier_id: supplierId,
+                      empty_shell_qty: emptyShell,
+                      empty_bottle_qty: emptyPcs,
+                      msp_no: merchandising.msp_no,
+                      original_empty_shell: emptyShell,
+                      original_empty_pcs: emptyPcs
+                    });
+                  }
+                }
+              }
+            });
+          }
+        });
+      }
       
-      return filteredData;
+      console.log("✅ Filtered return empties from merchandising for supplier ID:", supplierId, "in warehouse:", currentWarehouse?.name, emptyReturns);
+      console.log("📋 Items to clean after return:", itemsToClean);
+      
+      // Store the data for later processing
+      setOriginalReturnEmpties(emptyReturns);
+      setMerchandisingItemsToClean(itemsToClean);
+      
+      return emptyReturns;
     } catch (err) {
-      console.error("❌ Error fetching returnable stocks for supplier:", supplierId, err);
+      console.error("❌ Error fetching return empties from merchandising for supplier:", supplierId, err);
       return [];
     }
-  }, [currentWarehouse, findMerchandisingItemsToClean]);
+  }, [currentWarehouse, products]);
 
   // Helper function to format a number to 2 decimal places and convert to a number
   const formatDecimal = (value) => {
@@ -170,7 +175,8 @@ const SupplierReturnForm = () => {
         }],
         total_amount: 0
       }));
-      setOriginalReturnableStocks([]);
+      setOriginalReturnEmpties([]);
+      setMerchandisingItemsToClean([]);
       return;
     }
 
@@ -248,7 +254,7 @@ const SupplierReturnForm = () => {
     }));
   }, [products]);
 
-  // Handle supplier change - memoized to avoid dependency issues
+  // Handle supplier change
   const handleSupplierChange = useCallback(async (supplierId) => {
     console.log("🔄 Supplier changed to:", supplierId);
     setForm(prev => ({ ...prev, supplier: supplierId }));
@@ -275,7 +281,7 @@ const SupplierReturnForm = () => {
         }],
         total_amount: 0
       }));
-      setOriginalReturnableStocks([]);
+      setOriginalReturnEmpties([]);
       setMerchandisingItemsToClean([]);
     }
   }, [currentWarehouse, fetchReturnEmpties, populateTableWithReturnEmpties]);
@@ -342,7 +348,7 @@ const SupplierReturnForm = () => {
         }],
         total_amount: 0
       }));
-      setOriginalReturnableStocks([]);
+      setOriginalReturnEmpties([]);
       setMerchandisingItemsToClean([]);
     };
 
@@ -407,18 +413,23 @@ const SupplierReturnForm = () => {
     }));
   };
 
-  // NEW: Function to clear merchandising items empty returns
+  // Function to clear merchandising items empty returns - ALL items that were used
   const clearMerchandisingEmptyReturns = async () => {
     try {
       console.log("🧹 Clearing merchandising empty returns...");
       console.log("📋 Items to clean:", merchandisingItemsToClean);
+      
+      if (merchandisingItemsToClean.length === 0) {
+        console.log("ℹ️ No merchandising items to clear");
+        return { cleared: 0, errors: 0 };
+      }
       
       let clearedCount = 0;
       let errorCount = 0;
       
       for (const item of merchandisingItemsToClean) {
         try {
-          console.log(`🔄 Clearing merchandising item ${item.item_id}`);
+          console.log(`🔄 Clearing merchandising item ${item.item_id} from MSP ${item.msp_no}`);
           
           const response = await axios.patch(
             `http://localhost:8080/api/merchandising-items/${item.item_id}/`,
@@ -446,64 +457,75 @@ const SupplierReturnForm = () => {
     }
   };
 
-  // 🔥 IMPROVED: Function to remove returned empties from returnable-stocks
-  const removeReturnedEmptiesFromReturnableStocks = async (returnedItems) => {
+  // Function to remove/update returnable stock entries for the returned items
+  const removeReturnableStockEntries = async (returnedItems) => {
     try {
-      console.log("🧹 Starting removal process from returnable-stocks");
-      console.log("📦 Original returnable stocks to process:", originalReturnableStocks);
-      console.log("📋 Returned items:", returnedItems);
-
+      console.log("🗑️ Removing returnable stock entries...");
+      console.log("📦 Returned items to process:", returnedItems);
+      
+      if (!currentWarehouse?.id) {
+        console.log("⚠️ No warehouse ID, skipping returnable stock cleanup");
+        return { removed: 0, updated: 0, errors: 0 };
+      }
+      
+      // Get all returnable stock data for this warehouse
+      const warehouseParam = `?warehouse_id=${currentWarehouse.id}`;
+      const response = await axios.get(`http://localhost:8080/api/returnable-stocks/${warehouseParam}`);
+      const returnableStocks = response.data;
+      
+      console.log("📦 All returnable stocks for warehouse:", returnableStocks);
+      
       let removedCount = 0;
       let updatedCount = 0;
       let errorCount = 0;
-
+      
       for (const returnedItem of returnedItems) {
         console.log(`\n🔄 Processing returned item: ${returnedItem.product} (${returnedItem.qty_shell} shells, ${returnedItem.qty_pcs} pcs)`);
         
-        let remainingShellQty = returnedItem.qty_shell;
-        let remainingPcsQty = returnedItem.qty_pcs;
-
-        // Find matching returnable stock entries for this product in current warehouse
-        const matchingStocks = originalReturnableStocks.filter(stock => {
-          const productMatch = stock.product_id === returnedItem.product || stock.product === returnedItem.product;
-          const supplierMatch = String(stock.supplier_id) === String(form.supplier) || String(stock.supplier) === String(form.supplier);
-          const warehouseMatch = !currentWarehouse?.id || String(stock.warehouse_id) === String(currentWarehouse.id);
+        // Find matching returnable stock entries for this product and supplier in current warehouse
+        const matchingStocks = returnableStocks.filter(stock => {
+          const productMatch = (stock.product_id === returnedItem.product || stock.product === returnedItem.product);
+          const supplierMatch = (String(stock.supplier_id) === String(form.supplier) || String(stock.supplier) === String(form.supplier));
+          const warehouseMatch = (String(stock.warehouse_id) === String(currentWarehouse.id));
           
           console.log(`🔍 Checking stock ${stock.id}: Product match: ${productMatch}, Supplier match: ${supplierMatch}, Warehouse match: ${warehouseMatch}`);
           return productMatch && supplierMatch && warehouseMatch;
         });
-
-        console.log(`📦 Found ${matchingStocks.length} matching stock entries`);
-
+        
+        console.log(`📦 Found ${matchingStocks.length} matching returnable stock entries`);
+        
+        let remainingShellQty = returnedItem.qty_shell;
+        let remainingPcsQty = returnedItem.qty_pcs;
+        
         for (const stock of matchingStocks) {
           if (remainingShellQty <= 0 && remainingPcsQty <= 0) break;
-
+          
           const currentShells = stock.empty_shell_qty || 0;
           const currentPcs = stock.empty_bottle_qty || 0;
-
+          
           console.log(`📊 Processing stock ${stock.id}: ${currentShells} shells, ${currentPcs} pcs`);
-
+          
           if (currentShells > 0 || currentPcs > 0) {
             // Calculate how much to subtract
             const shellsToSubtract = Math.min(remainingShellQty, currentShells);
             const pcsToSubtract = Math.min(remainingPcsQty, currentPcs);
-
+            
             const newShells = Math.max(0, currentShells - shellsToSubtract);
             const newPcs = Math.max(0, currentPcs - pcsToSubtract);
-
+            
             console.log(`➖ Subtracting: ${shellsToSubtract} shells, ${pcsToSubtract} pcs`);
             console.log(`📈 New quantities: ${newShells} shells, ${newPcs} pcs`);
-
+            
             try {
               if (newShells <= 0 && newPcs <= 0) {
                 // Delete the entire entry
-                console.log(`🗑️ Deleting stock entry ${stock.id} (no remaining quantities)`);
+                console.log(`🗑️ Deleting returnable stock entry ${stock.id} (no remaining quantities)`);
                 await axios.delete(`http://localhost:8080/api/returnable-stocks/${stock.id}/`);
                 removedCount++;
-                console.log(`✅ Successfully deleted stock entry ${stock.id}`);
+                console.log(`✅ Successfully deleted returnable stock entry ${stock.id}`);
               } else {
                 // Update with new quantities
-                console.log(`🔄 Updating stock entry ${stock.id}`);
+                console.log(`🔄 Updating returnable stock entry ${stock.id}`);
                 const updateData = {
                   empty_shell_qty: newShells,
                   empty_bottle_qty: newPcs,
@@ -511,38 +533,38 @@ const SupplierReturnForm = () => {
                 };
                 
                 console.log("📤 Sending update data:", updateData);
-                const response = await axios.patch(`http://localhost:8080/api/returnable-stocks/${stock.id}/`, updateData);
-                console.log("📥 Update response:", response.data);
+                const updateResponse = await axios.patch(`http://localhost:8080/api/returnable-stocks/${stock.id}/`, updateData);
+                console.log("📥 Update response:", updateResponse.data);
                 updatedCount++;
-                console.log(`✅ Successfully updated stock entry ${stock.id}`);
+                console.log(`✅ Successfully updated returnable stock entry ${stock.id}`);
               }
-
+              
               // Update remaining quantities
               remainingShellQty -= shellsToSubtract;
               remainingPcsQty -= pcsToSubtract;
-
+              
             } catch (error) {
-              console.error(`❌ Failed to process stock entry ${stock.id}:`, error);
+              console.error(`❌ Failed to process returnable stock entry ${stock.id}:`, error);
               console.error("Error details:", error.response?.data);
               errorCount++;
             }
           }
         }
-
+        
         if (remainingShellQty > 0 || remainingPcsQty > 0) {
           console.warn(`⚠️ Could not process all quantities for product ${returnedItem.product}. Remaining: ${remainingShellQty} shells, ${remainingPcsQty} pcs`);
         }
       }
-
-      console.log(`\n🏁 Removal process completed:`);
+      
+      console.log(`\n🏁 Returnable stock cleanup completed:`);
       console.log(`🗑️ Deleted entries: ${removedCount}`);
       console.log(`🔄 Updated entries: ${updatedCount}`);
       console.log(`❌ Errors: ${errorCount}`);
-
+      
       return { removed: removedCount, updated: updatedCount, errors: errorCount };
-
+      
     } catch (error) {
-      console.error("❌ Critical error in removal process:", error);
+      console.error("❌ Critical error in returnable stock cleanup:", error);
       throw error;
     }
   };
@@ -553,6 +575,14 @@ const SupplierReturnForm = () => {
     // Validate warehouse selection
     if (!currentWarehouse?.id) {
       showErrorModal("No warehouse selected. Please select a warehouse first.");
+      return;
+    }
+
+    // Check if there are items to process
+    const validItems = form.items.filter(item => item.product && (parseInt(item.qty_shell) > 0 || parseInt(item.qty_pcs) > 0));
+    
+    if (validItems.length === 0) {
+      showErrorModal("No valid items to return. Please select a supplier with available return empties.");
       return;
     }
 
@@ -576,11 +606,11 @@ const SupplierReturnForm = () => {
     try {
       console.log("💾 Saving supplier return form...");
       
-      // Save the supplier return form with the returned items info and warehouse
+      // Save the supplier return form
       const response = await axios.post("http://localhost:8080/api/supplier-return-form/", {
         sup_no: form.sup_no,
         supplier: form.supplier,
-        warehouse: currentWarehouse.id, // ADD WAREHOUSE ID
+        warehouse: currentWarehouse.id,
         date: form.date,
         total_amount: totalAmount,
         items: filteredItems,
@@ -589,36 +619,36 @@ const SupplierReturnForm = () => {
       
       console.log("✅ Supplier return saved successfully:", response.data);
 
-      // STEP 1: Clear merchandising empty returns (this fixes the Return Empties view!)
+      // STEP 1: Clear merchandising empty returns (DELETE THE DATA)
       console.log("🧹 Step 1: Clearing merchandising empty returns...");
       const merchandisingResult = await clearMerchandisingEmptyReturns();
 
-      // STEP 2: Remove the returned empties from returnable-stocks database
-      console.log("🧹 Step 2: Cleaning up returnable stocks...");
-      const cleanupResult = await removeReturnedEmptiesFromReturnableStocks(filteredItems);
+      // STEP 2: Remove/update returnable stock entries
+      console.log("🗑️ Step 2: Cleaning up returnable stock entries...");
+      const returnableStockResult = await removeReturnableStockEntries(filteredItems);
       
       let message = `Supplier return saved successfully for ${currentWarehouse.name}!`;
       
       if (merchandisingResult.cleared > 0) {
-        message += ` ${merchandisingResult.cleared} merchandising empty returns have been cleared.`;
+        message += ` ${merchandisingResult.cleared} merchandising empty return entries have been cleared.`;
+      }
+
+      if (returnableStockResult.removed > 0) {
+        message += ` ${returnableStockResult.removed} returnable stock entries have been completely removed.`;
+      }
+
+      if (returnableStockResult.updated > 0) {
+        message += ` ${returnableStockResult.updated} returnable stock entries have been updated with remaining quantities.`;
       }
       
-      if (cleanupResult.removed > 0) {
-        message += ` ${cleanupResult.removed} returnable stock entries have been completely removed.`;
-      }
-      
-      if (cleanupResult.updated > 0) {
-        message += ` ${cleanupResult.updated} returnable stock entries have been updated with remaining quantities.`;
-      }
-      
-      const totalErrors = (merchandisingResult.errors || 0) + (cleanupResult.errors || 0);
+      const totalErrors = (merchandisingResult.errors || 0) + (returnableStockResult.errors || 0);
       if (totalErrors > 0) {
         message += ` Note: ${totalErrors} items had errors during cleanup.`;
       }
       
-      message += " The Return Empties view will be updated automatically.";
+      message += " Both merchandising and returnable stock data have been updated automatically.";
       
-      // Create custom modal instead of alert
+      // Show success modal and redirect
       showSuccessModal(message);
       
     } catch (err) {
@@ -628,7 +658,7 @@ const SupplierReturnForm = () => {
     }
   };
 
-  // Custom modal functions instead of alert
+  // Custom modal functions
   const showSuccessModal = (message) => {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
@@ -681,16 +711,18 @@ const SupplierReturnForm = () => {
           </div>
         </div>
         
-        {(originalReturnableStocks.length > 0 || merchandisingItemsToClean.length > 0) && (
+        {(originalReturnEmpties.length > 0 || merchandisingItemsToClean.length > 0) && (
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <p className="text-blue-800 text-sm">
               <strong>🔄 Processing data cleanup for {currentWarehouse?.name}:</strong>
               <br />
-              {originalReturnableStocks.length > 0 && `• ${originalReturnableStocks.length} returnable stock entries`}
+              {originalReturnEmpties.length > 0 && `• ${originalReturnEmpties.length} return empty entries from merchandising`}
               <br />
-              {merchandisingItemsToClean.length > 0 && `• ${merchandisingItemsToClean.length} merchandising empty return entries`}
+              {merchandisingItemsToClean.length > 0 && `• ${merchandisingItemsToClean.length} merchandising items will be cleared (empty returns set to 0)`}
               <br />
-              When saved, these entries will be automatically removed/updated in the database.
+              • Corresponding returnable stock entries will also be removed/updated
+              <br />
+              When saved, all related data will be properly cleaned up from both systems.
             </p>
           </div>
         )}

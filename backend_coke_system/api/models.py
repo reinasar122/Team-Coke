@@ -394,6 +394,9 @@ class Customer(models.Model):
     def __str__(self):
         return self.name
     
+    class Meta:
+        ordering = ['name']
+    
 
 
 def _local_day(dt):
@@ -477,7 +480,7 @@ class Merchandising(models.Model):
     route = models.ForeignKey('Route', null=True, blank=True, on_delete=models.SET_NULL)
     van = models.ForeignKey('Van', on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
-
+    customer = models.ForeignKey('Customer', on_delete=models.SET_NULL, null=True, blank=True)
     date_time = models.DateTimeField(default=timezone.now)
 
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
