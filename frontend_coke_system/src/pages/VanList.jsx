@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { FaEdit, FaTrash } from "react-icons/fa";
 import VanForm from "./VanForm";
-
+import { toast } from "react-toastify";
+import { errorStyle, successStyle } from "../utils/toastStyles"; 
 const VanList = () => {
   const [vans, setVans] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -12,24 +13,24 @@ const VanList = () => {
   useEffect(() => {
     fetchVans();
     getCurrentWarehouse();
-    
+
     // Listen for warehouse changes
     const handleWarehouseChange = () => {
       getCurrentWarehouse();
       fetchVans();
     };
-    
-    window.addEventListener('warehouseChanged', handleWarehouseChange);
-    
+
+    window.addEventListener("warehouseChanged", handleWarehouseChange);
+
     return () => {
-      window.removeEventListener('warehouseChanged', handleWarehouseChange);
+      window.removeEventListener("warehouseChanged", handleWarehouseChange);
     };
   }, []);
 
   const getCurrentWarehouse = () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-    
+
     if (user.role?.toLowerCase() === "admin" && selectedWarehouse) {
       setCurrentWarehouse(selectedWarehouse);
     } else if (user.warehouse_id) {
@@ -41,7 +42,7 @@ const VanList = () => {
     try {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-      
+
       // Determine which warehouse to filter by
       let warehouseId;
       if (user.role?.toLowerCase() === "admin" && selectedWarehouse) {
@@ -66,8 +67,10 @@ const VanList = () => {
     const exists = vans.find((v) => v.id === newVan.id);
     if (exists) {
       setVans((prev) => prev.map((v) => (v.id === newVan.id ? newVan : v)));
+      toast.success(`Van '${newVan.plate_number}' has been updated successfully!`, { style: successStyle });
     } else {
       setVans((prev) => [...prev, newVan]);
+      toast.success(`Van '${newVan.plate_number}' has been added successfully!`, { style: successStyle });
     }
     setIsVanFormVisible(false);
     setEditingVan(null);
@@ -85,13 +88,13 @@ const VanList = () => {
         </div>
       </div>
     `;
-    
+
     modal.querySelector('.cancel-btn').onclick = () => modal.remove();
     modal.querySelector('.confirm-btn').onclick = () => {
       modal.remove();
       onConfirm();
     };
-    
+
     document.body.appendChild(modal);
   };
 
@@ -103,8 +106,10 @@ const VanList = () => {
         });
         if (!response.ok) throw new Error("Failed to delete van");
         setVans((prev) => prev.filter((v) => v.id !== id));
+        toast.error(`Van has been deleted successfully.`, { style: errorStyle });
       } catch (error) {
         console.error("Error deleting van:", error);
+        toast.error("Error deleting van.", { style: errorStyle });
       }
     });
   };
@@ -164,20 +169,20 @@ const VanList = () => {
                 <tr key={van.id} className="border-t hover:bg-gray-100">
                   <td className="py-3 px-4">{van.van_id}</td>
                   <td className="py-3 px-4">{van.plate_number}</td>
-                  <td className="py-4 px-4 text-right space-x-3">
+                  <td className="py-4 px-16 text-right space-x-3">
                     <button
                       onClick={() => handleEdit(van)}
                       className="text-blue-500"
                       title="Edit Van"
                     >
-                      <FaEdit size={25} />
+                      <FaEdit size={20} />
                     </button>
                     <button
                       onClick={() => handleDelete(van.id)}
                       className="text-red-500"
                       title="Delete Van"
                     >
-                      <FaTrash size={25} />
+                      <FaTrash size={20} />
                     </button>
                   </td>
                 </tr>

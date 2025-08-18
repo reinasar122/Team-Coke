@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-toastify";
+import { successStyle } from "../utils/toastStyles";
 
 const UserForm = ({ onUserAdded, onClose }) => {
   const [formData, setFormData] = useState({
@@ -48,36 +50,42 @@ const UserForm = ({ onUserAdded, onClose }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    const userPayload = {
-      ...formData,
-      role_id: Number(formData.role_id) || null,
-      warehouse_id: Number(formData.warehouse_id) || null,
-      is_active: Boolean(formData.is_active),
-    };
-
-    try {
-      const response = await fetch("http://127.0.0.1:8080/api/users/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userPayload),
-      });
-
-      const data = await response.json();
-      console.log("Response:", response.status, data);
-
-      if (response.ok) {
-        onUserAdded(data);
-        onClose();
-      } else {
-        alert(`Error: ${JSON.stringify(data)}`);
-      }
-    } catch (error) {
-      console.error("Error creating user:", error);
-      alert("An unexpected error occurred. Check console for details.");
-    }
+  const userPayload = {
+    ...formData,
+    role_id: Number(formData.role_id) || null,
+    warehouse_id: Number(formData.warehouse_id) || null,
+    is_active: Boolean(formData.is_active),
   };
+
+  try {
+    const response = await fetch("http://127.0.0.1:8080/api/users/", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(userPayload),
+    });
+
+    const data = await response.json();
+    console.log("Response:", response.status, data);
+
+    if (response.ok) {
+      toast.success(`User '${data.username}' has been created successfully!`, {style: successStyle});
+      onUserAdded(data);
+      onClose();
+    } else {
+      toast.error(
+        data?.username?.[0] ||
+          data?.email?.[0] ||
+          "Failed to create user. Please check the form."
+      );
+    }
+  } catch (error) {
+    console.error("Error creating user:", error);
+    toast.error("An unexpected error occurred.");
+  }
+};
+
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">

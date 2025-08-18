@@ -96,15 +96,16 @@ class CreditPayment(models.Model):
 
 
 class Warehouse(models.Model):
-    name = models.CharField(max_length=255, unique=True)
-    street = models.CharField(max_length=255)
-    city = models.CharField(max_length=100)
-    country = models.CharField(max_length=100)
-    region = models.CharField(max_length=100)
-    zip_code = models.CharField(max_length=20)
-    phone_number = models.CharField(max_length=50)
-    email = models.EmailField(unique=True)
-
+    name = models.CharField(max_length=255)
+    country = models.CharField(max_length=100, default="Philippines")
+    region = models.CharField(max_length=100, default="", blank=True)
+    province = models.CharField(max_length=100, default="", blank=True)
+    city = models.CharField(max_length=100, default="", blank=True)
+    barangay = models.CharField(max_length=255, default="", blank=True)
+    street_address = models.CharField(max_length=255, default="", blank=True)
+    zip_code = models.CharField(max_length=10, default="", blank=True)
+    phone_number = models.CharField(max_length=20, default="", blank=True)
+    email = models.EmailField(default="", blank=True)
     def __str__(self):
         return self.name
 
@@ -115,10 +116,13 @@ class Supplier(models.Model):
     contact_person = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=50)
-    street_address = models.CharField(max_length=255)
-    city = models.CharField(max_length=100)
-    region = models.CharField(max_length=100)
-    zip_code = models.CharField(max_length=20)
+    country = models.CharField(max_length=100, default="Philippines")
+    region = models.CharField(max_length=100, default="", blank=True)
+    province = models.CharField(max_length=100, default="", blank=True)
+    city = models.CharField(max_length=100, default="", blank=True)
+    barangay = models.CharField(max_length=255, default="", blank=True)
+    street_address = models.CharField(max_length=255, default="", blank=True)
+    zip_code = models.CharField(max_length=10, default="", blank=True)
 
     def save(self, *args, **kwargs):
         if not self.registration_number:
@@ -390,6 +394,9 @@ class Customer(models.Model):
     def __str__(self):
         return self.name
     
+    class Meta:
+        ordering = ['name']
+    
 
 
 def _local_day(dt):
@@ -473,7 +480,7 @@ class Merchandising(models.Model):
     route = models.ForeignKey('Route', null=True, blank=True, on_delete=models.SET_NULL)
     van = models.ForeignKey('Van', on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
-
+    customer = models.ForeignKey('Customer', on_delete=models.SET_NULL, null=True, blank=True)
     date_time = models.DateTimeField(default=timezone.now)
 
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -488,6 +495,9 @@ class Merchandising(models.Model):
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     cash_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
+    # ✅ NEW: used by the /api/van-load-return/ endpoint so stocks aren’t added twice
+    full_returns_applied = models.BooleanField(default=False)
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding

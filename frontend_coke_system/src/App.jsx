@@ -70,6 +70,9 @@ import {
   FaUndoAlt,
 } from "react-icons/fa";
 
+import { ToastContainer } from 'react-toastify'; //Jea
+import 'react-toastify/dist/ReactToastify.css'; //jea
+
 // ✅ Layout wrapper for protected pages
 const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
   const location = useLocation();

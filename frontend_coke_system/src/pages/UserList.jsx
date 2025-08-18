@@ -1,7 +1,11 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-toastify";
+import { errorStyle } from "../utils/toastStyles"
 import UserForm from "./UserForm";
 import EditUser from "./EditUser";
 import { canCreate, canEdit, canDelete } from "../utils/accessControl";
+import { FaEdit, FaTrash } from "react-icons/fa";
+
 
 // Search Icon Component
 const SearchIcon = () => (
@@ -63,18 +67,27 @@ const UserList = () => {
     setEditingUser(null);
   };
 
-  const handleDeleteUser = async () => {
-    if (!userToDelete) return;
-    try {
-      await fetch(`http://127.0.0.1:8080/api/users/${userToDelete.id}/`, {
-        method: "DELETE",
-      });
-      setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete.id));
-      setShowDeleteModal(false);
-    } catch (error) {
-      console.error("Error deleting user:", error);
-    }
-  };
+ const handleDeleteUser = async () => {
+  if (!userToDelete) return;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:8080/api/users/${userToDelete.id}/`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) throw new Error("Failed to delete user");
+
+    setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete.id));
+
+    toast.error(`User '${userToDelete.username || userToDelete.name}' has been deleted.`, {style: errorStyle });
+  } catch (error) {
+    console.error("Error deleting user:", error);
+    toast.error(`Failed to delete user '${userToDelete.username || userToDelete.name}'.`,errorStyle );
+  } finally {
+    setShowDeleteModal(false);
+    setUserToDelete(null);
+  }
+};
 
   const uniqueRoles = ["All Users", ...roles.map((role) => role.name)];
 
@@ -137,7 +150,7 @@ const UserList = () => {
 
         <button
           className={`px-4 py-2 rounded-lg ${
-            canCreate("User") ? "bg-red-500 text-white hover:bg-red-600" : "bg-gray-300 text-gray-500 cursor-not-allowed"
+            canCreate("User") ? "bg-green-500 text-white px-4 py-2 rounded-lg" : "bg-gray-300 text-gray-500 cursor-not-allowed"
           }`}
           onClick={() => {
             if (canCreate("User")) setShowForm(true);
@@ -183,32 +196,30 @@ const UserList = () => {
                       <span className="bg-red-100 text-red-600 px-2 py-1 rounded-md text-sm font-medium">Inactive</span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-center space-x-2">
-                    <button
-                      onClick={() => canEdit("User") && setEditingUser(user)}
-                      className={`px-3 py-1 rounded ${
-                        canEdit("User")
-                          ? "bg-yellow-500 text-white hover:bg-yellow-600"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      }`}
-                    >
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => {
-                        if (canDelete("User")) {
-                          setUserToDelete(user);
-                          setShowDeleteModal(true);
-                        }
-                      }}
-                      className={`px-3 py-1 rounded ${
-                        canDelete("User")
-                          ? "bg-red-500 text-white hover:bg-red-600"
-                          : "bg-gray-300 text-gray-500 cursor-not-allowed"
-                      }`}
-                    >
-                      Delete
-                    </button>
+                  <td className="py-3 px-4 text-center">
+                    <div className="flex justify-center items-center gap-2">
+                      <button
+                        onClick={() => canEdit("User") && setEditingUser(user)}
+                        disabled={!canEdit("User")}
+                        className="text-blue-500"
+                        title="Edit User"
+                      >
+                        <FaEdit size={20} />
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (canDelete("User")) {
+                            setUserToDelete(user);
+                            setShowDeleteModal(true);
+                          }
+                        }}
+                        disabled={!canDelete("User")}
+                        className="text-red-500 cursor-pointer"
+                        title="Delete User"
+                      >
+                        <FaTrash size={20} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

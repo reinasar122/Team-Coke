@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { toast } from "react-toastify";
+import { successStyle, errorStyle } from "../utils/toastStyles"; // Add error and success styles
 
 const MODULES = {
   "Sales Report": ["Dashboard"],
@@ -100,10 +102,15 @@ const EditRoleAccess = ({ roleId, onClose }) => {
         body: JSON.stringify(payload),
       });
 
-      alert("✅ Permissions updated successfully!");
+      toast.success(`✅ Permissions for role '${roleName}' updated successfully!`, {
+        style: successStyle,
+      });
       onClose();
     } catch (error) {
       console.error("Error saving permissions:", error);
+      toast.error("Failed to update permissions. Please try again.", {
+        style: errorStyle,
+      });
     }
   };
 

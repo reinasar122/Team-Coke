@@ -1,4 +1,6 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-toastify"; // Import toast for notifications
+import { successStyle, errorStyle } from "../utils/toastStyles"; // Import custom styles
 
 const EditUser = ({ userId, onClose, onUserUpdated }) => {
   const [user, setUser] = useState(null);
@@ -86,8 +88,18 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
       const result = await res.json();
       onUserUpdated(result);
       onClose();
+
+      // Success Toast with the user's name
+      toast.success(`User ${user.first_name} ${user.last_name} updated successfully!`, {
+        style: successStyle,
+      });
     } catch (err) {
       console.error("Error updating user:", err);
+      
+      // Error Toast
+      toast.error("Failed to update user. Please check the fields and try again.", {
+        style: errorStyle,
+      });
     } finally {
       setLoading(false);
     }
@@ -96,69 +108,131 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   if (!user) return <div>Loading user data...</div>;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+      <div className="w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
         <h2 className="text-2xl font-semibold mb-4 text-center">Edit User</h2>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <InputField label="First Name" name="first_name" value={user.first_name} onChange={handleChange} />
-          <InputField label="Last Name" name="last_name" value={user.last_name} onChange={handleChange} />
-          <InputField label="Username" name="username" value={user.username} onChange={handleChange} />
-          <InputField label="Phone Number" name="phone_number" value={user.phone_number} onChange={handleChange} />
-
-          <div>
-            <label className="block font-medium">Gender:</label>
-            <select
-              name="gender"
-              value={user.gender}
-              onChange={handleChange}
-              className="w-full p-2 border rounded"
-              required
-            >
-              <option value="">Select Gender</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-              <option value="Other">Other</option>
-            </select>
+        <form onSubmit={handleSubmit}>
+          {/* Name Fields */}
+          <div className="mb-5 flex gap-6">
+            <div className="w-1/2">
+              <label className="block font-medium">First Name</label>
+              <input
+                type="text"
+                name="first_name"
+                value={user.first_name}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+            </div>
+            <div className="w-1/2">
+              <label className="block font-medium">Last Name</label>
+              <input
+                type="text"
+                name="last_name"
+                value={user.last_name}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block font-medium">Role:</label>
-            <select
-              name="role_id"
-              value={user.role_id}
-              onChange={handleChange}
-              className="w-full p-2 border rounded"
-              required
-            >
-              <option value="">Select Role</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.name}
-                </option>
-              ))}
-            </select>
+          {/* Gender & Phone */}
+          <div className="mb-5 flex gap-6">
+            <div className="w-1/2">
+              <label className="block font-medium">Gender</label>
+              <select
+                name="gender"
+                value={user.gender}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              >
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div className="w-1/2">
+              <label className="block font-medium">Phone Number</label>
+              <input
+                type="text"
+                name="phone_number"
+                value={user.phone_number}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block font-medium">Warehouse:</label>
-            <select
-              name="warehouse_id"
-              value={user.warehouse_id}
-              onChange={handleChange}
-              className="w-full p-2 border rounded"
-              required
-            >
-              <option value="">Select Warehouse</option>
-              {warehouses.map((wh) => (
-                <option key={wh.id} value={wh.id}>
-                  {wh.name}
-                </option>
-              ))}
-            </select>
+          {/* Role & Warehouse */}
+          <div className="mb-5 flex gap-6">
+            <div className="w-1/2">
+              <label className="block font-medium">Role</label>
+              <select
+                name="role_id"
+                value={user.role_id}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              >
+                <option value="">Select Role</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="w-1/2">
+              <label className="block font-medium">Warehouse</label>
+              <select
+                name="warehouse_id"
+                value={user.warehouse_id}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              >
+                <option value="">Select Warehouse</option>
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id}>
+                    {wh.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
-          <div>
+          {/* Username & Password */}
+          <div className="mb-5 flex gap-6">
+            <div className="w-1/2">
+              <label className="block font-medium">Username</label>
+              <input
+                type="text"
+                name="username"
+                value={user.username}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+                required
+              />
+            </div>
+            <div className="w-1/2">
+              <label className="block font-medium">Password</label>
+              <input
+                type="password"
+                name="password"
+                className="w-full border p-2 rounded"
+                onChange={handleChange}
+              />
+            </div>
+          </div>
+
+          {/* Status */}
+          <div className="mb-5">
             <label className="block font-medium">Status:</label>
             <select
               name="is_active"
@@ -171,7 +245,8 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
             </select>
           </div>
 
-          <div className="flex justify-between pt-2">
+          {/* Buttons */}
+          <div className="flex justify-between">
             <button type="button" onClick={onClose} className="bg-red-500 text-white py-2 px-4 rounded">
               Cancel
             </button>
@@ -184,19 +259,5 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
     </div>
   );
 };
-
-const InputField = ({ label, name, value, onChange }) => (
-  <div>
-    <label className="block font-medium">{label}:</label>
-    <input
-      type="text"
-      name={name}
-      value={value}
-      onChange={onChange}
-      className="w-full p-2 border rounded"
-      required
-    />
-  </div>
-);
 
 export default EditUser;

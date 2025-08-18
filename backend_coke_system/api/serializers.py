@@ -538,6 +538,13 @@ class MerchandisingSaleSerializer(serializers.ModelSerializer):
         model = MerchandisingSale
         fields = '__all__'  # or specify fields if you prefer: ['msp_no', 'date_time', ...]
 
+        warehouse_name = serializers.CharField(source="warehouse.warehouse", read_only=True)
+        warehouse_address = serializers.CharField(source="warehouse.address", read_only=True) 
+        warehouse_phone = serializers.CharField(source="warehouse.phone", read_only=True)
+        warehouse_city = serializers.CharField(source="warehouse.city", read_only=True)
+        warehouse_region = serializers.CharField(source="warehouse.region", read_only=True)
+        warehouse_email = serializers.CharField(source="warehouse.email", read_only=True) # or specify fields if you prefer: ['msp_no', 'date_time', ...]
+
 # MiscellaneousItem Serializer
 class MiscellaneousItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -569,6 +576,16 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     route = serializers.PrimaryKeyRelatedField(
         queryset=Route.objects.all(), allow_null=True, required=False
     )
+
+    # FK inputs
+    customer = serializers.PrimaryKeyRelatedField(
+        queryset=Customer.objects.all(), allow_null=True, required=False
+    )
+
+    def get_customer_name(self, obj):
+        if obj.customer:
+            return obj.customer.name
+        return "Walk-in" 
 
     # Computed aggregates for response
     total_trading_amount = serializers.SerializerMethodField()
