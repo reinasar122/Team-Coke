@@ -106,7 +106,7 @@ const Stocks = () => {
 
   return (
     <div className="stocks-container">
-      <div className="stocks-title-header">
+      {/* <div className="stocks-title-header">
         <div>
           <h2>🧾 Stocks Table</h2>
           <p className="muted">Overview of all inventory stock levels</p>
@@ -118,7 +118,7 @@ const Stocks = () => {
             <span>{currentWarehouse}</span>
           </div>
         )}
-      </div>
+      </div> */}
 
       <div className="card">{/* light by default (#f4f4f4) */}
         <table className="table table-hover">

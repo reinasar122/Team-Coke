@@ -1,7 +1,121 @@
+/* ===========================
+   Global Styles (global.scss)
+   =========================== */
+
+// :root {
+//   /* Primary Blue for Save */
+//   --primary: #2563eb;
+//   --primary-hover: #1e40af;
+
+//   /* Danger Red for Delete */
+//   --danger: #dc2626;
+//   --danger-hover: #b91c1c;
+
+//   /* Neutral Gray for Back */
+//   --back: #6b7280;
+//   --back-hover: #4b5563;
+
+//   /* Amber for Edit */
+//   --edit: #f59e0b;
+//   --edit-hover: #d97706;
+
+//   /* Green for Add/Create New */
+//   --add: #16a34a;
+//   --add-hover: #15803d;
+
+//   /* Disabled */
+//   --disabled: #9ca3af;
+//   --disabled-hover: #6b7280;
+// }
+
+// .btn {
+//   display: inline-flex;
+//   align-items: center;
+//   justify-content: center;
+//   padding: 0.5rem 1rem;
+//   font-size: 0.875rem;
+//   font-weight: 500;
+//   border-radius: 0.5rem;
+//   border: 1px solid transparent;
+//   cursor: pointer;
+//   transition: background 0.2s, border-color 0.2s, color 0.2s;
+
+//   /* Base */
+//   &-primary {
+//     background: var(--primary);
+//     color: #fff;
+//     border-color: var(--primary);
+//   }
+//   &-primary:hover {
+//     background: var(--primary-hover);
+//     border-color: var(--primary-hover);
+//   }
+
+//   &-danger {
+//     background: var(--danger);
+//     color: #fff;
+//     border-color: var(--danger);
+//   }
+//   &-danger:hover {
+//     background: var(--danger-hover);
+//     border-color: var(--danger-hover);
+//   }
+
+//   &-back {
+//     background: var(--back);
+//     color: #fff;
+//     border-color: var(--back);
+//   }
+//   &-back:hover {
+//     background: var(--back-hover);
+//     border-color: var(--back-hover);
+//   }
+
+//   &-edit {
+//     background: var(--edit);
+//     color: #fff;
+//     border-color: var(--edit);
+//   }
+//   &-edit:hover {
+//     background: var(--edit-hover);
+//     border-color: var(--edit-hover);
+//   }
+
+//   &-add {
+//     background: var(--add);
+//     color: #fff;
+//     border-color: var(--add);
+//   }
+//   &-add:hover {
+//     background: var(--add-hover);
+//     border-color: var(--add-hover);
+//   }
+
+//   &-ghost {
+//     background: transparent;
+//     color: var(--primary);
+//     border-color: var(--primary);
+//   }
+//   &-ghost:hover {
+//     background: var(--primary-hover);
+//     color: #fff;
+//   }
+
+//   /* Disabled */
+//   &-disabled,
+//   &:disabled {
+//     background: var(--disabled);
+//     border-color: var(--disabled);
+//     color: #fff;
+//     cursor: not-allowed;
+//     opacity: 0.7;
+//   }
+// }
+
+
 /* =========================
    Global Design Tokens
    ========================= */
-
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 :root {
@@ -18,10 +132,18 @@
   --danger: #dc2626;            /* red-600 */
   --danger-600: #b91c1c;        /* hover */
   --ghost-hover: rgba(15, 23, 42, 0.04);
+  --cancel: #9ca3af;        /* gray-400 */
+  --cancel-hover: #6b7280;  /* gray-600 */
+  --back: #6b7280;              /* gray-500 */
+  --back-600: #4b5563;          /* hover */
+  --edit: #f59e0b;              /* amber-500 */
+  --edit-600: #d97706;          /* hover */
+  --add: #16a34a;               /* green-600 */
+  --add-600: #15803d;           /* hover */
 
   --table-head: #f1f5f9;        /* slate-100 */
   --row-hover: #f8fafc;         /* subtle */
-//   --stripe: #fafafa;
+  // --stripe: #fafafa;
 
   /* Radii & spacing */
   --r-md: 12px;
@@ -36,27 +158,9 @@
   --w-128: 8rem; /* ~128px for actions col */
 }
 
-/* Dark mode */
-// @media (prefers-color-scheme: dark) {
-//   :root {
-//     --bg: #0b1220;               /* dark base */
-//     --surface: #0f172a;          /* slate-900 */
-//     --text: #e2e8f0;             /* slate-200 */
-//     --text-muted: #94a3b8;       /* slate-400 */
-//     --border: #1f2937;           /* gray-800 */
-//     --shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-
-//     --table-head: #111827;       /* gray-900 */
-//     --row-hover: #0b1220;
-//     --stripe: #0c1426;
-//     --ghost-hover: rgba(255, 255, 255, 0.04);
-//   }
-// }
-
 /* =========================
    Base
    ========================= */
-
 *,
 *::before,
 *::after {
@@ -92,7 +196,6 @@ body {
 /* =========================
    Layout
    ========================= */
-
 .page {
   padding: var(--sp-6);
   max-width: 1200px;
@@ -116,7 +219,6 @@ body {
 /* =========================
    Card
    ========================= */
-
 .card {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -128,7 +230,6 @@ body {
 /* =========================
    Table
    ========================= */
-
 .table {
   width: 100%;
   border-collapse: separate;
@@ -146,7 +247,7 @@ body {
     font-weight: 600;
     color: var(--text);
     position: sticky;
-    top: 0; /* for long tables */
+    top: 0;
     z-index: 1;
   }
 
@@ -154,18 +255,12 @@ body {
     background: var(--row-hover);
   }
 
-  /* Soft borders on the card edges */
   th:first-child, td:first-child {
     padding-left: 16px;
   }
   th:last-child, td:last-child {
     padding-right: 16px;
   }
-
-  /* Rounded corners for the outer table when wrapped in .card */
-//   &.table-striped tbody tr:nth-child(even) {
-//     background: var(--stripe);
-//   }
 
   &.table-hover tbody tr {
     transition: background 120ms ease;
@@ -177,7 +272,6 @@ body {
 /* =========================
    Buttons
    ========================= */
-
 .btn {
   display: inline-flex;
   align-items: center;
@@ -194,32 +288,85 @@ body {
   &-primary {
     background: var(--primary);
     color: #fff;
+    border-color: var(--primary);
   }
-  &-primary:hover { background: var(--primary-600); }
+  &-primary:hover {
+    background: var(--primary-600);
+    border-color: var(--primary-600);
+  }
 
   &-danger {
     background: var(--danger);
     color: #fff;
+    border-color: var(--danger);
   }
-  &-danger:hover { background: var(--danger-600); }
+  &-danger:hover {
+    background: var(--danger-600);
+    border-color: var(--danger-600);
+  }
+
+  &-back {
+    background: var(--back);
+    color: #fff;
+    border-color: var(--back);
+  }
+  &-back:hover {
+    background: var(--back-600);
+    border-color: var(--back-600);
+  }
+
+  &-cancel {
+    background: var(--cancel);
+    color: #fff;
+    border-color: var(--cancel);
+  }
+  &-cancel:hover {
+    background: var(--cancel-hover);
+    border-color: var(--cancel-hover);
+  }
+
+  &-edit {
+    background: var(--edit);
+    color: #fff;
+    border-color: var(--edit);
+  }
+  &-edit:hover {
+    background: var(--edit-600);
+    border-color: var(--edit-600);
+  }
+
+  &-add {
+    background: var(--add);
+    color: #fff;
+    border-color: var(--add);
+  }
+  &-add:hover {
+    background: var(--add-600);
+    border-color: var(--add-600);
+  }
 
   &-ghost {
     background: transparent;
     color: var(--text);
     border-color: var(--border);
   }
-  &-ghost:hover { background: var(--ghost-hover); }
+  &-ghost:hover {
+    background: var(--ghost-hover);
+  }
 
   &-disabled,
-  &.btn-disabled {
-    background: #e5e7eb; /* gray-200 */
-    color: #9ca3af;      /* gray-400 */
+  &.btn-disabled,
+  &:disabled {
+    background: #e5e7eb;
+    color: #9ca3af;
     cursor: not-allowed;
     border-color: #e5e7eb;
   }
 }
 
-/* Icon-only buttons for actions column */
+/* =========================
+   Icon-only buttons
+   ========================= */
 .icon-btn {
   display: inline-flex;
   align-items: center;
@@ -260,7 +407,6 @@ body {
 /* =========================
    Empty state
    ========================= */
-
 .empty-state {
   background: var(--surface);
   border: 1px solid var(--border);
@@ -273,7 +419,6 @@ body {
 /* =========================
    Loading
    ========================= */
-
 .loading {
   display: flex;
   align-items: center;
@@ -307,11 +452,10 @@ body {
 /* =========================
    Modal
    ========================= */
-
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.55); /* slate-950 with opacity */
+  background: rgba(2, 6, 23, 0.55);
   display: grid;
   place-items: center;
   z-index: 999;
@@ -341,5 +485,4 @@ body {
 /* =========================
    Utilities
    ========================= */
-
 .text-muted { color: var(--text-muted); }

@@ -1213,20 +1213,24 @@ def to_int(v, default=0):
     
 # --- BULK stock adjustments (add/deduct in PCS) -----------------------
 class BulkAdjustStockView(APIView):
+    # permission_classes = [IsAuthenticated]  # ← enable if you require auth
 
     def post(self, request):
         data = request.data or {}
         wid = data.get("warehouse") or get_user_warehouse(request)
-        items = data.get("items") or []
 
-        if not wid:
-            return Response({"detail": "warehouse is required (explicitly or via user)"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            wid = int(wid)
+        except (TypeError, ValueError):
+            return Response({"detail": "warehouse must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+
+        items = data.get("items") or []
         if not isinstance(items, list) or not items:
             return Response({"detail": "`items` must be a non-empty list"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check warehouse exists
+        # Ensure warehouse exists
         try:
-            Warehouse.objects.get(id=wid)
+            Warehouse.objects.only("id").get(id=wid)
         except Warehouse.DoesNotExist:
             return Response({"detail": f"warehouse {wid} not found"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -1236,12 +1240,17 @@ class BulkAdjustStockView(APIView):
                 for it in items:
                     pid = it.get("product_id")
                     try:
+                        pid = int(pid)
+                    except (TypeError, ValueError):
+                        return Response({"detail": f"invalid product_id: {pid}"}, status=status.HTTP_400_BAD_REQUEST)
+
+                    try:
                         delta = int(it.get("delta", 0))
                     except (TypeError, ValueError):
                         return Response({"detail": f"invalid delta for product {pid}"}, status=status.HTTP_400_BAD_REQUEST)
 
-                    if not pid or delta == 0:
-                        continue
+                    if delta == 0:
+                        continue  # no-op
 
                     # Ensure product exists
                     try:
@@ -1249,12 +1258,11 @@ class BulkAdjustStockView(APIView):
                     except Product.DoesNotExist:
                         return Response({"detail": f"product {pid} not found"}, status=status.HTTP_400_BAD_REQUEST)
 
-                    # Lock row to avoid race conditions. Create if missing.
+                    # Lock row to avoid race conditions; create if missing
                     stock = (Stock.objects
                              .select_for_update()
                              .filter(product_id=pid, warehouse_id=wid)
                              .first())
-
                     if stock is None:
                         stock = Stock(product_id=pid, warehouse_id=wid, quantity_available=0)
 
@@ -1262,28 +1270,26 @@ class BulkAdjustStockView(APIView):
                     new_qty = old_qty + delta
                     if new_qty < 0:
                         return Response(
-                            {"detail": f"Insufficient stock for product {pid}. Available={old_qty}, requested change={delta}"},
+                            {"detail": f"Insufficient stock for product {pid}. "
+                                       f"Available={old_qty}, requested change={delta}"},
                             status=status.HTTP_400_BAD_REQUEST
                         )
 
                     stock.quantity_available = new_qty
-                    # Save (insert or update). We only update the field we changed.
-                    if stock.pk:
-                        stock.save(update_fields=["quantity_available"])
-                    else:
-                        stock.save()
+                    stock.save(update_fields=["quantity_available"]) if stock.pk else stock.save()
 
                     results.append({
-                        "product_id": int(pid),
+                        "product_id": pid,
                         "old_qty": old_qty,
-                        "applied_delta": int(delta),
+                        "applied_delta": delta,
                         "new_qty": int(stock.quantity_available),
                     })
 
-            return Response({"warehouse": int(wid), "results": results}, status=status.HTTP_200_OK)
+            return Response({"warehouse": wid, "results": results}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"detail": f"bulk-adjust failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 
 class VanLoadReturnUpdateAPIView(APIView):

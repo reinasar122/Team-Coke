@@ -41,16 +41,12 @@ const ProductList = () => {
 
   useEffect(() => {
     fetchProducts();
-
-    const handleWarehouseChange = () => {
-      fetchProducts();
-    };
+    const handleWarehouseChange = () => fetchProducts();
     window.addEventListener('warehouseChanged', handleWarehouseChange);
     return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
   }, [fetchProducts]);
 
   const handleDelete = async (id) => {
-    // Minimal, accessible confirm dialog using our modal classes
     const showConfirmDialog = (message, onConfirm) => {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -59,7 +55,7 @@ const ProductList = () => {
           <div class="modal-body">
             <p class="text-muted">${message}</p>
             <div class="modal-actions">
-              <button class="btn btn-ghost js-cancel">Cancel</button>
+              <button class="btn btn-back js-cancel">Cancel</button>
               <button class="btn btn-danger js-confirm">Delete</button>
             </div>
           </div>
@@ -120,10 +116,10 @@ const ProductList = () => {
         <h2 className="page-title">Product List</h2>
         <Link
           to="/products/new"
-          className={`btn ${canCreate("Product") ? 'btn-primary' : 'btn-disabled'}`}
+          className={`btn ${canCreate("Product") ? 'btn-add' : 'btn-disabled'}`}
           onClick={(e) => { if (!canCreate("Product")) e.preventDefault(); }}
         >
-          Add Product
+          + Add Product
         </Link>
       </div>
 
@@ -153,7 +149,7 @@ const ProductList = () => {
                   <td>
                     <div className="actions">
                       {canEdit("Product") ? (
-                        <Link to={`/products/${prod.id}/edit`} title="Edit" className="icon-btn icon-btn-primary">
+                        <Link to={`/products/${prod.id}/edit`} title="Edit" className="icon-btn icon-btn-edit">
                           <FaEdit aria-hidden="true" />
                           <span className="sr-only">Edit</span>
                         </Link>
