@@ -1,20 +1,306 @@
-/* Error: There's already a module with namespace "invoice".
- *     ,
- * 1   | @use './pages/invoice' as invoice;
- *     | ================================= original @use
- * ... |
- * 3   | @use './pages/stocks' as invoice;
- *     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ new @use
- *     '
- *   frontend_coke_system\src\styles\styles.scss 3:1  root stylesheet */
-
-body::before {
-  font-family: "Source Code Pro", "SF Mono", Monaco, Inconsolata, "Fira Mono",
-      "Droid Sans Mono", monospace, monospace;
-  white-space: pre;
-  display: block;
-  padding: 1em;
-  margin-bottom: 1em;
-  border-bottom: 2px solid black;
-  content: "Error: There's already a module with namespace \"invoice\".\a     \2577 \a 1   \2502  @use './pages/invoice' as invoice;\d\a     \2502  \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501 \2501  original @use\a... \2502 \a 3   \2502  @use './pages/stocks' as invoice;\a     \2502  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ new @use\a     \2575 \a   frontend_coke_system\\src\\styles\\styles.scss 3:1  root stylesheet";
+@charset "UTF-8";
+/* src/styles/pages/stocks.scss */
+.stocks-container {
+  padding: 24px;
+  max-width: 100vw;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+  /* ---------- header ---------- */
+  /* ---------- status badges (specific to Stocks page) ---------- */
+  /* emerald-700 */
+  /* amber-700 */
+  /* red-600 */
 }
+.stocks-container .stocks-title-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+}
+.stocks-container .stocks-title-header h2 {
+  margin: 0;
+  font-size: 1.875rem; /* ~text-3xl */
+  font-weight: 700;
+  color: var(--text);
+}
+.stocks-container .muted {
+  color: var(--text-muted);
+  margin-top: 0.125rem;
+  font-size: 0.875rem;
+}
+.stocks-container .warehouse-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 10px;
+  background: rgba(37, 99, 235, 0.1); /* primary @10% */
+  color: var(--primary);
+  font-weight: 600;
+}
+.stocks-container .warehouse-chip svg {
+  display: block;
+}
+.stocks-container .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.625rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  font-size: 0.875rem;
+  line-height: 1;
+  color: #fff;
+  white-space: nowrap;
+}
+.stocks-container .badge svg {
+  width: 1rem;
+  height: 1rem;
+}
+.stocks-container .badge--high {
+  background: #047857;
+}
+.stocks-container .badge--moderate {
+  background: #b45309;
+}
+.stocks-container .badge--low {
+  background: #dc2626;
+}
+.stocks-container .bade--outofstock {
+  background: #0F172A;
+}
+
+/* Product Form – page-specific styles */
+.pf-scroll {
+  overflow-x: auto;
+}
+
+/* Inputs & selects */
+.pf-input,
+.pf-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+.pf-input:focus,
+.pf-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.pf-readonly {
+  background: #f8fafc;
+  color: var(--text-muted);
+}
+
+/* Checkbox wrapper */
+.pf-check-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+}
+
+/* Hide default checkbox and use custom style */
+.pf-checkbox {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease-in-out;
+}
+.pf-checkbox:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+.pf-checkbox:checked::after {
+  content: "✓";
+  position: absolute;
+  top: -2px;
+  left: 3px;
+  font-size: 14px;
+  color: #fff;
+  font-weight: bold;
+}
+
+/* Label text */
+.pf-check-label {
+  color: var(--text); /* 🔹 Make the label use primary color */
+  font-weight: 500;
+}
+
+/* Table footer actions */
+.pf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+/* Modal title (using global modal shell) */
+.pf-modal-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Utility */
+.w-full {
+  width: 100%;
+}
+
+/* Local styles for ProductEdit only (anything not in global.scss) */
+/* Compact card padding for edit form */
+.pe-card {
+  padding: 16px;
+}
+
+/* Inputs & selects unified look */
+.pe-input,
+.pe-select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  outline: none;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.pe-input:focus,
+.pe-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15); /* primary glow */
+}
+
+.pe-input--readonly {
+  background: #f3f4f6; /* gray-100 */
+  color: var(--text);
+}
+
+.pe-input--disabled {
+  background: #f3f4f6; /* gray-100 */
+  color: var(--text-muted);
+  cursor: not-allowed;
+}
+
+/* Modal heading */
+.pe-modal-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+/* Primary-colored checkbox (returnable) */
+.pf-check-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.pf-checkbox {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--primary);
+  border-radius: 4px;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease-in-out;
+  background: #fff;
+}
+
+.pf-checkbox:checked {
+  background-color: var(--primary);
+  border-color: var(--primary);
+}
+
+.pf-checkbox:checked::after {
+  content: "✓";
+  position: absolute;
+  top: -2px;
+  left: 3px;
+  font-size: 14px;
+  color: #fff;
+  font-weight: bold;
+}
+
+.pf-check-label {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* =========================
+   Centered Alert helpers
+   ========================= */
+/* Center the alert text and use your theme colors */
+.pe-alert-msg {
+  margin: 0 0 8px;
+  font-size: 14px;
+  text-align: center;
+}
+
+.pe-alert--primary {
+  color: var(--primary);
+}
+
+.pe-alert--danger {
+  color: var(--danger);
+}
+
+/* When an alert message is present, center the action buttons */
+.modal-body .pe-alert-msg + .modal-actions {
+  justify-content: center;
+}
+
+/* credit.scss */
+/* Custom Styles for Credit List */
+.credit-list-table {
+  background-color: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+
+.credit-list-table th,
+.credit-list-table td {
+  padding: var(--sp-4);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.credit-list-table .status-pending {
+  color: var(--danger);
+}
+
+.credit-list-table .status-paid {
+  color: var(--add);
+}
+
+.credit-list-table .action-btn {
+  background-color: var(--primary);
+  color: #fff;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.credit-list-table .action-btn:hover {
+  background-color: var(--primary-600);
+}
+
+/*# sourceMappingURL=styles.css.map */
