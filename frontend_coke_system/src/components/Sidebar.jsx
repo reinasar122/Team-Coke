@@ -13,6 +13,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { canView } from "../utils/accessControl";
 
+
 const Sidebar = ({ isSidebarOpen }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
   const navigate = useNavigate(); // ✅ added

@@ -7,6 +7,22 @@ import { canCreate, canEdit, canDelete } from '../utils/accessControl';
 const ProductList = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isNarrow, setIsNarrow] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(max-width: 768px)').matches : false
+  );
+
+  // Track viewport size for responsive render
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = (e) => setIsNarrow(e.matches);
+    mq.addEventListener?.('change', onChange);
+    // Safari fallback
+    mq.addListener?.(onChange);
+    return () => {
+      mq.removeEventListener?.('change', onChange);
+      mq.removeListener?.(onChange);
+    };
+  }, []);
 
   // Get current warehouse from user session
   const getCurrentWarehouse = () => {
@@ -55,8 +71,8 @@ const ProductList = () => {
           <div class="modal-body">
             <p class="text-muted">${message}</p>
             <div class="modal-actions">
-              <button class="btn btn-back js-cancel">Cancel</button>
-              <button class="btn btn-danger js-confirm">Delete</button>
+              <button class="btn btn-back h-6 js-cancel">Cancel</button>
+              <button class="btn btn-danger h-6 js-confirm">Delete</button>
             </div>
           </div>
         </div>
@@ -112,8 +128,9 @@ const ProductList = () => {
 
   return (
     <div className="page">
-      <div className="page-header">
-        <h2 className="page-title">Product List</h2>
+      {/* Header */}
+      <div className="page-header" style={{ flexWrap: 'wrap', rowGap: 8 }}>
+        <h2 className="page-title" style={{ marginRight: 'auto' }}>Product List</h2>
         <Link
           to="/products/new"
           className={`btn ${canCreate("Product") ? 'btn-add' : 'btn-disabled'}`}
@@ -123,66 +140,133 @@ const ProductList = () => {
         </Link>
       </div>
 
+      {/* Empty state */}
       {products.length === 0 ? (
         <div className="empty-state">
           <p className="text-muted">No products found in your warehouse.</p>
         </div>
       ) : (
-        <div className="card">
-          <table className="table table-hover">
-            <thead>
-              <tr>
-                <th>System Code</th>
-                <th>Supplier Code</th>
-                <th>Product Name</th>
-                <th>Category</th>
-                <th className="w-128">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {products.map(prod => (
-                <tr key={prod.id}>
-                  <td>{prod.system_code}</td>
-                  <td>{prod.supplier_code}</td>
-                  <td>{prod.product_name}</td>
-                  <td>{prod.product_category?.name || "N/A"}</td>
-                  <td>
-                    <div className="actions">
-                      {canEdit("Product") ? (
-                        <Link to={`/products/${prod.id}/edit`} title="Edit" className="icon-btn icon-btn-edit">
-                          <FaEdit aria-hidden="true" />
-                          <span className="sr-only">Edit</span>
-                        </Link>
-                      ) : (
-                        <span title="No access" className="icon-btn icon-btn-disabled">
-                          <FaEdit aria-hidden="true" />
-                          <span className="sr-only">No edit access</span>
-                        </span>
-                      )}
+        <>
+          {/* Desktop / Tablet: Table (>= 769px) */}
+          {!isNarrow && (
+            <div className="card">
+              <div style={{ width: '100%', overflowX: 'auto' }}>
+                <table className="table table-hover" style={{ minWidth: 720 }}>
+                  <thead>
+                    <tr>
+                      <th>System Code</th>
+                      <th>Supplier Code</th>
+                      <th>Product Name</th>
+                      <th>Category</th>
+                      <th className="w-128">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {products.map(prod => (
+                      <tr key={prod.id}>
+                        <td>{prod.system_code}</td>
+                        <td>{prod.supplier_code}</td>
+                        <td>{prod.product_name}</td>
+                        <td>{prod.product_category?.name || "N/A"}</td>
+                        <td>
+                          <div className="actions">
+                            {canEdit("Product") ? (
+                              <Link to={`/products/${prod.id}/edit`} title="Edit" className="icon-btn icon-btn-edit">
+                                <FaEdit aria-hidden="true" />
+                                <span className="sr-only">Edit</span>
+                              </Link>
+                            ) : (
+                              <span title="No access" className="icon-btn icon-btn-disabled">
+                                <FaEdit aria-hidden="true" />
+                                <span className="sr-only">No edit access</span>
+                              </span>
+                            )}
 
-                      {canDelete("Product") ? (
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(prod.id)}
-                          title="Delete"
-                          className="icon-btn icon-btn-danger"
-                        >
-                          <FaTrash aria-hidden="true" />
-                          <span className="sr-only">Delete</span>
-                        </button>
-                      ) : (
-                        <span title="No access" className="icon-btn icon-btn-disabled">
-                          <FaTrash aria-hidden="true" />
-                          <span className="sr-only">No delete access</span>
-                        </span>
-                      )}
+                            {canDelete("Product") ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDelete(prod.id)}
+                                title="Delete"
+                                className="icon-btn icon-btn-danger"
+                              >
+                                <FaTrash aria-hidden="true" />
+                                <span className="sr-only">Delete</span>
+                              </button>
+                            ) : (
+                              <span title="No access" className="icon-btn icon-btn-disabled">
+                                <FaTrash aria-hidden="true" />
+                                <span className="sr-only">No delete access</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile: Card list (<= 768px) */}
+          {isNarrow && (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {products.map(prod => (
+                <div key={prod.id} className="card" style={{ padding: 16 }}>
+                  <div style={{ display: 'grid', gap: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                      <strong>{prod.product_name}</strong>
+                      <div className="actions">
+                        {canEdit("Product") ? (
+                          <Link to={`/products/${prod.id}/edit`} title="Edit" className="icon-btn icon-btn-edit">
+                            <FaEdit aria-hidden="true" />
+                            <span className="sr-only">Edit</span>
+                          </Link>
+                        ) : (
+                          <span title="No access" className="icon-btn icon-btn-disabled">
+                            <FaEdit aria-hidden="true" />
+                            <span className="sr-only">No edit access</span>
+                          </span>
+                        )}
+                        {canDelete("Product") ? (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(prod.id)}
+                            title="Delete"
+                            className="icon-btn icon-btn-danger"
+                          >
+                            <FaTrash aria-hidden="true" />
+                            <span className="sr-only">Delete</span>
+                          </button>
+                        ) : (
+                          <span title="No access" className="icon-btn icon-btn-disabled">
+                            <FaTrash aria-hidden="true" />
+                            <span className="sr-only">No delete access</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </td>
-                </tr>
+
+                    <div style={{ display: 'grid', gap: 6 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                        <span className="text-muted">System Code</span>
+                        <span>{prod.system_code}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                        <span className="text-muted">Supplier Code</span>
+                        <span>{prod.supplier_code}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+                        <span className="text-muted">Category</span>
+                        <span>{prod.product_category?.name || "N/A"}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

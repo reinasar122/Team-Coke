@@ -1,0 +1,36 @@
+/* credit.scss */
+
+/* Custom Styles for Credit List */
+.credit-list-table {
+  background-color: var(--surface);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+}
+
+.credit-list-table th,
+.credit-list-table td {
+  padding: var(--sp-4);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.credit-list-table .status-pending {
+  color: var(--danger);
+}
+
+.credit-list-table .status-paid {
+  color: var(--add);
+}
+
+.credit-list-table .action-btn {
+  background-color: var(--primary);
+  color: #fff;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.credit-list-table .action-btn:hover {
+  background-color: var(--primary-600);
+}

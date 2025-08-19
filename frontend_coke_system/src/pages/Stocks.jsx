@@ -23,7 +23,7 @@ const getBadgeClass = (s) => {
     case "High": return "badge badge--high";
     case "Moderate": return "badge badge--moderate";
     case "Low": return "badge badge--low";
-    case "Out of Stock": return "badge badge--low";
+    case "Out of Stock": return "badge bade--outofstock";
     default: return "badge";
   }
 };
@@ -107,6 +107,7 @@ const Stocks = () => {
   return (
     <div className="stocks-container">
       {/* <div className="stocks-title-header">
+      <h2 className="page-title" style={{ marginRight: 'auto' }}>Product List</h2>
         <div>
           <h2>🧾 Stocks Table</h2>
           <p className="muted">Overview of all inventory stock levels</p>
@@ -119,6 +120,7 @@ const Stocks = () => {
           </div>
         )}
       </div> */}
+      <h2 className="page-title mt-5 mb-5" style={{ marginRight: 'auto' }}>🧾 Stocks Table</h2>
 
       <div className="card">{/* light by default (#f4f4f4) */}
         <table className="table table-hover">

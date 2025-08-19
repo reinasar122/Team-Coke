@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import "../styles/pages/credit.scss"; // Import custom styles
 
 export default function CreditList() {
   const [rows, setRows] = useState([]);
@@ -18,7 +19,7 @@ export default function CreditList() {
   return (
     <div className="p-4">
       <h1 className="text-xl font-bold mb-4">Credit List</h1>
-      <table className="w-full border">
+      <table className="credit-list-table w-full border">
         <thead className="bg-gray-100">
           <tr>
             <th className="p-2 text-left">MSP No.</th>
@@ -43,15 +44,25 @@ export default function CreditList() {
               <td className="p-2">₱{fmt(r.amount_paid)}</td>
               <td className="p-2">₱{fmt(r.balance)}</td>
               <td className="p-2">
-                {r.status === "PENDING"
-                  ? "Pending"
-                  : r.status === "PARTIAL"
-                  ? "Partially Paid"
-                  : "Fully Paid"}
+                <span
+                  className={`${
+                    r.status === "PENDING"
+                      ? "status-pending"
+                      : r.status === "PARTIAL"
+                      ? "status-paid"
+                      : "status-paid"
+                  }`}
+                >
+                  {r.status === "PENDING"
+                    ? "Pending"
+                    : r.status === "PARTIAL"
+                    ? "Partially Paid"
+                    : "Fully Paid"}
+                </span>
               </td>
               <td className="p-2">
                 <button
-                  className="px-3 py-1 rounded bg-blue-600 text-white"
+                  className="action-btn"
                   onClick={() => navigate(`/credits/${r.id}`)}
                 >
                   View
