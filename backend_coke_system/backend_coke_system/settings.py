@@ -86,9 +86,9 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'test',
+         'NAME': 'kath2',
          'USER': 'root',
-         'PASSWORD': 'yjh434ctuG@-@',
+         'PASSWORD': 'karen_123',
          'HOST': 'localhost',
          'PORT': '3306',
      }
@@ -181,3 +181,9 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Make sure CORS is enabled
 CORS_ALLOW_CREDENTIALS = True
+
+#To automatically install dependencies for backend from requirements.txt, run:
+#"pip install -r backend_coke_system/requirements.txt" inside coke-POS-system/backend_coke_system
+
+#To automatically install dependencies for frontend from package.json, run:
+#"yarn install or npm install" inside coke-POS-system/frontend_coke_system

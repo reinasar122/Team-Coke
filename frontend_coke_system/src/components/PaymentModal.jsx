@@ -577,6 +577,20 @@ const PaymentModal = ({
                 paymentTermsDays: days,                       // 7/15/30
                 dueDate: paymentDueDate.toISOString(),        // ISO
                 creditNotes,                                   // optional
+
+                //Kath: carry these so invoice can match the PaymentModal breakdown exactly
+                expectedSale: n(expectedSale),
+                totalReturnedWithContent: n(totalReturnedWithContent),
+                totalDiscrepancyNonEmpty: n(totalDiscrepancyNonEmpty),
+
+                // if parent provided explicit totals, forward them too so we can honor overrides
+                totalActualRetrievedVL: n(totalActualRetrievedVL),
+                overallTotalVL: n(overallTotalVL),
+                grandTotalVL: n(grandTotalVL),
+
+                // carry the final due used in the modal (helps cash section on invoice)
+                amountDue: amountDueFinal,
+                //Kath:
               };
 
               const isCredit = data.paymentMethod === "credit";
