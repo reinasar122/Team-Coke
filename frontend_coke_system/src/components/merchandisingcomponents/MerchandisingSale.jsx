@@ -44,6 +44,10 @@ const MerchandisingSale = () => {
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
   const location = useLocation();
 
+  //Kath
+  const [stocks, setStocks] = useState([]);
+
+
   // ✅ Custom alert function since alert() is not supported
   const showAlert = (message) => {
     const alertDiv = document.createElement('div');
@@ -131,34 +135,148 @@ const MerchandisingSale = () => {
     }
   }, []);
 
-  const fetchProducts = useCallback(async () => {
-    try {
-      const warehouseId = getCurrentWarehouse();
+  // //Kath: Fetch Stocks
+  // const fetchStocks = useCallback(async () => {
+  //   try {
+  //     const warehouseId = getCurrentWarehouse();
 
-      if (!warehouseId) {
-        console.warn("No warehouse assigned to user");
-        setProducts([]);
-        return;
-      }
+  //     if (!warehouseId) {
+  //       console.warn("No warehouse assigned to user");
+  //       setStocks([]); // Set stocks state to an empty array if no warehouse is assigned
+  //       return;
+  //     }
 
-      const res = await axios.get(`http://localhost:8080/api/products/?warehouse_id=${warehouseId}`);
-      setProducts(res.data);
+  //     // Fetch stocks from the backend using the warehouse ID
+  //     const res = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
+  //     setStocks(res.data); // Assuming you're using `setStocks` to update the state with the stock data
+  //   } catch (err) {
+  //     console.error("Error fetching stocks:", err);
+  //     setStocks([]); // Set stocks to empty array on error
+  //   }
+  // }, []);
+
+  // const fetchProducts = useCallback(async () => {
+  //   try {
+  //     const warehouseId = getCurrentWarehouse();
+
+  //     if (!warehouseId) {
+  //       console.warn("No warehouse assigned to user");
+  //       setProducts([]);
+  //       return;
+  //     }
+
+  //     const res = await axios.get(`http://localhost:8080/api/products/?warehouse_id=${warehouseId}`);
+  //     setProducts(res.data);
+  //   } catch (err) {
+  //     console.error("Error fetching products:", err);
+  //     setProducts([]);
+  //   }
+  // }, []);
+
+  // useEffect(() => {
+  //   fetchProducts();
+  //   const handleWarehouseChange = () => {
+  //     fetchProducts();
+  //   };
+  //   window.addEventListener('warehouseChanged', handleWarehouseChange);
+  //   return () => {
+  //     window.removeEventListener('warehouseChanged', handleWarehouseChange);
+  //   };
+  // }, [fetchProducts]);
+
+  // // Fetch Stocks
+  // const fetchStocks = useCallback(async () => {
+  //   try {
+  //     const warehouseId = getCurrentWarehouse();
+
+  //     if (!warehouseId) {
+  //       console.warn("No warehouse assigned to user");
+  //       setStocks([]);
+  //       return;
+  //     }
+
+  //     const res = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
+  //     setStocks(res.data);
+  //   } catch (err) {
+  //     console.error("Error fetching stocks:", err);
+  //     setStocks([]);
+  //   }
+  // }, []);
+
+  // // Fetch Products filtered by available stocks
+  // const fetchProducts = useCallback(async () => {
+  //   try {
+  //     const warehouseId = getCurrentWarehouse();
+  //     if (!warehouseId) {
+  //       console.warn("No warehouse assigned to user");
+  //       setProducts([]);
+  //       return;
+  //     }
+
+  //     const res = await axios.get(`http://localhost:8080/api/products/?warehouse_id=${warehouseId}`);
+  //     const allProducts = res.data;
+
+  //     // Filter products based on stocks
+  //     const availableProducts = allProducts.filter((product) => {
+  //       const stock = stocks.find(
+  //         (s) => s.product.id === product.id && s.warehouse === warehouseId
+  //       );
+  //       return stock && stock.quantity > 0; // Only show if stock exists and quantity > 0
+  //     });
+
+  //     setProducts(availableProducts);
+  //   } catch (err) {
+  //     console.error("Error fetching products:", err);
+  //     setProducts([]);
+  //   }
+  // }, [stocks]);
+
+  // Define it at the component level
+  const loadStocksAndProducts = async () => {
+  const warehouseId = getCurrentWarehouse();
+  console.log("Current warehouse ID:", warehouseId);
+
+  if (!warehouseId) return;
+
+  try {
+      const stockRes = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
+      const stockData = stockRes.data;
+      console.log("Stocks retrieved:", stockData);
+      setStocks(stockData);
+
+      const productRes = await axios.get(`http://localhost:8080/api/products/`);
+      const allProducts = productRes.data;
+      console.log("All products retrieved:", allProducts);
+
+      const availableProducts = allProducts.filter((product) => {
+        const stock = stockData.find(
+          (s) => s.product === product.id && s.warehouse === warehouseId
+        );
+        return stock && stock.quantity_available > 0;
+      });
+
+      console.log("Available products (filtered by stock):", availableProducts);
+      setProducts(availableProducts);
     } catch (err) {
-      console.error("Error fetching products:", err);
+      console.error("Error loading stocks/products:", err);
+      setStocks([]);
       setProducts([]);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    fetchProducts();
+    loadStocksAndProducts();
+
     const handleWarehouseChange = () => {
-      fetchProducts();
+      loadStocksAndProducts();
     };
-    window.addEventListener('warehouseChanged', handleWarehouseChange);
-    return () => {
-      window.removeEventListener('warehouseChanged', handleWarehouseChange);
-    };
-  }, [fetchProducts]);
+
+    window.addEventListener("warehouseChanged", handleWarehouseChange);
+    return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
+  }, []);
+  //Kath
+
+
 
   // ✅ Fixed fetchUsers with axios config and correct dependencies
   const fetchUsers = useCallback(() => {

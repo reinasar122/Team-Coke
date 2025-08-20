@@ -6,6 +6,59 @@ import axios from 'axios';
 import ExpensesSection from '../components/merchandisingcomponents/ExpensesSection';
 import PaymentModal from '../components/PaymentModal';
 
+/* --------------------------- NEW: tiny UI helpers --------------------------- */
+// Print 0 for null/undefined/''/NaN (display only; does NOT touch state)
+const z = (v) =>
+  v === undefined || v === null || v === '' || Number.isNaN(v) ? 0 : v;
+
+// Peso formatter that never shows ₱NaN
+const peso = (n) =>
+  `₱${(parseFloat(n) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+/* --------------------------------------------------------------------------- */
+
+
+const ZeroInput = ({
+  value,
+  onValue,
+  disabled = false,
+  className = '',
+  placeholder = '0',
+}) => {
+  // what the user *sees* in the box
+  const display = value === 0 || value === '0' || value === null || value === undefined
+    ? ''
+    : value;
+
+  return (
+    <input
+      type="number"
+      value={display}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={className}
+      onFocus={(e) => {
+        // if somehow "0" is in the box, clear it for clean typing
+        if (e.target.value === '0') e.target.value = '';
+      }}
+      onChange={(e) => {
+        onValue?.(e.target.value); // you still parse in handleRowChange
+      }}
+      onBlur={(e) => {
+        // if user leaves blank, put zero back and push it to state
+        if (e.target.value === '') {
+          e.target.value = 0;
+          onValue?.(0);
+        } else {
+          onValue?.(e.target.value);
+        }
+      }}
+    />
+  );
+};
+
+
+
+
 const VanLoadUpdate = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -303,7 +356,6 @@ const VanLoadUpdate = () => {
     [miscItems]
   );
 
-  // Total Returned (With Content/s) — peso value using expected non‑empty returns
   // Total Returned (With Content) — peso value from PCS only
   const totalReturnedWithContent = useMemo(() => {
     return rows.reduce((sum, row) => {
@@ -311,19 +363,15 @@ const VanLoadUpdate = () => {
       const dispatchedPcs = parseFloat(row.dispatched_pcs || 0);
       const soldPcs = parseFloat(row.sold_pcs || 0);
 
-      // if the field is null/undefined, auto = dispatched - sold
-      const expectedPcs = 
+      const expectedPcs =
         row.expected_return_pcs_nonempty != null
           ? parseFloat(row.expected_return_pcs_nonempty)
           : (dispatchedPcs - soldPcs);
 
-      // optional: prevent negatives if ever over-edited
       const pcs = Math.max(expectedPcs, 0);
-
       return sum + pcs * price;
     }, 0);
   }, [rows]);
-
 
   // ✅ Van Load overall total identical to ProductTable:
   // Van Load total = totalActualSale - misc + overallDiscrepancy
@@ -522,43 +570,43 @@ const VanLoadUpdate = () => {
                 </div>
               </td>
 
+              {/* DISPATCHED (read-only) */}
               <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <div className="p-2 border rounded">{row.dispatched_shell}</div>
+                <div className="p-2 border rounded">{z(row.dispatched_shell)}</div>
               </td>
               <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <div className="p-2 border rounded">{row.dispatched_pcs}</div>
+                <div className="p-2 border rounded">{z(row.dispatched_pcs)}</div>
               </td>
 
+              {/* SELLING PRICE (read-only) */}
               <td className="border border-gray-200 py-1 px-1 w-[80px]">
                 <div className="p-2 border rounded text-sm text-center">
-                  {Number(row.selling_price || 0).toFixed(2)}
+                  {Number(z(row.selling_price)).toFixed(2)}
                 </div>
               </td>
 
-              {/* SOLD */}
+              {/* SOLD (editable) */}
               <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <input
-                  type="number"
+                <ZeroInput
+                  value={row.sold_shell}
+                  onValue={(v) => handleRowChange(index, 'sold_shell', v)}
                   className="w-full p-1 text-sm text-center rounded bg-yellow-50"
-                  value={row.sold_shell === 0 ? '' : row.sold_shell ?? ''}
-                  onChange={(e) => handleRowChange(index, 'sold_shell', e.target.value)}
                 />
               </td>
               <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <input
-                  type="number"
+                <ZeroInput
+                  value={row.sold_pcs}
+                  onValue={(v) => handleRowChange(index, 'sold_pcs', v)}
                   className="w-full p-1 text-sm text-center rounded bg-yellow-50"
-                  value={row.sold_pcs === 0 ? '' : row.sold_pcs ?? ''}
-                  onChange={(e) => handleRowChange(index, 'sold_pcs', e.target.value)}
                 />
               </td>
 
-              {/* EMPTY PRICE */}
+              {/* EMPTY PRICE (disabled) */}
               <td className="border border-gray-200 py-1 px-1 w-[70px]">
                 <input
                   type="number"
                   className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={row.empty_price_shell ?? ''}
+                  value={z(row.empty_price_shell)}
                   disabled
                 />
               </td>
@@ -566,65 +614,76 @@ const VanLoadUpdate = () => {
                 <input
                   type="number"
                   className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={row.empty_price_pc ?? ''}
+                  value={z(row.empty_price_pc)}
                   disabled
                 />
               </td>
 
-              {/* RETURNED / DISCREPANCIES */}
+              {/* RETURNED / DISCREPANCIES / EXPECTED NON-EMPTY */}
               {[
-                'empty_return_shell',
-                'empty_return_pcs',
-                'discrepancy_empties_shell',
-                'discrepancy_empties_pc',
-                'expected_return_shell_nonempty',   // edited by user
-                'expected_return_pcs_nonempty',     // edited by user
-                'discrepancy_full_shell',
-                'discrepancy_full_pcs',
-              ].map((field, i) => (
+                // [field, editable?]
+                ['empty_return_shell', true],
+                ['empty_return_pcs',   true],
+                ['discrepancy_empties_shell', false],
+                ['discrepancy_empties_pc',    false],
+                ['expected_return_shell_nonempty', true],
+                ['expected_return_pcs_nonempty',   true],
+                ['discrepancy_full_shell',  false],
+                ['discrepancy_full_pcs',    false],
+              ].map(([field, editable], i) => (
                 <td key={i} className="border border-gray-200 py-1 px-1">
-                  <input
-                    type="number"
-                    value={row[field] === 0 ? '' : row[field] ?? ''}
-                    onChange={(e) => handleRowChange(index, field, e.target.value)}
-                    disabled={field.includes('discrepancy')}
-                    className={`w-full p-1 text-sm text-center rounded
-                      ${field.includes('expected_return') ? 'bg-yellow-50' : 'bg-gray-100'}
-                      ${field.includes('discrepancy') && parseFloat(row[field] || 0) !== 0 ? 'bg-red-100 text-red-700 font-semibold' : ''}
-                      ${field.includes('discrepancy') ? 'cursor-not-allowed' : ''}
-                    `}
-                  />
+                  {editable ? (
+                    <ZeroInput
+                      value={row[field]}
+                      onValue={(v) => handleRowChange(index, field, v)}
+                      className={`w-full p-1 text-sm text-center rounded
+                        ${field.includes('expected_return') ? 'bg-yellow-50' : 'bg-gray-100'}
+                      `}
+                    />
+                  ) : (
+                    <input
+                      type="number"
+                      value={z(row[field])}
+                      disabled
+                      className={`w-full p-1 text-sm text-center rounded bg-gray-100
+                        ${field.includes('discrepancy') && parseFloat(row[field] || 0) !== 0
+                          ? 'bg-red-100 text-red-700 font-semibold' : ''}
+                        cursor-not-allowed
+                      `}
+                    />
+                  )}
                 </td>
               ))}
 
-              {/* DISCOUNT */}
+              {/* DISCOUNT (editable when sold > 0) */}
               <td className="border border-gray-200 py-1 px-1">
-                <input
-                  type="number"
-                  className={`w-full p-1 text-sm text-center rounded bg-white border ${
-                    row.sold_shell > 0 || row.sold_pcs > 0 ? 'bg-yellow-50' : 'bg-gray-200 cursor-not-allowed'
-                  }`}
-                  value={row.discount === 0 ? '' : row.discount}
-                  onChange={(e) => handleRowChange(index, 'discount', e.target.value)}
-                  disabled={!(row.sold_shell > 0 || row.sold_pcs > 0)}
-                />
+                {row.sold_shell > 0 || row.sold_pcs > 0 ? (
+                  <ZeroInput
+                    value={row.discount}
+                    onValue={(v) => handleRowChange(index, 'discount', v)}
+                    className="w-full p-1 text-sm text-center rounded bg-yellow-50 border"
+                  />
+                ) : (
+                  <input
+                    type="number"
+                    value={z(row.discount)}
+                    disabled
+                    className="w-full p-1 text-sm text-center rounded bg-gray-200 cursor-not-allowed border"
+                  />
+                )}
               </td>
 
-              {/* EXPECTED SALE */}
+              {/* EXPECTED SALE (read-only) */}
               <td className="border border-gray-200 py-1 px-1">
-                <div className="p-2 border rounded">{Number(row.expected_sale || 0).toFixed(2)}</div>
+                <div className="p-2 border rounded">{Number(z(row.expected_sale)).toFixed(2)}</div>
               </td>
 
-              {/* ACTUAL SALE (per row, read-only) */}
+              {/* ACTUAL SALE (read-only) */}
               <td className="border border-gray-200 py-1 px-1">
                 <input
                   className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
                   disabled
-                  value={
-                    row.actual_sale
-                      ? `₱${parseFloat(row.actual_sale).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
-                      : ''
-                  }
+                  value={peso(row.actual_sale)}
                 />
               </td>
             </tr>
@@ -641,30 +700,27 @@ const VanLoadUpdate = () => {
 
             {/* EMPTY PRICE (Shell + Bottle) */}
             <td colSpan={2} className="py-2 px-1 bg-gray-300 text-black text-center font-semibold">
-              ₱{parseFloat(emptiesPriceTotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              {peso(emptiesPriceTotal)}
             </td>
 
             {/* RETURNED (Empty) */}
             <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
-              ₱{parseFloat(refundablesTotal || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              {peso(refundablesTotal)}
             </td>
 
             {/* DISCREPANCY (Empty) */}
             <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
-              ₱{parseFloat(totalDiscrepancyEmpty || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              {peso(totalDiscrepancyEmpty)}
             </td>
 
             {/* RETURNED (With Content/s) — peso total */}
-            <td
-              className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold"
-              colSpan={2}
-            >
-              ₱{parseFloat(totalReturnedWithContent || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            <td className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold" colSpan={2}>
+              {peso(totalReturnedWithContent)}
             </td>
 
             {/* DISCREPANCY (Non-Empty) */}
             <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
-              ₱{parseFloat(totalDiscrepancyNonEmpty || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              {peso(totalDiscrepancyNonEmpty)}
             </td>
 
             {/* DISCOUNT spacer */}
@@ -672,26 +728,26 @@ const VanLoadUpdate = () => {
 
             {/* EXPECTED SALE */}
             <td className="border border-gray-300 py-2 px-1 bg-green-100 text-green-700 font-bold text-center">
-              ₱{isNaN(totalExpectedSale) ? '0.00' : totalExpectedSale.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+              {peso(totalExpectedSale)}
             </td>
 
             {/* ACTUAL SALE (page total) */}
-            <td className="border border-gray-300 py-2 px-1 bg-gray-200 text-blue-700 font-bold text-center">
-              ₱{isNaN(totalActualSale) ? '0.00' : totalActualSale.toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            <td className="border border-gray-300 py-2 px-1 bg-gray-2 00 text-blue-700 font-bold text-center">
+              {peso(totalActualSale)}
             </td>
           </tr>
         </tbody>
       </table>
 
-      {/* Overall total */}
+      {/* Overall total
       <div className="flex justify-end mt-2 pr-4">
         <div className="flex items-center gap-2 bg-blue-100 px-4 py-2 rounded shadow text-right">
           <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>
           <span className="text-lg font-bold text-blue-800">
-            ₱{(parseFloat(overallTotal) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+            {peso(overallTotal)}
           </span>
         </div>
-      </div>
+      </div>*/}
 
       {/* Remarks */}
       <div className="md:col-span-2 mt-4">
@@ -725,9 +781,9 @@ const VanLoadUpdate = () => {
           emptiesPriceTotal={Number(emptiesPriceTotal) || 0}
           emptyReturns={Number(refundablesTotal) || 0}
           emptyDiscrepancies={Number(totalDiscrepancyEmpty) || 0}
-          totalReturnedWithContent={Number(totalReturnedWithContent) || 0} //kath
-          totalDiscrepancyNonEmpty={Number(totalDiscrepancyNonEmpty) || 0} //Kath
-          expectedSale={Number(totalExpectedSale) || 0} //Kath
+          totalReturnedWithContent={Number(totalReturnedWithContent) || 0}
+          totalDiscrepancyNonEmpty={Number(totalDiscrepancyNonEmpty) || 0}
+          expectedSale={Number(totalExpectedSale) || 0}
           totalAmount={Number(overallTotal) || 0}
           mspNo={sale.msp_no}
           transactionDate={sale.date_time}
