@@ -220,13 +220,28 @@ const ProductTable = ({
     const returnedEmptyShell = n(row.expectedReturnShellEmpty);
     const returnedEmptyPcs = n(row.expectedReturnPcsEmpty);
 
+    // Kath: const isNonReturnable = n(row.shellPrice) === 0 && n(row.bottlePrice) === 0;
+    // if (isNonReturnable) {
+    //   row.expectedReturnShellEmpty = 0;
+    //   row.expectedReturnPcsEmpty = 0;
+    //   row.discrepancyShellEmpty = 0;
+    //   row.discrepancyPcsEmpty = 0;
+    // } else {
+    //   row.discrepancyPcsEmpty = soldPcs - returnedEmptyPcs;
+    //   row.discrepancyShellEmpty = soldShell - returnedEmptyShell;
+    // }
+
+    // Detect non-returnable product
     const isNonReturnable = n(row.shellPrice) === 0 && n(row.bottlePrice) === 0;
+
     if (isNonReturnable) {
+      // Automatically set empty returns and discrepancies to 0
       row.expectedReturnShellEmpty = 0;
       row.expectedReturnPcsEmpty = 0;
       row.discrepancyShellEmpty = 0;
       row.discrepancyPcsEmpty = 0;
     } else {
+      // normal calculation for returnable products
       row.discrepancyPcsEmpty = soldPcs - returnedEmptyPcs;
       row.discrepancyShellEmpty = soldShell - returnedEmptyShell;
     }
@@ -488,7 +503,7 @@ const ProductTable = ({
 
 
               {/* EMPTY PRICES */}
-              <td className="border border-gray-200 py-1 px-1">
+              {/* <td className="border border-gray-200 py-1 px-1">
                 <input
                   type="number"
                   className="w-full p-1 text-sm text-center bg-gray-100"
@@ -503,7 +518,27 @@ const ProductTable = ({
                   value={row.bottlePrice ?? ""}
                   disabled
                 />
+              </td> */}
+
+              {/* EMPTY RETURNABLES */}
+              <td className="border border-gray-200 py-1 px-1">
+                <input
+                  type="number"
+                  className="w-full p-1 text-sm text-center bg-gray-100"
+                  value={row.expectedReturnShellEmpty ?? ""}
+                  disabled={n(row.shellPrice) === 0 && n(row.bottlePrice) === 0} // disable if non-returnable
+                />
               </td>
+              <td className="border border-gray-200 py-1 px-1">
+                <input
+                  type="number"
+                  className="w-full p-1 text-sm text-center bg-gray-100"
+                  value={row.expectedReturnPcsEmpty ?? ""}
+                  disabled={n(row.shellPrice) === 0 && n(row.bottlePrice) === 0} // disable if non-returnable
+                />
+              </td>
+
+
 
               {/* RETURN & DISCREPANCY FIELDS */}
               {[
