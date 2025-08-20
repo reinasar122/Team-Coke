@@ -376,22 +376,41 @@ body {
   justify-content: center;
   width: 34px;
   height: 34px;
-  border-radius: 10px;
-  border: 1px solid var(--border);
   background: var(--surface);
   color: var(--text);
-  box-shadow: var(--shadow);
   transition: transform 80ms ease, background 120ms ease, color 120ms ease;
 
   &:hover { transform: translateY(-1px); }
 }
 
-.icon-btn-primary { color: var(--primary); }
-.icon-btn-primary:hover { background: var(--ghost-hover); }
+/* 👁️ View button (FaEye) */
+.icon-btn-view {
+  color: var(--primary);   /* keep your blue */
+  background: #fff;        /* white background */
 
-.icon-btn-danger { color: var(--danger); }
-.icon-btn-danger:hover { background: var(--ghost-hover); }
+  &:hover {
+    background: var(--primary);
+    color: #fff;           /* icon turns white on hover */
+  }
+}
 
+/* 🟦 Primary (default blue icon) */
+.icon-btn-primary {
+  color: var(--primary);
+}
+.icon-btn-primary:hover {
+  background: var(--ghost-hover);
+}
+
+/* 🟥 Danger (delete) */
+.icon-btn-danger {
+  color: var(--danger);
+}
+.icon-btn-danger:hover {
+  background: var(--ghost-hover);
+}
+
+/* ⛔ Disabled */
 .icon-btn-disabled {
   color: var(--text-muted);
   opacity: 0.6;
