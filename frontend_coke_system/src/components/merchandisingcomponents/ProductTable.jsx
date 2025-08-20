@@ -193,13 +193,17 @@ const ProductTable = ({
 
     if (f === "dispatchedShell") row.dispatchedPcs = Math.round(val * conversion);
     else if (f === "dispatchedPcs") row.dispatchedShell = (val / conversion).toFixed(2);
-    else if (f === "soldShell") row.soldPcs = Math.round(val * conversion);
-    else if (f === "soldPcs") row.soldShell = (val / conversion).toFixed(2);
+    // else if (f === "soldShell") row.soldPcs = Math.round(val * conversion);
+    // else if (f === "soldPcs") row.soldShell = (val / conversion).toFixed(2);
+    // Commented by Kath
     else if (f === "expectedReturnShellEmpty") row.expectedReturnPcsEmpty = Math.round(val * conversion);
     else if (f === "expectedReturnPcsEmpty") row.expectedReturnShellEmpty = (val / conversion).toFixed(2);
     else if (f === "expectedReturnShellNonempty") row.expectedReturnPcsNonempty = Math.round(val * conversion);
     else if (f === "expectedReturnPcsNonempty") row.expectedReturnShellNonempty = (val / conversion).toFixed(2);
 
+    //Kath
+    row.soldShell = row.dispatchedShell;
+    row.soldPcs = row.dispatchedPcs;
     // per-row Warehouse math
     const dispatchedPcs = n(row.dispatchedPcs);
     const soldPcs = n(row.soldPcs);
@@ -445,7 +449,7 @@ const ProductTable = ({
               </td>
 
               {/* SOLD */}
-              <td className="border border-gray-200 py-1 px-1">
+              {/* <td className="border border-gray-200 py-1 px-1">
                 <input
                   type="number"
                   disabled={!row.productId}
@@ -462,7 +466,26 @@ const ProductTable = ({
                   value={row.soldPcs ?? ""}
                   onChange={(e) => handleRowChange(index, "soldPcs", e.target.value)}
                 />
+              </td> */}
+
+              {/* SOLD */}
+              <td className="border border-gray-200 py-1 px-1">
+                <input
+                  type="number"
+                  disabled // user cannot edit
+                  className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+                  value={row.soldShell ?? ""}
+                />
               </td>
+              <td className="border border-gray-200 py-1 px-1">
+                <input
+                  type="number"
+                  disabled // user cannot edit
+                  className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+                  value={row.soldPcs ?? ""}
+                />
+              </td>
+
 
               {/* EMPTY PRICES */}
               <td className="border border-gray-200 py-1 px-1">
