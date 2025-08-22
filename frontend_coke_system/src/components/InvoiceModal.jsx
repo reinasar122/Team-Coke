@@ -85,6 +85,8 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
     totalActualRetrievedVL = 0,
     overallTotalVL = 0,
     grandTotalVL = 0,
+
+    transactionTypes = "", //Kath
   } = invoiceData;
 
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
@@ -340,11 +342,29 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
   };
 
   // ✅ Navigate to fresh sale
+  // const handleNewSale = () => {
+  //   onClose?.();
+  //   localStorage.removeItem("merchForm");
+  //   navigate("/merchandising-sale", { replace: true, state: { reset: true } });
+  // }; Kath
   const handleNewSale = () => {
     onClose?.();
     localStorage.removeItem("merchForm");
-    navigate("/merchandising-sale", { replace: true, state: { reset: true } });
+
+    // Make sure transactionTypes is an array before calling find
+    const warehouseType = Array.isArray(transactionTypes)
+      ? transactionTypes.find(tt => tt.name === "Warehouse")
+      : null;
+
+    navigate("/merchandising-sale", {
+      replace: true,
+      state: {
+        reset: true,
+        transactionTypeId: warehouseType?.id || ""
+      }
+    });
   };
+
 
   // ------- NEW: build payload for external PDF module -------
   const buildInvoicePdfPayload = () => ({

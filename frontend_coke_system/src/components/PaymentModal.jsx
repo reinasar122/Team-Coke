@@ -71,6 +71,7 @@ const PaymentModal = ({
   totalActualRetrievedVL = 0,
   overallTotalVL = 0,
   grandTotalVL = 0,
+  transactionTypes = "",//kath
 
 }) => {
   // ------------ hooks ------------
@@ -647,6 +648,7 @@ const PaymentModal = ({
 
       {showInvoiceModal && (
         <InvoiceModal
+          transactionTypes={transactionTypes} //kath
           onClose={() => {
             setShowInvoiceModal(false);
             if (typeof onClose === "function") onClose();

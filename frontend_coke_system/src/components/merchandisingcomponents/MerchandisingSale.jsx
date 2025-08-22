@@ -28,7 +28,11 @@ const MerchandisingSale = () => {
   const [editMode, setEditMode] = useState(false);
   const navigate = useNavigate();
   const [transactionDate, setTransactionDate] = useState(() => toDatetimeLocalValue());
-  const [transactionType, setTransactionType] = useState("");
+  //Kath: const [transactionType, setTransactionType] = useState("");
+  const location = useLocation();
+  const [transactionType, setTransactionType] = useState(
+      location.state?.transactionTypeId || "" // auto-set Warehouse if passed
+    );
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [mspNo, setMspNo] = useState("");
@@ -42,7 +46,7 @@ const MerchandisingSale = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
-  const location = useLocation();
+  
 
   //Kath
   const [stocks, setStocks] = useState([]);
@@ -308,6 +312,21 @@ const MerchandisingSale = () => {
         .catch(err => console.error("Failed to fetch vans:", err));
     }
   }, [selectedTransactionTypeName]);
+
+  //kath
+  useEffect(() => {
+    if (transactionType) {
+      const selected = transactionTypes.find(tt => tt.id === parseInt(transactionType, 10));
+      setSelectedTransactionTypeName(selected?.name || "");
+
+      // Debugging logs
+      console.log("useEffect triggered for transactionType change:");
+      console.log("transactionType:", transactionType);
+      console.log("transactionTypes array:", transactionTypes);
+      console.log("selected transaction type:", selected);
+    }
+  }, [transactionType, transactionTypes]);
+
 
   // ✅ Fetch users when currentWarehouse is set
   useEffect(() => {
@@ -715,6 +734,16 @@ const MerchandisingSale = () => {
                 }}
                 className="w-full rounded-md px-2 py-1 text-sm"
               >
+              {/* <select
+                value={transactionType}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  const selected = transactionTypes.find(tt => String(tt.id) === selectedId);
+                  setTransactionType(selectedId);
+                  setSelectedTransactionTypeName(selected?.name || "");
+                }}
+                className="w-full rounded-md px-2 py-1 text-sm"
+              > */}
                 <option value="">-- Select Transaction Type --</option>
                 {transactionTypes.map((type) => (
                   <option key={type.id} value={type.id}>
@@ -989,6 +1018,7 @@ const MerchandisingSale = () => {
         onSave={handleSubmit}
         transactionDate={transactionDate}
         transactionTypeName={selectedTransactionTypeName}
+        transactionTypes={transactionTypes}//kath
       />
     </div>
   );

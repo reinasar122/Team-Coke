@@ -24,6 +24,9 @@ const ProductTable = ({
   discrepancy,
   totalAmount,
 }) => {
+  // at top of ProductTable.jsx
+  const dbg = (...args) => console.log("%c[MerchSale]", "color:#0aa;font-weight:700", ...args);
+
   const [pricingMap, setPricingMap] = useState({});
   const [availableStock, setAvailableStock] = useState({});
   const [unitTypes, setUnitTypes] = useState([]);
@@ -170,14 +173,43 @@ const ProductTable = ({
     }
   };
 
+  const isMissing = v => v == null || v === "";
+
   const handleRowChange = (index, field, value) => {
     const updated = [...rows];
     const row = { ...updated[index] };
 
     row[field] = value;
 
-    // resolve product/conversion/price for this row
-    const product = products.find((p) => p.id === parseInt(row.productId, 10));
+    // ---- Resolve selected product
+    const productId = Number(row.productId);
+    const product = products.find(p => p.id === productId);
+
+    // 👉 If no product yet and the change isn't selecting one, just store and exit.
+    if (!product && field !== "productId") {
+      updated[index] = row;
+      setRows(updated);
+      return;
+    }
+
+    // when product is picked, initialize empty prices
+    if (field === "productId" && product) {
+      const shell = Number(product?.price?.shell_price ?? 0);
+      const bottle = Number(product?.price?.bottle_price ?? 0);
+      const isReturnable = product?.returnable === true || shell > 0 || bottle > 0;
+      row.shellPrice  = isReturnable ? shell  : 0;
+      row.bottlePrice = isReturnable ? bottle : 0;
+
+      if (!isReturnable) {
+        row.expectedReturnShellEmpty = 0;
+        row.expectedReturnPcsEmpty   = 0;
+        row.discrepancyShellEmpty    = 0;
+        row.discrepancyPcsEmpty      = 0;
+      }
+    }
+
+    // ---- Rest of your existing logic...
+    const n = (v) => parseFloat(v) || 0;
     const conversion = n(product?.unit_type?.content_no || row.conversion || 1);
     const price =
       n(row.unitPrice) ||
@@ -187,70 +219,46 @@ const ProductTable = ({
     row.unitPrice = price;
     row.conversion = conversion;
 
-    // sync PCS ↔ Shell conversions
     const f = field;
     const val = n(value);
-
     if (f === "dispatchedShell") row.dispatchedPcs = Math.round(val * conversion);
     else if (f === "dispatchedPcs") row.dispatchedShell = (val / conversion).toFixed(2);
-    // else if (f === "soldShell") row.soldPcs = Math.round(val * conversion);
-    // else if (f === "soldPcs") row.soldShell = (val / conversion).toFixed(2);
-    // Commented by Kath
     else if (f === "expectedReturnShellEmpty") row.expectedReturnPcsEmpty = Math.round(val * conversion);
     else if (f === "expectedReturnPcsEmpty") row.expectedReturnShellEmpty = (val / conversion).toFixed(2);
     else if (f === "expectedReturnShellNonempty") row.expectedReturnPcsNonempty = Math.round(val * conversion);
     else if (f === "expectedReturnPcsNonempty") row.expectedReturnShellNonempty = (val / conversion).toFixed(2);
 
-    //Kath
     row.soldShell = row.dispatchedShell;
     row.soldPcs = row.dispatchedPcs;
-    // per-row Warehouse math
+
     const dispatchedPcs = n(row.dispatchedPcs);
     const soldPcs = n(row.soldPcs);
     const soldShell = n(row.soldShell);
-
-    const discountPercent = n(row.discount); // stored as % in UI
+    const discountPercent = n(row.discount);
     const discountAmt = (price * soldPcs * discountPercent) / 100;
 
     row.expectedSale = Number((price * dispatchedPcs).toFixed(2));
     row.actualSale = Number((price * soldPcs - discountAmt).toFixed(2));
     row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
 
-    // empties discrepancy (returnable vs non-returnable)
     const returnedEmptyShell = n(row.expectedReturnShellEmpty);
     const returnedEmptyPcs = n(row.expectedReturnPcsEmpty);
-
-    // Kath: const isNonReturnable = n(row.shellPrice) === 0 && n(row.bottlePrice) === 0;
-    // if (isNonReturnable) {
-    //   row.expectedReturnShellEmpty = 0;
-    //   row.expectedReturnPcsEmpty = 0;
-    //   row.discrepancyShellEmpty = 0;
-    //   row.discrepancyPcsEmpty = 0;
-    // } else {
-    //   row.discrepancyPcsEmpty = soldPcs - returnedEmptyPcs;
-    //   row.discrepancyShellEmpty = soldShell - returnedEmptyShell;
-    // }
-
-    // Detect non-returnable product
     const isNonReturnable = n(row.shellPrice) === 0 && n(row.bottlePrice) === 0;
 
     if (isNonReturnable) {
-      // Automatically set empty returns and discrepancies to 0
       row.expectedReturnShellEmpty = 0;
       row.expectedReturnPcsEmpty = 0;
       row.discrepancyShellEmpty = 0;
       row.discrepancyPcsEmpty = 0;
     } else {
-      // normal calculation for returnable products
       row.discrepancyPcsEmpty = soldPcs - returnedEmptyPcs;
       row.discrepancyShellEmpty = soldShell - returnedEmptyShell;
     }
 
-    // returned with content (non-empty) – if you use these, keep the auto-fill
     const dispatchedShell = n(row.dispatchedShell);
-    let returnedWithContentPcs =
+    const returnedWithContentPcs =
       f === "expectedReturnPcsNonempty" ? val : n(row.expectedReturnPcsNonempty || dispatchedPcs - soldPcs);
-    let returnedWithContentShell =
+    const returnedWithContentShell =
       f === "expectedReturnShellNonempty" ? val : n(row.expectedReturnShellNonempty || dispatchedShell - soldShell);
 
     if (f !== "expectedReturnPcsNonempty") row.expectedReturnPcsNonempty = dispatchedPcs - soldPcs;
@@ -262,6 +270,8 @@ const ProductTable = ({
     updated[index] = row;
     setRows(updated);
   };
+
+
 
   const handleRemoveRow = (rowIndex) => {
     const updatedRows = rows.filter((_, idx) => idx !== rowIndex);
@@ -369,6 +379,94 @@ const ProductTable = ({
     setTotalAmount,
   ]);
 
+
+  // Kath: This facility is used to check console.logs in table area
+  useEffect(() => {
+    if (!products?.length) return;
+
+    setRows((prev) => {
+      let touched = false;
+      const next = prev.map((r, i) => {
+        if (!r.productId) return r;
+        const prod = products.find((p) => p.id === Number(r.productId));
+        if (!prod) return r;
+
+        const needShell  = r.shellPrice  == null; // don't overwrite 0
+        const needBottle = r.bottlePrice == null;
+
+        if (!needShell && !needBottle) return r;
+
+        const shellFromProd  = Number(prod?.price?.shell_price ?? 0);
+        const bottleFromProd = Number(prod?.price?.bottle_price ?? 0);
+        const isReturnable = prod?.returnable === true || shellFromProd > 0 || bottleFromProd > 0;
+
+        const patched = {
+          ...r,
+          shellPrice:  needShell  ? (isReturnable ? shellFromProd  : 0) : r.shellPrice,
+          bottlePrice: needBottle ? (isReturnable ? bottleFromProd : 0) : r.bottlePrice,
+          ...(isReturnable
+            ? {}
+            : {
+                expectedReturnShellEmpty: 0,
+                expectedReturnPcsEmpty: 0,
+                discrepancyShellEmpty: 0,
+                discrepancyPcsEmpty: 0,
+              }),
+        };
+
+        dbg("hydrate from products", {
+          rowIndex: i,
+          productId: r.productId,
+          productName: prod?.product_name || prod?.name,
+          shellFromProd,
+          bottleFromProd,
+          isReturnable,
+          result: { shellPrice: patched.shellPrice, bottlePrice: patched.bottlePrice },
+        });
+
+        touched = true;
+        return patched;
+      });
+
+      if (!touched) dbg("hydrate from products: nothing to patch");
+      return next;
+    });
+  }, [products, setRows]);
+
+  useEffect(() => {
+    const table = rows.map((r, i) => {
+      const prod = products.find(p => p.id === Number(r.productId));
+      const fromRowShell   = r.shellPrice;
+      const fromProdShell  = prod?.price?.shell_price ?? null;
+      const displayShell   =
+        (fromRowShell === "" || fromRowShell == null) ? (fromProdShell ?? 0) : fromRowShell;
+
+      const fromRowBottle  = r.bottlePrice;
+      const fromProdBottle = prod?.price?.bottle_price ?? null;
+      const displayBottle  =
+        (fromRowBottle === "" || fromRowBottle == null) ? (fromProdBottle ?? 0) : fromRowBottle;
+
+      return {
+        row: i,
+        productId: r.productId ?? null,
+        productName: prod?.product_name || prod?.name || null,
+        rowShellPrice: fromRowShell,
+        prodShellPrice: fromProdShell,
+        displayShell,
+        rowBottlePrice: fromRowBottle,
+        prodBottlePrice: fromProdBottle,
+        displayBottle,
+        reasonShell: (fromRowShell === "" ? "rowShell is empty string" :
+                      fromRowShell == null ? "rowShell is null/undefined" :
+                      "rowShell used"),
+      };
+    });
+    console.table(table);
+  }, [rows, products]);
+  // Kath: This facility is used to check console.logs in table area
+
+
+
   // -------------------- Render --------------------
   return (
     <div className="overflow-x-auto mt-6">
@@ -409,7 +507,13 @@ const ProductTable = ({
         </thead>
 
         <tbody>
-          {rows.map((row, index) => (
+          {rows.map((row, index) => {
+            const productId = Number(row.productId);
+            const product = products.find(p => p.id === productId);
+            const hasProduct = !!product;
+            const isMissing = (v) => v == null || v === "";
+            
+            return (
             <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
               {/* PRODUCT SELECT */}
               <td className="border border-gray-200 py-1 px-1 w-[120px]">
@@ -503,11 +607,20 @@ const ProductTable = ({
 
 
               {/* EMPTY PRICES */}
-              {/* <td className="border border-gray-200 py-1 px-1">
+              <td className="border border-gray-200 py-1 px-1">
                 <input
                   type="number"
                   className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={row.shellPrice ?? ""}
+                  // value={
+                  //   (row.shellPrice === "" || row.shellPrice == null)
+                  //     ? (products.find(p => p.id === Number(row.productId))?.price?.shell_price ?? 0)
+                  //     : row.shellPrice
+                  // }
+                  value={
+                    !hasProduct
+                      ? "" // ⬅️ blank before selection
+                      : (isMissing(row.shellPrice) ? (product?.price?.shell_price ?? 0) : row.shellPrice)
+                  }
                   disabled
                 />
               </td>
@@ -515,29 +628,19 @@ const ProductTable = ({
                 <input
                   type="number"
                   className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={row.bottlePrice ?? ""}
+                  // value={
+                  //   (row.bottlePrice === "" || row.bottlePrice == null)
+                  //     ? (products.find(p => p.id === Number(row.productId))?.price?.bottle_price ?? 0)
+                  //     : row.bottlePrice
+                  // }
+                  value={
+                    !hasProduct
+                      ? ""
+                      : (isMissing(row.bottlePrice) ? (product?.price?.bottle_price ?? 0) : row.bottlePrice)
+                  }
                   disabled
                 />
-              </td> */}
-
-              {/* EMPTY RETURNABLES */}
-              <td className="border border-gray-200 py-1 px-1">
-                <input
-                  type="number"
-                  className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={row.expectedReturnShellEmpty ?? ""}
-                  disabled={n(row.shellPrice) === 0 && n(row.bottlePrice) === 0} // disable if non-returnable
-                />
               </td>
-              <td className="border border-gray-200 py-1 px-1">
-                <input
-                  type="number"
-                  className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={row.expectedReturnPcsEmpty ?? ""}
-                  disabled={n(row.shellPrice) === 0 && n(row.bottlePrice) === 0} // disable if non-returnable
-                />
-              </td>
-
 
 
               {/* RETURN & DISCREPANCY FIELDS */}
@@ -615,7 +718,7 @@ const ProductTable = ({
                 )}
               </td>
             </tr>
-          ))}
+          )})}
 
           {/* TOTAL ROW */}
           <tr className="bg-blue-100 font-semibold text-[13px] text-right">
