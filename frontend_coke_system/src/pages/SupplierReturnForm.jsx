@@ -1,3 +1,4 @@
+// SupplierReturnForm.js - Updated with date/time fixes
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -9,12 +10,18 @@ const SupplierReturnForm = () => {
   const [pricing, setPricing] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
-  // Returns local date & time in YYYY-MM-DDTHH:MM format
+  // Returns local date & time in YYYY-MM-DDTHH:MM format - FIXED
   const getLocalDateTime = () => {
     const now = new Date();
-    const offset = now.getTimezoneOffset() * 60000;
-    const localISOTime = new Date(now.getTime() - offset).toISOString().slice(0, 16);
-    return localISOTime;
+    // Get local date and time components
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    
+    // Return in YYYY-MM-DDTHH:MM format for datetime-local input
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
   const generateRandomCode = () => {
@@ -44,8 +51,6 @@ const SupplierReturnForm = () => {
     }],
   });
 
-  // Store the original return empties data for processing
-  const [originalReturnEmpties, setOriginalReturnEmpties] = useState([]);
   // Store ALL merchandising items that contributed to the supplier return
   const [merchandisingItemsToClean, setMerchandisingItemsToClean] = useState([]);
 
@@ -84,8 +89,14 @@ const SupplierReturnForm = () => {
       if (Array.isArray(merchandisingData)) {
         merchandisingData.forEach(merchandising => {
           // Check for both "Complete" and "COMPLETE" status (warehouse and van load transactions)
-          if ((merchandising.status === "Complete" || merchandising.status === "COMPLETE") && merchandising.items) {
-            console.log(`📋 Processing ${merchandising.status} transaction: ${merchandising.msp_no}`);
+          // AND ensure merchandising belongs to current warehouse
+          const belongsToCurrentWarehouse = !currentWarehouse?.id || 
+            String(merchandising.warehouse_id) === String(currentWarehouse.id) ||
+            String(merchandising.warehouse) === String(currentWarehouse.id);
+            
+          if ((merchandising.status === "Complete" || merchandising.status === "COMPLETE") && 
+              merchandising.items && belongsToCurrentWarehouse) {
+            console.log(`📋 Processing ${merchandising.status} transaction: ${merchandising.msp_no} from warehouse: ${merchandising.warehouse_id || merchandising.warehouse}`);
             
             merchandising.items.forEach(item => {
               const emptyShell = item.empty_return_shell || 0;
@@ -169,7 +180,9 @@ const SupplierReturnForm = () => {
               }
             });
           } else {
-            console.log(`⏭️ Skipping transaction with status: ${merchandising.status} (MSP: ${merchandising.msp_no})`);
+            const warehouseInfo = merchandising.warehouse_id || merchandising.warehouse || 'unknown';
+            const statusInfo = merchandising.status || 'unknown';
+            console.log(`⏭️ Skipping transaction - Status: ${statusInfo}, Warehouse: ${warehouseInfo}, Current warehouse: ${currentWarehouse?.id} (MSP: ${merchandising.msp_no})`);
           }
         });
       }
@@ -178,7 +191,6 @@ const SupplierReturnForm = () => {
       console.log("📋 Items to clean after return:", itemsToClean);
       
       // Store the data for later processing
-      setOriginalReturnEmpties(emptyReturns);
       setMerchandisingItemsToClean(itemsToClean);
       
       return emptyReturns;
@@ -211,7 +223,6 @@ const SupplierReturnForm = () => {
         }],
         total_amount: 0
       }));
-      setOriginalReturnEmpties([]);
       setMerchandisingItemsToClean([]);
       return;
     }
@@ -317,7 +328,6 @@ const SupplierReturnForm = () => {
         }],
         total_amount: 0
       }));
-      setOriginalReturnEmpties([]);
       setMerchandisingItemsToClean([]);
     }
   }, [currentWarehouse, fetchReturnEmpties, populateTableWithReturnEmpties]);
@@ -380,7 +390,6 @@ const SupplierReturnForm = () => {
         }],
         total_amount: 0
       }));
-      setOriginalReturnEmpties([]);
       setMerchandisingItemsToClean([]);
     };
 
@@ -638,12 +647,15 @@ const SupplierReturnForm = () => {
     try {
       console.log("💾 Saving supplier return form...");
       
+      // FIXED: Ensure date is saved correctly with timezone info
+      const formattedDate = form.date ? new Date(form.date).toISOString() : new Date().toISOString();
+      
       // Save the supplier return form
       const response = await axios.post("http://localhost:8080/api/supplier-return-form/", {
         sup_no: form.sup_no,
         supplier: form.supplier,
         warehouse: currentWarehouse.id,
-        date: form.date,
+        date: formattedDate, // Use properly formatted date
         total_amount: totalAmount,
         items: filteredItems,
         auto_remove_empties: true
@@ -738,26 +750,11 @@ const SupplierReturnForm = () => {
           {/* Warehouse Display */}
           <div className="bg-blue-50 px-4 py-2 rounded-lg">
             <span className="text-blue-800 font-medium">
-              📍 Warehouse: {currentWarehouse?.name || 'No warehouse selected'}
+              {currentWarehouse?.name || "No Warehouse Selected"}
             </span>
           </div>
         </div>
         
-        {(originalReturnEmpties.length > 0 || merchandisingItemsToClean.length > 0) && (
-          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-            <p className="text-blue-800 text-sm">
-              <strong>🔄 Processing data cleanup for {currentWarehouse?.name}:</strong>
-              <br />
-              {originalReturnEmpties.length > 0 && `• ${originalReturnEmpties.length} return empty entries from merchandising`}
-              <br />
-              {merchandisingItemsToClean.length > 0 && `• ${merchandisingItemsToClean.length} merchandising items will be cleared (empty returns set to 0)`}
-              <br />
-              • Corresponding returnable stock entries will also be removed/updated
-              <br />
-              When saved, all related data will be properly cleaned up from both systems.
-            </p>
-          </div>
-        )}
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>

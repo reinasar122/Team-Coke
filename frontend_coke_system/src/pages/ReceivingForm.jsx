@@ -414,7 +414,7 @@ const ReceivingForm = () => {
     });
   }, []);
 
-  // Fetch supplier returns from API (filtered by warehouse)
+  // FIXED: Fetch supplier returns from API (filtered by warehouse AND supplier)
   const fetchSupplierReturns = useCallback(async (supplierId) => {
     if (!currentWarehouse?.id || !supplierId) return;
     
@@ -425,17 +425,23 @@ const ReceivingForm = () => {
     setError("");
     
     try {
-      console.log("🔄 Fetching returns for supplier:", supplierId, "in warehouse:", currentWarehouse.name);
+      console.log("🔄 Fetching returns for supplier:", supplierId, "in warehouse:", currentWarehouse.name, "ID:", currentWarehouse.id);
       
       const config = getAxiosConfig();
       const response = await axios.get("http://localhost:8080/api/supplier-return-form/", config);
-      console.log("📊 All supplier returns for warehouse:", response.data);
+      console.log("📊 All supplier returns received:", response.data);
       
-      const filteredReturns = response.data.filter(returnItem => 
-        String(returnItem.supplier) === String(supplierId)
-      );
+      // FIXED: Filter by BOTH supplier AND warehouse
+      const filteredReturns = response.data.filter(returnItem => {
+        const supplierMatch = String(returnItem.supplier) === String(supplierId);
+        const warehouseMatch = String(returnItem.warehouse || returnItem.warehouse_id) === String(currentWarehouse.id);
+        
+        console.log(`🔍 Checking return ${returnItem.sup_no}: Supplier match: ${supplierMatch} (${returnItem.supplier} === ${supplierId}), Warehouse match: ${warehouseMatch} (${returnItem.warehouse || returnItem.warehouse_id} === ${currentWarehouse.id})`);
+        
+        return supplierMatch && warehouseMatch;
+      });
       
-      console.log("🎯 Filtered returns for supplier", supplierId, ":", filteredReturns);
+      console.log("🎯 Filtered returns for supplier", supplierId, "in warehouse", currentWarehouse.name, ":", filteredReturns);
       
       if (filteredReturns.length > 0) {
         setSupplierReturns(filteredReturns);
@@ -446,6 +452,7 @@ const ReceivingForm = () => {
         console.log("💰 Total return amount calculated:", totalReturnAmount);
         updateFormWithReturnAmount(totalReturnAmount);
       } else {
+        console.log("ℹ️ No supplier returns found for supplier", supplierId, "in warehouse", currentWarehouse.name);
         setSupplierReturns([]);
         updateFormWithReturnAmount(0);
       }
@@ -472,7 +479,7 @@ const ReceivingForm = () => {
     }
   }, [form.supplier, currentWarehouse?.id, fetchSupplierReturns, updateFormWithReturnAmount]);
 
-  // Function to remove supplier returns after receiving is processed
+  // FIXED: Function to remove supplier returns after receiving is processed
   const removeProcessedSupplierReturns = useCallback(async (supplierId) => {
     if (!currentWarehouse?.id) return 0;
     
@@ -481,17 +488,24 @@ const ReceivingForm = () => {
       
       const config = getAxiosConfig();
       const response = await axios.get("http://localhost:8080/api/supplier-return-form/", config);
-      const supplierReturns = response.data.filter(returnItem => 
-        String(returnItem.supplier) === String(supplierId)
-      );
       
-      console.log("📋 Found supplier returns to process:", supplierReturns);
+      // FIXED: Filter by BOTH supplier AND warehouse before removing
+      const supplierReturns = response.data.filter(returnItem => {
+        const supplierMatch = String(returnItem.supplier) === String(supplierId);
+        const warehouseMatch = String(returnItem.warehouse || returnItem.warehouse_id) === String(currentWarehouse.id);
+        
+        console.log(`🔍 Return to process: ${returnItem.sup_no}, Supplier match: ${supplierMatch}, Warehouse match: ${warehouseMatch}`);
+        
+        return supplierMatch && warehouseMatch;
+      });
+      
+      console.log("📋 Found supplier returns to process for current warehouse:", supplierReturns);
       
       let deletedCount = 0;
       
       for (const returnItem of supplierReturns) {
         try {
-          console.log(`🗑️ Removing processed supplier return: ${returnItem.sup_no} (ID: ${returnItem.id})`);
+          console.log(`🗑️ Removing processed supplier return: ${returnItem.sup_no} (ID: ${returnItem.id}) from warehouse ${currentWarehouse.name}`);
           await axios.delete(`http://localhost:8080/api/supplier-return-form/${returnItem.id}/`, config);
           console.log(`✅ Successfully removed return: ${returnItem.sup_no}`);
           deletedCount++;
@@ -500,7 +514,7 @@ const ReceivingForm = () => {
         }
       }
       
-      console.log(`🏁 Finished removing processed supplier returns. Removed ${deletedCount} returns.`);
+      console.log(`🏁 Finished removing processed supplier returns from ${currentWarehouse.name}. Removed ${deletedCount} returns.`);
       
       return deletedCount;
     } catch (error) {
@@ -733,7 +747,7 @@ const ReceivingForm = () => {
             ))}
           </select>
           {isLoadingReturns && (
-            <p className="text-blue-600 text-sm mt-1">Loading supplier returns...</p>
+            <p className="text-blue-600 text-sm mt-1">Loading supplier returns for {currentWarehouse.name}...</p>
           )}
           {form.supplier && filteredProducts.length > 0 && (
             <p className="text-green-600 text-sm mt-1">
@@ -772,7 +786,7 @@ const ReceivingForm = () => {
             <label className="block text-gray-600 font-semibold mb-2">
               Return Total Amount:
               {supplierReturns.length > 0 && (
-                <span className="ml-2 text-sm text-blue-600">({supplierReturns.length} returns)</span>
+                <span className="ml-2 text-sm text-blue-600">({supplierReturns.length} returns from {currentWarehouse.name})</span>
               )}
             </label>
             <div className="relative">
@@ -803,7 +817,9 @@ const ReceivingForm = () => {
       {/* Return Details Section (shown only when returns exist) */}
       {supplierReturns.length > 0 && (
         <div className="bg-red-50 p-6 rounded-xl border border-red-200 shadow-sm">
-          <h3 className="text-lg font-semibold text-red-700 mb-4">Supplier Return Details (Will be processed)</h3>
+          <h3 className="text-lg font-semibold text-red-700 mb-4">
+            Supplier Return Details from {currentWarehouse.name} (Will be processed)
+          </h3>
           <div className="overflow-x-auto mt-2">
             <table className="w-full rounded-xl border-collapse shadow-sm">
               <thead className="bg-red-700 text-white">
@@ -840,7 +856,7 @@ const ReceivingForm = () => {
             </table>
           </div>
           <p className="text-sm text-red-600 mt-2">
-            ⚠️ Note: These supplier returns will be automatically removed when this receiving is saved, 
+            ⚠️ Note: These supplier returns from {currentWarehouse.name} will be automatically removed when this receiving is saved, 
             as they represent empty returns that are being processed through this receiving.
           </p>
         </div>

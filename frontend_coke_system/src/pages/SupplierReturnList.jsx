@@ -1,4 +1,4 @@
-// SupplierReturnList.js - Updated with warehouse filtering
+// SupplierReturnList.js - Updated with date/time fixes
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -92,64 +92,40 @@ const SupplierReturnList = () => {
     };
   }, []);
 
-  // ✅ COMPLETELY FIXED helper function to format date correctly
+  // ✅ FIXED helper function to format date correctly
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     
     try {
       console.log("Original date string from server:", dateString);
       
-      // Handle different date string formats
-      let date;
+      // Create date object from the string
+      const date = new Date(dateString);
       
-      if (dateString.includes('T')) {
-        // This is an ISO-like datetime string
-        // Remove any timezone info and treat as local time
-        let cleanDateString = dateString;
-        
-        // Remove Z, +XX:XX, or -XX:XX timezone suffixes
-        cleanDateString = cleanDateString.replace(/Z$/, '');
-        cleanDateString = cleanDateString.replace(/[+-]\d{2}:\d{2}$/, '');
-        
-        // If it doesn't have seconds, add them
-        if (cleanDateString.match(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/)) {
-          cleanDateString += ':00';
-        }
-        
-        console.log("Cleaned date string:", cleanDateString);
-        
-        // Parse as local datetime by manually creating the date
-        const parts = cleanDateString.split('T');
-        const dateParts = parts[0].split('-');
-        const timeParts = parts[1].split(':');
-        
-        // Create date using local timezone (month is 0-based)
-        date = new Date(
-          parseInt(dateParts[0]),     // year
-          parseInt(dateParts[1]) - 1, // month (0-based)
-          parseInt(dateParts[2]),     // day
-          parseInt(timeParts[0]),     // hour
-          parseInt(timeParts[1]),     // minute
-          parseInt(timeParts[2] || 0) // second
-        );
-      } else {
-        // Fallback for other formats
-        date = new Date(dateString);
+      // Check if the date is valid
+      if (isNaN(date.getTime())) {
+        console.error("Invalid date string:", dateString);
+        return "Invalid Date";
       }
       
       console.log("Parsed date object:", date);
-      console.log("Formatted time:", date.toLocaleString("en-PH"));
       
-      return date.toLocaleString("en-PH", {
+      // Format using Philippine locale and timezone
+      const formattedDate = date.toLocaleString("en-PH", {
         year: "numeric",
-        month: "2-digit",
+        month: "2-digit", 
         day: "2-digit",
         hour: "2-digit",
         minute: "2-digit",
         hour12: true,
+        timeZone: "Asia/Manila" // Explicitly set Philippine timezone
       });
+      
+      console.log("Formatted date:", formattedDate);
+      return formattedDate;
+      
     } catch (error) {
-      console.error("Error formatting date:", error);
+      console.error("Error formatting date:", error, "for date string:", dateString);
       return "Invalid Date";
     }
   };
@@ -346,10 +322,6 @@ const SupplierReturnList = () => {
       {/* Header with warehouse display */}
       <div className="flex justify-between items-center mb-4">
         <div>
-          <h1 className="text-2xl font-bold">Supplier Returns</h1>
-          <p className="text-gray-600">
-            📍 Current Warehouse: <strong>{currentWarehouse?.name || 'No warehouse selected'}</strong>
-          </p>
         </div>
       </div>
 

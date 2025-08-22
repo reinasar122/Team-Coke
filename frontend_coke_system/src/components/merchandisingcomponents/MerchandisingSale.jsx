@@ -447,11 +447,11 @@ const MerchandisingSale = () => {
       }
     }
 
-    // ✅ Add customer validation for Warehouse transactions
-    if (selectedTransactionTypeName === "Warehouse" && !selectedCustomerId) {
-      showAlert("Please select a customer for Warehouse transactions.");
-      return false;
-    }
+    // // ✅ Add customer validation for Warehouse transactions
+    // if (selectedTransactionTypeName === "Warehouse" && !selectedCustomerId) {
+    //   showAlert("Please select a customer for Warehouse transactions.");
+    //   return false;
+    // }
 
     // ✅ Always include date_time for both transaction types
     const utcIso = new Date(transactionDate).toISOString();
@@ -528,6 +528,7 @@ const MerchandisingSale = () => {
           base.sold_pcs = nz(row.soldPcs);
           base.sold_shell = nz(row.soldShell);
           base.empty_return_pcs = nz(row.expectedReturnPcsEmpty);
+          base.empty_return_shell = nz(row.expectedReturnShellEmpty); // ✅ FIXED: Add missing shell returns
         }
         return base;
       }),

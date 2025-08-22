@@ -173,7 +173,7 @@ const ProductTable = ({
     }
   };
 
-  const isMissing = v => v == null || v === "";
+  //const isMissing = v => v == null || v === "";
 
   const handleRowChange = (index, field, value) => {
     const updated = [...rows];
@@ -207,8 +207,7 @@ const ProductTable = ({
         row.discrepancyPcsEmpty      = 0;
       }
     }
-
-    // ---- Rest of your existing logic...
+    
     const n = (v) => parseFloat(v) || 0;
     const conversion = n(product?.unit_type?.content_no || row.conversion || 1);
     const price =
