@@ -46,6 +46,7 @@ const MerchandisingSale = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
+
   
 
   //Kath
@@ -879,7 +880,7 @@ const MerchandisingSale = () => {
                         {c.name}
                       </option>
                     ))}
-                    <option value="add_new">+ Add New Customer</option>
+                    <option value="add_new">+ New Customer</option>
                   </select>
                 )}
               </div>
@@ -980,7 +981,7 @@ const MerchandisingSale = () => {
                           {r.route_name}
                         </option>
                       ))}
-                      <option value="add_new">+ Add New Route</option>
+                      <option value="add_new">+ New Route</option>
                     </select>
                   )}
                 </div>
