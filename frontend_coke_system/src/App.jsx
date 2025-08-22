@@ -50,6 +50,10 @@ import ReturnEmpties from "./pages/ReturnEmpties";
 import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 
 
+// Karen Changes
+import VanLoadProductDetails from "./pages/VanLoadProductDetails";
+
+
 // Credits
 import CreditList from "./pages/CreditList";
 import CreditDetail from "./pages/CreditDetail";
@@ -260,6 +264,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-otp" element={<VerifyOTP />} />
             <Route path="/expences" element={<Expences />} />
+
+            {/* Karen Changes */}  
+            <Route path="/van-load-update" element={<VanLoadUpdate />} />
+            <Route path="/van-load-product-details/:id" element={<VanLoadProductDetails />} />
+
             <Route path="/van-load-update" element={<VanLoadUpdate />} />
             <Route path="/supplier-returns" element={<SupplierReturnList />} />
             <Route path="/supplier-returns/new" element={<SupplierReturnForm />} />
