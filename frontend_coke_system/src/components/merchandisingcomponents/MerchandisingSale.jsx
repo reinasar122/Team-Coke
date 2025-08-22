@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef} from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProductTable from "./ProductTable";
@@ -50,7 +50,7 @@ const MerchandisingSale = () => {
 
   //Kath
   const [stocks, setStocks] = useState([]);
-
+  const initTxTypeOnce = useRef(false); // guard
 
   // ✅ Custom alert function since alert() is not supported
   const showAlert = (message) => {
@@ -85,9 +85,9 @@ const MerchandisingSale = () => {
           discrepancy: 0,
         },
       ]);
-      setMspNo("");
-      setTransactionType("");
-      setSelectedTransactionTypeName("");
+      //setMspNo(""); Commented By Kath || Do not reset MSP and Transaction Type 
+      //setTransactionType(""); Commented By Kath
+      //setSelectedTransactionTypeName(""); Commented By Kath
       setSelectedUser(null);
       setSelectedCustomerId("");
       setRoute("");
@@ -326,6 +326,38 @@ const MerchandisingSale = () => {
       console.log("selected transaction type:", selected);
     }
   }, [transactionType, transactionTypes]);
+
+   // After transactionTypes are fetched, pick the initial type
+  useEffect(() => {
+    if (initTxTypeOnce.current) return;
+    if (!transactionTypes || transactionTypes.length === 0) return;
+
+    // what invoice.jsx might have sent:
+    const fromStateId   = location.state?.transactionTypeId || location.state?.transactionType;
+    const fromStateName = location.state?.transactionTypeName || location.state?.selectedTransactionTypeName;
+
+    let chosen = null;
+
+    if (fromStateId) {
+      chosen = transactionTypes.find(tt => tt.id === Number(fromStateId));
+    }
+    if (!chosen && fromStateName) {
+      chosen = transactionTypes.find(tt =>
+        tt.name.toLowerCase() === String(fromStateName).toLowerCase()
+      );
+    }
+    // fallback: default to “Warehouse”, else first item
+    if (!chosen) {
+      chosen = transactionTypes.find(tt => tt.name.toLowerCase() === "warehouse") || transactionTypes[0];
+    }
+
+    if (chosen) {
+      setTransactionType(String(chosen.id));           // id
+      setSelectedTransactionTypeName(chosen.name);     // name
+      initTxTypeOnce.current = true;
+      console.log("🔧 Initialized transaction type:", chosen);
+    }
+  }, [transactionTypes, location.state, setTransactionType, setSelectedTransactionTypeName]);
 
 
   // ✅ Fetch users when currentWarehouse is set

@@ -235,7 +235,7 @@ const MerchandisingList = () => {
           onClick={handleCreateNew}
           className="bg-gray-400 text-black px-4 py-2 rounded hover:bg-gray-500 text-sm"
         >
-          + CREATE NEW SALE
+          + NEW SALE
         </button>
       </div>
 

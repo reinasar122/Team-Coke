@@ -363,7 +363,7 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
         transactionTypeId: warehouseType?.id || ""
       }
     });
-  };
+  }; //Kath
 
 
   // ------- NEW: build payload for external PDF module -------
