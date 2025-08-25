@@ -1,7 +1,10 @@
-// Updated ReceivingForm.jsx - Fixed warehouse filtering logic
+// Updated ReceivingForm.jsx - Fixed warehouse filtering logic + styling hooks
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+
+import "../styles/global.scss";
+import "../styles/pages/receivingform.scss";
 
 const ReceivingForm = () => {
   const navigate = useNavigate();
@@ -650,15 +653,18 @@ const ReceivingForm = () => {
     }
   };
 
-  const totalReceiving = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
+  const totalReceiving = form.details.reduce(
+    (sum, row) => sum + parseFloat(row.total || 0),
+    0
+  );
 
   if (isLoadingWarehouse) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading warehouse information...</p>
-          <p className="text-sm text-gray-500 mt-2">Mapping warehouse data...</p>
+          <p className="text-muted">Loading warehouse information...</p>
+          <p className="text-sm text-muted mt-2">Mapping warehouse data...</p>
         </div>
       </div>
     );
@@ -669,11 +675,13 @@ const ReceivingForm = () => {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center max-w-md">
           <div className="text-red-600 text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-red-600 mb-2">Warehouse Setup Required</h2>
-          <p className="text-gray-600 mb-4">{debugInfo}</p>
-          <button 
-            onClick={() => window.location.reload()} 
-            className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700"
+          <h2 className="text-xl font-bold text-red-600 mb-2">
+            Warehouse Setup Required
+          </h2>
+          <p className="text-muted mb-4">{debugInfo}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="btn btn-primary"
           >
             Retry
           </button>
@@ -683,8 +691,8 @@ const ReceivingForm = () => {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-[98%] mx-auto p-10 bg-white rounded-3xl shadow-lg space-y-10">
-      {/* Remove spinner for all number fields */}
+    <form onSubmit={handleSubmit} className="receiving-form">
+      {/* remove number spinners */}
       <style>{`
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button {
@@ -696,251 +704,295 @@ const ReceivingForm = () => {
         }
       `}</style>
 
-      {/* Enhanced Warehouse Info Header with Debug */}
-      <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-        <h3 className="text-lg font-semibold text-blue-800 mb-2">📦 Current Warehouse</h3>
-        <p className="text-blue-700">
-          All receiving data will be saved to: <strong>{currentWarehouse.name}</strong> (ID: {currentWarehouse.id})
+      {/* Warehouse Info */}
+      {/* <div className="warehouse-info">
+        <h3>📦 Current Warehouse</h3>
+        <p>
+          All receiving data will be saved to:{" "}
+          <strong>{currentWarehouse.name}</strong> (ID: {currentWarehouse.id})
         </p>
-        {debugInfo && (
-          <p className="text-xs text-gray-600 mt-1">🔍 Debug: {debugInfo}</p>
-        )}
-        <p className="text-xs text-gray-500 mt-1">🔍 User: {currentUserId} | Warehouse: {selectedWarehouseId}</p>
-      </div>
-      
+        {debugInfo && <p className="debug">🔍 Debug: {debugInfo}</p>}
+        <p className="debug">
+          🔍 User: {currentUserId} | Warehouse: {selectedWarehouseId}
+        </p>
+      </div> */}
+
       {error && (
-        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded mb-6">
+        <div className="error-box">
           <p className="font-bold">Error</p>
           <p>{error}</p>
         </div>
       )}
-      
+
+      {/* Basic Info */}
       <div className="grid md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-gray-600 font-semibold mb-2">Receiving No:</label>
-          <input type="text" value={receiveNo} readOnly className="w-full p-3 rounded-lg bg-gray-100 text-gray-800 font-bold border border-gray-300" />
+          <label className="form-label">Receiving No:</label>
+          <input type="text" value={receiveNo} readOnly className="form-input" />
         </div>
         <div>
-          <label className="block text-gray-600 font-semibold mb-2">Supplier:</label>
-          <select 
-            value={form.supplier} 
-            onChange={(e) => handleSupplierChange(e.target.value)} 
-            className="w-full p-3 rounded-lg bg-gray-100 border-gray-300"
+          <label className="form-label">Supplier:</label>
+          <select
+            value={form.supplier}
+            onChange={(e) => handleSupplierChange(e.target.value)}
+            className="form-input"
           >
             <option value="">Select Supplier</option>
             {suppliers.map((s) => (
-              <option key={s.id} value={s.id}>{s.company_name}</option>
+              <option key={s.id} value={s.id}>
+                {s.company_name}
+              </option>
             ))}
           </select>
           {isLoadingReturns && (
-            <p className="text-blue-600 text-sm mt-1">Loading supplier returns...</p>
+            <p className="text-primary text-sm mt-1">
+              Loading supplier returns...
+            </p>
           )}
           {form.supplier && filteredProducts.length > 0 && (
-            <p className="text-green-600 text-sm mt-1">
-              {filteredProducts.length} products available from this supplier in {currentWarehouse.name}
+            <p className="text-add text-sm mt-1">
+              {filteredProducts.length} products available from this supplier in{" "}
+              {currentWarehouse.name}
             </p>
           )}
-          {form.supplier && suppliers.length > 0 && filteredProducts.length === 0 && (
-            <p className="text-orange-600 text-sm mt-1">
-              No products found for this supplier in {currentWarehouse.name}
-            </p>
-          )}
+          {form.supplier &&
+            suppliers.length > 0 &&
+            filteredProducts.length === 0 && (
+              <p className="text-edit text-sm mt-1">
+                No products found for this supplier in {currentWarehouse.name}
+              </p>
+            )}
         </div>
         <div>
-          <label className="block text-gray-600 font-semibold mb-2">Invoice No:</label>
-          <input type="text" value={form.invoice_no} onChange={(e) => setForm({ ...form, invoice_no: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300" />
+          <label className="form-label">Invoice No:</label>
+          <input
+            type="text"
+            value={form.invoice_no}
+            onChange={(e) =>
+              setForm({ ...form, invoice_no: e.target.value })
+            }
+            className="form-input"
+          />
         </div>
       </div>
 
-      {/* Financial Summary Section */}
-      <div className="bg-gray-50 p-6 rounded-xl border border-gray-200 shadow-sm">
-        <h3 className="text-lg font-semibold text-gray-700 mb-4">Financial Summary</h3>
+      {/* Financial Summary */}
+      <div className="financial-summary">
+        <h3>Financial Summary</h3>
         <div className="grid md:grid-cols-3 gap-6">
           <div>
-            <label className="block text-gray-600 font-semibold mb-2">Total Receiving Amount:</label>
+            <label className="form-label">Total Receiving Amount:</label>
             <div className="relative">
-              <span className="absolute left-3 top-3 text-gray-500">₱</span>
+              <span className="currency">₱</span>
               <input
                 type="text"
                 value={parseFloat(totalReceiving || 0).toFixed(2)}
                 readOnly
-                className="w-full pl-8 p-3 rounded-lg bg-gray-100 text-gray-800 font-semibold"
+                className="form-input with-currency font-semibold"
               />
             </div>
           </div>
           <div>
-            <label className="block text-gray-600 font-semibold mb-2">
+            <label className="form-label">
               Return Total Amount:
               {supplierReturns.length > 0 && (
-                <span className="ml-2 text-sm text-blue-600">({supplierReturns.length} returns)</span>
+                <span className="ml-2 text-sm text-primary">
+                  ({supplierReturns.length} returns)
+                </span>
               )}
             </label>
             <div className="relative">
-              <span className="absolute left-3 top-3 text-gray-500">₱</span>
+              <span className="currency">₱</span>
               <input
                 type="text"
                 value={parseFloat(form.return_total_amount || 0).toFixed(2)}
                 readOnly
-                className={`w-full pl-8 p-3 rounded-lg bg-gray-100 ${parseFloat(form.return_total_amount) > 0 ? 'text-red-600' : 'text-gray-800'} font-semibold`}
+                className={`form-input with-currency font-semibold ${
+                  parseFloat(form.return_total_amount) > 0
+                    ? "text-danger"
+                    : "text"
+                }`}
               />
             </div>
           </div>
           <div>
-            <label className="block text-gray-600 font-semibold mb-2">Net Amount:</label>
+            <label className="form-label">Net Amount:</label>
             <div className="relative">
-              <span className="absolute left-3 top-3 text-gray-500">₱</span>
+              <span className="currency">₱</span>
               <input
                 type="text"
                 value={parseFloat(form.net_amount || 0).toFixed(2)}
                 readOnly
-                className="w-full pl-8 p-3 rounded-lg bg-gray-100 text-gray-800 font-bold"
+                className="form-input with-currency font-semibold"
               />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Return Details Section (shown only when returns exist) */}
+      {/* Supplier Returns */}
       {supplierReturns.length > 0 && (
-        <div className="bg-red-50 p-6 rounded-xl border border-red-200 shadow-sm">
-          <h3 className="text-lg font-semibold text-red-700 mb-4">Supplier Return Details (Will be processed)</h3>
+        <div className="supplier-returns">
+          <h3>Supplier Return Details (Will be processed)</h3>
           <div className="overflow-x-auto mt-2">
-            <table className="w-full rounded-xl border-collapse shadow-sm">
-              <thead className="bg-red-700 text-white">
+            <table className="table">
+              <thead>
                 <tr>
-                  <th className="p-2">Return Reference</th>
-                  <th className="p-2">Date</th>
-                  <th className="p-2">Amount</th>
+                  <th>Return Reference</th>
+                  <th>Date</th>
+                  <th>Amount</th>
                 </tr>
               </thead>
-              <tbody className="bg-white">
-                {supplierReturns.map((returnItem, index) => (
-                  <tr key={index} className="hover:bg-red-50">
-                    <td className="border-b p-2 text-center">
-                      {returnItem.sup_no || "N/A"}
+              <tbody>
+                {supplierReturns.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.sup_no || "N/A"}</td>
+                    <td>
+                      {r.date ? new Date(r.date).toLocaleDateString() : "N/A"}
                     </td>
-                    <td className="border-b p-2 text-center">
-                      {returnItem.date ? 
-                        new Date(returnItem.date).toLocaleDateString() : "N/A"}
-                    </td>
-                    <td className="border-b p-2 text-right font-semibold text-red-600">
-                      ₱{parseFloat(returnItem.total_amount || 0).toFixed(2)}
+                    <td className="text-danger font-semibold">
+                      ₱{parseFloat(r.total_amount || 0).toFixed(2)}
                     </td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-red-100">
+              <tfoot>
                 <tr>
-                  <td colSpan="2" className="p-2 text-right font-bold">Total Return Amount:</td>
-                  <td className="p-2 text-right font-bold text-red-600">
+                  <td colSpan="2" className="text-right font-bold">
+                    Total Return Amount:
+                  </td>
+                  <td className="text-right font-bold text-danger">
                     ₱{parseFloat(form.return_total_amount || 0).toFixed(2)}
                   </td>
                 </tr>
               </tfoot>
             </table>
           </div>
-          <p className="text-sm text-red-600 mt-2">
-            ⚠️ Note: These supplier returns will be automatically removed when this receiving is saved, 
-            as they represent empty returns that are being processed through this receiving.
-          </p>
         </div>
       )}
 
-      <div className="overflow-x-auto mt-8">
-        <table className="w-full rounded-xl border-collapse shadow-md">
-          <thead className="bg-[#0B1320] text-white">
-            <tr>
-              <th className="p-3">Product</th>
-              <th className="p-3">Shell</th>
-              <th className="p-3">PCS</th>
-              <th className="p-3">BAD ORDERS  (PCs)</th>
-              <th className="p-3">Unit Cost</th>
-              <th className="p-3">Total</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white">
-            {form.details.map((row, index) => (
-              <tr key={index} className="hover:bg-gray-50">
-                <td className="border-b p-2">
-                  <select 
-                    value={row.product_id || ""} 
-                    onChange={(e) => handleRowChange(index, "product_id", e.target.value)} 
-                    className="w-full p-2 rounded-lg bg-gray-100 border-gray-300"
-                    disabled={!form.supplier}
-                  >
-                    <option value="">
-                      {!form.supplier 
-                        ? "Select Supplier First" 
-                        : filteredProducts.length === 0 
-                          ? `No products from this supplier in ${currentWarehouse.name}`
-                          : `Select Product (${filteredProducts.length} available)`
-                      }
+      {/* Receiving Table */}
+    <div className="card">
+      <table className="table table-hover">
+        <thead>
+          <tr>
+            <th>Product</th>
+            <th>Shell</th>
+            <th>PCS</th>
+            <th>Bad Orders (PCS)</th>
+            <th>Unit Cost</th>
+            <th>Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          {form.details.map((row, index) => (
+            <tr key={index}>
+              <td>
+                <select
+                  value={row.product_id || ""}
+                  onChange={(e) =>
+                    handleRowChange(index, "product_id", e.target.value)
+                  }
+                  className="form-input"
+                  disabled={!form.supplier}
+                >
+                  <option value="">
+                    {!form.supplier
+                      ? "Select Supplier First"
+                      : filteredProducts.length === 0
+                      ? `No products from this supplier in ${currentWarehouse.name}`
+                      : `Select Product (${filteredProducts.length} available)`}
+                  </option>
+                  {filteredProducts.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.product_name}
                     </option>
-                    {filteredProducts.map((p) => (
-                      <option key={p.id} value={p.id}>{p.product_name}</option>
-                    ))}
-                  </select>
-                </td>
-                <td className="border-b p-2">
-                  <input
-                    type="number"
-                    disabled={!row.product_id}
-                    value={row.shell_qty || 0}
-                    onFocus={(e) => e.target.value === "0" ? e.target.value = "" : null}
-                    onBlur={(e) => e.target.value === "" ? e.target.value = 0 : null}
-                    onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
-                    className="w-full p-2 text-center rounded-lg bg-gray-100 border-gray-300 disabled:opacity-50"
-                  />
-                </td>
-                <td className="border-b p-2">
-                  <input 
-                    type="number" 
-                    value={row.pcs_qty || 0} 
-                    readOnly 
-                    disabled 
-                    className="w-full p-2 text-center rounded-lg bg-gray-100 text-gray-700" 
-                  />
-                </td>
-                <td className="border-b p-2">
-                  <input
-                    type="number"
-                    disabled={!row.product_id}
-                    value={row.bad_order_pcs || 0}
-                    onFocus={(e) => e.target.value === "0" ? e.target.value = "" : null}
-                    onBlur={(e) => e.target.value === "" ? e.target.value = 0 : null}
-                    onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
-                    className="w-full p-2 text-center rounded-lg bg-gray-100 border-gray-300 disabled:opacity-50"
-                  />
-                </td>
-                <td className="border-b p-2 text-right text-gray-700">₱{parseFloat(row.unit_cost || 0).toFixed(2)}</td>
-                <td className="border-b p-2 text-right font-bold text-gray-700">₱{parseFloat(row.total || 0).toFixed(2)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  ))}
+                </select>
+              </td>
+              <td>
+                <input
+                  type="number"
+                  disabled={!row.product_id}
+                  value={row.shell_qty || 0}
+                  onChange={(e) =>
+                    handleRowChange(index, "shell_qty", e.target.value)
+                  }
+                  className="form-input text-center"
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  value={row.pcs_qty || 0}
+                  readOnly
+                  disabled
+                  className="form-input text-center"
+                />
+              </td>
+              <td>
+                <input
+                  type="number"
+                  disabled={!row.product_id}
+                  value={row.bad_order_pcs || 0}
+                  onChange={(e) =>
+                    handleRowChange(index, "bad_order_pcs", e.target.value)
+                  }
+                  className="form-input text-center"
+                />
+              </td>
+              <td className="text-right">
+                ₱{parseFloat(row.unit_cost || 0).toFixed(2)}
+              </td>
+              <td className="text-right font-bold">
+                ₱{parseFloat(row.total || 0).toFixed(2)}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
 
+
+      {/* Footer */}
       <div className="grid md:grid-cols-2 gap-6 mt-10">
         <div>
-          <label className="block text-gray-600 font-semibold mb-2">Received By:</label>
-          <select value={form.received_by} onChange={(e) => setForm({ ...form, received_by: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300">
+          <label className="form-label">Received By:</label>
+          <select
+            value={form.received_by}
+            onChange={(e) =>
+              setForm({ ...form, received_by: e.target.value })
+            }
+            className="form-input"
+          >
             <option value="">Select user</option>
             {users.map((u) => (
-              <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+              <option key={u.id} value={u.id}>
+                {u.first_name} {u.last_name}
+              </option>
             ))}
           </select>
         </div>
         <div>
-          <label className="block text-gray-600 font-semibold mb-2">Remarks:</label>
-          <textarea rows="3" value={form.remarks} onChange={(e) => setForm({ ...form, remarks: e.target.value })} className="w-full p-3 rounded-lg bg-gray-100 border-gray-300" />
+          <label className="form-label">Remarks:</label>
+          <textarea
+            rows="3"
+            value={form.remarks}
+            onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+            className="form-input"
+          />
         </div>
       </div>
 
-      <div className="flex justify-end gap-4 mt-10">
-        <button type="button" onClick={() => navigate("/receiving")} className="px-6 py-3 bg-[#fb2222] hover:bg-[#ff3e3e] text-white rounded-full transition">
+      <div className="form-actions mt-10">
+        <button
+          type="button"
+          onClick={() => navigate("/receiving")}
+          className="btn btn-back"
+        >
           Cancel
         </button>
-        <button type="submit" className="px-6 py-3 bg-[#0B1320] hover:bg-[#1C2230] text-white rounded-full font-semibold transition">
+        <button type="submit" className="btn btn-primary font-semibold">
           Save to {currentWarehouse.name}
         </button>
       </div>

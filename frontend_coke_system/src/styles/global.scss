@@ -113,6 +113,12 @@
 // }
 
 
+// can be use in 
+// table
+// icons
+// buttons
+// fonts 
+
 /* =========================
    Global Design Tokens
    ========================= */
@@ -239,10 +245,15 @@ body {
   border-spacing: 0;
   font-size: 13px;
 
-  th, td {
+  th,
+  td {
     text-align: center;
     padding: 12px;
     border-bottom: 1px solid var(--border);
+
+    // ✅ new: consistent row height
+    height: 30px; // about 3rem, adjust as needed
+    vertical-align: middle;
   }
 
   thead th {
@@ -258,10 +269,13 @@ body {
     background: var(--row-hover);
   }
 
-  th:first-child, td:first-child {
+  th:first-child,
+  td:first-child {
     padding-left: 16px;
   }
-  th:last-child, td:last-child {
+
+  th:last-child,
+  td:last-child {
     padding-right: 16px;
   }
 
@@ -269,6 +283,7 @@ body {
     transition: background 120ms ease;
   }
 }
+
 
 .w-128 { width: var(--w-128); }
 

@@ -1,0 +1,169 @@
+/* src/styles/pages/receivingform.scss */
+
+/* Receiving form wrapper */
+.receiving-form {
+  max-width: 98%;
+  margin: 0 auto;
+  padding: 1rem;
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Warehouse info header */
+.warehouse-info {
+  background: #eff6ff; /* blue-50 */
+  border: 1px solid #bfdbfe; /* blue-200 */
+  border-radius: var(--r-sm);
+  padding: .5rem;
+
+  h3 {
+    color: #1e40af; /* blue-800 */
+    font-weight: 600;
+    margin-bottom: 5px;
+  }
+
+  p {
+    color: #1d4ed8; /* blue-700 */
+    font-size: 0.9rem;
+  }
+
+  .debug {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+  }
+}
+
+/* Error box */
+.error-box {
+  background: #fee2e2;
+  border-left: 4px solid var(--danger);
+  border-radius: var(--r-sm);
+  padding: 1rem;
+  color: var(--danger);
+  margin-bottom: 1.5rem;
+
+  p {
+    margin: 0.25rem 0;
+  }
+
+  .font-bold {
+    font-weight: 700;
+  }
+}
+
+/* Generic form controls */
+.form-label {
+  display: block;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.form-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.95rem;
+  transition: border-color 0.2s, box-shadow 0.2s;
+
+  &:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.25); /* subtle blue glow */
+  }
+
+  &:disabled {
+    background: #f1f5f9; /* fallback gray */
+    color: var(--text-muted);
+    cursor: not-allowed;
+  }
+}
+
+/* Align currency symbol inside relative container */
+/* Currency symbol inside input wrapper */
+.currency {
+  position: absolute;
+  left: 12px;  /* a bit of breathing room */
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text);
+  font-size: 1rem;
+  pointer-events: none; /* makes sure clicks go to input */
+}
+
+/* Ensure inputs with currency have enough padding */
+.form-input.with-currency {
+  padding-left: 2rem;  /* push text right so it doesn't overlap the ₱ */
+}
+
+
+/* Financial summary box */
+.financial-summary {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 1rem;
+  box-shadow: var(--shadow);
+
+  h3 {
+    color: var(--text);
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+
+  label {
+    font-weight: 600;
+    color: var(--text-muted);
+    display: block;
+    margin-bottom: 0.5rem;
+  }
+
+  input {
+    font-weight: 600;
+  }
+}
+
+/* Supplier return details */
+.supplier-returns {
+  background: #fef2f2; /* red-50 */
+  border: 1px solid #fecaca; /* red-200 */
+  border-radius: var(--r-md);
+  padding: 1.5rem;
+  box-shadow: var(--shadow);
+
+  h3 {
+    color: #b91c1c; /* red-700 */
+    margin-bottom: 1rem;
+  }
+
+
+  p {
+    font-size: 0.85rem;
+    margin-top: 0.5rem;
+    color: #b91c1c;
+  }
+}
+
+/* Receiving table */
+
+.receiving-table {
+  overflow-x: auto; // in case table is wide
+  border-radius: var(--r-md);
+
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+
