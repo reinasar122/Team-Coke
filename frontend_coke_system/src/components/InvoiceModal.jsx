@@ -1,5 +1,5 @@
 // src/components/InvoiceModal.jsx
-import React from "react";
+import React, { useEffect, useState} from "react";
 import { useNavigate } from "react-router-dom";
 import { downloadInvoicePDF } from "./PDFInvoice"; // ⬅️ new import
 
@@ -85,10 +85,21 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
     totalActualRetrievedVL = 0,
     overallTotalVL = 0,
     grandTotalVL = 0,
+
+    transactionTypes = "", //Kath
   } = invoiceData;
 
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
   const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
+
+  //PDF Generation sizes: KathPDF
+  const [paper, setPaper] = useState(localStorage.getItem("pdf_paper") || "long");       // short | long | a4 | letter | legal | f4
+  const [orientation, setOrientation] = useState(localStorage.getItem("pdf_orientation") || "portrait");
+  const [margins, setMargins] = useState({ top: 12, right: 12, bottom: 12, left: 12 });
+
+// remember last choice
+useEffect(() => localStorage.setItem("pdf_paper", paper), [paper]);
+useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientation]);
 
   // ---------- Auto-generate invoice number (always generate, don't use mspNo) ----------
   const generateInvoiceNumber = () => {
@@ -340,11 +351,29 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
   };
 
   // ✅ Navigate to fresh sale
+  // const handleNewSale = () => {
+  //   onClose?.();
+  //   localStorage.removeItem("merchForm");
+  //   navigate("/merchandising-sale", { replace: true, state: { reset: true } });
+  // }; Kath
   const handleNewSale = () => {
     onClose?.();
     localStorage.removeItem("merchForm");
-    navigate("/merchandising-sale", { replace: true, state: { reset: true } });
-  };
+
+    // Make sure transactionTypes is an array before calling find
+    const warehouseType = Array.isArray(transactionTypes)
+      ? transactionTypes.find(tt => tt.name === "Warehouse")
+      : null;
+
+    navigate("/merchandising-sale", {
+      replace: true,
+      state: {
+        reset: true,
+        transactionTypeId: warehouseType?.id || ""
+      }
+    });
+  }; //Kath
+
 
   // ------- NEW: build payload for external PDF module -------
   const buildInvoicePdfPayload = () => ({
@@ -584,6 +613,33 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
             🏠 New Sale
           </button>
           <div className="space-x-2">
+            <label className="text-sm">
+              Paper:
+              <select
+                value={paper}
+                onChange={(e) => setPaper(e.target.value)}
+                className="ml-1 border px-2 py-1 rounded text-sm"
+              >
+                <option value="short">Short (8.5×11)</option>
+                <option value="long">Long (8.5×13)</option>
+                <option value="legal">Legal (8.5×14)</option>
+                <option value="letter">Letter</option>
+                <option value="a4">A4</option>
+                <option value="f4">F4 (8.5×13)</option>
+              </select>
+            </label>
+
+            <label className="text-sm">
+              Orientation:
+              <select
+                value={orientation}
+                onChange={(e) => setOrientation(e.target.value)}
+                className="ml-1 border px-2 py-1 rounded text-sm"
+              >
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+            </label>
             <button
               onClick={handleDownloadPDF}
               className="bg-white border border-gray-300 px-3 py-1 rounded hover:bg-gray-100"

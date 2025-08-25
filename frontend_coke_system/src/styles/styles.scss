@@ -5,3 +5,5 @@
 @use './pages/receivinglist' as receivinglist;
 @use './pages/receivingform' as receivingform;
 @use './pages/merchandisinglist' as merchandisinglist;
+@use './pages/returnempties' as returnempties;
+@use './components/merchandisingSale' as merchandisingSale;

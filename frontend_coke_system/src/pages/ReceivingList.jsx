@@ -5,103 +5,105 @@ import { Link } from "react-router-dom";
 import { FaTrashAlt, FaEye } from "react-icons/fa";
 import "../styles/pages/receivinglist.scss"; // page-specific extras only
 
-const ReceiptModal = ({ isOpen, onClose, receipt }) => {
-  if (!isOpen || !receipt) return null;
+// const ReceiptModal = ({ isOpen, onClose, receipt }) => {
+//   if (!isOpen || !receipt) return null;
 
-  const formatReceivedBy = () => {
-    if (!receipt.received_by) return "N/A";
-    if (receipt.received_by_name) return receipt.received_by_name;
-    if (receipt.receiver_first_name && receipt.receiver_last_name) {
-      return `${receipt.receiver_first_name} ${receipt.receiver_last_name}`;
-    }
-    return typeof receipt.received_by === "number"
-      ? `User ID: ${receipt.received_by}`
-      : receipt.received_by;
-  };
+//   const formatReceivedBy = () => {
+//     if (!receipt.received_by) return "N/A";
+//     if (receipt.received_by_name) return receipt.received_by_name;
+//     if (receipt.receiver_first_name && receipt.receiver_last_name) {
+//       return `${receipt.receiver_first_name} ${receipt.receiver_last_name}`;
+//     }
+//     return typeof receipt.received_by === "number"
+//       ? `User ID: ${receipt.received_by}`
+//       : receipt.received_by;
+//   };
 
-  return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 960 }}>
-        <div className="modal-body">
-          <div className="receiving-receipt-header">
-            <h2 className="page-title">Receipt No.</h2>
-            <div className="receipt-no">#{receipt.receive_no}</div>
-            {receipt.warehouse_name && (
-              <div className="muted">Warehouse: {receipt.warehouse_name}</div>
-            )}
-          </div>
+//   return (
+//     <div className="modal-overlay">
+//       <div className="modal" style={{ maxWidth: 960 }}>
+//         <div className="modal-body">
+//           <div className="receiving-receipt-header">
+//             <h2 className="page-title">Receipt No.</h2>
+//             <div className="receipt-no">#{receipt.receive_no}</div>
+//             {receipt.warehouse_name && (
+//               <div className="muted">Warehouse: {receipt.warehouse_name}</div>
+//             )}
+//           </div>
 
-          <div className="receipt-meta">
-            <div className="meta-col">
-              <p><strong>Date &amp; Time:</strong> {new Date(receipt.date_time).toLocaleString()}</p>
-              <p><strong>Supplier:</strong> {receipt.supplier_name}</p>
-              <p><strong>Invoice No:</strong> {receipt.invoice_no}</p>
-            </div>
-            <div className="meta-col right">
-              <p><strong>Received By:</strong> {formatReceivedBy()}</p>
-              <p>
-                <strong>Return Total Amount:</strong>{" "}
-                ₱{parseFloat(receipt.return_total_amount || 0).toFixed(2)}
-              </p>
-            </div>
-          </div>
+//           <div className="receipt-meta">
+//             <div className="meta-col">
+//               <p><strong>Date &amp; Time:</strong> {new Date(receipt.date_time).toLocaleString()}</p>
+//               <p><strong>Supplier:</strong> {receipt.supplier_name}</p>
+//               <p><strong>Invoice No:</strong> {receipt.invoice_no}</p>
+//             </div>
+//             <div className="meta-col right">
+//               <p><strong>Received By:</strong> {formatReceivedBy()}</p>
+//               <p>
+//                 <strong>Return Total Amount:</strong>{" "}
+//                 ₱{parseFloat(receipt.return_total_amount || 0).toFixed(2)}
+//               </p>
+//             </div>
+//           </div>
 
-          <div className="card" style={{ overflowX: "auto" }}>
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Product</th>
-                  <th>Shell</th>
-                  <th>PCS</th>
-                  <th>BO/PCs</th>
-                  <th>Purchased Price</th>
-                  <th>Shell Price</th>
-                  <th>Bottle Price</th>
-                  <th>Unit Cost</th>
-                  <th>Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(receipt.details || []).map((item, index) => (
-                  <tr key={index}>
-                    <td>{item.product_name || item.item_name}</td>
-                    <td>{item.shell_qty}</td>
-                    <td>{item.pcs_qty}</td>
-                    <td>{item.bad_order_pcs}</td>
-                    <td>₱{parseFloat(item.unit_price).toFixed(2)}</td>
-                    <td>₱{parseFloat(item.shell_price).toFixed(2)}</td>
-                    <td>₱{parseFloat(item.bottle_price).toFixed(2)}</td>
-                    <td>₱{parseFloat(item.unit_cost).toFixed(2)}</td>
-                    <td><strong>₱{parseFloat(item.total).toFixed(2)}</strong></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+//           <div className="card" >
+//             <div className="table-wrapper">
+//               <table className="table">
+//               <thead>
+//                 <tr>
+//                   <th>Product</th>
+//                   <th>Shell</th>
+//                   <th>PCS</th>
+//                   <th>BO/PCs</th>
+//                   <th>Purchased Price</th>
+//                   <th>Shell Price</th>
+//                   <th>Bottle Price</th>
+//                   <th>Unit Cost</th>
+//                   <th>Total</th>
+//                 </tr>
+//               </thead>
+//               <tbody>
+//                 {(receipt.details || []).map((item, index) => (
+//                   <tr key={index}>
+//                     <td>{item.product_name || item.item_name}</td>
+//                     <td>{item.shell_qty}</td>
+//                     <td>{item.pcs_qty}</td>
+//                     <td>{item.bad_order_pcs}</td>
+//                     <td>₱{parseFloat(item.unit_price).toFixed(2)}</td>
+//                     <td>₱{parseFloat(item.shell_price).toFixed(2)}</td>
+//                     <td>₱{parseFloat(item.bottle_price).toFixed(2)}</td>
+//                     <td>₱{parseFloat(item.unit_cost).toFixed(2)}</td>
+//                     <td><strong>₱{parseFloat(item.total).toFixed(2)}</strong></td>
+//                   </tr>
+//                 ))}
+//               </tbody>
+//             </table>
+//             </div>
+//           </div>
 
-          {receipt.remarks && (
-            <div className="remarks">
-              <p className="label"><strong>Remarks:</strong></p>
-              <p className="remarks-box">{receipt.remarks}</p>
-            </div>
-          )}
+//           {receipt.remarks && (
+//             <div className="remarks">
+//               <p className="label"><strong>Remarks:</strong></p>
+//               <p className="remarks-box">{receipt.remarks}</p>
+//             </div>
+//           )}
 
-          <div className="totals">
-            <div className="spacer" />
-            <div className="net">
-              <strong>Net Amount:</strong>{" "}
-              ₱{parseFloat(receipt.net_amount || 0).toFixed(2)}
-            </div>
-          </div>
+//           <div className="totals">
+//             <div className="spacer" />
+//             <div className="net">
+//               <strong>Net Amount:</strong>{" "}
+//               ₱{parseFloat(receipt.net_amount || 0).toFixed(2)}
+//             </div>
+//           </div>
 
-          <div className="modal-actions">
-            <button className="btn btn-danger" onClick={onClose}>Close</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
+//           <div className="modal-actions">
+//             <button className="btn btn-danger" onClick={onClose}>Close</button>
+//           </div>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// };
 
 const ReceivingList = () => {
   const [receivings, setReceivings] = useState([]);
@@ -285,7 +287,8 @@ const ReceivingList = () => {
 
       {/* Table Card */}
       <div className="card">
-        <table className="table receiving-list-table">
+        <div className="table-wrapper">
+          <table className="table receiving-list-table">
           <thead>
             <tr>
               <th>Receive No</th>
@@ -334,13 +337,14 @@ const ReceivingList = () => {
             )}
           </tbody>
         </table>
+        </div>  
       </div>
 
-      <ReceiptModal
+      {/* <ReceiptModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         receipt={selectedReceipt}
-      />
+      /> */}
     </div>
   );
 };

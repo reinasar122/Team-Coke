@@ -5,7 +5,7 @@ import axios from 'axios';
 const MerchandisingSaleDetailPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const sale = location.state?.data;
+  const sale = location.state?.sale;
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [showHandlerDetails, setShowHandlerDetails] = useState(false);
   const [showProductStock, setShowProductStock] = useState(false);

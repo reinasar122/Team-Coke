@@ -127,7 +127,7 @@ const ProductList = () => {
   }
 
   return (
-    <div className="page">
+   <div className="page">
       {/* Header */}
       <div className="page-header" style={{ flexWrap: 'wrap', rowGap: 8 }}>
         <h2 className="page-title" style={{ marginRight: 'auto' }}>Product List</h2>
@@ -150,8 +150,8 @@ const ProductList = () => {
           {/* Desktop / Tablet: Table (>= 769px) */}
           {!isNarrow && (
             <div className="card">
-              <div style={{ width: '100%', overflowX: 'auto' }}>
-                <table className="table table-hover" style={{ minWidth: 720 }}>
+              <div className='table-wrapper'>
+                <table className="table table-hover">
                   <thead>
                     <tr>
                       <th>System Code</th>

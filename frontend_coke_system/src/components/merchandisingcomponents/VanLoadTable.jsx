@@ -1,6 +1,9 @@
 // src/components/merchandisingcomponents/VanLoadTable.jsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import axios from "axios";
+import { FaTrash } from 'react-icons/fa';
+import '../../styles/global.scss';
+
 
 /**
  * Props:
@@ -288,28 +291,28 @@ const VanLoadTable = ({
 
   // ---------- Render ----------
   return (
-    <div className="overflow-x-auto border rounded-md mt-4">
-      <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm">
+    <div className="table-wrapper">
+      <table className="table">
         <thead className="bg-gray-200 text-gray-700">
           <tr>
-            <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
-            <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>Empty Price</th>
-            <th className="border border-gray-300 py-2 px-1">Expected Sale</th>
-            <th className="border border-gray-300 py-2 px-1">Available</th>
-            <th className="border border-gray-300 py-2 px-1">Actions</th>
+            <th>Product</th>
+            <th colSpan={2}>Dispatched</th>
+            <th>Selling Price</th>
+            <th colSpan={2}>Empty Price</th>
+            <th>Expected Sale</th>
+            <th>Available</th>
+            <th>Actions</th>
           </tr>
-          <tr className="bg-gray-200">
-            <td className="border border-gray-300 py-1"></td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1"></td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1"></td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1"></td>
+          <tr className="bg-slate-100">
+            <td ></td>
+            <td >Shell</td>
+            <td >PCS</td>
+            <td ></td>
+            <td >Shell</td>
+            <td >PCS</td>
+            <td ></td>
+            <td >PCS</td>
+            <td ></td>
           </tr>
         </thead>
 
@@ -321,11 +324,11 @@ const VanLoadTable = ({
             const sortedOptions = getSortedProductsForRow(productId);
 
             return (
-              <tr key={row.id ?? index} className="bg-white border-t">
+              <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
                 {/* PRODUCT SELECT with duplicate prevention & bottom-sorted disabled options */}
-                <td className="border border-gray-200 py-1 px-1 w-[220px]">
+                <td className="border border-gray-200 py-1 px-1 w-[150px]">
                   <select
-                    className="w-full p-1 text-sm text-center rounded bg-white border"
+                    className="w-full text-md text-center rounded bg-white border"
                     value={row.productId ?? ""}
                     onChange={(e) => handleProductChange(index, e.target.value)}
                   >
@@ -343,29 +346,31 @@ const VanLoadTable = ({
                   </select>
                 </td>
 
-                {/* DISPATCHED Shell */}
+              {/* DISPATCHED Shell */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
                     min="0"
                     step="0.01"
-                    className="w-full p-1 text-sm text-center rounded bg-white"
+                    placeholder="0"
+                    className="input-always-spinner input text-center" // always-visible spinner
                     value={row.dispatchedShell ?? ""}
                     onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
                   />
                 </td>
 
-                {/* DISPATCHED PCS */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
                     min="0"
                     step="1"
-                    className="w-full p-1 text-sm text-center rounded bg-white"
+                    placeholder="0"
+                    className="input-always-spinner input text-center" // always-visible spinner
                     value={row.dispatchedPcs ?? ""}
                     onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
                   />
                 </td>
+
 
                 {/* SELLING PRICE */}
                 <td className="border border-gray-200 py-1 px-1">
@@ -419,14 +424,19 @@ const VanLoadTable = ({
                 </td>
 
                 {/* ACTIONS */}
-                <td className="p-1 border w-[80px]">
-                  <button
-                    onClick={() => removeRow(index)}
-                    className="text-red-500 hover:text-red-700 text-xs"
-                  >
-                    Remove
-                  </button>
-                </td>
+
+                  <td className="icon-btn-danger">
+                   {row.productId && (
+                    <button
+                      type="button"
+                      onClick={() => removeRow(index)}
+                      className="trash-btn"
+                    >
+                      <FaTrash />
+                    </button>
+                  )}
+                  </td>
+
               </tr>
             );
           })}

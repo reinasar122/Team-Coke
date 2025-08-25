@@ -47,6 +47,7 @@ const MerchandisingList = () => {
       setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
     }
 
+  
     const handleWarehouseChange = (event) => {
       const { warehouse } = event.detail || {};
       if (warehouse) {
@@ -141,34 +142,89 @@ const MerchandisingList = () => {
 
   const handleCreateNew = () => navigate("/merchandising-sale");
 
-  const handleAnyRowClick = (row) => {
-    if (row._kind === "warehouse-group") {
-      navigate(`/warehouse-details/${encodeURIComponent(row.msp_no)}`);
-    } else {
-      const sale = row.record;
-      navigate(`/merchandising-sale/${sale.id}`, {
-        state: { data: sale, editMode: true },
-      });
-    }
-  };
+ const handleAnyRowClick = (row) => {
+  if (row._kind === "warehouse-group") {
+    navigate(`/warehouse-details/${encodeURIComponent(row.msp_no)}`);
+    return;
+  }
+
+  const sale = row.record ?? row; // fail-safe if shape changes
+
+  // --- robust normalizers ---
+  const norm = (v) => (v ?? "").toString().trim().toLowerCase();
+  const collapse = (v) => norm(v).replace(/\s+/g, " "); // collapse multiple spaces
+
+  // Try several fields for the type label coming from API
+  const tnameRaw =
+    sale.transaction_type_name ??
+    sale.transaction_type?.name ??
+    sale.transaction_type ??
+    sale.transactionType ??
+    "";
+
+  const tname = collapse(tnameRaw);
+  // Accept "van load", "van-load", "vanload", "van load transaction", etc.
+  const isVanLoad =
+    tname.includes("van load") ||
+    tname.includes("van-load") ||
+    tname.includes("vanload") ||
+    (tname.includes("van") && tname.includes("load"));
+
+  // Status checks: accept "pending", "draft", "in progress" variants, trailing spaces, etc.
+  const s = collapse(sale.status);
+  const isCompleted = s.startsWith("complete"); // "complete" / "completed"
+  const isPending =
+    s === "pending" ||
+    s === "draft" ||
+    s === "in progress" ||
+    s === "in-progress";
+
+  // TEMP: uncomment to inspect what we clicked
+  // console.log({ id: sale.id, tnameRaw, tname, statusRaw: sale.status, s, isVanLoad, isCompleted, isPending });
+
+  if (isVanLoad && isCompleted) {
+    navigate(`/van-load-product-details/${sale.id}`, { state: { sale } });
+    return;
+  }
+
+  if (isVanLoad && isPending) {
+    // Your App.jsx maps /merchandising-sale/:id -> MerchandisingSaleDetailPage
+    navigate(`/merchandising-sale/${sale.id}`, { state: { sale } });
+    return;
+  }
+
+  // Fallback (other types)
+  navigate(`/merchandising-sale/${sale.id}`, {
+    state: { data: sale, editMode: true },
+  });
+};
+
+// 
+  // const handleBack = () => navigate("/trading");
 
   return (
-    <div className="p-6 min-h-screen">
+    <div className="page p-3 min-h-screen">
 
-      <div className="flex justify-end items-center mb-6">
-        <button
-          onClick={handleCreateNew}
+      <div className="flex justify-end gap-3 items-center mb-6">
+        {/* <button
+           onClick={handleBack}
           className="btn btn-back"
         >
-          + Create Sale
+          Back
+        </button> */}
+        <button
+          onClick={handleCreateNew}
+          className="btn btn-add"
+        >
+          + NEW SALE
         </button>
       </div>
 
       <div className="w-full card rounded shadow">
-        <div className="table-container">
-          <table className="table">
+        <div className="table-wrapper">
+          <table className="table table-hover">
             <thead>
-              <tr className="bg-gray-200 text-center">
+              <tr>
                 <th className="p-2">MSP No.</th>
                 <th className="p-2">Date & Time</th>
                 <th className="p-2">Transaction Type</th>
@@ -182,7 +238,6 @@ const MerchandisingList = () => {
                   return (
                     <tr
                       key={`wa-${row.msp_no}-${row.dateYmd}`}
-                      className="text-center border-t bg-gray-100 hover:bg-blue-100 cursor-pointer"
                       onClick={() => handleAnyRowClick(row)}
                       title="View warehouse products for this MSP (grouped)"
                     >

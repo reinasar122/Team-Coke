@@ -54,41 +54,6 @@
 }
 
 /* Custom table header background */
-// .table th {
-//   background: var(--table-head);
-//   color: var(--text);
-// }
-
-// /* Custom hover effect for rows */
-// .table tbody tr:hover {
-//   background: var(--row-hover);
-// }
-
-/* merchandisinglist.scss */
-
-/* Container for the table with scroll on the right */
-.table-container {
-  position: relative;
-  max-height: 400px;  /* Adjust the height based on your content */
-  overflow-y: auto;   /* Enable vertical scrolling */
-  border-right: 3px solid var(--border); /* Right border with custom color */
-}
-
-/* Styling for table scroll */
-.table-container::-webkit-scrollbar {
-  width: 8px;  /* Set the scrollbar width */
-}
-
-.table-container::-webkit-scrollbar-thumb {
-  background-color: var(--back);  /* Scrollbar thumb color */
-  border-radius: 10px;
-}
-
-.table-container::-webkit-scrollbar-track {
-  background: #f1f1f1;  /* Track color */
-}
-
-/* Custom table header background */
 .table th {
   background: var(--table-head);
   color: var(--text);

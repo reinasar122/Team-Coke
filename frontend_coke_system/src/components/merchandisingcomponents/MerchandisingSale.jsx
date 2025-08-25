@@ -1,16 +1,19 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef} from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
 import ProductTable from "./ProductTable";
 import ActionButtons from "./ActionButtons";
 import VanLoadTable from "./VanLoadTable"; 
 import PaymentModal from "../PaymentModal";
+import '../../styles/components/merchandisingSale.scss';
+
 
 // Convert a Date to a value usable by <input type="datetime-local"> in LOCAL time
 const toDatetimeLocalValue = (date = new Date()) => {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return d.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:mm"
 };
+
 
 const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
@@ -28,7 +31,11 @@ const MerchandisingSale = () => {
   const [editMode, setEditMode] = useState(false);
   const navigate = useNavigate();
   const [transactionDate, setTransactionDate] = useState(() => toDatetimeLocalValue());
-  const [transactionType, setTransactionType] = useState("");
+  //Kath: const [transactionType, setTransactionType] = useState("");
+  const location = useLocation();
+  const [transactionType, setTransactionType] = useState(
+      location.state?.transactionTypeId || "" // auto-set Warehouse if passed
+    );
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [mspNo, setMspNo] = useState("");
@@ -42,11 +49,12 @@ const MerchandisingSale = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
-  const location = useLocation();
+
+  
 
   //Kath
   const [stocks, setStocks] = useState([]);
-
+  const initTxTypeOnce = useRef(false); // guard
 
   // ✅ Custom alert function since alert() is not supported
   const showAlert = (message) => {
@@ -81,9 +89,9 @@ const MerchandisingSale = () => {
           discrepancy: 0,
         },
       ]);
-      setMspNo("");
-      setTransactionType("");
-      setSelectedTransactionTypeName("");
+      //setMspNo(""); Commented By Kath || Do not reset MSP and Transaction Type 
+      //setTransactionType(""); Commented By Kath
+      //setSelectedTransactionTypeName(""); Commented By Kath
       setSelectedUser(null);
       setSelectedCustomerId("");
       setRoute("");
@@ -309,6 +317,53 @@ const MerchandisingSale = () => {
     }
   }, [selectedTransactionTypeName]);
 
+  //kath
+  useEffect(() => {
+    if (transactionType) {
+      const selected = transactionTypes.find(tt => tt.id === parseInt(transactionType, 10));
+      setSelectedTransactionTypeName(selected?.name || "");
+
+      // Debugging logs
+      console.log("useEffect triggered for transactionType change:");
+      console.log("transactionType:", transactionType);
+      console.log("transactionTypes array:", transactionTypes);
+      console.log("selected transaction type:", selected);
+    }
+  }, [transactionType, transactionTypes]);
+
+   // After transactionTypes are fetched, pick the initial type
+  useEffect(() => {
+    if (initTxTypeOnce.current) return;
+    if (!transactionTypes || transactionTypes.length === 0) return;
+
+    // what invoice.jsx might have sent:
+    const fromStateId   = location.state?.transactionTypeId || location.state?.transactionType;
+    const fromStateName = location.state?.transactionTypeName || location.state?.selectedTransactionTypeName;
+
+    let chosen = null;
+
+    if (fromStateId) {
+      chosen = transactionTypes.find(tt => tt.id === Number(fromStateId));
+    }
+    if (!chosen && fromStateName) {
+      chosen = transactionTypes.find(tt =>
+        tt.name.toLowerCase() === String(fromStateName).toLowerCase()
+      );
+    }
+    // fallback: default to “Warehouse”, else first item
+    if (!chosen) {
+      chosen = transactionTypes.find(tt => tt.name.toLowerCase() === "warehouse") || transactionTypes[0];
+    }
+
+    if (chosen) {
+      setTransactionType(String(chosen.id));           // id
+      setSelectedTransactionTypeName(chosen.name);     // name
+      initTxTypeOnce.current = true;
+      console.log("🔧 Initialized transaction type:", chosen);
+    }
+  }, [transactionTypes, location.state, setTransactionType, setSelectedTransactionTypeName]);
+
+
   // ✅ Fetch users when currentWarehouse is set
   useEffect(() => {
     if (currentWarehouse?.id) {
@@ -428,11 +483,11 @@ const MerchandisingSale = () => {
       }
     }
 
-    // ✅ Add customer validation for Warehouse transactions
-    if (selectedTransactionTypeName === "Warehouse" && !selectedCustomerId) {
-      showAlert("Please select a customer for Warehouse transactions.");
-      return false;
-    }
+    // // ✅ Add customer validation for Warehouse transactions
+    // if (selectedTransactionTypeName === "Warehouse" && !selectedCustomerId) {
+    //   showAlert("Please select a customer for Warehouse transactions.");
+    //   return false;
+    // }
 
     // ✅ Always include date_time for both transaction types
     const utcIso = new Date(transactionDate).toISOString();
@@ -509,6 +564,7 @@ const MerchandisingSale = () => {
           base.sold_pcs = nz(row.soldPcs);
           base.sold_shell = nz(row.soldShell);
           base.empty_return_pcs = nz(row.expectedReturnPcsEmpty);
+          base.empty_return_shell = nz(row.expectedReturnShellEmpty); // ✅ FIXED: Add missing shell returns
         }
         return base;
       }),
@@ -684,7 +740,6 @@ const MerchandisingSale = () => {
   };
 
   return (
-    <div className="bg-sky-300 min-h-screen p-3 text-black">
       <div className="p-6">
         <h1 className="text-xl font-bold mb-4">
           {editMode ? "View/Edit Merchandising Sale" : "New Merchandising Sale"}
@@ -699,7 +754,7 @@ const MerchandisingSale = () => {
                 type="text"
                 value={mspNo}
                 onChange={(e) => setMspNo(e.target.value)}
-                className="w-full rounded-md px-2 py-1 text-sm"
+                className="border w-full rounded-md px-2 py-1 text-sm"
               />
             </div>
 
@@ -713,8 +768,18 @@ const MerchandisingSale = () => {
                   setTransactionType(selectedId);
                   setSelectedTransactionTypeName(selected?.name || "");
                 }}
-                className="w-full rounded-md px-2 py-1 text-sm"
+                className="border w-full rounded-md px-2 py-1 text-sm"
               >
+              {/* <select
+                value={transactionType}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  const selected = transactionTypes.find(tt => String(tt.id) === selectedId);
+                  setTransactionType(selectedId);
+                  setSelectedTransactionTypeName(selected?.name || "");
+                }}
+                className="w-full rounded-md px-2 py-1 text-sm"
+              > */}
                 <option value="">-- Select Transaction Type --</option>
                 {transactionTypes.map((type) => (
                   <option key={type.id} value={type.id}>
@@ -729,7 +794,7 @@ const MerchandisingSale = () => {
               <select
                 value={selectedUser || ""}
                 onChange={(e) => setSelectedUser(e.target.value)}
-                className="w-full rounded-md px-2 py-1 text-sm"
+                className="border w-full rounded-md px-2 py-1 text-sm"
               >
                 <option value="">-- Select Handler --</option>
                 {users.map((user) => (
@@ -760,7 +825,7 @@ const MerchandisingSale = () => {
                 {isAddingCustomer ? (
                   <input
                     type="text"
-                    className="w-full rounded-md px-2 py-1 bg-gray-200 text-black text-base"
+                    className=" border w-full rounded-md px-2 py-1 text-black text-base"
                     placeholder="Enter new customer name"
                     onKeyDown={async (e) => {
                       if (e.key === "Enter") {
@@ -809,7 +874,7 @@ const MerchandisingSale = () => {
                         setSelectedCustomerId(e.target.value);
                       }
                     }}
-                    className="w-full rounded-md px-2 py-1 bg-gray-200 text-black text-base"
+                    className="border w-full rounded-md px-2 py-1 text-black text-base"
                   >
                     <option value="">Walk-in Customer</option>
                     {customers.map((c) => (
@@ -817,7 +882,7 @@ const MerchandisingSale = () => {
                         {c.name}
                       </option>
                     ))}
-                    <option value="add_new">+ Add New Customer</option>
+                    <option value="add_new">+ New Customer</option>
                   </select>
                 )}
               </div>
@@ -831,7 +896,7 @@ const MerchandisingSale = () => {
                   <select
                     value={selectedVan}
                     onChange={(e) => setSelectedVan(e.target.value)}
-                    className="w-full rounded-md px-2 py-1 bg-gray-200 text-black text-base"
+                    className="border w-full rounded-md px-2 py-1 text-black text-base"
                   >
                     <option value="" disabled hidden>Select Van</option>
                     {vans.map((van) => (
@@ -847,7 +912,7 @@ const MerchandisingSale = () => {
                   {isAddingRoute ? (
                     <input
                       type="text"
-                      className="w-full rounded-md px-2 py-1 bg-gray-200 text-black text-base"
+                      className="border w-full rounded-md px-2 py-1  text-black text-base"
                       placeholder="Enter new route name"
                       onKeyDown={async (e) => {
                         if (e.key === "Enter") {
@@ -910,7 +975,7 @@ const MerchandisingSale = () => {
                           setRoute(parseInt(e.target.value));
                         }
                       }}
-                      className="w-full rounded-md px-2 py-1 bg-gray-200 text-black text-base"
+                      className="border w-full rounded-md px-2 py-1 text-black text-base"
                     >
                       <option value="" disabled hidden>Select Route</option>
                       {routes.map((r) => (
@@ -918,7 +983,7 @@ const MerchandisingSale = () => {
                           {r.route_name}
                         </option>
                       ))}
-                      <option value="add_new">+ Add New Route</option>
+                      <option value="add_new">+ New Route</option>
                     </select>
                   )}
                 </div>
@@ -926,7 +991,6 @@ const MerchandisingSale = () => {
             )}
           </div>
         </div>
-      </div>
 
       {selectedTransactionTypeName === "Van Load" ? (
         <VanLoadTable
@@ -961,13 +1025,7 @@ const MerchandisingSale = () => {
         />
       )}
 
-      <ActionButtons
-        transactionType={selectedTransactionTypeName}
-        onBack={() => navigate(-1)}
-        onFinalize={handleFinalizeSale}
-        onPay={handlePay}
-        finalizeDisabled={selectedTransactionTypeName === "Van Load" && !dispatchAdjustments.length}
-      />
+    
 
       <PaymentModal
         open={isPaymentModalOpen}
@@ -989,7 +1047,17 @@ const MerchandisingSale = () => {
         onSave={handleSubmit}
         transactionDate={transactionDate}
         transactionTypeName={selectedTransactionTypeName}
+        transactionTypes={transactionTypes}//kath
       />
+
+        <ActionButtons
+        transactionType={selectedTransactionTypeName}
+        onBack={() => navigate(-1)}
+        onFinalize={handleFinalizeSale}
+        onPay={handlePay}
+        finalizeDisabled={selectedTransactionTypeName === "Van Load" && !dispatchAdjustments.length}
+      />
+   
     </div>
   );
 };
