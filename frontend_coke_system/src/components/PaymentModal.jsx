@@ -73,6 +73,8 @@ const PaymentModal = ({
   grandTotalVL = 0,
   transactionTypes = "",//kath
 
+  miscItems = [], //karen changes
+
 }) => {
   // ------------ hooks ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -574,6 +576,8 @@ const PaymentModal = ({
                 transactionTypeName,
                 remarks,
 
+                miscItems, //karen changes
+
                 // credit extras to send
                 paymentTermsDays: days,                       // 7/15/30
                 dueDate: paymentDueDate.toISOString(),        // ISO
@@ -626,8 +630,8 @@ const PaymentModal = ({
                 if (typeof onConfirm === "function") {
                   await onConfirm(data);
                 }
-                if (typeof onSave === "function") {
-                  await onSave();
+                 if (typeof onSave === "function") { //karen changes
+                  await onSave(data);   
                 }
 
                 // 3) Show invoice

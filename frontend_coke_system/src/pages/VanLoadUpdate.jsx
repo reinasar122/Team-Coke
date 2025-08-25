@@ -441,11 +441,22 @@ const VanLoadUpdate = () => {
   // ✅ Called only when PaymentModal reports a successful payment for Van Load
   const handleVanLoadPaymentSuccess = async (paymentData) => {
     try {
+
+      // 1) Build a clean misc_items array and total
+      const misc = (miscItems || [])
+          .filter(i => i && String(i.description || '').trim() !== '')
+          .map(i => ({
+            description: String(i.description).trim(),
+            amount: Number(i.amount) || 0,
+          }));
+        const miscTotal = misc.reduce((s, i) => s + i.amount, 0);
+
+
       const payload = {
         sale_id: saleId,
         total_expected_sale: totalExpectedSale,
         actual_sale: rows.reduce((s, r) => s + (parseFloat(r.actual_sale || 0)), 0),
-        expenses_total: miscItems.reduce((s, i) => s + (parseFloat(i.amount || 0)), 0),
+         expenses_total: miscTotal, // still send to van-load-return if it uses it
         remarks,
         payment: {
           method: paymentData.paymentMethod,
@@ -471,12 +482,38 @@ const VanLoadUpdate = () => {
           actual_return_shell: row.actual_return_shell,
           actual_return_pcs: row.actual_return_pcs,
         })),
+        misc_items: misc,
       };
 
+
+      // ✅ add these debug prints right before the requests
+      console.log('🧾 Will save misc_items:', misc);
+      console.log('🧮 miscTotal:', miscTotal);
+      console.log('📦 van-load-return payload:', payload);
+
+
       await axios.post('http://localhost:8080/api/van-load-return/', payload);
+
+
+      // create each misc item row
+      await Promise.all(
+        misc.map(item =>
+          axios.post('http://localhost:8080/api/miscellaneous-items/', {
+            merchandising: saleId,
+            description: item.description,
+            amount: item.amount,
+          })
+        )
+      );
+
+
+      // 3) Persist misc on the merchandising record itself
       await axios.patch(`http://localhost:8080/api/merchandising-set/${saleId}/`, {
         status: 'Complete',
+        miscellaneous: miscTotal,   // numeric only is safe
       });
+
+
     } catch (err) {
       console.error('Failed to save Van Load payment:', err);
       alert('Saving payment failed. Please try again.');
@@ -498,6 +535,7 @@ const VanLoadUpdate = () => {
         newAmt={newAmt}
         setNewAmt={setNewAmt}
         calculateTotalExpenses={calculateTotalExpenses}
+       
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">

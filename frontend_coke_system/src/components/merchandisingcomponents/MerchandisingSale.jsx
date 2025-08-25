@@ -5,6 +5,8 @@ import ProductTable from "./ProductTable";
 import ActionButtons from "./ActionButtons";
 import VanLoadTable from "./VanLoadTable"; 
 import PaymentModal from "../PaymentModal";
+import ExpensesSection from "./ExpensesSection"; // adjust path if it's elsewhere
+
 
 // Convert a Date to a value usable by <input type="datetime-local"> in LOCAL time
 const toDatetimeLocalValue = (date = new Date()) => {
@@ -459,6 +461,13 @@ const MerchandisingSale = () => {
   const handledByUser = users.find(u => String(u.id) === String(selectedUser));
   const handledBy = handledByUser ? `${handledByUser.first_name} ${handledByUser.last_name}`.trim() : "";
 
+
+  useEffect(() => {
+  console.log("🧮 miscItems state changed:", miscItems);
+}, [miscItems]);
+  // karen changes
+
+
   // 🔧 FIXED: Two-step process - create transaction first, then payments separately
   const handleSubmit = async (paymentData = null) => {
     const warehouseId = currentWarehouse?.id;
@@ -518,6 +527,15 @@ const MerchandisingSale = () => {
       return false;
     }
 
+    // karen changes
+    // Use the modal’s copy if it sent one (so we save the exact rows the user confirmed)
+    const sourceMiscItems =
+      paymentData && Array.isArray(paymentData.miscItems)
+        ? paymentData.miscItems
+        : miscItems;
+
+
+
     const payload = {
       msp_no: mspNo || "",
       warehouse: Number(warehouseId),
@@ -530,11 +548,11 @@ const MerchandisingSale = () => {
 
       handled_by: handledBy || "",
       date_time: utcIso, // ✅ Always include date_time
-      date: utcIso.split('T')[0], // ✅ FIXED: Add required date field (YYYY-MM-DD format)
+      //date: utcIso.split('T')[0], // ✅ FIXED: Add required date field (YYYY-MM-DD format)
 
       expected_sale: Number(totalExpectedSale) || 0,
       actual_sale: Number(totalActualSale) || 0,
-      miscellaneous: Number(calculateTotalExpenses()) || 0,
+      //miscellaneous: Number(calculateTotalExpenses()) || 0,  (karen changes)
 
       // 🔧 REMOVED: payment_method since payments are handled separately
 
@@ -566,12 +584,14 @@ const MerchandisingSale = () => {
         return base;
       }),
 
-      misc_items: (miscItems || []).map(item => ({
+      // expenses to save
+      misc_items: (sourceMiscItems || []).map(item => ({
         description: item.description || "",
         amount: Number(item.amount) || 0,
       })),
-
-      // 🔧 NO payments in initial payload - will be created separately
+      miscellaneous: Number(
+        (sourceMiscItems || []).reduce((s, i) => s + Number(i.amount || 0), 0)
+      ),
     };
 
     // ✅ Enhanced debugging - log payload structure
@@ -587,10 +607,13 @@ const MerchandisingSale = () => {
       date_time: payload.date_time,
       date: payload.date, // ✅ Now includes the required date field
       items_count: payload.items.length,
-      misc_items_count: payload.misc_items.length,
+      misc_items_count: payload.misc_items.length, 
       status: payload.status
     });
     console.log("📦 Full payload:", payload);
+
+    console.log("🧾 misc_items about to POST:", payload.misc_items);
+
 
     try {
       // STEP 1: Create the merchandising transaction
@@ -1024,6 +1047,8 @@ const MerchandisingSale = () => {
         />
       )}
 
+
+
       <ActionButtons
         transactionType={selectedTransactionTypeName}
         onBack={() => navigate(-1)}
@@ -1053,6 +1078,8 @@ const MerchandisingSale = () => {
         transactionDate={transactionDate}
         transactionTypeName={selectedTransactionTypeName}
         transactionTypes={transactionTypes}//kath
+        expensesTotal={miscItems.reduce((s, i) => s + Number(i.amount || 0), 0)}  //karen changes
+        miscItems={miscItems}
       />
     </div>
   );
