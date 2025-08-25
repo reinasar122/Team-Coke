@@ -14,6 +14,9 @@ from django.db.models import F
 # api/serializers.py
 from rest_framework import serializers
 from .models import CreditLedger, CreditPayment
+from decimal import Decimal
+
+
 
 class CreditLedgerCreateSerializer(serializers.ModelSerializer):
     # Map camelCase (frontend) → snake_case (model)
@@ -534,16 +537,18 @@ class MerchandisingItemSerializer(serializers.ModelSerializer):
 
 
 class MerchandisingSaleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = MerchandisingSale
-        fields = '__all__'  # or specify fields if you prefer: ['msp_no', 'date_time', ...]
+    # ✅ these must be class attributes, NOT inside Meta
+    warehouse_name   = serializers.CharField(source="warehouse.warehouse", read_only=True)
+    warehouse_address= serializers.CharField(source="warehouse.address", read_only=True)
+    warehouse_phone  = serializers.CharField(source="warehouse.phone", read_only=True)
+    warehouse_city   = serializers.CharField(source="warehouse.city", read_only=True)
+    warehouse_region = serializers.CharField(source="warehouse.region", read_only=True)
+    warehouse_email  = serializers.CharField(source="warehouse.email", read_only=True)
 
-        warehouse_name = serializers.CharField(source="warehouse.warehouse", read_only=True)
-        warehouse_address = serializers.CharField(source="warehouse.address", read_only=True) 
-        warehouse_phone = serializers.CharField(source="warehouse.phone", read_only=True)
-        warehouse_city = serializers.CharField(source="warehouse.city", read_only=True)
-        warehouse_region = serializers.CharField(source="warehouse.region", read_only=True)
-        warehouse_email = serializers.CharField(source="warehouse.email", read_only=True) # or specify fields if you prefer: ['msp_no', 'date_time', ...]
+    class Meta:
+        model  = MerchandisingSale
+        fields = "__all__"
+
 
 # MiscellaneousItem Serializer
 class MiscellaneousItemSerializer(serializers.ModelSerializer):
@@ -563,7 +568,6 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     # Read-only derived fields
     msp_no = serializers.CharField(read_only=True)  # ← server owns MSP
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
-    customer_name = serializers.SerializerMethodField()
     date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
 
 
@@ -615,15 +619,18 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     def get_total_expenses_amount(self, obj):
         return sum([(item.amount or 0) for item in obj.misc_items.all()])
 
-    def get_customer_name(self, obj):
-        # Placeholder until you add a customer FK to Merchandising
-        return "N/A"
+    
 
     @transaction.atomic  # ← ensure all-or-nothing
     def create(self, validated_data):
         items_data = validated_data.pop('items', [])
         misc_items_data = validated_data.pop('misc_items', [])
         payments_data = validated_data.pop('payments', [])
+
+        print(">>> DEBUG misc_items_data received:", misc_items_data) 
+        print(">>> SERIALIZER.create misc_items_data len:", len(misc_items_data))
+        print(">>> SERIALIZER.create misc_items_data sample:", misc_items_data[:3])
+
 
         # Safety: client must NOT override msp_no
         validated_data.pop('msp_no', None)
@@ -701,8 +708,24 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 stock.quantity_available = (stock.quantity_available or 0) - merchandising_item.sold_pcs
                 stock.save(update_fields=['quantity_available'])
 
-        for misc_data in misc_items_data:
-            MiscellaneousItem.objects.create(merchandising=merchandising, **misc_data)
+         # -- MISCELLANEOUS --
+        created_ids = []
+        total_misc = Decimal("0.00")
+        for mi in misc_items_data:
+            amt = Decimal(str(mi.get("amount", 0)))
+            total_misc += amt
+            created_misc = MiscellaneousItem.objects.create(   # <-- store the created row
+                merchandising=merchandising,
+                description=mi.get("description", ""),
+                amount=amt,
+            )
+            created_ids.append(created_misc.id)                # <-- use created_misc
+
+        print(">>> SERIALIZER.create created Misc IDs:", created_ids)
+
+        if merchandising.miscellaneous != total_misc:
+            merchandising.miscellaneous = total_misc
+            merchandising.save(update_fields=["miscellaneous"])
 
         for payment_data in payments_data:
             Payment.objects.create(merchandising=merchandising, **payment_data)
