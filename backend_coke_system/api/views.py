@@ -599,23 +599,41 @@ class MerchandisingListCreateView(generics.ListCreateAPIView):
     parser_classes = (MultiPartParser, FormParser, JSONParser)
 
     def get_queryset(self):
-        qs = Merchandising.objects.select_related(
-            "transaction_type", "route", "van", "warehouse"
-        ).prefetch_related(
-            "items", "misc_items", "payments"
-        ).order_by("-id")
+        qs = (
+            Merchandising.objects
+            .select_related("transaction_type", "route", "van", "warehouse")
+            .prefetch_related("items", "misc_items", "payments")   # <-- ensure related_name='misc_items' on model
+            .order_by("-id")
+        )
         warehouse_id = get_user_warehouse(self.request)
         if warehouse_id:
             qs = qs.filter(warehouse_id=warehouse_id)
         return qs
 
+    def create(self, request, *args, **kwargs):
+        # ---- Raw payload check (did FE send misc_items?) ----
+        print(">>> VIEWS.create raw keys:", list(request.data.keys()))
+        print(">>> VIEWS.create raw misc_items:", request.data.get("misc_items"))
+
+        return super().create(request, *args, **kwargs)
+
     def perform_create(self, serializer):
+        # ---- Validated payload check (did DRF keep misc_items?) ----
+        vd = serializer.validated_data
+        print(">>> VIEWS.perform_create validated keys:", list(vd.keys()))
+        print(">>> VIEWS.perform_create validated misc_items len:", len(vd.get("misc_items", [])))
+
         # Always attach warehouse from logged-in user (if present)
         warehouse_id = get_user_warehouse(self.request)
+
+        # Save and log the created object id
         if warehouse_id:
-            serializer.save(warehouse_id=warehouse_id)
+            obj = serializer.save(warehouse_id=warehouse_id)
         else:
-            serializer.save()
+            obj = serializer.save()
+
+        print(">>> VIEWS.perform_create created Merchandising id:", obj.id)
+
 
 
 

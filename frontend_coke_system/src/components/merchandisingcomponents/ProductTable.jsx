@@ -780,7 +780,7 @@ const ProductTable = ({
       <div className="flex justify-end mt-2 mb-2 pr-4">
         <div className="flex items-center gap-2 bg-gray-200 px-4 py-2 rounded shadow text-right">
           <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>
-          <span className="text-lg font-bold text-blue-800">
+          <span className="text-sm font-bold text-blue-800">
             ₱{(parseFloat(totalAmount) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
           </span>
         </div>
