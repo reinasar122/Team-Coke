@@ -65,6 +65,8 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
+from rest_framework import status, permissions
+
 
 from .models import CreditLedger
 from .serializers import (
@@ -1292,7 +1294,113 @@ def to_int(v, default=0):
         return int(Decimal(str(v)))
     except Exception:
         return int(default)
-    
+
+
+
+class VanLoadReturnAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]  # adjust if needed
+
+    @transaction.atomic
+    def post(self, request, *args, **kwargs):
+        sale_id = request.data.get('sale_id')
+        if not sale_id:
+            return Response({'detail': 'sale_id is required.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        merch = get_object_or_404(
+            Merchandising.objects.select_related('transaction_type'),
+            pk=sale_id
+        )
+
+        # Optional: only allow Van Load transactions
+        if (merch.transaction_type and merch.transaction_type.name.lower() != 'van load'):
+            return Response({'detail': 'Only Van Load transactions can be updated here.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        products = request.data.get('products', [])
+        if not isinstance(products, list):
+            return Response({'detail': 'products must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated_ids = []
+
+        for p in products:
+            product_id = p.get('productId')
+            if not product_id:
+                return Response({'detail': 'Each product row must have productId.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            # Lock the row for safe concurrent updates
+            item = get_object_or_404(
+                MerchandisingItem.objects.select_for_update(),
+                merchandising=merch,
+                product_id=product_id
+            )
+
+            # Read incoming numbers safely
+            def iz(v): 
+                try: return int(v or 0)
+                except: return 0
+            def dz(v):
+                try: return Decimal(str(v or 0))
+                except: return Decimal('0')
+
+            # ---- Save empties (EMPTY returns)
+            item.empty_return_shell = iz(p.get('empty_return_shell'))
+            item.empty_return_pcs   = iz(p.get('empty_return_pcs'))
+
+            # ---- Save with-contents (ACTUAL returns)
+            item.actual_return_shell = iz(p.get('actual_return_shell'))
+            item.actual_return_pcs   = iz(p.get('actual_return_pcs'))
+
+            # ---- Optionally trust the client’s discrepancy calcs (already done in FE)
+            item.discrepancy_full_shell = iz(p.get('discrepancy_full_shell'))
+            item.discrepancy_full_pcs   = iz(p.get('discrepancy_full_pcs'))
+
+            # ---- (Optional) You can recompute discrepancy here instead, server-side:
+            # expected_shell = iz(p.get('expected_return_shell_nonempty'))
+            # expected_pcs   = iz(p.get('expected_return_pcs_nonempty'))
+            # item.discrepancy_full_shell = expected_shell - item.actual_return_shell
+            # item.discrepancy_full_pcs   = expected_pcs   - item.actual_return_pcs
+
+            # (Optional) update item.actual_sale/discount if you accept those from FE
+            # item.actual_sale = dz(p.get('actual_sale'))
+
+            item.save(update_fields=[
+                'empty_return_shell', 'empty_return_pcs',
+                'actual_return_shell', 'actual_return_pcs',
+                'discrepancy_full_shell', 'discrepancy_full_pcs',
+                # 'actual_sale',  # <- if you choose to update it here
+            ])
+            updated_ids.append(item.id)
+
+        # (Optional) update merchandising totals/remarks/status
+        total_expected_sale = request.data.get('total_expected_sale')
+        actual_sale_total   = request.data.get('actual_sale')
+        remarks             = request.data.get('remarks')
+
+        fields_to_update = []
+        if total_expected_sale is not None:
+            try:
+                merch.expected_sale = Decimal(str(total_expected_sale))
+                fields_to_update.append('expected_sale')
+            except: pass
+
+        if actual_sale_total is not None:
+            try:
+                merch.actual_sale = Decimal(str(actual_sale_total))
+                fields_to_update.append('actual_sale')
+            except: pass
+
+        if remarks is not None:
+            merch.remarks = remarks
+            fields_to_update.append('remarks')
+
+        if fields_to_update:
+            merch.save(update_fields=fields_to_update)
+
+        return Response({'detail': 'Van load returns saved.', 'updated_item_ids': updated_ids},
+                        status=status.HTTP_200_OK)
+
+
     
 # --- BULK stock adjustments (add/deduct in PCS) -----------------------
 class BulkAdjustStockView(APIView):

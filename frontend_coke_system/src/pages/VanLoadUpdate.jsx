@@ -97,7 +97,6 @@ const shouldDisableEditableField = (row, field) => {
 
 
 
-
 const VanLoadUpdate = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -195,6 +194,19 @@ const VanLoadUpdate = () => {
             ? parseFloat(item.expected_return_pcs_nonempty)
             : autoNonEmptyPcs;
 
+
+        // ✅ Actual with-contents defaults to expected, unless backend already has a value
+        const actualReturnShell =
+          item.actual_return_shell != null
+            ? parseFloat(item.actual_return_shell)
+            : expectedNonEmptyShell;
+
+        const actualReturnPcs =
+          item.actual_return_pcs != null
+            ? parseFloat(item.actual_return_pcs)
+            : expectedNonEmptyPcs; // or Math.round(actualReturnShell * contentNo)
+
+
         // Returned (empty) initial
         const emptyReturnShell = parseFloat(item.empty_return_shell ?? 0);
         const emptyReturnPcs   = Math.round(emptyReturnShell * contentNo);
@@ -205,9 +217,14 @@ const VanLoadUpdate = () => {
         const discrepancyEmptiesPc    = isNonReturnable ? 0 : (soldPcs   - emptyReturnPcs);
 
         // Non-empty discrepancy
-        const discrepancyFullShell = (dispatchedShell - soldShell) - expectedNonEmptyShell;
-        const discrepancyFullPcs   = (dispatchedPcs   - soldPcs)   - expectedNonEmptyPcs;
+        // ✅ Discrepancy = expected − actual
+        const discrepancyFullShell = expectedNonEmptyShell - actualReturnShell;
+        const discrepancyFullPcs   = expectedNonEmptyPcs   - actualReturnPcs;
 
+
+        
+
+        
         return {
           ...item,
           productId: product.id,
@@ -247,6 +264,12 @@ const VanLoadUpdate = () => {
           empty_return_shell: isNonReturnable ? 0 : emptyReturnShell,
           empty_return_pcs:   isNonReturnable ? 0 : emptyReturnPcs,
 
+
+          // NEW: actual with-contents returns
+          actual_return_shell: actualReturnShell,
+          actual_return_pcs:   actualReturnPcs,
+
+
           // discrepancies
           discrepancy_empties_shell: discrepancyEmptiesShell,
           discrepancy_empties_pc:    discrepancyEmptiesPc,
@@ -276,9 +299,20 @@ const VanLoadUpdate = () => {
     if (field === 'empty_return_shell') row.empty_return_pcs = Math.round(v * contentNo);
     else if (field === 'empty_return_pcs') row.empty_return_shell = parseFloat((v / contentNo).toFixed(2));
 
+
+    // ✅ ACTUAL with-contents returns sync (NEW)
+    if (field === 'actual_return_shell') {
+      row.actual_return_pcs = Math.round(v * contentNo);
+    } else if (field === 'actual_return_pcs') {
+      row.actual_return_shell = parseFloat((v / contentNo).toFixed(2));
+    }
+
+
+
     // EXPECTED NON-EMPTY sync (editable)
     if (field === 'expected_return_shell_nonempty') row.expected_return_pcs_nonempty = Math.round(v * contentNo);
     else if (field === 'expected_return_pcs_nonempty') row.expected_return_shell_nonempty = parseFloat((v / contentNo).toFixed(2));
+
 
     // Pricing / discount
     const price           = parseFloat(row.selling_price || 0);
@@ -319,16 +353,18 @@ const VanLoadUpdate = () => {
       row.discrepancy_empties_shell = soldShell - returnedEmptyShell;
     }
 
-    // Non-empty discrepancy
+    // ✅ Non-empty discrepancy (FIXED): expected − actual (not dispatched−sold − expected)
     const expectedPcs   = parseFloat(row.expected_return_pcs_nonempty   || 0);
     const expectedShell = parseFloat(row.expected_return_shell_nonempty || 0);
-    row.discrepancy_full_pcs   = (dispatchedPcs   - soldPcs)   - expectedPcs;
-    row.discrepancy_full_shell = (dispatchedShell - soldShell) - expectedShell;
+    const actualPcs     = parseFloat(row.actual_return_pcs              || 0);
+    const actualShell   = parseFloat(row.actual_return_shell            || 0);
+
+    row.discrepancy_full_pcs   = expectedPcs   - actualPcs;
+    row.discrepancy_full_shell = expectedShell - actualShell;
 
     updated[index] = row;
     setRows(updated);
   };
-
   // -------------------- Totals (single source of truth) --------------------
 
   // Empties revenue on SOLD (shell+pcs)
@@ -429,37 +465,53 @@ const VanLoadUpdate = () => {
     refundablesTotal
   ]);
 
-  // (Optional) Submit to backend to finalize van-load returns
-  const handleSubmit = () => {
-    if (!sale || sale.transaction_type_name !== 'Van Load') {
-      alert('This update is only applicable to Van Load transactions.');
-      return;
-    }
-    const payload = {
-      sale_id: saleId,
-      total_expected_sale: totalExpectedSale,
-      actual_sale: totalActualSale, // page total
-      products: rows.map((row) => ({
-        productId: row.productId,
-        sold_shell: row.sold_shell,
-        sold_pcs: row.sold_pcs,
-        discount: row.discount,
-        actual_sale: row.actual_sale,
-        empty_return_shell: row.empty_return_shell,
-        empty_return_pcs: row.empty_return_pcs,
-        discrepancy_empties_shell: row.discrepancy_empties_shell,
-        discrepancy_empties_pc: row.discrepancy_empties_pc,
-        // using expected non-empty as "returned with contents" figure
-        expected_return_shell_nonempty: row.expected_return_shell_nonempty,
-        expected_return_pcs_nonempty: row.expected_return_pcs_nonempty,
-        discrepancy_full_shell: row.discrepancy_full_shell,
-        discrepancy_full_pcs: row.discrepancy_full_pcs,
-        // keep actual_* if your API expects it
-        actual_return_shell: row.actual_return_shell,
-        actual_return_pcs: row.actual_return_pcs,
-      })),
-      remarks,
-    };
+// (Optional) Submit to backend to finalize van-load returns
+const handleSubmit = () => {
+  if ((sale?.transaction_type_name || '').toLowerCase() !== 'van load') {
+    alert('This update is only applicable to Van Load transactions.');
+    return;
+  }
+
+  const nz = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;    // numeric safe
+  const iz = (v) => Number.isFinite(Number(v)) ? parseInt(v, 10) : 0; // integer safe
+
+  const payload = {
+    sale_id: saleId,
+    total_expected_sale: nz(totalExpectedSale),
+    actual_sale: nz(totalActualSale), // page total
+    products: rows.map((row) => ({
+      productId: row.productId,
+
+      // sold
+      sold_shell: iz(row.sold_shell),
+      sold_pcs:   iz(row.sold_pcs),
+
+      // pricing
+      discount:   nz(row.discount),
+      actual_sale:nz(row.actual_sale),
+
+      // RETURNED (Empty)
+      empty_return_shell: iz(row.empty_return_shell),
+      empty_return_pcs:   iz(row.empty_return_pcs),
+
+      // DISCREPANCY (Empty)
+      discrepancy_empties_shell: iz(row.discrepancy_empties_shell),
+      discrepancy_empties_pc:    iz(row.discrepancy_empties_pc),
+
+      // EXPECTED (With Contents) — keep if you still show these on screen
+      expected_return_shell_nonempty: nz(row.expected_return_shell_nonempty),
+      expected_return_pcs_nonempty:   nz(row.expected_return_pcs_nonempty),
+
+      // ✅ ACTUAL (With Contents) — the fields you want to store
+      actual_return_shell: iz(row.actual_return_shell),
+      actual_return_pcs:   iz(row.actual_return_pcs),
+
+      // ✅ DISCREPANCY (Non-empty) — expected − actual (you computed in state)
+      discrepancy_full_shell: iz(row.discrepancy_full_shell),
+      discrepancy_full_pcs:   iz(row.discrepancy_full_pcs),
+    })),
+    remarks,
+  };
 
     axios
       .post('http://localhost:8080/api/van-load-return/', payload)
@@ -694,8 +746,8 @@ const VanLoadUpdate = () => {
                   ['empty_return_pcs', true],
                   ['discrepancy_empties_shell', false],
                   ['discrepancy_empties_pc', false],
-                  ['expected_return_shell_nonempty', true],
-                  ['expected_return_pcs_nonempty', true],
+                  ['actual_return_shell', true],
+                  ['actual_return_pcs',   true],
                   ['discrepancy_full_shell', false],
                   ['discrepancy_full_pcs', false],
                 ].map(([field, editable], i) => {
