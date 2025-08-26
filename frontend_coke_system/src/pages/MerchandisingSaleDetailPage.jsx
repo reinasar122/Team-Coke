@@ -241,7 +241,7 @@ const MerchandisingSaleDetailPage = () => {
           <div>
             <span className="text-blue-100">Current Warehouse:</span>
             <span className="ml-2 text-white font-bold text-lg">
-              {currentWarehouse?.name || "No Warehouse Selected"}
+              {currentWarehouse?.name || "No Warehouse Selected"}    
             </span>
           </div>
         </div>

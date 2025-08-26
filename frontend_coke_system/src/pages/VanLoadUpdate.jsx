@@ -56,6 +56,45 @@ const ZeroInput = ({
   );
 };
 
+// --- rules helpers ---
+const isSoldEqualDispatched = (row) =>
+  Number(row.sold_shell || 0) === Number(row.dispatched_shell || 0) &&
+  Number(row.sold_pcs   || 0) === Number(row.dispatched_pcs   || 0);
+
+const hasEmptyPrice = (row) =>
+  Number(row.empty_price_shell || 0) > 0 || Number(row.empty_price_pc || 0) > 0;
+
+const isReturnedWithContentsField = (field) =>
+  field === 'expected_return_shell_nonempty' || field === 'expected_return_pcs_nonempty';
+
+const isReturnedEmptyField = (field) =>
+  field === 'empty_return_shell' || field === 'empty_return_pcs';
+
+/**
+ * Disable logic per your requirements:
+ * - No empty price:
+ *    - if Sold == Dispatched → disable ALL editable fields
+ *    - else → disable returned-empty only
+ * - Has empty price:
+ *    - if Sold == Dispatched → disable Returned-with-contents only
+ *    - else → enable
+ */
+const shouldDisableEditableField = (row, field) => {
+  const soldEq = isSoldEqualDispatched(row);
+  const hasEmpty = hasEmptyPrice(row);
+
+  if (!hasEmpty) {
+    if (soldEq) return true; // disable everything
+    return isReturnedEmptyField(field); // disable returned-empty only
+  }
+
+  // has empty price
+  if (soldEq && isReturnedWithContentsField(field)) return true;
+  return false;
+};
+
+
+
 
 
 
@@ -169,11 +208,6 @@ const VanLoadUpdate = () => {
         const discrepancyFullShell = (dispatchedShell - soldShell) - expectedNonEmptyShell;
         const discrepancyFullPcs   = (dispatchedPcs   - soldPcs)   - expectedNonEmptyPcs;
 
-
-        const actualReturnShell = parseFloat(item.actual_return_shell ?? 0);
-        const actualReturnPcs   = parseFloat(item.actual_return_pcs ?? 0);
-
-        
         return {
           ...item,
           productId: product.id,
@@ -600,222 +634,246 @@ const handleSubmit = () => {
       </div>
 
       <h3 className="text-lg font-semibold mt-6 mb-2">Product Details</h3>
-      <table className="w-full text-sm text-center border border-gray-300 rounded shadow-sm mb-5">
-        <thead className="bg-gray-100 text-gray-800">
-          <tr className="text-xs font-semibold">
-            <th className="border border-gray-300 py-2 px-1">PRODUCT</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISPATCHED</th>
-            <th className="border border-gray-300 py-2 px-1">SELLING PRICE</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>SOLD</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>EMPTY PRICE</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (Empty)</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Empty)</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>RETURNED (With Content/s)</th>
-            <th className="border border-gray-300 py-2 px-1" colSpan={2}>DISCREPANCY (Non-empty)</th>
-            <th className="border border-gray-300 py-2 px-1">DISCOUNT (%)</th>
-            <th className="border border-gray-300 py-2 px-1">EXPECTED SALE</th>
-            <th className="border border-gray-300 py-2 px-1">ACTUAL SALE</th>
-          </tr>
-          <tr className="bg-gray-200">
-            <td className="border border-gray-300 py-1"></td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1"></td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-            <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-            <td className="border border-gray-300 py-1"></td>
-            <td className="border border-gray-300 py-1"></td>
-            <td className="border border-gray-300 py-1"></td>
-          </tr>
-        </thead>
+      <div className='card'>
+        <div className='table-wrapper'>
+          <table className="table">
+            <thead className="bg-gray-100 text-gray-800">
+              <tr className="text-xs font-semibold">
+                <th className="border border-gray-300 py-2 px-1">Product</th>
+                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Dispatched</th>
+                <th className="border border-gray-300 py-2 px-1">Selling Price</th>
+                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Sold</th>
+                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Empty Price</th>
+                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Returned (Empty)</th>
+                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Discrepancy (Empty)</th>
+                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Returned (With Content/s)</th>
+                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Discrepancy (Non-empty)</th>
+                <th className="border border-gray-300 py-2 px-1">Discount (%)</th>
+                <th className="border border-gray-300 py-2 px-1">Expected Sale</th>
+                <th className="border border-gray-300 py-2 px-1">Actual Sale</th>
+              </tr>
+              <tr className="bg-slate-100">
+                <td className="border border-gray-300 py-1"></td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+                <td className="border border-gray-300 py-1"></td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+                <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+                <td className="border border-gray-300 py-1"></td>
+                <td className="border border-gray-300 py-1"></td>
+                <td className="border border-gray-300 py-1"></td>
+              </tr>
+            </thead>
 
-        <tbody>
-          {Array.isArray(rows) && rows.map((row, index) => (
-            <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
-              <td className="border border-gray-200 py-1 px-1 w-[160px]">
-                <div className="p-2 border rounded text-sm text-center">
-                  {row.productName || row.product_detail?.product_name || `#${row.productId}`}
-                </div>
-              </td>
+            <tbody>
+              {Array.isArray(rows) && rows.map((row, index) => (
+                <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
+                  <td className="border border-gray-200 py-1 px-1 ">
+                    <div className="p-2 border rounded text-sm text-center">
+                      {row.productName || row.product_detail?.product_name || `#${row.productId}`}
+                    </div>
+                  </td>
 
-              {/* DISPATCHED (read-only) */}
-              <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <div className="p-2 border rounded">{z(row.dispatched_shell)}</div>
-              </td>
-              <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <div className="p-2 border rounded">{z(row.dispatched_pcs)}</div>
-              </td>
+                  {/* DISPATCHED (read-only) */}
+                  <td className="border border-gray-200 py-1 px-1 ">
+                    <div className="p-2 border rounded">{z(row.dispatched_shell)}</div>
+                  </td>
+                  <td className="border border-gray-200 py-1 px-1 ">
+                    <div className="p-2 border rounded">{z(row.dispatched_pcs)}</div>
+                  </td>
 
-              {/* SELLING PRICE (read-only) */}
-              <td className="border border-gray-200 py-1 px-1 w-[80px]">
-                <div className="p-2 border rounded text-sm text-center">
-                  {Number(z(row.selling_price)).toFixed(2)}
-                </div>
-              </td>
+                  {/* SELLING PRICE (read-only) */}
+                  <td className="border border-gray-200 py-1 px-1">
+                    <div className="p-2 border rounded text-sm text-center">
+                      {Number(z(row.selling_price)).toFixed(2)}
+                    </div>
+                  </td>
 
-              {/* SOLD (editable) */}
-              <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <ZeroInput
-                  value={row.sold_shell}
-                  onValue={(v) => handleRowChange(index, 'sold_shell', v)}
-                  className="w-full p-1 text-sm text-center rounded bg-yellow-50"
-                />
-              </td>
-              <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <ZeroInput
-                  value={row.sold_pcs}
-                  onValue={(v) => handleRowChange(index, 'sold_pcs', v)}
-                  className="w-full p-1 text-sm text-center rounded bg-yellow-50"
-                />
-              </td>
+                  {/* SOLD (editable) */}
+                <td className="border border-gray-200 py-1 px-1 ">
+                  <ZeroInput
+                    type="number" // ensure browser recognizes number input
+                    value={row.sold_shell}
+                    onValue={(v) => handleRowChange(index, 'sold_shell', v)}
+                    className="input-always-spinner w-full p-1 text-sm text-center rounded bg-yellow-50"
+                  />
+                </td>
+                <td className="border border-gray-200 py-1 px-1 ">
+                  <ZeroInput
+                    type="number"
+                    value={row.sold_pcs}
+                    onValue={(v) => handleRowChange(index, 'sold_pcs', v)}
+                    className="input-always-spinner w-full p-1 text-sm text-center rounded bg-yellow-50"
+                  />
+                </td>
 
-              {/* EMPTY PRICE (disabled) */}
-              <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <input
-                  type="number"
-                  className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={z(row.empty_price_shell)}
-                  disabled
-                />
-              </td>
-              <td className="border border-gray-200 py-1 px-1 w-[70px]">
-                <input
-                  type="number"
-                  className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={z(row.empty_price_pc)}
-                  disabled
-                />
-              </td>
-
-              {/* RETURNED / DISCREPANCIES / EXPECTED NON-EMPTY */}
-              {[
-                // [field, editable?]
-                ['empty_return_shell', true],
-                ['empty_return_pcs',   true],
-                ['discrepancy_empties_shell', false],
-                ['discrepancy_empties_pc',    false],
-                ['actual_return_shell', true],
-                ['actual_return_pcs', true],
-                ['discrepancy_full_shell',  false],
-                ['discrepancy_full_pcs',    false],
-              ].map(([field, editable], i) => (
-                <td key={i} className="border border-gray-200 py-1 px-1">
-                  {editable ? (
-                    <ZeroInput
-                      value={row[field]}
-                      onValue={(v) => handleRowChange(index, field, v)}
-                      className={`w-full p-1 text-sm text-center rounded
-                        ${field.includes('expected_return') ? 'bg-yellow-50' : 'bg-gray-100'}
-                      `}
-                    />
-                  ) : (
+                  {/* EMPTY PRICE (disabled) */}
+                  <td className="border border-gray-200 py-1 px-1">
                     <input
                       type="number"
-                      value={z(row[field])}
+                      className="w-full p-1 text-sm text-center bg-gray-100"
+                      value={z(row.empty_price_shell)}
                       disabled
-                      className={`w-full p-1 text-sm text-center rounded bg-gray-100
-                        ${field.includes('discrepancy') && parseFloat(row[field] || 0) !== 0
-                          ? 'bg-red-100 text-red-700 font-semibold' : ''}
-                        cursor-not-allowed
-                      `}
                     />
-                  )}
-                </td>
+                  </td>
+                  <td className="border border-gray-200 py-1 px-1">
+                    <input
+                      type="number"
+                      className="w-full p-1 text-sm text-center bg-gray-100"
+                      value={z(row.empty_price_pc)}
+                      disabled
+                    />
+                  </td>
+
+                {/* RETURNED / DISCREPANCIES / EXPECTED NON-EMPTY */}
+                {[
+                  ['empty_return_shell', true],
+                  ['empty_return_pcs', true],
+                  ['discrepancy_empties_shell', false],
+                  ['discrepancy_empties_pc', false],
+                  ['expected_return_shell_nonempty', true],
+                  ['expected_return_pcs_nonempty', true],
+                  ['discrepancy_full_shell', false],
+                  ['discrepancy_full_pcs', false],
+                ].map(([field, editable], i) => {
+                  const disableInput = editable ? shouldDisableEditableField(row, field) : true;
+
+                  return (
+                    <td key={i} className="border border-gray-200 py-1 px-1">
+                      {editable ? (
+                        <ZeroInput
+                          type="number"
+                          value={row[field]}
+                          onValue={(v) => handleRowChange(index, field, v)}
+                          disabled={disableInput}
+                          className={`input-always-spinner w-full p-1 text-sm text-center rounded
+                            ${
+                              isReturnedWithContentsField(field) || isReturnedEmptyField(field)
+                                ? 'bg-yellow-50'
+                                : 'bg-gray-100'
+                            }
+                            ${disableInput ? 'cursor-not-allowed opacity-70' : ''}
+                          `}
+                        />
+                      ) : (
+                        <input
+                          type="number"
+                          value={z(row[field])}
+                          disabled
+                          className={`w-full p-1 text-sm text-center rounded bg-gray-100
+                            ${
+                              field.includes('discrepancy') && parseFloat(row[field] || 0) !== 0
+                                ? 'bg-red-100 text-red-700 font-semibold'
+                                : ''
+                            }
+                            cursor-not-allowed
+                          `}
+                        />
+                      )}
+                    </td>
+                  );
+                })}
+
+                
+                  {/* DISCOUNT (editable when sold > 0) */}
+                  <td className="border border-gray-200 py-1 px-1">
+                    {row.sold_shell > 0 || row.sold_pcs > 0 ? (
+                      <ZeroInput
+                        type="number"
+                        value={row.discount}
+                        onValue={(v) => handleRowChange(index, 'discount', v)}
+                        className="input-always-spinner w-full p-1 text-sm text-center rounded bg-yellow-50 border"
+                      />
+                    ) : (
+                      <input
+                        type="number"
+                        value={z(row.discount)}
+                        disabled
+                        className="w-full p-1 text-sm text-center rounded bg-yellow-50 cursor-not-allowed border"
+                      />
+                    )}
+                  </td>
+
+                  {/* EXPECTED SALE (read-only) */}
+                  <td className="border border-gray-200 py-1 px-1">
+                    <div className="p-2 border rounded">{Number(z(row.expected_sale)).toFixed(2)}</div>
+                  </td>
+
+                  {/* ACTUAL SALE (read-only) */}
+                  <td className="border border-gray-200 py-1 px-1">
+                    <input
+                      className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
+                      disabled
+                      value={peso(row.actual_sale)}
+                    />
+                  </td>
+                </tr>
               ))}
 
-              {/* DISCOUNT (editable when sold > 0) */}
-              <td className="border border-gray-200 py-1 px-1">
-                {row.sold_shell > 0 || row.sold_pcs > 0 ? (
-                  <ZeroInput
-                    value={row.discount}
-                    onValue={(v) => handleRowChange(index, 'discount', v)}
-                    className="w-full p-1 text-sm text-center rounded bg-yellow-50 border"
-                  />
-                ) : (
-                  <input
-                    type="number"
-                    value={z(row.discount)}
-                    disabled
-                    className="w-full p-1 text-sm text-center rounded bg-gray-200 cursor-not-allowed border"
-                  />
-                )}
-              </td>
+              {/* TOTAL ROW */}
+              <tr className="bg-slate-100 font-semibold text-[13px] text-right">
+                <td className="py-2 px-1 text-center text-black">TOTAL</td>
+                <td className="border-none py-2 px-1 bg-slate-100"></td>
+                <td className="border-none py-2 px-1 bg-slate-100"></td>
+                <td className="border-none py-2 px-1 bg-slate-100"></td>
+                <td className="border-none py-2 px-1 bg-slate-100"></td>
+                <td className="border-none py-2 px-1 bg-slate-100"></td>
 
-              {/* EXPECTED SALE (read-only) */}
-              <td className="border border-gray-200 py-1 px-1">
-                <div className="p-2 border rounded">{Number(z(row.expected_sale)).toFixed(2)}</div>
-              </td>
+                {/* EMPTY PRICE (Shell + Bottle) */}
+                <td colSpan={2} className="py-2 px-1 bg-slate-100 text-black text-center font-semibold">
+                  {peso(emptiesPriceTotal)}
+                </td>
 
-              {/* ACTUAL SALE (read-only) */}
-              <td className="border border-gray-200 py-1 px-1">
-                <input
-                  className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
-                  disabled
-                  value={peso(row.actual_sale)}
-                />
-              </td>
-            </tr>
-          ))}
+                {/* RETURNED (Empty) */}
+                <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
+                  {peso(refundablesTotal)}
+                </td>
 
-          {/* TOTAL ROW */}
-          <tr className="bg-blue-100 font-semibold text-[13px] text-right">
-            <td className="py-2 px-1 text-center text-black">TOTAL</td>
-            <td className="border-none py-2 px-1 bg-blue-100"></td>
-            <td className="border-none py-2 px-1 bg-blue-100"></td>
-            <td className="border-none py-2 px-1 bg-blue-100"></td>
-            <td className="border-none py-2 px-1 bg-blue-100"></td>
-            <td className="border-none py-2 px-1 bg-blue-100"></td>
+                {/* DISCREPANCY (Empty) */}
+                <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
+                  {peso(totalDiscrepancyEmpty)}
+                </td>
 
-            {/* EMPTY PRICE (Shell + Bottle) */}
-            <td colSpan={2} className="py-2 px-1 bg-gray-300 text-black text-center font-semibold">
-              {peso(emptiesPriceTotal)}
-            </td>
+                {/* RETURNED (With Content/s) — peso total */}
+                <td className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold" colSpan={2}>
+                  {peso(totalReturnedWithContent)}
+                </td>
 
-            {/* RETURNED (Empty) */}
-            <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
-              {peso(refundablesTotal)}
-            </td>
+                {/* DISCREPANCY (Non-Empty) */}
+                <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
+                  {peso(totalDiscrepancyNonEmpty)}
+                </td>
 
-            {/* DISCREPANCY (Empty) */}
-            <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
-              {peso(totalDiscrepancyEmpty)}
-            </td>
+                {/* DISCOUNT spacer */}
+                <td className="border border-gray-300 py-2 px-1 bg-slate-100"></td>
 
-            {/* RETURNED (With Content/s) — peso total */}
-            <td className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold" colSpan={2}>
-              {peso(totalReturnedWithContent)}
-            </td>
+                {/* EXPECTED SALE */}
+                <td className="border border-gray-300 py-2 px-1 bg-slate-100 font-bold text-center">
+                  {peso(totalExpectedSale)}
+                </td>
 
-            {/* DISCREPANCY (Non-Empty) */}
-            <td colSpan={2} className="py-2 px-1 bg-blue-100 text-gray-800 text-center font-semibold">
-              {peso(totalDiscrepancyNonEmpty)}
-            </td>
-
-            {/* DISCOUNT spacer */}
-            <td className="border border-gray-300 py-2 px-1 bg-blue-100"></td>
-
-            {/* EXPECTED SALE */}
-            <td className="border border-gray-300 py-2 px-1 bg-green-100 text-green-700 font-bold text-center">
-              {peso(totalExpectedSale)}
-            </td>
-
-            {/* ACTUAL SALE (page total) */}
-            <td className="border border-gray-300 py-2 px-1 bg-gray-2 00 text-blue-700 font-bold text-center">
-              {peso(totalActualSale)}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                {/* ACTUAL SALE (page total) */}
+                <td className="border border-gray-300 py-2 px-1 bg-slate-100 text-blue-700 font-bold text-center">
+                  {peso(totalActualSale)}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+         
+        </div>
+      </div>
+      
+     
 
       {/* Overall total
       <div className="flex justify-end mt-2 pr-4">

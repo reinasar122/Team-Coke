@@ -474,36 +474,36 @@ const ProductTable = ({
         <table className="table">
               <thead >
                 <tr>
-                  <th>Product</th>
-                  <th colSpan={2}>Dispatched</th>
-                  <th>Selling Price</th>
-                  <th colSpan={2}>Sold</th>
-                  <th colSpan={2}>Empty Price (Shell/Bottle)</th>
-                  <th colSpan={2}>Returned (Empty)</th>
-                  <th colSpan={2}>Discrepancy (Empty)</th>
-                  <th>Discount (%)</th>
-                  <th>Actual Sale</th>
-                  <th>Action</th>
+                  <th className="border">Product</th>
+                  <th className="border" colSpan={2}>Dispatched</th>
+                  <th className="border">Selling Price</th>
+                  <th className="border" colSpan={2}>Sold</th>
+                  <th className="border" colSpan={2}>Empty Price (Shell/Bottle)</th>
+                  <th className="border" colSpan={2}>Returned (Empty)</th>
+                  <th className="border" colSpan={2}>Discrepancy (Empty)</th>
+                  <th className="border">Discount (%)</th>
+                  <th className="border">Actual Sale</th>
+                  <th className="border">Action</th>
                 </tr>
 
                 <tr className="bg-slate-100">
-                  <td></td>
+                  <td className="border"></td>
                   <td >Shell</td>
-                  <td >PCS</td>
-                  <td></td>
+                  <td className="border" >PCS</td>
+                  <td className="border"></td>
                   <td >Shell</td>
-                  <td >PCS</td>
+                  <td className="border" >PCS</td>
                   <td >Shell</td>
-                  <td >Bottle</td>
+                  <td className="border">Bottle</td>
                   {Array(3).fill(null).map((_, i) => (
                     <td key={i} >
                       {i % 2 === 0 ? "Shell" : "PCS"}
                     </td>
                   ))}
-                  <td></td>
-                  <td></td>
-                  <td></td>
-                  <td></td>
+                  <td className="border"></td>
+                  <td className="border"></td>
+                  <td className="border"></td>
+                  <td className="border"></td>
                 </tr>
               </thead>
 
@@ -541,18 +541,18 @@ const ProductTable = ({
                     <input
                       type="number"
                       placeholder="0"
-                      className="input-always-spinner input text-center" // use global input + always-visible spinner
+                      className="input-always-spinner input text-center bg-yellow-50" // use global input + always-visible spinner
                       value={row.dispatchedShell ?? ""}
                       onChange={(e) =>
                         handleRowChange(index, "dispatchedShell", e.target.value)
                       }
                     />
                   </td>
-                  <td className="border border-gray-200 py-1 px-1">
+                  <td className="border border-gray-200 py-1 px-1 ">
                     <input
                       type="number"
                       placeholder="0"
-                      className="input-always-spinner input text-center" // same here
+                      className="input-always-spinner input text-center bg-yellow-50" // same here
                       value={row.dispatchedPcs ?? ""}
                       onChange={(e) =>
                         handleRowChange(index, "dispatchedPcs", e.target.value)
@@ -600,7 +600,7 @@ const ProductTable = ({
                       <input
                         type="number"
                         disabled // user cannot edit
-                        className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+                        className="w-full p-1 text-sm text-center rounded "
                         value={row.soldShell ?? ""}
                       />
                     </td>
@@ -608,7 +608,7 @@ const ProductTable = ({
                       <input
                         type="number"
                         disabled // user cannot edit
-                        className="w-full p-1 text-sm text-center rounded bg-yellow-50"
+                        className="w-full p-1 text-sm text-center rounded "
                         value={row.soldPcs ?? ""}
                       />
                     </td>

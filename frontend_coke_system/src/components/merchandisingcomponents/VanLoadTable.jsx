@@ -295,24 +295,24 @@ const VanLoadTable = ({
       <table className="table">
         <thead className="bg-gray-200 text-gray-700">
           <tr>
-            <th>Product</th>
-            <th colSpan={2}>Dispatched</th>
-            <th>Selling Price</th>
+            <th className="border">Product</th>
+            <th className="border" colSpan={2}>Dispatched</th>
+            <th className="border">Selling Price</th>
             <th colSpan={2}>Empty Price</th>
-            <th>Expected Sale</th>
-            <th>Available</th>
-            <th>Actions</th>
+            <th className="border">Expected Sale</th>
+            <th className="border p-2">Available</th>
+            <th className="border p-2">Actions</th>
           </tr>
           <tr className="bg-slate-100">
-            <td ></td>
-            <td >Shell</td>
-            <td >PCS</td>
-            <td ></td>
-            <td >Shell</td>
-            <td >PCS</td>
-            <td ></td>
-            <td >PCS</td>
-            <td ></td>
+            <td className="border" ></td>
+            <td className="border">Shell</td>
+            <td className="border">PCS</td>
+            <td className="border"></td>
+            <td className="border">Shell</td>
+            <td className="border">PCS</td>
+            <td className="border"></td>
+            <td className="border">PCS</td>
+            <td className="border"></td>
           </tr>
         </thead>
 
@@ -328,7 +328,7 @@ const VanLoadTable = ({
                 {/* PRODUCT SELECT with duplicate prevention & bottom-sorted disabled options */}
                 <td className="border border-gray-200 py-1 px-1 w-[150px]">
                   <select
-                    className="w-full text-md text-center rounded bg-white border"
+                    className="w-full text-md text-center rounded py-1 px-1  bg-white border"
                     value={row.productId ?? ""}
                     onChange={(e) => handleProductChange(index, e.target.value)}
                   >
@@ -353,7 +353,7 @@ const VanLoadTable = ({
                     min="0"
                     step="0.01"
                     placeholder="0"
-                    className="input-always-spinner input text-center" // always-visible spinner
+                    className="input-always-spinner input text-center bg-yellow-50" // always-visible spinner
                     value={row.dispatchedShell ?? ""}
                     onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
                   />
@@ -365,7 +365,7 @@ const VanLoadTable = ({
                     min="0"
                     step="1"
                     placeholder="0"
-                    className="input-always-spinner input text-center" // always-visible spinner
+                    className="input-always-spinner input text-center bg-yellow-50" // always-visible spinner
                     value={row.dispatchedPcs ?? ""}
                     onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
                   />
