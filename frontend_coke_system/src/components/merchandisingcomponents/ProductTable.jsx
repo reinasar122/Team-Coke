@@ -516,7 +516,7 @@ const ProductTable = ({
                   
                   return (
                   <tr key={row.id ?? index} className="bg-white hover:bg-slate-100 transition duration-150">
-                    {/* PRODUCT SELECT */}
+                   {/* PRODUCT SELECT */}
                     <td className="border border-gray-200 py-1 px-1 w-[120px]">
                       <select
                         className="w-full p-1 text-sm text-center rounded bg-white border"
@@ -524,17 +524,35 @@ const ProductTable = ({
                         onChange={(e) => handleProductChange(index, e.target.value)}
                       >
                         <option value="">Select Product</option>
-                        {products.map((product) => {
+
+                        {(() => {
                           const selectedIds = getSelectedProductIds(index);
-                          const isDisabled = selectedIds.includes(product.id);
+
+                          // separate available vs already selected
+                          const available = products.filter(p => !selectedIds.includes(p.id));
+                          const alreadySelected = products.filter(p => selectedIds.includes(p.id));
+
                           return (
-                            <option key={product.id} value={product.id} disabled={isDisabled}>
-                              {product.product_name}{isDisabled ? " (Already Selected)" : ""}
-                            </option>
+                            <>
+                              {/* Unselected first */}
+                              {available.map((product) => (
+                                <option key={product.id} value={product.id}>
+                                  {product.product_name}
+                                </option>
+                              ))}
+
+                              {/* Selected at the bottom (disabled) */}
+                              {alreadySelected.map((product) => (
+                                <option key={product.id} value={product.id} disabled>
+                                  {product.product_name} (Already Selected)
+                                </option>
+                              ))}
+                            </>
                           );
-                        })}
+                        })()}
                       </select>
                     </td>
+
 
                   {/* DISPATCHED */}
                   <td className="border border-gray-200 py-1 px-1">

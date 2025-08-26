@@ -561,7 +561,7 @@ const VanLoadUpdate = () => {
   };
 
   return (
-    <div className="w-100 mx-auto p-6 bg-white shadow rounded-lg mt-4">
+    <div className="w-100 mx-auto p-6 mt-5">
       <h2 className="text-2xl font-bold mb-6 text-blue-600">Van Load Return</h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
@@ -590,20 +590,20 @@ const VanLoadUpdate = () => {
       <div className='card'>
         <div className='table-wrapper'>
           <table className="table">
-            <thead className="bg-gray-100 text-gray-800">
+            <thead className="bg-gray-100 text-sm text-gray-800">
               <tr className="text-xs font-semibold">
-                <th className="border border-gray-300 py-2 px-1">Product</th>
-                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Dispatched</th>
-                <th className="border border-gray-300 py-2 px-1">Selling Price</th>
-                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Sold</th>
-                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Empty Price</th>
-                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Returned (Empty)</th>
-                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Discrepancy (Empty)</th>
-                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Returned (With Content/s)</th>
-                <th className="border border-gray-300 py-2 px-1" colSpan={2}>Discrepancy (Non-empty)</th>
-                <th className="border border-gray-300 py-2 px-1">Discount (%)</th>
-                <th className="border border-gray-300 py-2 px-1">Expected Sale</th>
-                <th className="border border-gray-300 py-2 px-1">Actual Sale</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm">Product</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Dispatched</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm">Selling Price</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Sold</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Empty Price</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Returned (Empty)</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Discrepancy (Empty)</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Returned (With Content/s)</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Discrepancy (Non-empty)</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm">Discount (%)</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm">Expected Sale</th>
+                <th className="border border-gray-300 py-2 px-1 text-sm">Actual Sale</th>
               </tr>
               <tr className="bg-slate-100">
                 <td className="border border-gray-300 py-1"></td>

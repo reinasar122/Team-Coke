@@ -69,12 +69,12 @@ const ExpensesSection = ({ miscItems = [], setMiscItems }) => {
   };
 
   return (
-    <div className="w-full bg-white p-4 rounded-md shadow mt-5">
+    <div className="w-full  p-4 rounded-md shadow mt-5">
       <div className="flex items-center justify-between mb-3">
         <h2 className="text-base md:text-lg font-semibold text-gray-700">Expenses</h2>
       </div>
 
-      <div className="rounded border border-gray-200 overflow-hidden">
+      <div className="rounded border bg-white border-gray-200 overflow-hidden">
         <div className="max-h-[48vh] overflow-auto">
           <table className="w-full text-sm text-left">
             <thead className="bg-gray-50 text-gray-700 sticky top-0 z-10">
