@@ -1,62 +1,1396 @@
-import "../styles/dashboard.scss"; // Ensure this path is correct
+// src/pages/Dashboard.jsx
+import React, {
+  useEffect,
+  useMemo,
+  useState,
+  useCallback,
+  useTransition,
+  memo,
+} from "react";
+import { useLocation } from "react-router-dom";
+import axios from "axios";
+import "../styles/dashboard.scss";
 
-const Dashboard = () => {
+/* -------------------- helpers -------------------- */
+const n = (v, d = 0) =>
+  v === null || v === undefined || v === "" || Number.isNaN(Number(v)) ? d : Number(v);
+const peso = (x) =>
+  `₱${n(x).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+const formatToManila = (isoString) => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+};
+
+const isSameDayManila = (isoString) => {
+  if (!isoString) return false;
+  const manila = new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const todayStr = manila.format(new Date());
+  const dateStr = manila.format(new Date(isoString));
+  return todayStr === dateStr;
+};
+
+/* -------------------- inline icons -------------------- */
+const IconRefresh = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <path d="M20 5v5h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+  </svg>
+);
+const IconWarehouse = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path d="M3 9l9-6 9 6v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
+    <path d="M7 20v-8h10v8" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+const IconProducts = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path d="M3 7h18M6 7v13h12V7M8 3h8" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+const IconStock = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path d="M4 18h16M4 14h16M4 10h16" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+const IconReceiving = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" fill="none" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M7 10l5 5 5-5M12 15V3" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+const IconSales = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path d="M4 20V8m6 12V4m6 16v-8" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+/* -------------------- skeleton -------------------- */
+const Skeleton = ({ className = "" }) => (
+  <div className={`animate-pulse rounded-md bg-slate-200/60 ${className}`} />
+);
+
+/* -------------------- glass card -------------------- */
+const GlassCard = ({ title, icon, actions, children, className = "" }) => (
+  <section
+    className={[
+      "rounded-2xl border bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60",
+      "border-gray-200/70 shadow-sm hover:shadow-md transition-shadow",
+      "p-4",
+      className,
+    ].join(" ")}
+  >
+    <header className="flex items-center justify-between mb-2">
+      <div className="flex items-center gap-2">
+        {icon}
+        <h2 className="text-sm font-semibold text-slate-900 tracking-tight">{title}</h2>
+      </div>
+      {actions}
+    </header>
+    <div className="min-h-[120px] flex items-center justify-center text-slate-700">{children}</div>
+  </section>
+);
+
+/* -------------------- mini cards + accents -------------------- */
+const ACCENTS = {
+  stocks: "ring-amber-300/70 focus-visible:ring-amber-400 border-amber-100 hover:ring-amber-300/70",
+  products: "ring-indigo-300/70 focus-visible:ring-indigo-400 border-indigo-100 hover:ring-indigo-300/70",
+  receiving: "ring-emerald-300/70 focus-visible:ring-emerald-400 border-emerald-100 hover:ring-emerald-300/70",
+  trading: "ring-rose-300/70 focus-visible:ring-rose-400 border-rose-100 hover:ring-rose-300/70",
+  credit: "ring-purple-300/70 focus-visible:ring-purple-400 border-purple-100 hover:ring-purple-300/70",
+  "supplier-returns": "ring-teal-300/70 focus-visible:ring-teal-400 border-teal-100 hover:ring-teal-300/70",
+  "return-empties": "ring-sky-300/70 focus-visible:ring-sky-400 border-sky-100 hover:ring-sky-300/70",
+  users: "ring-fuchsia-300/70 focus-visible:ring-fuchsia-400 border-fuchsia-100 hover:ring-fuchsia-300/70",
+  roles: "ring-cyan-300/70 focus-visible:ring-cyan-400 border-cyan-100 hover:ring-cyan-300/70",
+  vans: "ring-lime-300/70 focus-visible:ring-lime-400 border-lime-100 hover:ring-lime-300/70", // NEW
+  suppliers: "ring-lime-300/70 focus-visible:ring-lime-400 border-lime-100 hover:ring-lime-300/70",
+  warehouses: "ring-orange-300/70 focus-visible:ring-orange-400 border-orange-100 hover:ring-orange-300/70",
+
+};
+
+const MiniCard = memo(function MiniCard({
+  title,
+  onClick,
+  onClose,
+  children,
+  accentKey,
+  className = "",
+}) {
+  const accent = ACCENTS[accentKey] || "ring-brand-300/70 focus-visible:ring-brand-400";
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-      
-      {/* Statistics Chart - Full Width */}
-      <div className="col-span-3 bg-white rounded-xl shadow-md p-4">
-        <h2 className="text-lg font-semibold mb-2">Statistics</h2>
-        <div className="w-full h-[250px] flex items-center justify-center text-gray-400">
-          No data available
+    <div
+      role="button"
+      tabIndex={0}
+      onClick={onClick}
+      onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick?.(e)}
+      className={[
+        "group rounded-xl border bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60",
+        "border-gray-200/70 shadow-sm transition-all duration-200 ease-out",
+        "hover:shadow-lg hover:scale-[1.02] active:scale-[0.99]",
+        "hover:ring-2 focus:outline-none focus-visible:ring-2",
+        accent,
+        "p-3 cursor-pointer",
+        className,
+      ].join(" ")}
+    >
+      <div className="flex items-center justify-between mb-1">
+        <h3 className="text-[13px] font-semibold text-slate-900">{title}</h3>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClose?.();
+          }}
+          aria-label={`Remove ${title} widget`}
+          title="Remove"
+          className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+        >
+          ×
+        </button>
+      </div>
+      <div className="min-h-[92px]">
+        {children || <div className="text-slate-400">{title} quick glance</div>}
+      </div>
+    </div>
+  );
+});
+
+/* -------------------- statistics -------------------- */
+const Stat = ({ label, value, sub, icon, tone = "slate" }) => {
+  const toneMap = {
+    slate: "bg-slate-50 border-slate-200",
+    indigo: "bg-indigo-50 border-indigo-200",
+    emerald: "bg-emerald-50 border-emerald-200",
+    amber: "bg-amber-50 border-amber-200",
+    rose: "bg-rose-50 border-rose-200",
+    purple: "bg-purple-50 border-purple-200",
+    teal: "bg-teal-50 border-teal-200",
+    sky: "bg-sky-50 border-sky-200",
+  };
+  return (
+    <div
+      className={[
+        "rounded-xl border p-3 text-center shadow-xs",
+        toneMap[tone] || toneMap.slate,
+        "motion-safe:transition-all motion-safe:duration-200",
+      ].join(" ")}
+    >
+      <div className="flex items-center justify-center gap-2 text-slate-600 mb-1">
+        {icon}
+        <span className="text-[11px] font-medium">{label}</span>
+      </div>
+      <div className="text-[17px] font-semibold text-slate-900 leading-tight">{value ?? "—"}</div>
+      {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
+    </div>
+  );
+};
+
+const Statistics = memo(function Statistics({ metrics, onRefresh, loading, lastUpdated }) {
+  return (
+    <GlassCard
+      title="Statistics"
+      icon={<IconSales className="text-slate-500" />}
+      className="col-span-1 lg:col-span-3"
+      actions={
+        <button
+          onClick={onRefresh}
+          className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm hover:shadow disabled:opacity-60"
+          disabled={loading}
+        >
+          <IconRefresh />
+          {loading ? "Refreshing…" : "Refresh"}
+        </button>
+      }
+    >
+      {!metrics ? (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 w-full gap-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-[72px] w-full" />
+          ))}
+        </div>
+      ) : (
+        <div className="w-full">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 w-full">
+            <Stat label="Products" value={metrics.totalProducts} icon={<IconProducts />} tone="indigo" />
+            <Stat label="Stock (PCS)" value={metrics.totalStockPcs.toLocaleString()} icon={<IconStock />} tone="amber" />
+            <Stat label="Low/Out of Stock" value={metrics.lowOrOutCount} icon={<IconStock />} tone="rose" />
+            <Stat label="Stock Value (est.)" value={peso(metrics.stockValueEstimate)} icon={<IconProducts />} />
+            <Stat label="Today’s Sales" value={peso(metrics.todaysSales)} icon={<IconSales />} tone="emerald" />
+            <Stat
+              label="Today’s Returns"
+              value={peso(metrics.todaysReturns)}
+              sub={metrics.todaysReturnsCount ? `${metrics.todaysReturnsCount} txn` : undefined}
+              icon={<IconReceiving />}
+              tone="teal"
+            />
+          </div>
+
+          <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-end gap-2">
+            <span className="inline-flex items-center gap-1">
+              <IconWarehouse /> Last updated:
+            </span>
+            <time dateTime={lastUpdated?.toISOString?.() || ""}>
+              {lastUpdated ? lastUpdated.toLocaleString() : "—"}
+            </time>
+          </div>
+        </div>
+      )}
+    </GlassCard>
+  );
+});
+
+/* -------------------- generic sidebar widget -------------------- */
+const GenericSidebarWidget = memo(function GenericSidebarWidget({
+  id,
+  title,
+  route,
+  children,
+  onRemove,
+}) {
+  const handleClose = useCallback(() => onRemove?.(id), [onRemove, id]);
+  return (
+    <MiniCard title={title} onClick={() => (window.location.href = route)} onClose={handleClose} accentKey={id}>
+      <div className="w-full">{children}</div>
+    </MiniCard>
+  );
+});
+
+/* -------------------- catalog map -------------------- */
+const SECTIONS = [
+  {
+    id: "transactions",
+    label: "Transactions",
+    items: [
+      { id: "receiving", name: "Receiving", route: "/receiving" },
+      { id: "trading", name: "Trading", route: "/trading" },
+      { id: "supplier-returns", name: "Supplier Return", route: "/supplier-returns" },
+      { id: "invoice", name: "Invoice", route: "/invoice" },
+      { id: "credit", name: "Credit", route: "/credit" },
+    ],
+  },
+  {
+    id: "inventory",
+    label: "Inventory",
+    items: [
+      { id: "stocks", name: "Stocks", route: "/stocks" },
+      { id: "products", name: "Product", route: "/products" },
+      { id: "return-empties", name: "Return Empties", route: "/return-empties" },
+    ],
+  },
+  {
+    id: "report",
+    label: "Report",
+    items: [
+      { id: "salesreport", name: "Sales Report", route: "/salesreport" },
+      { id: "inventoryreport", name: "Inventory Report", route: "/inventoryreport" },
+    ],
+  },
+  {
+    id: "manage",
+    label: "Manage",
+    items: [
+      { id: "users", name: "Users", route: "/users" },
+      { id: "roles", name: "Roles", route: "/roles" },
+      { id: "warehouses", name: "Warehouses", route: "/warehouses" },
+      { id: "suppliers", name: "Suppliers", route: "/suppliers" },
+      { id: "vans", name: "Van", route: "/vans" }, // already present
+    ],
+  },
+  { id: "settings", label: "Settings", items: [{ id: "settings", name: "Settings", route: "/settings" }] },
+];
+
+const CATALOG_MAP = (() => {
+  const map = new Map();
+  SECTIONS.forEach((sec) => sec.items.forEach((it) => map.set(it.id, it)));
+  return map;
+})();
+
+/* -------------------- localStorage selections + cache -------------------- */
+const LS_KEY = "dashboard:selectedWidgets";
+const DATA_KEY = "dashboard:data";
+const DATA_TTL_MS = 5 * 60 * 1000;
+
+const loadSelection = () => {
+  try {
+    const raw = localStorage.getItem(LS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+const saveSelection = (ids) => {
+  try {
+    localStorage.setItem(LS_KEY, JSON.stringify(ids));
+  } catch {}
+};
+
+const readCachedData = (wid) => {
+  try {
+    const raw = localStorage.getItem(DATA_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.__ts || parsed.warehouseId !== wid) return null;
+    if (Date.now() - parsed.__ts > DATA_TTL_MS) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+};
+const writeCachedData = (wid, payload) => {
+  try {
+    localStorage.setItem(
+      DATA_KEY,
+      JSON.stringify({ __ts: Date.now(), warehouseId: wid, ...payload })
+    );
+  } catch {}
+};
+
+/* -------------------- API helpers -------------------- */
+const getCurrentWarehouseId = () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+  if ((user.role || "").toLowerCase() === "admin") {
+    return selectedWarehouse?.id || user.warehouse_id;
+  }
+  return user.warehouse_id;
+};
+
+const axiosCfgForWarehouse = (wid) => (wid ? { headers: { "X-Warehouse-ID": wid } } : {});
+
+/** Fetch everything the dashboard needs */
+async function fetchDashboard(wid) {
+  const qsWid = wid ? `?warehouse=${wid}` : "";
+  const qsWidId = wid ? `?warehouse_id=${wid}` : "";
+
+  const [
+    stocksRes,
+    productsRes,
+    receivingsRes,
+    merchSetRes,
+    creditsRes,
+    supplierReturnsRes,
+    merchRes,
+    suppliersRes,
+    usersRes,
+    rolesRes,
+    vansRes, // NEW
+    warehousesRes,
+  ] = await Promise.all([
+    axios.get(`http://localhost:8080/api/stocks/${qsWid}`),
+    axios.get(`http://localhost:8080/api/products/${qsWidId}`),
+    axios.get(`http://localhost:8080/api/receiving/`, axiosCfgForWarehouse(wid)),
+    axios.get(`http://localhost:8080/api/merchandising-set/`, { params: { warehouse: wid } }),
+    axios.get(`http://localhost:8080/api/credits/`, axiosCfgForWarehouse(wid)),
+    axios.get(`http://localhost:8080/api/supplier-return-form/${qsWidId}`),
+    axios.get(`http://localhost:8080/api/merchandisings/${qsWid}`),
+    axios.get(`http://localhost:8080/api/suppliers/${qsWid}`),
+    axios.get(`http://localhost:8080/api/users/`, axiosCfgForWarehouse(wid)),
+    axios.get(`http://localhost:8080/api/roles/`),
+    axios.get(`http://localhost:8080/api/vans/${qsWid}`), // NEW (matches your VanList pattern ?warehouse=)
+    axios.get(`http://127.0.0.1:8080/api/warehouses/${qsWid}`), // <-- NEW
+  ]);
+
+  const parseList = (res) =>
+    Array.isArray(res.data) ? res.data : res.data?.results || res.data?.data || [];
+
+  const stocks = parseList(stocksRes);
+  const products = parseList(productsRes);
+  const receivings = parseList(receivingsRes);
+  const transactions = parseList(merchSetRes);
+  const credits = parseList(creditsRes);
+  const supplierReturns = parseList(supplierReturnsRes);
+  const merch = parseList(merchRes);
+  const warehouses = parseList(warehousesRes); // <-- NEW
+
+  const warehousesList = [...warehouses]
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+    .slice(0, 5)
+    .map((w) => ({
+      id: w.id,
+      name: w.name || "—",
+      city: w.city || "—",
+      province: w.province || "—",
+      phone_number: w.phone_number || "—",
+    }));
+
+  const suppliers = parseList(suppliersRes);
+  const suppliersList = [...suppliers]
+  .sort((a, b) => String(a.company_name || "").localeCompare(String(b.company_name || "")))
+  .slice(0, 5)
+  .map((s) => ({
+    id: s.id,
+    registration_number: s.registration_number || "—",
+    company_name: s.company_name || "—",
+    contact_person: s.contact_person || "—",
+    phone_number: s.phone_number || "—",
+  }));
+  const users = parseList(usersRes);
+  const roles = parseList(rolesRes);
+  const vans = parseList(vansRes); // NEW
+
+  const supplierNameById = new Map(
+    suppliers.map((s) => [s.id, s.company_name || s.name || `Supplier #${s.id}`])
+  );
+  const productById = new Map(products.map((p) => [p.id, p]));
+
+  /* -------- metrics -------- */
+  const totalProducts = products.length;
+  const totalStockPcs = stocks.reduce((sum, s) => sum + n(s.quantity_available), 0);
+  const lowOrOutCount = stocks.reduce((sum, s) => {
+    const status = (s.stock_status || "").toLowerCase();
+    return sum + (status.includes("low") || status.includes("out") ? 1 : 0);
+  }, 0);
+
+  /* -------- lists: stocks/products/receivings/transactions -------- */
+  const lowStockList = stocks
+    .filter((s) => {
+      const st = (s.stock_status || "").toLowerCase();
+      return st.includes("low") || st.includes("out");
+    })
+    .slice(0, 5)
+    .map((s) => ({
+      id: s.id,
+      name: s.product_name || "Unknown Product",
+      pcs: n(s.quantity_available),
+      status: s.stock_status || "",
+    }));
+
+  const productsList = products.slice(0, 5).map((p) => ({
+    id: p.id,
+    system_code: p.system_code || "—",
+    name: p.product_name || p.name || "Untitled",
+    category: p.product_category?.name || "N/A",
+  }));
+
+  const receivingsList = [...receivings]
+    .sort((a, b) => new Date(b.date_time || 0) - new Date(a.date_time || 0))
+    .slice(0, 5)
+    .map((r) => ({
+      id: r.id,
+      receive_no: r.receive_no || r.receiveNo || `#${r.id}`,
+      supplier: r.supplier_name || r.supplier?.name || "—",
+      date: r.date_time ? new Date(r.date_time) : null,
+      net_amount: n(r.net_amount),
+    }));
+
+  const recentTransactions = [...transactions]
+    .sort((a, b) => new Date(b.date_time || 0) - new Date(a.date_time || 0))
+    .slice(0, 5)
+    .map((t) => ({
+      id: t.id,
+      msp_no: t.msp_no || `#${t.id}`,
+      date_time: t.date_time || null,
+      transaction_type_name: t.transaction_type_name || t.transaction_type || "—",
+      handled_by: t.handled_by_name || t.handled_by_username || t.handled_by || "—",
+      status: t.status || "—",
+    }));
+
+  /* -------- Supplier Returns list + today's total -------- */
+  const supplierReturnsList = [...supplierReturns]
+    .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
+    .slice(0, 5)
+    .map((sr) => ({
+      id: sr.id,
+      sup_no: sr.sup_no || `#${sr.id}`,
+      supplier: sr.supplier_name || sr.supplier || "—",
+      total_amount: n(sr.total_amount),
+      date: sr.date || null,
+    }));
+
+  const todaysReturnsArray = supplierReturns.filter((sr) => isSameDayManila(sr.date));
+  const todaysReturns = todaysReturnsArray.reduce((sum, sr) => sum + n(sr.total_amount), 0);
+  const todaysReturnsCount = todaysReturnsArray.length;
+
+  /* -------- Return Empties aggregation (from merchandisings) -------- */
+  const emptiesRaw = [];
+  for (const m of merch) {
+    const type = m.transaction_type_name;
+    if (!m.items || !["Warehouse", "Van Load"].includes(type)) continue;
+
+    for (const it of m.items) {
+      const emptyShell =
+        (type === "Warehouse"
+          ? n(it.empty_return_shell) || n(it.actual_return_shell) || n(it.returned_shell)
+          : n(it.actual_return_shell) || n(it.empty_return_shell)) || 0;
+
+      const emptyPcs =
+        (type === "Warehouse"
+          ? n(it.empty_return_pcs) || n(it.actual_return_pcs) || n(it.returned_pcs)
+          : n(it.actual_return_pcs) || n(it.empty_return_pcs)) || 0;
+
+      if (emptyShell > 0 || emptyPcs > 0) {
+        const prod = productById.get(it.product);
+        const supplierName = prod
+          ? supplierNameById.get(prod.supplier) || "Unknown Supplier"
+          : "Unknown Supplier";
+        emptiesRaw.push({
+          key: `${m.id}-${it.id}`,
+          msp_no: m.msp_no,
+          product_id: it.product,
+          product_name: prod?.product_name || `Product #${it.product}`,
+          supplier_name: supplierName,
+          empty_return_shell: emptyShell,
+          empty_return_pcs: emptyPcs,
+          date: m.date_time || null,
+          transaction_type: type,
+        });
+      }
+    }
+  }
+
+  const grouped = new Map();
+  for (const row of emptiesRaw) {
+    const g = grouped.get(row.product_id);
+    if (!g) {
+      grouped.set(row.product_id, {
+        id: `empties-${row.product_id}`,
+        product_id: row.product_id,
+        product_name: row.product_name,
+        supplier_name: row.supplier_name,
+        empty_return_shell: row.empty_return_shell,
+        empty_return_pcs: row.empty_return_pcs,
+        transaction_count: 1,
+        transaction_types: [row.transaction_type],
+        msp_numbers: [row.msp_no].filter(Boolean),
+        latest_date: row.date,
+      });
+    } else {
+      g.empty_return_shell += row.empty_return_shell;
+      g.empty_return_pcs += row.empty_return_pcs;
+      g.transaction_count += 1;
+      if (!g.transaction_types.includes(row.transaction_type)) g.transaction_types.push(row.transaction_type);
+      if (row.msp_no) g.msp_numbers.push(row.msp_no);
+      if (row.date && (!g.latest_date || new Date(row.date) > new Date(g.latest_date))) {
+        g.latest_date = row.date;
+      }
+    }
+  }
+
+  const returnEmptiesList = Array.from(grouped.values())
+    .sort((a, b) => b.empty_return_shell + b.empty_return_pcs - (a.empty_return_shell + a.empty_return_pcs))
+    .slice(0, 5);
+
+    
+
+  /* -------- Users list -------- */
+  const usersList = users.slice(0, 5).map((u) => ({
+    id: u.id,
+    name:
+      u.full_name ||
+      u.name ||
+      `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() ||
+      u.username ||
+      "—",
+    username: u.username || "—",
+    role: u.role?.name || u.role || u.role_name || "—",
+  }));
+
+  /* -------- Roles list -------- */
+  const rolesList = roles.slice(0, 5).map((r) => ({
+    id: r.id,
+    name: r.name || r.role || "—",
+    users_count: Number(r.users_count ?? r.user_count ?? 0),
+  }));
+
+  /* -------- Credits summary -------- */
+  const creditSummary = (() => {
+    const outstanding = credits.filter(
+      (c) => String(c.status || "").toUpperCase() !== "PAID" && Number(c.balance || 0) > 0
+    );
+    const totalOutstandingBalance = outstanding.reduce((s, c) => s + Number(c.balance || 0), 0);
+    return {
+      countOutstanding: outstanding.length,
+      totalOutstandingBalance,
+    };
+  })();
+
+  const creditList = [...credits]
+    .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0))
+    .slice(0, 5)
+    .map((c) => ({
+      id: c.id,
+      msp_no: c.msp_no || `#${c.id}`,
+      customer: c.customer_name || "—",
+      balance: Number(c.balance || 0),
+      status: String(c.status || "").toUpperCase(),
+      date_time: c.created_at || null,
+    }));
+
+  /* -------- Vans list (NEW) -------- */
+  const vansList = [...vans]
+    .sort((a, b) => String(a.plate_number || "").localeCompare(String(b.plate_number || "")))
+    .slice(0, 5)
+    .map((v) => ({
+      id: v.id,
+      van_id: v.van_id || `#${v.id}`,
+      plate_number: v.plate_number || "—",
+    }));
+
+  return {
+    metrics: {
+      totalProducts,
+      totalStockPcs,
+      lowOrOutCount,
+      stockValueEstimate: 0,
+      todaysSales: 0,
+      todaysReturns,
+      todaysReturnsCount,
+    },
+    lists: {
+      lowStockList,
+      productsList,
+      receivingsList,
+      recentSales: [],
+      recentTransactions,
+      supplierReturnsList,
+      returnEmptiesList,
+      creditList,
+      creditSummary,
+      usersList,
+      rolesList,
+      vansList, // NEW
+      suppliersList,
+      warehousesList,
+    },
+  };
+}
+
+/* -------------------- reusable table shell -------------------- */
+const TableShell = ({ headers, rows, emptyText }) => {
+  if (!rows) {
+    return (
+      <div className="grid gap-2">
+        <Skeleton className="h-5 w-full" />
+        <Skeleton className="h-5 w-[92%]" />
+        <Skeleton className="h-5 w-[86%]" />
+      </div>
+    );
+  }
+  if (rows.length === 0) {
+    return <div className="text-xs text-slate-500">{emptyText}</div>;
+  }
+  return (
+    <div className="w-full">
+      <table className="w-full text-[12px] text-slate-800">
+        <thead>
+          <tr className="text-left text-slate-500">
+            {headers.map((h, i) => (
+              <th key={i} className={`py-1 ${i === headers.length - 1 ? "pr-0" : "pr-2"} ${h.right ? "text-right" : ""}`}>
+                {h.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, idx) => (
+            <tr key={r.id ?? idx} className="border-t">
+              {headers.map((h, i) => (
+                <td
+                  key={h.key}
+                  className={`py-1 ${i === headers.length - 1 ? "pr-0" : "pr-2"} ${h.right ? "text-right" : ""} ${h.truncate ? "truncate" : ""}`}
+                  title={h.truncate ? (h.title ? h.title(r) : r[h.key]) : undefined}
+                >
+                  {h.render ? h.render(r[h.key], r) : r[h.key]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+/* -------------------- widgets -------------------- */
+const LowStockWidget = memo(function LowStockWidget({ items }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "name", label: "Product", truncate: true },
+        { key: "pcs", label: "PCS", right: true, render: (v) => n(v).toLocaleString() },
+        { key: "status", label: "Status", right: true },
+      ]}
+      rows={items}
+      emptyText="No low/out-of-stock items"
+    />
+  );
+});
+
+const ProductsWidget = memo(function ProductsWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "system_code", label: "System" },
+        { key: "name", label: "Name", truncate: true },
+        { key: "category", label: "Category" },
+      ]}
+      rows={rows}
+      emptyText="No products found"
+    />
+  );
+});
+
+const ReceivingWidget = memo(function ReceivingWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "receive_no", label: "Receipt" },
+        { key: "supplier", label: "Supplier", truncate: true },
+        { key: "net_amount", label: "Net", right: true, render: (v) => peso(v) },
+      ]}
+      rows={rows}
+      emptyText="No recent receivings"
+    />
+  );
+});
+
+const SupplierReturnsWidget = memo(function SupplierReturnsWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "sup_no", label: "Sup No." },
+        { key: "supplier", label: "Supplier", truncate: true },
+        { key: "total_amount", label: "Total", right: true, render: (v) => peso(v) },
+        { key: "date", label: "Date", right: true, render: (v) => (v ? formatToManila(v) : "—") },
+      ]}
+      rows={rows}
+      emptyText="No recent supplier returns"
+    />
+  );
+});
+
+const ReturnEmptiesWidget = memo(function ReturnEmptiesWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "product_name", label: "Product", truncate: true },
+        { key: "supplier_name", label: "Supplier", truncate: true },
+        { key: "empty_return_shell", label: "Shells", right: true },
+        { key: "empty_return_pcs", label: "PCs", right: true },
+        { key: "transaction_count", label: "Txns", right: true },
+        { key: "latest_date", label: "Latest", right: true, render: (v) => (v ? formatToManila(v) : "—") },
+      ]}
+      rows={rows}
+      emptyText="No return empties found"
+    />
+  );
+});
+
+const UsersWidget = memo(function UsersWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "name", label: "Name", truncate: true },
+        { key: "username", label: "Username" },
+        { key: "role", label: "Role", right: true },
+      ]}
+      rows={rows}
+      emptyText="No users found"
+    />
+  );
+});
+
+const RolesWidget = memo(function RolesWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "name", label: "Role" },
+        { key: "users_count", label: "Users", right: true },
+      ]}
+      rows={rows}
+      emptyText="No roles found"
+    />
+  );
+});
+
+/* ---- Warehouses widget ---- */
+const WarehousesWidget = React.memo(function WarehousesWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "name", label: "Name", truncate: true },
+        { key: "city", label: "City", truncate: true },
+        { key: "province", label: "Province", truncate: true },
+        { key: "phone_number", label: "Phone", right: true },
+      ]}
+      rows={rows}
+      emptyText="No warehouses found"
+    />
+  );
+});
+
+
+/* ---- Suppliers widget ---- */
+const SuppliersWidget = React.memo(function SuppliersWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "registration_number", label: "Reg. No." },
+        { key: "company_name", label: "Company", truncate: true },
+        { key: "contact_person", label: "Contact", truncate: true },
+        { key: "phone_number", label: "Phone", right: true },
+      ]}
+      rows={rows}
+      emptyText="No suppliers found"
+    />
+  );
+});
+
+const StatusPill = ({ status }) => {
+  const st = (status || "").toLowerCase();
+  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
+  if (st === "pending") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
+  if (st === "complete" || st === "completed") return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+};
+
+const TradingPreview = memo(function TradingPreview({ rows }) {
+  if (!rows) return <div className="text-xs text-slate-500">Loading…</div>;
+  if (rows.length === 0) return <div className="text-xs text-slate-500">No recent transactions</div>;
+
+  const latest = rows[0];
+  return (
+    <div className="text-sm text-slate-700">
+      <div className="font-medium">
+        Latest: {latest.msp_no} — {latest.transaction_type_name || "—"}{" "}
+        <span className="ml-1 align-middle"><StatusPill status={latest.status} /></span>
+      </div>
+      <div className="text-xs text-slate-500 mt-1">
+        {rows.length} recent {rows.length === 1 ? "transaction" : "transactions"} ·{" "}
+        {latest.date_time ? formatToManila(latest.date_time) : "—"}
+      </div>
+    </div>
+  );
+});
+
+/* ---- Credit minimal widget ---- */
+const CreditStatusPill = ({ status }) => {
+  const st = String(status || "").toUpperCase();
+  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
+  if (st === "PENDING") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
+  if (st === "PARTIAL") return <span className={`${base} bg-amber-100 text-amber-800`}>Partial</span>;
+  if (st === "PAID") return <span className={`${base} bg-green-100 text-green-800`}>Paid</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+};
+
+const CreditWidget = memo(function CreditWidget({ rows, summary }) {
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between text-[11px] text-slate-600">
+        <div>
+          <span className="font-medium">Outstanding:</span>{" "}
+          <span>{summary?.countOutstanding ?? 0}</span>
+        </div>
+        <div>
+          <span className="font-medium">Total Balance:</span>{" "}
+          <span className="font-semibold">{peso(summary?.totalOutstandingBalance ?? 0)}</span>
         </div>
       </div>
 
-      {/* Stocks & Trading - Use GRID instead of FLEX */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Stocks Section */}
-        <div className="bg-white rounded-xl shadow-md p-4">
-          <h2 className="text-lg font-semibold mb-2">Stocks</h2>
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b">
-                <th className="text-left p-2">#</th>
-                <th className="text-left p-2">Name</th>
-                <th className="text-left p-2">Quantity</th>
-                <th className="text-left p-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td colSpan="4" className="text-center text-gray-400 p-4">
-                  No stocks available
-                </td>
-              </tr>
-            </tbody>
-          </table>
+      <TableShell
+        headers={[
+          { key: "msp_no", label: "MSP" },
+          { key: "customer", label: "Customer", truncate: true },
+          { key: "balance", label: "Balance", right: true, render: (v) => peso(v) },
+          { key: "status", label: "Status", right: true, render: (v) => <CreditStatusPill status={v} /> },
+        ]}
+        rows={rows}
+        emptyText="No credit records"
+      />
+    </div>
+  );
+});
+
+/* ---- Vans widget (NEW) ---- */
+const VansWidget = memo(function VansWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "van_id", label: "Van ID" },
+        { key: "plate_number", label: "Plate Number", truncate: true },
+      ]}
+      rows={rows}
+      emptyText="No vans found for this warehouse"
+    />
+  );
+});
+
+/* -------------------- widget picker modal -------------------- */
+const WidgetPickerModal = memo(function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
+  const [expanded, setExpanded] = useState(() => new Set(SECTIONS.map((s) => s.id)));
+  const [checked, setChecked] = useState(() => new Set(selectedIds));
+
+  useEffect(() => setChecked(new Set(selectedIds)), [selectedIds, open]);
+
+  const toggleSection = (sid) => {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      next.has(sid) ? next.delete(sid) : next.add(sid);
+      return next;
+    });
+  };
+
+  const toggleItem = (id) => {
+    setChecked((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const selectAllVisible = () => {
+    const all = [];
+    SECTIONS.forEach((sec) => sec.items.forEach((it) => all.push(it.id)));
+    setChecked(new Set(all));
+  };
+
+  const clearAll = () => setChecked(new Set());
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50">
+      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add Dashboard Widgets"
+        className="absolute inset-x-0 top-10 mx-auto w-[95%] max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden"
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b">
+          <h3 className="text-sm font-semibold text-slate-900">Add Dashboard Widgets</h3>
+          <div className="flex gap-2">
+            <button
+              onClick={selectAllVisible}
+              className="px-2.5 py-1.5 rounded-lg bg-brand-600 text-white text-xs hover:bg-brand-500"
+            >
+              Select All
+            </button>
+            <button
+              onClick={clearAll}
+              className="px-2.5 py-1.5 rounded-lg bg-slate-100 text-xs text-slate-800 hover:bg-slate-200"
+            >
+              Clear
+            </button>
+            <button
+              onClick={onClose}
+              className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+              aria-label="Close"
+              title="Close"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        {/* Trading Widget */}
-        <div className="bg-white rounded-xl shadow-md p-4">
-          <h2 className="text-lg font-semibold mb-2">Trading</h2>
-          <div className="w-full h-[200px] flex items-center justify-center text-gray-400">
-            No Trading available
+        <div className="px-4 py-3 max-h-[65vh] overflow-y-auto custom-scroll">
+          {SECTIONS.map((sec) => (
+            <div key={sec.id} className="mb-3 border rounded-xl">
+              <button
+                type="button"
+                onClick={() => toggleSection(sec.id)}
+                className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-t-xl"
+              >
+                <span className="font-medium text-xs text-slate-800">{sec.label}</span>
+                <span className="text-[11px] text-slate-500">{expanded.has(sec.id) ? "▾" : "▸"}</span>
+              </button>
+
+              {expanded.has(sec.id) && (
+                <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {sec.items.map((it) => (
+                    <label
+                      key={it.id}
+                      className={[
+                        "border rounded-lg p-2 text-xs",
+                        "hover:border-brand-400 cursor-pointer transition-colors",
+                        "bg-white has-[:checked]:border-brand-600",
+                      ].join(" ")}
+                    >
+                      <div className="flex items-start gap-2">
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 accent-brand-600"
+                          checked={checked.has(it.id)}
+                          onChange={() => toggleItem(it.id)}
+                        />
+                        <div>
+                          <div className="font-medium text-slate-900">{it.name}</div>
+                          <div className="text-[10px] text-slate-500 mt-0.5">Preview</div>
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg bg-slate-100 text-xs text-slate-800 hover:bg-slate-200"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => onSave(Array.from(checked))}
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white text-xs shadow-sm hover:shadow"
+          >
+            Add Selected
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+});
+
+/* -------------------- page -------------------- */
+const Dashboard = () => {
+  const location = useLocation();
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [selectedIds, setSelectedIds] = useState(loadSelection());
+
+  const [loading, setLoading] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [metrics, setMetrics] = useState(null);
+  const [lists, setLists] = useState({
+    lowStockList: null,
+    productsList: null,
+    receivingsList: null,
+    recentSales: [],
+    recentTransactions: [],
+    supplierReturnsList: null,
+    returnEmptiesList: null,
+    creditList: null,
+    creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
+    usersList: null,
+    rolesList: null,
+    vansList: null, // NEW
+    suppliersList: null, // <-- add this
+    warehousesList: null,
+  });
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+  const userLS = JSON.parse(localStorage.getItem("user") || "{}");
+  const warehouseMeta = selectedWarehouse || (userLS?.warehouse ? userLS.warehouse : null);
+
+  useEffect(() => {
+    if (location.state?.openWidgetsModal) {
+      setPickerOpen(true);
+      window.history.replaceState({}, "");
+    }
+  }, [location.state]);
+
+  useEffect(() => saveSelection(selectedIds), [selectedIds]);
+
+  const visibleSelectedItems = useMemo(
+    () => selectedIds.map((id) => CATALOG_MAP.get(id)).filter(Boolean),
+    [selectedIds]
+  );
+
+  const loadData = useCallback(
+    async (force = false) => {
+      try {
+        setLoading(true);
+        const wid = getCurrentWarehouseId();
+        if (!wid) {
+          setMetrics({
+            totalProducts: 0,
+            totalStockPcs: 0,
+            lowOrOutCount: 0,
+            stockValueEstimate: 0,
+            todaysSales: 0,
+            todaysReturns: 0,
+            todaysReturnsCount: 0,
+          });
+          setLists({
+            lowStockList: [],
+            productsList: [],
+            receivingsList: [],
+            recentSales: [],
+            recentTransactions: [],
+            supplierReturnsList: [],
+            returnEmptiesList: [],
+            creditList: [],
+            creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
+            usersList: [],
+            rolesList: [],
+            vansList: [], // NEW
+            suppliersList: [],
+          });
+          setLastUpdated(new Date());
+          return;
+        }
+
+        if (!force) {
+          const cached = readCachedData(wid);
+          if (cached?.metrics && cached?.lists) {
+            setMetrics(cached.metrics);
+            setLists(cached.lists);
+            setLastUpdated(new Date(cached.__ts));
+            setLoading(false);
+            startTransition(() => {
+              fetchDashboard(wid)
+                .then((fresh) => {
+                  setMetrics(fresh.metrics);
+                  setLists(fresh.lists);
+                  writeCachedData(wid, fresh);
+                  setLastUpdated(new Date());
+                })
+                .catch(() => {});
+            });
+            return;
+          }
+        }
+
+        const fresh = await fetchDashboard(wid);
+        setMetrics(fresh.metrics);
+        setLists(fresh.lists);
+        writeCachedData(wid, fresh);
+        setLastUpdated(new Date());
+      } catch (e) {
+        console.error("Dashboard load error:", e);
+        setMetrics({
+          totalProducts: 0,
+          totalStockPcs: 0,
+          lowOrOutCount: 0,
+          stockValueEstimate: 0,
+          todaysSales: 0,
+          todaysReturns: 0,
+          todaysReturnsCount: 0,
+        });
+        setLists({
+          lowStockList: [],
+          productsList: [],
+          receivingsList: [],
+          recentSales: [],
+          recentTransactions: [],
+          supplierReturnsList: [],
+          returnEmptiesList: [],
+          creditList: [],
+          creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
+          usersList: [],
+          rolesList: [],
+          vansList: [], // NEW
+        });
+        setLastUpdated(new Date());
+      } finally {
+        setLoading(false);
+      }
+    },
+    [startTransition]
+  );
+
+  useEffect(() => {
+    loadData(false);
+    const handleWarehouseChange = () => loadData(true);
+    window.addEventListener("warehouseChanged", handleWarehouseChange);
+    return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
+  }, [loadData]);
+
+  const removeWidget = useCallback((id) => setSelectedIds((prev) => prev.filter((x) => x !== id)), []);
+
+  return (
+    <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-100px,rgba(99,102,241,0.10),transparent)]">
+      {/* Header */}
+      <div className="px-4 pt-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shadow-sm">
+              <IconSales />
+            </div>
+            <div>
+              <h1 className="text-[15px] font-semibold text-slate-900">Dashboard</h1>
+              <div className="flex items-center gap-2 text-[11px] text-slate-600">
+                <span className="inline-flex items-center gap-1">
+                  <IconWarehouse /> Warehouse:
+                </span>
+                <span className="font-medium">
+                  {warehouseMeta?.warehouse || warehouseMeta?.name || "No Warehouse Assigned"}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPickerOpen(true)}
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white text-xs shadow-sm hover:shadow"
+            >
+              ➕ Add Widgets
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Sales Reports */}
-      <div className="col-span-2 bg-white rounded-xl shadow-md p-4">
-        <h2 className="text-lg font-semibold mb-2">Reports</h2>
-        <div className="w-full h-[200px] flex items-center justify-center text-gray-400">
-          No reports available
-        </div>
+      {/* Content grid */}
+      <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Statistics
+          metrics={metrics}
+          onRefresh={() => loadData(true)}
+          loading={loading || isPending}
+          lastUpdated={lastUpdated}
+        />
+
+        {/* Widgets */}
+        {visibleSelectedItems.map((item) => {
+          const id = item.id;
+          const route = item.route;
+
+          if (id === "stocks") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <LowStockWidget items={lists.lowStockList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "products") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <ProductsWidget rows={lists.productsList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "receiving") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <ReceivingWidget rows={lists.receivingsList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "trading") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <TradingPreview rows={lists.recentTransactions} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "supplier-returns") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <SupplierReturnsWidget rows={lists.supplierReturnsList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "return-empties") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <ReturnEmptiesWidget rows={lists.returnEmptiesList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "credit") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <CreditWidget rows={lists.creditList} summary={lists.creditSummary} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "users") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <UsersWidget rows={lists.usersList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "roles") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <RolesWidget rows={lists.rolesList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "vans") {
+            return (
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                <VansWidget rows={lists.vansList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "suppliers") {
+            return (
+              <GenericSidebarWidget
+                key={id}
+                id={id}
+                title={item.name}
+                route={route}
+                onRemove={removeWidget}
+              >
+                <SuppliersWidget rows={lists.suppliersList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+          if (id === "warehouses") {
+            return (
+              <GenericSidebarWidget
+                key={id}
+                id={id}
+                title={item.name}
+                route={route}
+                onRemove={removeWidget}
+              >
+                <WarehousesWidget rows={lists.warehousesList} />
+              </GenericSidebarWidget>
+            );
+          }
+
+
+
+          return (
+            <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget} />
+          );
+        })}
+
+        {/* Empty state */}
+        {visibleSelectedItems.length === 0 && (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="rounded-xl border-2 border-dashed border-slate-300/80 p-8 flex flex-col items-center justify-center text-slate-600 bg-white/50 hover:bg-white/70 transition"
+          >
+            <div className="text-base mb-1">➕</div>
+            <div className="text-xs">No widgets selected</div>
+            <div className="text-[11px] text-slate-500">Click to add widgets</div>
+          </button>
+        )}
       </div>
 
-      {/* Placeholder for Additional Widgets */}
-      <div className="bg-gray-200 rounded-xl shadow-md p-4 flex items-center justify-center">
-        <span className="text-gray-500 text-sm">Add Widget</span>
-      </div>
+      {/* Modal */}
+      <WidgetPickerModal
+        open={pickerOpen}
+        selectedIds={selectedIds}
+        onClose={() => setPickerOpen(false)}
+        onSave={(ids) => {
+          setSelectedIds(ids);
+          setPickerOpen(false);
+        }}
+      />
     </div>
   );
 };

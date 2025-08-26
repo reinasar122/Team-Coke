@@ -53,6 +53,9 @@ import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 // Karen Changes
 import VanLoadProductDetails from "./pages/VanLoadProductDetails";
 
+// Dashboard Page
+import Dashboard from "./pages/Dashboard"; // Add this import for the Dashboard
+
 
 // Credits
 import CreditList from "./pages/CreditList";
@@ -219,6 +222,10 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
           {/* Page Routes */}
           <Routes>
+
+            {/* Add Dashboard Route */}
+            <Route path="/dashboard" element={<Dashboard />} />
+
             {/* Credits */}
             <Route path="/credits" element={<CreditList />} />
             <Route path="/credit" element={<Navigate to="/credits" replace />} />
