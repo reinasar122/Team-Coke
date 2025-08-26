@@ -56,7 +56,7 @@ const ZeroInput = ({
   );
 };
 
-// --- rules helpers ---
+// --- rules helpers jelyn changes ---
 const isSoldEqualDispatched = (row) =>
   Number(row.sold_shell || 0) === Number(row.dispatched_shell || 0) &&
   Number(row.sold_pcs   || 0) === Number(row.dispatched_pcs   || 0);
@@ -564,19 +564,6 @@ const VanLoadUpdate = () => {
     <div className="w-100 mx-auto p-6 bg-white shadow rounded-lg mt-4">
       <h2 className="text-2xl font-bold mb-6 text-blue-600">Van Load Return</h2>
 
-      <ExpensesSection
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        miscItems={miscItems}
-        setMiscItems={setMiscItems}
-        newDesc={newDesc}
-        setNewDesc={setNewDesc}
-        newAmt={newAmt}
-        setNewAmt={setNewAmt}
-        calculateTotalExpenses={calculateTotalExpenses}
-       
-      />
-
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <div>
           <label className="font-semibold">MSP No:</label>
@@ -599,6 +586,7 @@ const VanLoadUpdate = () => {
       </div>
 
       <h3 className="text-lg font-semibold mt-6 mb-2">Product Details</h3>
+      {/* jelyn changes starts here */}
       <div className='card'>
         <div className='table-wrapper'>
           <table className="table">
@@ -849,6 +837,21 @@ const VanLoadUpdate = () => {
           </span>
         </div>
       </div>*/}
+
+      <ExpensesSection
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        miscItems={miscItems}
+        setMiscItems={setMiscItems}
+        newDesc={newDesc}
+        setNewDesc={setNewDesc}
+        newAmt={newAmt}
+        setNewAmt={setNewAmt}
+        calculateTotalExpenses={calculateTotalExpenses}
+       
+      />
+
+      {/* jelyn Changes Ends Here */}
 
       {/* Remarks */}
       <div className="md:col-span-2 mt-4">
