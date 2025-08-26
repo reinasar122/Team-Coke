@@ -699,14 +699,34 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 stock.quantity_available = (stock.quantity_available or 0) + merchandising_item.actual_return_pcs
                 stock.save(update_fields=['quantity_available'])
 
-            # Deduct sold pcs
-            if merchandising_item.sold_pcs > 0:
-                stock, _ = Stock.objects.get_or_create(
-                    product=product,
-                    warehouse=merchandising.warehouse
-                )
-                stock.quantity_available = (stock.quantity_available or 0) - merchandising_item.sold_pcs
-                stock.save(update_fields=['quantity_available'])
+            # Deduct sold pcs ONLY if transaction_type is "Warehouse"
+            if merchandising.transaction_type.name.lower() == "warehouse":
+                if merchandising_item.sold_pcs > 0:
+                    stock, _ = Stock.objects.get_or_create(
+                        product=product,
+                        warehouse=merchandising.warehouse
+                    )
+
+
+                    # ✅ get the quantity before deduction
+                    old_qty = stock.quantity_available or 0
+
+
+                    # apply deduction
+                    stock.quantity_available = (stock.quantity_available or 0) - merchandising_item.sold_pcs
+                    stock.save(update_fields=['quantity_available'])
+
+
+                    # 🔍 DEBUG LOG
+                    print(
+                        f"[STOCK DEBUG] Deduction applied | MSP: {merchandising.msp_no} "
+                        f"| Product: {product.product_name} "
+                        f"| Sold: {merchandising_item.sold_pcs} "
+                        f"| Before: {old_qty} | After: {stock.quantity_available}"
+                    )
+
+
+
 
          # -- MISCELLANEOUS --
         created_ids = []
