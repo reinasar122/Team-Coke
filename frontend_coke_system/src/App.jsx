@@ -56,6 +56,9 @@ import VanLoadProductDetails from "./pages/VanLoadProductDetails";
 // Dashboard Page
 import Dashboard from "./pages/Dashboard"; // Add this import for the Dashboard
 
+//Sales Report
+import SalesReport from "./pages/reports/SalesReport.jsx";
+
 
 // Credits
 import CreditList from "./pages/CreditList";
@@ -280,6 +283,12 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/supplier-returns" element={<SupplierReturnList />} />
             <Route path="/supplier-returns/new" element={<SupplierReturnForm />} />
             <Route path="/return-empties" element={<ReturnEmpties />} />
+
+
+            {/* ✅ Sales Report page */}
+            <Route path="/reports/sales" element={<SalesReport />} />
+            <Route path="/salesreport" element={<Navigate to="/reports/sales" replace />} />
+
           </Routes>
         </div>
       </div>
