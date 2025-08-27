@@ -17,7 +17,7 @@ const ActionButtons = ({ transactionType, onBack, onFinalize, onPay, finalizeDis
           }`}
           title={finalizeDisabled ? "No dispatched items to deduct" : "Finalize Sale"}
         >
-          Finalize Sale
+          For Delivery
         </button>
       )}
 

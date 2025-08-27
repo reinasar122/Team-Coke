@@ -222,7 +222,7 @@ const MerchandisingList = () => {
 
       <div className="w-full card rounded shadow">
         <div className="table-wrapper">
-          <table className="table table-hover">
+          <table className="table table-hover ">
             <thead>
               <tr>
                 <th className="p-2">MSP No.</th>

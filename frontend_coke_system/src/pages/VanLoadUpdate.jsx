@@ -59,14 +59,19 @@ const ZeroInput = ({
 // --- rules helpers jelyn changes ---
 const isSoldEqualDispatched = (row) =>
   Number(row.sold_shell || 0) === Number(row.dispatched_shell || 0) &&
-  Number(row.sold_pcs   || 0) === Number(row.dispatched_pcs   || 0);
+  Number(row.sold_pcs || 0) === Number(row.dispatched_pcs || 0);
 
 const hasEmptyPrice = (row) =>
   Number(row.empty_price_shell || 0) > 0 || Number(row.empty_price_pc || 0) > 0;
 
+// Which fields are considered "returned with contents"
 const isReturnedWithContentsField = (field) =>
-  field === 'expected_return_shell_nonempty' || field === 'expected_return_pcs_nonempty';
+  field === 'expected_return_shell_nonempty' ||
+  field === 'expected_return_pcs_nonempty' ||
+  field === 'actual_return_shell' ||
+  field === 'actual_return_pcs';
 
+// Which fields are considered "returned empty"
 const isReturnedEmptyField = (field) =>
   field === 'empty_return_shell' || field === 'empty_return_pcs';
 
@@ -77,7 +82,7 @@ const isReturnedEmptyField = (field) =>
  *    - else → disable returned-empty only
  * - Has empty price:
  *    - if Sold == Dispatched → disable Returned-with-contents only
- *    - else → enable
+ *    - else → enable all editable
  */
 const shouldDisableEditableField = (row, field) => {
   const soldEq = isSoldEqualDispatched(row);
@@ -90,7 +95,7 @@ const shouldDisableEditableField = (row, field) => {
 
   // has empty price
   if (soldEq && isReturnedWithContentsField(field)) return true;
-  return false;
+  return false; // enable
 };
 
 
@@ -741,53 +746,54 @@ const handleSubmit = () => {
                   </td>
 
                 {/* RETURNED / DISCREPANCIES / EXPECTED NON-EMPTY */}
-                {[
-                  ['empty_return_shell', true],
-                  ['empty_return_pcs', true],
-                  ['discrepancy_empties_shell', false],
-                  ['discrepancy_empties_pc', false],
-                  ['actual_return_shell', true],
-                  ['actual_return_pcs',   true],
-                  ['discrepancy_full_shell', false],
-                  ['discrepancy_full_pcs', false],
-                ].map(([field, editable], i) => {
-                  const disableInput = editable ? shouldDisableEditableField(row, field) : true;
+                  {[
+                    ['empty_return_shell', true],
+                    ['empty_return_pcs', true],
+                    ['discrepancy_empties_shell', false],
+                    ['discrepancy_empties_pc', false],
+                    ['actual_return_shell', true],
+                    ['actual_return_pcs', true],
+                    ['discrepancy_full_shell', false],
+                    ['discrepancy_full_pcs', false],
+                  ].map(([field, editable], i) => {
+                    const disableInput = editable ? shouldDisableEditableField(row, field) : true;
+                    const value = z(row[field]);
 
-                  return (
-                    <td key={i} className="border border-gray-200 py-1 px-1">
-                      {editable ? (
-                        <ZeroInput
-                          type="number"
-                          value={row[field]}
-                          onValue={(v) => handleRowChange(index, field, v)}
-                          disabled={disableInput}
-                          className={`input-always-spinner w-full p-1 text-sm text-center rounded
-                            ${
-                              isReturnedWithContentsField(field) || isReturnedEmptyField(field)
-                                ? 'bg-yellow-50'
-                                : 'bg-gray-100'
-                            }
-                            ${disableInput ? 'cursor-not-allowed opacity-70' : ''}
-                          `}
-                        />
-                      ) : (
-                        <input
-                          type="number"
-                          value={z(row[field])}
-                          disabled
-                          className={`w-full p-1 text-sm text-center rounded bg-gray-100
-                            ${
-                              field.includes('discrepancy') && parseFloat(row[field] || 0) !== 0
-                                ? 'bg-red-100 text-red-700 font-semibold'
-                                : ''
-                            }
-                            cursor-not-allowed
-                          `}
-                        />
-                      )}
-                    </td>
-                  );
-                })}
+                    return (
+                      <td key={i} className="border border-gray-200 py-1 px-1">
+                        {editable ? (
+                          <ZeroInput
+                            type="number"
+                            value={row[field]}
+                            onValue={(v) => handleRowChange(index, field, v)}
+                            disabled={disableInput}
+                            className={`input-always-spinner w-full p-1 text-sm text-center rounded
+                              ${
+                                isReturnedWithContentsField(field) || isReturnedEmptyField(field)
+                                  ? 'bg-yellow-50'
+                                  : 'bg-gray-100'
+                              }
+                              ${disableInput ? 'cursor-not-allowed opacity-70' : ''}
+                            `}
+                          />
+                        ) : (
+                          <input
+                            type="number"
+                            value={value}
+                            disabled
+                            className={`w-full p-1 text-sm text-center rounded
+                              ${
+                                field.includes('discrepancy') && parseFloat(value || 0) !== 0
+                                  ? 'bg-red-100 text-red-700 font-semibold'
+                                  : 'bg-gray-100'
+                              }
+                              cursor-not-allowed
+                            `}
+                          />
+                        )}
+                      </td>
+                    );
+                  })}
 
                 
                   {/* DISCOUNT (editable when sold > 0) */}
