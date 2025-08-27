@@ -60,7 +60,9 @@ const PaymentModal = ({
   // Van Load extras
   transactionTypeName, // "Warehouse" | "Van Load"
   expensesTotal = 0,
+  //  miscItems = [],
   remarks = "",
+
   onRemarksChange,
 
   //van load breakdown props: Kath
@@ -288,6 +290,52 @@ const PaymentModal = ({
           </table>
         </div>
 
+
+       {/* Expenses Summary — only if NOT Warehouse */}
+        {!isWarehouse && (
+          <div className="mt-6">
+            <h3 className="font-semibold mb-2">Expenses Summary</h3>
+
+            <table className="w-full mt-2 border">
+              <thead className="bg-gray-200">
+                <tr>
+                  <th className="p-2 text-left">Description</th>
+                  <th className="p-2 text-right">Amount (₱)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(miscItems || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="p-2 text-center text-gray-500">
+                      No expenses added
+                    </td>
+                  </tr>
+                ) : (
+                  miscItems.map((exp, idx) => (
+                    <tr key={idx} className="border-t">
+                      <td className="p-2">{exp.description}</td>
+                      <td className="p-2 text-right">
+                        ₱{Number(exp.amount || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+
+                <tr className="font-semibold border-t bg-gray-50">
+                  <td className="p-2">Total</td>
+                  <td className="p-2 text-right">
+                    ₱{(miscItems || [])
+                      .reduce((s, i) => s + Number(i.amount || 0), 0)
+                      .toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
+
+
         {/* Payment Breakdown */}
         {/*<div className="mt-6 text-sm">
           <h3 className="font-semibold mb-2">Payment Breakdown</h3>
@@ -377,6 +425,7 @@ const PaymentModal = ({
                 </div>
               </div>
             ) : (
+
               // ---------- WAREHOUSE: original block ----------
               <>
                 <h3 className="font-semibold mb-2">Payment Breakdown</h3>

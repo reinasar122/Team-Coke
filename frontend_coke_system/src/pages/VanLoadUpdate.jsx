@@ -956,6 +956,7 @@ const handleSubmit = () => {
           remarks={remarks}
           onRemarksChange={setRemarks}
           onPaymentSuccess={handleVanLoadPaymentSuccess}
+          miscItems={miscItems}
         />
       )}
     </div>
