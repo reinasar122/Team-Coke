@@ -60,7 +60,6 @@ const PaymentModal = ({
   // Van Load extras
   transactionTypeName, // "Warehouse" | "Van Load"
   expensesTotal = 0,
-  //  miscItems = [],
   remarks = "",
 
   onRemarksChange,
@@ -264,30 +263,32 @@ const PaymentModal = ({
         {/* Product Summary */}
         <div className="mt-6">
           <h3 className="font-semibold mb-2">Products Summary</h3>
-          <table className="w-full mt-4 border">
-            <thead className="bg-gray-200">
-              <tr>
-                <th className="p-2 text-left">Product</th>
-                <th className="p-2 text-left">Sold Qty (Shell)</th>
-                <th className="p-2 text-left">Sold Qty (PC)</th>
-                <th className="p-2 text-left">Unit Price</th>
-                <th className="p-2 text-left">Discount (%)</th>
-                <th className="p-2 text-left">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.map((row, index) => (
-                <tr key={index} className="border-t">
-                  <td className="p-2">{getProdName(row)}</td>
-                  <td className="p-2">{getSoldShell(row)}</td>
-                  <td className="p-2">{getSoldPcs(row)}</td>
-                  <td className="p-2">₱{fmt(getUnitPrice(row))}</td>
-                  <td className="p-2">{fmt(getDiscountPercent(row))}</td>
-                  <td className="p-2">₱{fmt(getLineTotal(row))}</td>
+          <div className="table-wrapper">
+            <table className="table">
+              <thead className="bg-gray-200">
+                <tr>
+                  <th className="p-2 text-left">Product</th>
+                  <th className="p-2 text-left">Sold Qty (Shell)</th>
+                  <th className="p-2 text-left">Sold Qty (PC)</th>
+                  <th className="p-2 text-left">Unit Price</th>
+                  <th className="p-2 text-left">Discount (%)</th>
+                  <th className="p-2 text-left">Total</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {tableRows.map((row, index) => (
+                  <tr key={index} className="border-t">
+                    <td className="p-2">{getProdName(row)}</td>
+                    <td className="p-2">{getSoldShell(row)}</td>
+                    <td className="p-2">{getSoldPcs(row)}</td>
+                    <td className="p-2">₱{fmt(getUnitPrice(row))}</td>
+                    <td className="p-2">{fmt(getDiscountPercent(row))}</td>
+                    <td className="p-2">₱{fmt(getLineTotal(row))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
 
 
@@ -295,42 +296,43 @@ const PaymentModal = ({
         {!isWarehouse && (
           <div className="mt-6">
             <h3 className="font-semibold mb-2">Expenses Summary</h3>
-
-            <table className="w-full mt-2 border">
-              <thead className="bg-gray-200">
-                <tr>
-                  <th className="p-2 text-left">Description</th>
-                  <th className="p-2 text-right">Amount (₱)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(miscItems || []).length === 0 ? (
+            <div className="table-wrapper">
+              <table className="table">
+                <thead className="bg-gray-200">
                   <tr>
-                    <td colSpan={2} className="p-2 text-center text-gray-500">
-                      No expenses added
-                    </td>
+                    <th className="p-2 text-left">Description</th>
+                    <th className="p-2 text-right">Amount (₱)</th>
                   </tr>
-                ) : (
-                  miscItems.map((exp, idx) => (
-                    <tr key={idx} className="border-t">
-                      <td className="p-2">{exp.description}</td>
-                      <td className="p-2 text-right">
-                        ₱{Number(exp.amount || 0).toFixed(2)}
+                </thead>
+                <tbody>
+                  {(miscItems || []).length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="p-2 text-center text-gray-500">
+                        No expenses added
                       </td>
                     </tr>
-                  ))
-                )}
+                  ) : (
+                    miscItems.map((exp, idx) => (
+                      <tr key={idx} className="border-t">
+                        <td className="p-2">{exp.description}</td>
+                        <td className="p-2 text-right">
+                          ₱{Number(exp.amount || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                  )}
 
-                <tr className="font-semibold border-t bg-gray-50">
-                  <td className="p-2">Total</td>
-                  <td className="p-2 text-right">
-                    ₱{(miscItems || [])
-                      .reduce((s, i) => s + Number(i.amount || 0), 0)
-                      .toFixed(2)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  <tr className="font-semibold border-t bg-gray-50">
+                    <td className="p-2">Total</td>
+                    <td className="p-2 text-right">
+                      ₱{(miscItems || [])
+                        .reduce((s, i) => s + Number(i.amount || 0), 0)
+                        .toFixed(2)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -356,7 +358,7 @@ const PaymentModal = ({
         {/* Payment Breakdown */}
         <h3 className="font-semibold mt-4 mb-0">Payment Breakdown</h3>
         <div className="mt-6 text-sm">
-          <div className="flex flex-col bg-transparent p-6 border-[1px] border-black">
+          <div className="flex flex-col bg-transparent p-6 border-[2px] border-slate-200">
             {isVanLoad ? (
               // ---------- VAN LOAD layout (matches screenshot) ----------
               <div className="space-y-8">
@@ -503,7 +505,7 @@ const PaymentModal = ({
                 <label className="block mb-1">Cash Amount Received</label>
                 <input
                   type="number"
-                  className="w-full border rounded px-2 py-1"
+                  className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
                   value={cashReceived}
                   onChange={(e) => setCashReceived(e.target.value)}
                 />
@@ -511,7 +513,7 @@ const PaymentModal = ({
               <div>
                 <label className="block mb-1">Amount Due</label>
                 <input
-                  className="w-full border rounded px-2 py-1"
+                  className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
                   value={`₱${fmt(amountDueFinal)}`}
                   readOnly
                 />
@@ -520,7 +522,7 @@ const PaymentModal = ({
                 <div>
                   <label className="block mb-1">Change</label>
                   <input
-                    className="w-full border rounded px-2 py-1"
+                    className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
                     value={`₱${fmt(change)}`}
                     readOnly
                   />
@@ -530,7 +532,7 @@ const PaymentModal = ({
           )}      
 
           {paymentMethod === "credit" && (
-            <div className="border p-4 rounded space-y-4">
+            <div className="p-4 border-[2px] border-slate-200 rounded space-y-4">
               <div>
                 <h4 className="font-semibold text-blue-600 mb-2">📅 Credit Terms</h4>
                 <div className="grid grid-cols-2 gap-4">
