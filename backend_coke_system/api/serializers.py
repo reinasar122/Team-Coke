@@ -566,35 +566,22 @@ class PaymentSerializer(serializers.ModelSerializer):
 
 class MerchandisingSerializer(serializers.ModelSerializer):
     # Read-only derived fields
-    msp_no = serializers.CharField(read_only=True)  # ← server owns MSP
+    msp_no = serializers.CharField(read_only=True)  # server owns MSP
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
     date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
 
-
-    # Nested
-    items = MerchandisingItemSerializer(many=True)
+    # 🔁 CHANGED: make nested arrays optional for PATCH; keep payments read-only on update
+    items = MerchandisingItemSerializer(many=True, required=False)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
-    payments = PaymentSerializer(many=True, required=False)
+    payments = PaymentSerializer(many=True, required=False, read_only=True)
 
     # FK inputs
-    route = serializers.PrimaryKeyRelatedField(
-        queryset=Route.objects.all(), allow_null=True, required=False
-    )
-
-    # FK inputs
-    customer = serializers.PrimaryKeyRelatedField(
-        queryset=Customer.objects.all(), allow_null=True, required=False
-    )
-
-    def get_customer_name(self, obj):
-        if obj.customer:
-            return obj.customer.name
-        return "Walk-in" 
+    route = serializers.PrimaryKeyRelatedField(queryset=Route.objects.all(), allow_null=True, required=False)
+    customer = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), allow_null=True, required=False)
 
     # Computed aggregates for response
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
-    
 
     class Meta:
         model = Merchandising
@@ -602,9 +589,13 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         read_only_fields = ['msp_no', 'transaction_type_name', 'total_trading_amount', 'total_expenses_amount']
 
     def validate(self, data):
-        transaction_type = data.get("transaction_type")
-        route = data.get("route")
-        van = data.get("van")
+        """
+        🔁 CHANGED: on PATCH, fall back to instance values so Van Load
+        validation still applies even if the field is omitted.
+        """
+        transaction_type = data.get("transaction_type") or getattr(self.instance, "transaction_type", None)
+        route = data.get("route") if "route" in data else getattr(self.instance, "route", None)
+        van = data.get("van") if "van" in data else getattr(self.instance, "van", None)
 
         if transaction_type and transaction_type.name.lower() == "van load":
             if not route:
@@ -619,10 +610,9 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     def get_total_expenses_amount(self, obj):
         return sum([(item.amount or 0) for item in obj.misc_items.all()])
 
-    
-
     @transaction.atomic  # ← ensure all-or-nothing
     def create(self, validated_data):
+        # ⬇️ UNCHANGED: this is exactly your original create()
         items_data = validated_data.pop('items', [])
         misc_items_data = validated_data.pop('misc_items', [])
         payments_data = validated_data.pop('payments', [])
@@ -630,7 +620,6 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         print(">>> DEBUG misc_items_data received:", misc_items_data) 
         print(">>> SERIALIZER.create misc_items_data len:", len(misc_items_data))
         print(">>> SERIALIZER.create misc_items_data sample:", misc_items_data[:3])
-
 
         # Safety: client must NOT override msp_no
         validated_data.pop('msp_no', None)
@@ -665,30 +654,25 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
             # Returnables (empties) → ReturnableStock (UPSERT)
             if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
-                # Clamp to >= 0 to be safe with validators
                 add_bottle = max(0, int(merchandising_item.empty_return_pcs or 0))
                 add_shell  = max(0, int(merchandising_item.empty_return_shell or 0))
 
-                # Match the UNIQUE constraint fields used by your model:
-                # product, warehouse, source, supplier  (inferred from the error)
                 rs, created = (
                     ReturnableStock.objects
-                    .select_for_update()  # lock row if it exists (inside atomic txn)
+                    .select_for_update()
                     .get_or_create(
                         product=product,
                         warehouse=merchandising.warehouse,
-                        source='customer',                           # keep your current source
-                        supplier=getattr(product, 'supplier', None),# same supplier you use now
+                        source='customer',
+                        supplier=getattr(product, 'supplier', None),
                         defaults={'empty_bottle_qty': 0, 'empty_shell_qty': 0},
                     )
                 )
 
-                # Atomic SQL increment to avoid race conditions
                 ReturnableStock.objects.filter(pk=rs.pk).update(
                     empty_bottle_qty=F('empty_bottle_qty') + add_bottle,
                     empty_shell_qty=F('empty_shell_qty') + add_shell,
                 )
-
 
             # Restock non-empty returns
             if merchandising_item.actual_return_pcs > 0:
@@ -706,18 +690,9 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                         product=product,
                         warehouse=merchandising.warehouse
                     )
-
-
-                    # ✅ get the quantity before deduction
                     old_qty = stock.quantity_available or 0
-
-
-                    # apply deduction
                     stock.quantity_available = (stock.quantity_available or 0) - merchandising_item.sold_pcs
                     stock.save(update_fields=['quantity_available'])
-
-
-                    # 🔍 DEBUG LOG
                     print(
                         f"[STOCK DEBUG] Deduction applied | MSP: {merchandising.msp_no} "
                         f"| Product: {product.product_name} "
@@ -725,21 +700,18 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                         f"| Before: {old_qty} | After: {stock.quantity_available}"
                     )
 
-
-
-
-         # -- MISCELLANEOUS --
+        # -- MISCELLANEOUS --
         created_ids = []
         total_misc = Decimal("0.00")
         for mi in misc_items_data:
             amt = Decimal(str(mi.get("amount", 0)))
             total_misc += amt
-            created_misc = MiscellaneousItem.objects.create(   # <-- store the created row
+            created_misc = MiscellaneousItem.objects.create(
                 merchandising=merchandising,
                 description=mi.get("description", ""),
                 amount=amt,
             )
-            created_ids.append(created_misc.id)                # <-- use created_misc
+            created_ids.append(created_misc.id)
 
         print(">>> SERIALIZER.create created Misc IDs:", created_ids)
 
@@ -752,10 +724,92 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
         return merchandising
 
+    @transaction.atomic
     def update(self, instance, validated_data):
+        """
+        🔁 NEW: writable nested update for items & misc_items.
+        - Upserts rows by `id`
+        - Deletes rows missing from the payload
+        - Leaves payments read-only in updates
+        """
         # Prevent clients from altering msp_no on update as well
         validated_data.pop('msp_no', None)
-        return super().update(instance, validated_data)
+
+        items_data = validated_data.pop('items', None)          # may be omitted in PATCH
+        misc_items_data = validated_data.pop('misc_items', None)
+        validated_data.pop('payments', None)                    # ignore on update
+
+        # --- update parent fields ---
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        # --- sync nested ITEMS if provided ---
+        if items_data is not None:
+            existing = {obj.id: obj for obj in instance.items.all()}
+            seen = set()
+
+            for line in items_data:
+                line_id = line.get("id")
+
+                # normalize product FK (frontend can send numeric id)
+                product = line.get("product")
+                if product and not isinstance(product, Product):
+                    product = Product.objects.get(pk=product)
+                    line["product"] = product
+
+                if line_id and line_id in existing:
+                    obj = existing[line_id]
+                    for k, v in line.items():
+                        if k == "id":
+                            continue
+                        setattr(obj, k, v)
+                    obj.save()
+                    seen.add(line_id)
+                else:
+                    MerchandisingItem.objects.create(merchandising=instance, **line)
+
+            # delete rows removed by client
+            for obj_id, obj in existing.items():
+                if obj_id not in seen:
+                    obj.delete()
+
+        # --- sync nested MISC ITEMS if provided ---
+        if misc_items_data is not None:
+            existing = {obj.id: obj for obj in instance.misc_items.all()}
+            seen = set()
+            total_misc = Decimal("0.00")
+
+            for mi in misc_items_data:
+                mi_id = mi.get("id")
+                amt = Decimal(str(mi.get("amount", 0)))
+                total_misc += amt
+
+                if mi_id and mi_id in existing:
+                    obj = existing[mi_id]
+                    obj.description = mi.get("description", obj.description)
+                    obj.amount = amt
+                    obj.save()
+                    seen.add(mi_id)
+                else:
+                    new_obj = MiscellaneousItem.objects.create(
+                        merchandising=instance,
+                        description=mi.get("description", ""),
+                        amount=amt,
+                    )
+                    seen.add(new_obj.id)
+
+            # delete removed misc rows
+            for obj_id, obj in existing.items():
+                if obj_id not in seen:
+                    obj.delete()
+
+            # keep aggregate in sync
+            if instance.miscellaneous != total_misc:
+                instance.miscellaneous = total_misc
+                instance.save(update_fields=["miscellaneous"])
+
+        return instance
 
 
 
