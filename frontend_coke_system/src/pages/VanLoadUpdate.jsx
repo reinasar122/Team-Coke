@@ -11,6 +11,10 @@ import PaymentModal from '../components/PaymentModal';
 const z = (v) =>
   v === undefined || v === null || v === '' || Number.isNaN(v) ? 0 : v;
 
+
+const nullIfBlank = (v) => (v === '' || v === null || v === undefined ? null : v);
+
+
 // Peso formatter that never shows ₱NaN
 const peso = (n) =>
   `₱${(parseFloat(n) || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
@@ -161,131 +165,152 @@ const VanLoadUpdate = () => {
   }, [saleId]);
 
   // Process rows AFTER unit types are loaded and sale is ready
-  useEffect(() => {
-    if (!sale || !unitTypes.length) return;
-    if (sale.items && Array.isArray(sale.items)) {
-      const processed = sale.items.map((item) => {
-        const product = item.product_detail ?? item.product ?? {};
-        const unitTypeId = product.unit_type ?? null;
-        const contentNo = unitTypeMap[unitTypeId] ?? 1;
+useEffect(() => {
+  if (!sale || !unitTypes.length) return;
+  if (sale.items && Array.isArray(sale.items)) {
+    const processed = sale.items.map((item) => {
+    const product = item.product_detail ?? item.product ?? {};
+    const unitTypeId =
+      product.unit_type?.id ?? product.unit_type_id ?? product.unit_type ?? null;
+    const contentNo = unitTypeMap[unitTypeId] ?? 1;
 
-        const dispatchedShell = parseFloat(item.dispatched_shell ?? 0);
-        const dispatchedPcs   = Math.round(dispatchedShell * contentNo);
+    // --- robust fallbacks: accept either *_shell or *_pcs from API ---
+    const rawDispShell = nullIfBlank(item.dispatched_shell ?? item.dispatchedShell);
+    const rawDispPcs   = nullIfBlank(item.dispatched_pcs   ?? item.dispatchedPcs);
 
-        const soldShell = parseFloat(item.sold_shell ?? 0);
-        const soldPcs   = Math.round(soldShell * contentNo);
+    const dispatched_shell =
+      rawDispShell !== null
+        ? parseFloat(rawDispShell)
+        : (parseFloat(rawDispPcs || 0) / (contentNo || 1));
 
-        const price = parseFloat(item.selling_price ?? 0);
-        const dPct  = parseFloat(item.discount_percent ?? item.discount ?? 0);
-
-        // ProductTable-style ACTUAL SALE (no empties revenue here)
-        const discountAmt  = (price * soldPcs * dPct) / 100;
-        const rowActualSale = (price * soldPcs) - discountAmt;
-
-        const emptyShellPrice = parseFloat(item.empty_price_shell ?? 0);
-        const emptyPcPrice    = parseFloat(item.empty_price_pc ?? 0);
-
-        // Expected non-empty auto = dispatched - sold
-        const autoNonEmptyShell = dispatchedShell - soldShell;
-        const autoNonEmptyPcs   = dispatchedPcs   - soldPcs;
-
-        const expectedNonEmptyShell =
-          item.expected_return_shell_nonempty != null
-            ? parseFloat(item.expected_return_shell_nonempty)
-            : autoNonEmptyShell;
-
-        const expectedNonEmptyPcs =
-          item.expected_return_pcs_nonempty != null
-            ? parseFloat(item.expected_return_pcs_nonempty)
-            : autoNonEmptyPcs;
+    const dispatched_pcs =
+      rawDispPcs !== null
+        ? Math.round(parseFloat(rawDispPcs))
+        : Math.round((dispatched_shell || 0) * (contentNo || 1));
 
 
-        // ✅ Actual with-contents defaults to expected, unless backend already has a value
-        const actualReturnShell =
-          item.actual_return_shell != null
-            ? parseFloat(item.actual_return_shell)
-            : expectedNonEmptyShell;
+    const rawSoldShell = item.sold_shell ?? item.soldShell ?? null;
+    const rawSoldPcs   = item.sold_pcs   ?? item.soldPcs   ?? null;
 
-        const actualReturnPcs =
-          item.actual_return_pcs != null
-            ? parseFloat(item.actual_return_pcs)
-            : expectedNonEmptyPcs; // or Math.round(actualReturnShell * contentNo)
+    const sold_shell =
+      rawSoldShell != null
+        ? parseFloat(rawSoldShell)
+        : (parseFloat(rawSoldPcs || 0) / (contentNo || 1));
+
+    const sold_pcs =
+      rawSoldPcs != null
+        ? Math.round(parseFloat(rawSoldPcs))
+        : Math.round((sold_shell || 0) * (contentNo || 1));
+
+    // prices/discounts (accept either snake_case or legacy camelCase)
+    const selling_price   = parseFloat(item.selling_price ?? item.sellingPrice ?? 0);
+    const empty_price_shell = parseFloat(item.empty_price_shell ?? item.emptyPriceShell ?? 0);
+    const empty_price_pc    = parseFloat(item.empty_price_pc    ?? item.emptyPricePc    ?? 0);
+    const discount          = parseFloat(item.discount_percent ?? item.discount ?? 0);
+
+    // ProductTable-style expected/actual
+    const expected_sale = Number((selling_price * dispatched_pcs).toFixed(2));
+    const discountAmt   = (selling_price * sold_pcs * (discount || 0)) / 100;
+    const actual_sale   = Number(((selling_price * sold_pcs) - discountAmt).toFixed(2));
+
+    // expected empty return defaults to SOLD
+    const expected_return_shell_empty = sold_shell;
+    const expected_return_pcs_empty   = sold_pcs;
+
+    // "with contents" (non-empty) expected defaults to dispatched - sold
+    const autoNonEmptyShell = dispatched_shell - sold_shell;
+    const autoNonEmptyPcs   = dispatched_pcs   - sold_pcs;
+
+    const expected_return_shell_nonempty =
+      item.expected_return_shell_nonempty != null
+        ? parseFloat(item.expected_return_shell_nonempty)
+        : autoNonEmptyShell;
+
+    const expected_return_pcs_nonempty =
+      item.expected_return_pcs_nonempty != null
+        ? parseFloat(item.expected_return_pcs_nonempty)
+        : autoNonEmptyPcs;
+
+    // actual with-contents defaults to expected (if backend didn’t set)
+    const actual_return_shell =
+      item.actual_return_shell != null
+        ? parseFloat(item.actual_return_shell)
+        : expected_return_shell_nonempty;
+
+    const actual_return_pcs =
+      item.actual_return_pcs != null
+        ? parseFloat(item.actual_return_pcs)
+        : expected_return_pcs_nonempty;
+
+    // returned empty (fall back from shell → pcs if needed)
+    const empty_return_shell = parseFloat(item.empty_return_shell ?? 0);
+    const empty_return_pcs   =
+      item.empty_return_pcs != null
+        ? Math.round(parseFloat(item.empty_return_pcs))
+        : Math.round(empty_return_shell * (contentNo || 1));
+
+    // empties discrepancy (respect non-returnable)
+    const isNonReturnable = empty_price_shell === 0 && empty_price_pc === 0;
+    const discrepancy_empties_shell = isNonReturnable ? 0 : (sold_shell - empty_return_shell);
+    const discrepancy_empties_pc    = isNonReturnable ? 0 : (sold_pcs   - empty_return_pcs);
+
+    // non-empty discrepancy = expected − actual
+    const discrepancy_full_shell = expected_return_shell_nonempty - actual_return_shell;
+    const discrepancy_full_pcs   = expected_return_pcs_nonempty   - actual_return_pcs;
+
+    return {
+      ...item,
+      productId: product.id,
+      productName: product.product_name ?? '',
+      unitTypeId,
+      contentNo,
+
+      // dispatched (read-only)
+      dispatched_shell,
+      dispatched_pcs,
+
+      // sold (editable)
+      sold_shell,
+      sold_pcs,
+
+      // prices / discount
+      selling_price,
+      empty_price_shell,
+      empty_price_pc,
+      discount,
+
+      // expected/actual pesos
+      expected_sale,
+      actual_sale,
+
+      // expected empty returns (defaults to sold)
+      expected_return_shell_empty,
+      expected_return_pcs_empty,
+
+      // expected non-empty
+      expected_return_shell_nonempty,
+      expected_return_pcs_nonempty,
+
+      // actual returns (with contents)
+      actual_return_shell,
+      actual_return_pcs,
+
+      // returned empty (editable)
+      empty_return_shell: isNonReturnable ? 0 : empty_return_shell,
+      empty_return_pcs:   isNonReturnable ? 0 : empty_return_pcs,
+
+      // discrepancies
+      discrepancy_empties_shell,
+      discrepancy_empties_pc,
+      discrepancy_full_shell,
+      discrepancy_full_pcs,
+    };
+  });
 
 
-        // Returned (empty) initial
-        const emptyReturnShell = parseFloat(item.empty_return_shell ?? 0);
-        const emptyReturnPcs   = Math.round(emptyReturnShell * contentNo);
-
-        // Empties discrepancy (respect non-returnable)
-        const isNonReturnable = emptyShellPrice === 0 && emptyPcPrice === 0;
-        const discrepancyEmptiesShell = isNonReturnable ? 0 : (soldShell - emptyReturnShell);
-        const discrepancyEmptiesPc    = isNonReturnable ? 0 : (soldPcs   - emptyReturnPcs);
-
-        // Non-empty discrepancy
-        // ✅ Discrepancy = expected − actual
-        const discrepancyFullShell = expectedNonEmptyShell - actualReturnShell;
-        const discrepancyFullPcs   = expectedNonEmptyPcs   - actualReturnPcs;
-
-
-        
-
-        
-        return {
-          ...item,
-          productId: product.id,
-          productName: product.product_name ?? '',
-          unitTypeId,
-          contentNo,
-
-          // dispatched (read-only)
-          dispatched_shell: dispatchedShell,
-          dispatched_pcs: dispatchedPcs,
-
-          // sold (editable)
-          sold_shell: soldShell,
-          sold_pcs: soldPcs,
-
-          // prices
-          selling_price: price,
-          empty_price_shell: emptyShellPrice,
-          empty_price_pc: emptyPcPrice,
-
-          // discount (%)
-          discount: dPct,
-
-          // expected/actual
-          expected_sale: Number((price * dispatchedPcs).toFixed(2)),
-          actual_sale:  Number(rowActualSale.toFixed(2)),
-
-          // expected empty return defaults to SOLD
-          expected_return_shell_empty: soldShell,
-          expected_return_pcs_empty:   soldPcs,
-
-          // expected non-empty (editable)
-          expected_return_shell_nonempty: expectedNonEmptyShell,
-          expected_return_pcs_nonempty:   expectedNonEmptyPcs,
-
-          // returned (empty)
-          empty_return_shell: isNonReturnable ? 0 : emptyReturnShell,
-          empty_return_pcs:   isNonReturnable ? 0 : emptyReturnPcs,
-
-
-          // NEW: actual with-contents returns
-          actual_return_shell: actualReturnShell,
-          actual_return_pcs:   actualReturnPcs,
-
-
-          // discrepancies
-          discrepancy_empties_shell: discrepancyEmptiesShell,
-          discrepancy_empties_pc:    discrepancyEmptiesPc,
-          discrepancy_full_shell:    discrepancyFullShell,
-          discrepancy_full_pcs:      discrepancyFullPcs,
-        };
-      });
-
-      setRows(processed);
-    }
-  }, [sale, unitTypeMap, unitTypes.length]);
+    setRows(processed);
+  }
+}, [sale, unitTypeMap, unitTypes.length]);
 
   // Handle row edits (sync shell/pcs and recompute, including expected non-empty logic)
   const handleRowChange = (index, field, value) => {

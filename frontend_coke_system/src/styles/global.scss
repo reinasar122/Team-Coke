@@ -428,87 +428,87 @@ body {
 // }
 
 
-/* —— Sales Report ——————————————————————————— */
-/* —— Buttons ——————————————————————————— */
-.btn {
-  display: inline-flex; align-items: center; gap: .5rem;
-  padding: .5rem .8rem; border-radius: 10px; font-weight: 600;
-  border: 1px solid #e5e7eb; background: #fff; cursor: pointer;
-  &.primary { background: #0f172a; color: #fff; border-color: #0f172a; }
-  &.ghost { background: #fff; color: #0f172a; }
-}
+// /* —— Sales Report ——————————————————————————— */
+// /* —— Buttons ——————————————————————————— */
+// .btn {
+//   display: inline-flex; align-items: center; gap: .5rem;
+//   padding: .5rem .8rem; border-radius: 10px; font-weight: 600;
+//   border: 1px solid #e5e7eb; background: #fff; cursor: pointer;
+//   &.primary { background: #0f172a; color: #fff; border-color: #0f172a; }
+//   &.ghost { background: #fff; color: #0f172a; }
+// }
 
-/* —— Cards / containers ————————————————— */
-.card {
-  background: #fff; border: 1px solid #eef0f3; border-radius: 14px;
-  padding: 16px; box-shadow: 0 1px 0 #f2f3f5 inset;
-}
+// /* —— Cards / containers ————————————————— */
+// .card {
+//   background: #fff; border: 1px solid #eef0f3; border-radius: 14px;
+//   padding: 16px; box-shadow: 0 1px 0 #f2f3f5 inset;
+// }
 
-/* —— Page header ——————————————————————— */
-.page-header {
-  display: grid; grid-template-columns: 1fr auto; align-items: center;
-  margin-bottom: 12px;
-  .title { margin: 0; font-size: 24px; }
-  .subtitle { margin: 4px 0 0; color: #667085; }
-  .actions { display: flex; gap: .5rem; }
-}
+// /* —— Page header ——————————————————————— */
+// .page-header {
+//   display: grid; grid-template-columns: 1fr auto; align-items: center;
+//   margin-bottom: 12px;
+//   .title { margin: 0; font-size: 24px; }
+//   .subtitle { margin: 4px 0 0; color: #667085; }
+//   .actions { display: flex; gap: .5rem; }
+// }
 
-/* —— Table —————————————————————————————— */
-.table-wrap { overflow: auto; }
-.table {
-  width: 100%; border-collapse: collapse; font-size: 14px;
-  th, td { border: 1px solid #eef0f3; padding: 10px 12px; text-align: left; }
-  thead th { background: #fafafa; font-weight: 700; }
-  tfoot th { background: #fbfbff; font-weight: 700; }
-  td.neg { color: #b42318; font-weight: 600; }
-}
+// /* —— Table —————————————————————————————— */
+// .table-wrap { overflow: auto; }
+// .table {
+//   width: 100%; border-collapse: collapse; font-size: 14px;
+//   th, td { border: 1px solid #eef0f3; padding: 10px 12px; text-align: left; }
+//   thead th { background: #fafafa; font-weight: 700; }
+//   tfoot th { background: #fbfbff; font-weight: 700; }
+//   td.neg { color: #b42318; font-weight: 600; }
+// }
 
-/* —— Badges ————————————————————————————— */
-.badge {
-  display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
-  &-high   { background: #fee2e2; color: #b91c1c; }
-  &-medium { background: #fef3c7; color: #b45309; }
-  &-low    { background: #e0e7ff; color: #4338ca; }
-}
+// /* —— Badges ————————————————————————————— */
+// .badge {
+//   display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700;
+//   &-high   { background: #fee2e2; color: #b91c1c; }
+//   &-medium { background: #fef3c7; color: #b45309; }
+//   &-low    { background: #e0e7ff; color: #4338ca; }
+// }
 
-/* —— Compact mode toggles ———————————— */
-.sales-report-page.compact {
-  .card { padding: 12px !important; border-radius: 12px !important; }
-  .page-header { margin-bottom: 12px !important; }
-}
+// /* —— Compact mode toggles ———————————— */
+// .sales-report-page.compact {
+//   .card { padding: 12px !important; border-radius: 12px !important; }
+//   .page-header { margin-bottom: 12px !important; }
+// }
 
-/* ---------- Sales Report: print-only cleanup ---------- */
-@media print {
-  /* Only when on the Sales Report route (body flagged by the page) */
-  body.sales-report-print {
-    /* hide app chrome */
-    .app-header,
-    .app-sidebar,
-    .page-title,
-    .no-print {
-      display: none !important;
-    }
+// /* ---------- Sales Report: print-only cleanup ---------- */
+// @media print {
+//   /* Only when on the Sales Report route (body flagged by the page) */
+//   body.sales-report-print {
+//     /* hide app chrome */
+//     .app-header,
+//     .app-sidebar,
+//     .page-title,
+//     .no-print {
+//       display: none !important;
+//     }
 
-    /* make content full width / remove layout offsets */
-    .app-content {
-      margin: 0 !important;
-      padding: 0 !important;
-    }
+//     /* make content full width / remove layout offsets */
+//     .app-content {
+//       margin: 0 !important;
+//       padding: 0 !important;
+//     }
 
-    /* collapse flex layout so sidebar gap disappears */
-    .flex {
-      display: block !important;
-    }
+//     /* collapse flex layout so sidebar gap disappears */
+//     .flex {
+//       display: block !important;
+//     }
 
-    /* tighten the page padding for a clean print */
-    .sales-report-page {
-      padding: 16px !important;
-    }
-  }
+//     /* tighten the page padding for a clean print */
+//     .sales-report-page {
+//       padding: 16px !important;
+//     }
+//   }
 
-  /* Optional: page size/margins */
-  @page {
-    size: A4 portrait;
-    margin: 12mm;
-  }
-}
+//   /* Optional: page size/margins */
+//   @page {
+//     size: A4 portrait;
+//     margin: 12mm;
+//   }
+// }

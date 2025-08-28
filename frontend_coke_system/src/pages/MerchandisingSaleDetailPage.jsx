@@ -249,14 +249,28 @@ const MerchandisingSaleDetailPage = () => {
 
       <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
         {isVanLoad && !isComplete && (
+        <div className="flex gap-3">
           <button
-            className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition"
-            onClick={() =>
-              navigate('/van-load-update', { state: { id: sale.id, warehouse: currentWarehouse } })
-            }
+            className="bg-amber-500 text-white px-6 py-2 rounded hover:bg-amber-600 transition"
+            onClick={() => {
+              console.log('Edit Van Load clicked for sale', sale.id);
+              navigate('/merchandising-sale', { state: { sale, editMode: true } });
+            }}
           >
-            Receive Return
+            Edit Van Load
           </button>
+
+            <button
+              className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 transition"
+              onClick={() =>
+                navigate('/van-load-update', {
+                  state: { id: sale.id, warehouse: currentWarehouse, mode: 'receive' }
+                })
+              }
+            >
+              Receive Return
+            </button>
+          </div>
         )}
       </div>
 
