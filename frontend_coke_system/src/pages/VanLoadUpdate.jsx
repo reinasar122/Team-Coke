@@ -461,22 +461,26 @@ useEffect(() => {
     [miscItems]
   );
 
-  // Total Returned (With Content) — peso value from PCS only
+  // ✅ replace your totalReturnedWithContent with this
   const totalReturnedWithContent = useMemo(() => {
     return rows.reduce((sum, row) => {
       const price = parseFloat(row.selling_price || 0);
-      const dispatchedPcs = parseFloat(row.dispatched_pcs || 0);
-      const soldPcs = parseFloat(row.sold_pcs || 0);
+      const contentNo =
+        parseFloat(row.contentNo || 0) ||
+        parseFloat((row.unitTypeId && unitTypeMap[row.unitTypeId]) || 0) ||
+        1;
 
-      const expectedPcs =
-        row.expected_return_pcs_nonempty != null
-          ? parseFloat(row.expected_return_pcs_nonempty)
-          : (dispatchedPcs - soldPcs);
+      const actualShell = parseFloat(row.actual_return_shell || 0);
+      const actualPcs   = parseFloat(row.actual_return_pcs   || 0);
 
-      const pcs = Math.max(expectedPcs, 0);
-      return sum + pcs * price;
+      // convert shell → pcs then sum
+      const pcsFromShell = actualShell * contentNo;
+      const totalPcs     = actualPcs + pcsFromShell;
+
+      return sum + totalPcs * price;
     }, 0);
-  }, [rows]);
+  }, [rows, unitTypeMap]);
+
 
   // ✅ Van Load overall total identical to ProductTable:
   // Van Load total = totalActualSale - misc + overallDiscrepancy
