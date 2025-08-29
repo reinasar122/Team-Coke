@@ -311,17 +311,19 @@ class PricingSerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     product_category = serializers.PrimaryKeyRelatedField(queryset=ProductCategory.objects.all())
     unit_type = serializers.PrimaryKeyRelatedField(queryset=UnitType.objects.all())
-    price = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all()) 
+    price = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all())
+    image = serializers.ImageField(required=False, allow_null=True)  # NEW: Image field
+    
     class Meta:
         model = Product
         fields = '__all__'
-
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     unit_type = UnitTypeSerializer(read_only=True)
     price = PricingSerializer(read_only=True)
     product_category = ProductCategorySerializer(read_only=True)
-
+    image_url = serializers.ReadOnlyField()  # NEW: Image URL property
+    
     class Meta:
         model = Product
         fields = '__all__'

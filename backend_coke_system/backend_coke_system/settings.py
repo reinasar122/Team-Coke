@@ -183,6 +183,12 @@ CORS_ALLOW_ALL_ORIGINS = True
 # Make sure CORS is enabled
 CORS_ALLOW_CREDENTIALS = True
 
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+
 #To automatically install dependencies for backend from requirements.txt, run:
 #"pip install -r backend_coke_system/requirements.txt" inside coke-POS-system/backend_coke_system
 
