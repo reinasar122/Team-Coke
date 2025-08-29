@@ -118,7 +118,7 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   box-shadow: var(--shadow);
-  padding: 0;
+  padding: 1rem;
 }
 
 /* =========================
@@ -130,7 +130,7 @@ body {
   max-height: 500px;      // adjust height as needed
   overflow-y: auto;
   overflow-x: auto;
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
 
   &::-webkit-scrollbar {
     width: 8px;
@@ -306,8 +306,7 @@ body {
   // background: #fff;
 
   &:hover {
-    background: var(--primary);
-    color: #fff;
+    color: var(--primary);
   }
 }
 
@@ -324,7 +323,7 @@ body {
   color: var(--danger);
 }
 .icon-btn-danger:hover {
-  background: var(--ghost-hover);
+  background: var(--danger);
 }
 
 /* ⛔ Disabled */
@@ -336,14 +335,28 @@ body {
 /* =========================
    Modal
    ========================= */
-.modal {
-  background: var(--surface);
-  border-radius: var(--r-md);
-  box-shadow: var(--shadow);
-  padding: var(--sp-4);
-  max-width: 600px;
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100%;
+  height: 100%;
+  // background: rgba(0, 0, 0, 0.5); /* dim background */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 50;
 }
+
+.modal {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px;
+  min-width: 500px;
+  max-width: 500px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+}
+
 
 /* =========================
    Forms

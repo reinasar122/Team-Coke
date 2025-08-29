@@ -1,3 +1,4 @@
+// src/pages/CreditList.jsx
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -18,67 +19,98 @@ export default function CreditList() {
   const fmt = (v) => Number(v || 0).toFixed(2);
   const dt = (v) => (v ? new Date(v).toLocaleString() : "—");
 
+  // --- helpers for status normalization ---
+  const norm = (s) => String(s || "").trim().toUpperCase();
+  const isPaid = (s) => {
+    const x = norm(s);
+    // Treat these as PAID; adjust to match your backend statuses if needed
+    return x === "PAID" || x === "FULLY PAID" || x === "SETTLED";
+  };
+  const isPending = (s) => norm(s) === "PENDING";
+  const isPartial = (s) => ["PARTIAL", "PARTIALLY PAID"].includes(norm(s));
+
   const statusLabel = (s) => {
-    if (s === "PENDING") return "Pending";
-    if (s === "PARTIAL") return "Partially Paid";
-    return "Fully Paid";
+    if (isPending(s)) return "Pending";
+    if (isPartial(s)) return "Partially Paid";
+    if (isPaid(s)) return "Fully Paid";
+    // Fallback: show raw
+    return String(s || "").toString();
   };
 
-  const statusClass = (s) => (s === "PENDING" ? "status-pending" : "status-paid");
+  const statusClass = (s) => {
+    if (isPending(s)) return "status-pending";
+    if (isPartial(s)) return "status-partial";
+    if (isPaid(s)) return "status-paid";
+    return "status-pending";
+  };
+
+  // --- sort: unpaid first (Pending/Partial), paid at bottom; each group by Date desc ---
+  const sortedRows = [...rows].sort((a, b) => {
+    const aPaid = isPaid(a.status) ? 1 : 0;
+    const bPaid = isPaid(b.status) ? 1 : 0;
+    if (aPaid !== bPaid) return aPaid - bPaid; // unpaid(0) first, paid(1) last
+
+    // within same group, sort by created_at (newest first)
+    const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+    const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+    return bt - at;
+  });
 
   return (
     <div className="p-4">
       <h1 className="text-xl font-bold mb-4">Credit List</h1>
 
-      <table className="table credit-list-table">
-        <thead>
-          <tr>
-            <th className="text-left">MSP No.</th>
-            <th className="text-left">Date &amp; Time</th>
-            <th className="text-left">Handled By</th>
-            <th className="text-left">Customer</th>
-            <th className="text-left">Total</th>
-            <th className="text-left">Paid</th>
-            <th className="text-left">Balance</th>
-            <th className="text-left">Status</th>
-            <th className="text-left">Action</th>
-          </tr>
-        </thead>
-
-        <tbody>
-          {rows.map((r) => (
-            <tr key={r.id}>
-              <td>{r.msp_no}</td>
-              <td>{dt(r.created_at)}</td>
-              <td>{r.handled_by || "—"}</td>
-              <td>{r.customer_name || "—"}</td>
-              <td>₱{fmt(r.total_amount)}</td>
-              <td>₱{fmt(r.amount_paid)}</td>
-              <td>₱{fmt(r.balance)}</td>
-              <td>
-                <span className={statusClass(r.status)}>{statusLabel(r.status)}</span>
-              </td>
-              <td className="w-128 text-center">
-                <button
-                  className="icon-btn icon-btn-view"
-                  onClick={() => navigate(`/credits/${r.id}`)}
-                  title="View details"
-                >
-                  <FaEye />
-                </button>
-              </td>
-            </tr>
-          ))}
-
-          {!rows.length && (
+      <div className="table-wrapper">
+        <table className="table">
+          <thead>
             <tr>
-              <td colSpan={9} className="text-muted" style={{ textAlign: "center", padding: 16 }}>
-                No credit records.
-              </td>
+              <th className="text-left">MSP No.</th>
+              <th className="text-left">Date &amp; Time</th>
+              <th className="text-left">Handled By</th>
+              <th className="text-left">Customer</th>
+              <th className="text-left">Total</th>
+              <th className="text-left">Paid</th>
+              <th className="text-left">Balance</th>
+              <th className="text-left">Status</th>
+              <th className="text-left">Action</th>
             </tr>
-          )}
-        </tbody>
-      </table>
+          </thead>
+
+          <tbody>
+            {sortedRows.map((r) => (
+              <tr key={r.id}>
+                <td>{r.msp_no}</td>
+                <td>{dt(r.created_at)}</td>
+                <td>{r.handled_by || "—"}</td>
+                <td>{r.customer_name || "—"}</td>
+                <td>₱{fmt(r.total_amount)}</td>
+                <td>₱{fmt(r.amount_paid)}</td>
+                <td>₱{fmt(r.balance)}</td>
+                <td>
+                  <span className={statusClass(r.status)}>{statusLabel(r.status)}</span>
+                </td>
+                <td className="w-128 text-center">
+                  <button
+                    className="icon-btn icon-btn-view"
+                    onClick={() => navigate(`/credits/${r.id}`)}
+                    title="View details"
+                  >
+                    <FaEye />
+                  </button>
+                </td>
+              </tr>
+            ))}
+
+            {!sortedRows.length && (
+              <tr>
+                <td colSpan={9} className="text-muted" style={{ textAlign: "center", padding: 16 }}>
+                  No credit records.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -220,7 +220,7 @@ const MerchandisingList = () => {
         </button>
       </div>
 
-      <div className="w-full card rounded shadow">
+      <div className="w-full shadow">
         <div className="table-wrapper">
           <table className="table table-hover ">
             <thead>

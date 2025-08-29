@@ -3,6 +3,7 @@ import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
+import "../styles/pages/productlist.scss";
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -70,7 +71,7 @@ const ProductList = () => {
         <div class="modal">
           <div class="modal-body">
             <p class="text-muted">${message}</p>
-            <div class="modal-actions">
+            <div class="pf-actions">
               <button class="btn btn-back h-6 js-cancel">Cancel</button>
               <button class="btn btn-danger h-6 js-confirm">Delete</button>
             </div>
@@ -92,7 +93,7 @@ const ProductList = () => {
         <div class="modal">
           <div class="modal-body">
             <p class="text-muted">${message}</p>
-            <div class="modal-actions">
+            <div class="pf-actions">
               <button class="btn ${variant === 'danger' ? 'btn-danger' : 'btn-primary'} js-ok">OK</button>
             </div>
           </div>
@@ -149,7 +150,6 @@ const ProductList = () => {
         <>
           {/* Desktop / Tablet: Table (>= 769px) */}
           {!isNarrow && (
-            <div className="card">
               <div className='table-wrapper'>
                 <table className="table table-hover">
                   <thead>
@@ -205,7 +205,6 @@ const ProductList = () => {
                   </tbody>
                 </table>
               </div>
-            </div>
           )}
 
           {/* Mobile: Card list (<= 768px) */}

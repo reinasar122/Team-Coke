@@ -2,10 +2,10 @@
    Credit List Specific Styles
    ========================= */
 
-.credit-list-table {
-  /* inherits .table from global.scss */
-  width: 100%;
-  font-size: 14px;
+// .credit-list-table {
+//   /* inherits .table from global.scss */
+//   width: 100%;
+//   font-size: 14px;
 
   td {
     text-align: center;
@@ -46,4 +46,4 @@
       background: var(--primary-600);
     }
   }
-}
+// }

@@ -779,7 +779,7 @@ const ReceivingForm = () => {
             )}
           </div>
           <div>
-            <label className="form-label">Invoice No:</label>
+            <label className="form-label">Receipt No:</label>
             <input
               type="text"
               value={form.invoice_no}

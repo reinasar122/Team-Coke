@@ -231,35 +231,27 @@ const ReceivingList = () => {
     }
   }, [currentWarehouse?.id, isLoadingWarehouse, fetchReceivings, fetchUsers]);
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this receiving?")) return;
-    try {
-      const cfg = getAxiosConfig();
-      await axios.delete(`http://localhost:8080/api/receiving/${id}/`, cfg);
-      fetchReceivings();
-    } catch (e) {
-      console.error("[ReceivingList] Error deleting receiving:", e);
-    }
-  };
+ const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
 
-  const handleViewReceipt = async (id) => {
-    try {
-      const cfg = getAxiosConfig();
-      const res = await axios.get(`http://localhost:8080/api/receiving/${id}/`, cfg);
-      const receiptData = res.data;
 
-      if (users.length > 0 && receiptData.received_by) {
-        const u = users.find((x) => x.id === Number(receiptData.received_by));
-        if (u) receiptData.received_by_name = `${u.first_name} ${u.last_name}`;
-      }
+  // const handleViewReceipt = async (id) => {
+  //   try {
+  //     const cfg = getAxiosConfig();
+  //     const res = await axios.get(`http://localhost:8080/api/receiving/${id}/`, cfg);
+  //     const receiptData = res.data;
 
-      setSelectedReceipt(receiptData);
-      setIsModalOpen(true);
-    } catch (e) {
-      console.error("[ReceivingList] Error fetching receipt details:", e);
-      alert("Error loading receipt details. Please try again.");
-    }
-  };
+  //     if (users.length > 0 && receiptData.received_by) {
+  //       const u = users.find((x) => x.id === Number(receiptData.received_by));
+  //       if (u) receiptData.received_by_name = `${u.first_name} ${u.last_name}`;
+  //     }
+
+  //     setSelectedReceipt(receiptData);
+  //     setIsModalOpen(true);
+  //   } catch (e) {
+  //     console.error("[ReceivingList] Error fetching receipt details:", e);
+  //     alert("Error loading receipt details. Please try again.");
+  //   }
+  // };
 
   if (!currentWarehouse || isLoadingWarehouse) {
     return (
@@ -286,7 +278,6 @@ const ReceivingList = () => {
       </div>
 
       {/* Table Card */}
-      <div className="card">
         <div className="table-wrapper">
           <table className="table receiving-list-table">
           <thead>
@@ -316,20 +307,58 @@ const ReceivingList = () => {
                   <td>₱{parseFloat(item.net_amount).toFixed(2)}</td>
                   <td>
                     <div className="actions">
-                      <button
+                     <Link
                         className="icon-btn icon-btn-view"
-                        title="View Receipt"
-                        onClick={() => handleViewReceipt(item.id)}
+                        title="View Details"
+                        to={`/receiving/${item.id}`}
                       >
                         <FaEye />
-                      </button>
+                      </Link>
                       <button
-                        className="icon-btn icon-btn-danger"
+                        className="icon-btn-danger"
                         title="Delete"
-                        onClick={() => handleDelete(item.id)}
+                        onClick={() => setDeleteModal({ open: true, id: item.id })}
                       >
                         <FaTrashAlt />
                       </button>
+                      {deleteModal.open && (
+                        <div className="modal-overlay">
+                          <div className="modal">
+                            <h3 className="pf-modal-title">Confirm Delete</h3>
+                            <p>Are you sure you want to delete this receiving?</p>
+
+                            <div className="pf-actions">
+                              <button
+                                type="button"
+                                className="btn btn-cancel"
+                                onClick={() => setDeleteModal({ open: false, id: null })}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-danger"
+                                onClick={async () => {
+                                  try {
+                                    const cfg = getAxiosConfig();
+                                    await axios.delete(
+                                      `http://localhost:8080/api/receiving/${deleteModal.id}/`,
+                                      cfg
+                                    );
+                                    fetchReceivings();
+                                  } catch (e) {
+                                    console.error("[ReceivingList] Error deleting receiving:", e);
+                                  }
+                                  setDeleteModal({ open: false, id: null });
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                     </div>
                   </td>
                 </tr>
@@ -338,7 +367,6 @@ const ReceivingList = () => {
           </tbody>
         </table>
         </div>  
-      </div>
 
       {/* <ReceiptModal
         isOpen={isModalOpen}
