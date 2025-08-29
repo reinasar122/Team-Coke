@@ -7,15 +7,14 @@ import axios from "axios";
 async function createCreditLedgerFromModalPayload(payload) {
   if (payload.paymentMethod !== "credit") return null;
 
-  // Build the body to match your DRF CreditLedgerCreateSerializer
   const body = {
     msp_no: payload.mspNo,
     customerName: payload.customerName,
     handledBy: payload.handledBy,
     transactionTypeName: payload.transactionTypeName,
     remarks: payload.remarks || "",
-    payment_terms_days: payload.paymentTermsDays,           // 7/15/30
-    due_date: payload.dueDate,                              // ISO string
+    payment_terms_days: payload.paymentTermsDays, // 7/15/30
+    due_date: payload.dueDate, // ISO string
     amountDue: payload.amountDue,
     totalAmount: payload.totalAmount,
     rows: payload.rows || [],
@@ -24,11 +23,9 @@ async function createCreditLedgerFromModalPayload(payload) {
   };
 
   try {
-    // Backend is on 8080
     const res = await axios.post("http://127.0.0.1:8080/api/credits/", body);
     return res.data;
   } catch (err) {
-    // rethrow so caller can show the real message
     throw err;
   }
 }
@@ -63,18 +60,16 @@ const PaymentModal = ({
   remarks = "",
   onRemarksChange,
 
-  //van load breakdown props: Kath
+  // van load breakdown props
   expectedSale = 0,
   totalReturnedWithContent = 0,
-  //totalDiscrepancyEmpty = 0,
   totalDiscrepancyNonEmpty = 0,
   totalActualRetrievedVL = 0,
   overallTotalVL = 0,
   grandTotalVL = 0,
-  transactionTypes = "",//kath
+  transactionTypes = "",
 
-  miscItems = [], //karen changes
-
+  miscItems = [],
 }) => {
   // ------------ hooks ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -88,8 +83,12 @@ const PaymentModal = ({
   // ------------ helpers ------------
   const n = (v) => Number(v || 0);
   const fmt = (v) => n(v).toFixed(2);
+  const peso = (v) =>
+    `₱${n(v).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
 
-  // robust “Van Load” check (tolerates spaces/case)
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
   const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
 
@@ -98,13 +97,21 @@ const PaymentModal = ({
     return Number.isNaN(num) ? 30 : num;
   };
   const days = getDaysFromTerm(paymentTerms);
-  const paymentDueDate = new Date();
-  paymentDueDate.setDate(paymentDueDate.getDate() + days);
-  const formattedDueDate = paymentDueDate.toLocaleDateString("en-PH", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  const paymentDueDate = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d;
+  }, [days]);
+
+  const formattedDueDate = useMemo(
+    () =>
+      paymentDueDate.toLocaleDateString("en-PH", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }),
+    [paymentDueDate]
+  );
 
   const formatLocalToManila = (localStr) => {
     if (!localStr) return "";
@@ -168,15 +175,19 @@ const PaymentModal = ({
   };
 
   // Filter out blank/placeholder rows
-  const tableRows = (rows || []).filter(
-    (r) =>
-      getProdName(r) !== "—" ||
-      getSoldPcs(r) > 0 ||
-      getSoldShell(r) > 0 ||
-      getUnitPrice(r) > 0
+  const tableRows = useMemo(
+    () =>
+      (rows || []).filter(
+        (r) =>
+          getProdName(r) !== "—" ||
+          getSoldPcs(r) > 0 ||
+          getSoldShell(r) > 0 ||
+          getUnitPrice(r) > 0
+      ),
+    [rows]
   );
 
-  // Modal "Actual Sales" fallback: recompute from rows if parent didn't pass
+  // Modal "Actual Sales" fallback
   const actualSalesValue = useMemo(() => {
     const fromParent = n(actualSales);
     if (fromParent > 0) return fromParent;
@@ -191,7 +202,7 @@ const PaymentModal = ({
       n(emptyReturns) -
       n(emptyDiscrepancies) -
       (isVanLoad ? n(expensesTotal) : 0);
-    return Math.max(base, 0); // never negative
+    return Math.max(base, 0);
   }, [
     actualSalesValue,
     emptiesPriceTotal,
@@ -201,36 +212,84 @@ const PaymentModal = ({
     isVanLoad,
   ]);
 
-    // ---- VAN LOAD totals (with safe fallbacks) ---- : Kath
+  // ---- VAN LOAD totals (with safe fallbacks) ----
   const vl_actual = n(actualSalesValue);
   const vl_retWc = n(totalReturnedWithContent);
   const vl_discNE = n(totalDiscrepancyNonEmpty);
   const vl_discE = n(emptyDiscrepancies);
 
   const vl_totalActualRetrieved =
-    n(totalActualRetrievedVL) || (vl_actual + vl_retWc + vl_discNE);
+    n(totalActualRetrievedVL) || vl_actual + vl_retWc + vl_discNE;
 
-  const vl_overallTotal =
-    n(overallTotalVL) || (vl_actual + vl_discE + vl_discNE);
+  const vl_overallTotal = n(overallTotalVL) || vl_actual + vl_discE + vl_discNE;
 
-  const vl_grandTotal =
-    n(grandTotalVL) || (vl_overallTotal - n(expensesTotal));
-
+  const vl_grandTotal = n(grandTotalVL) || vl_overallTotal - n(expensesTotal);
 
   // Prefer parent values only if they’re explicitly positive
-  //const amountDueFinal = n(amountDue) > 0 ? n(amountDue) : computedTotalDue;
-  //const totalAmountFinal = n(totalAmount) > 0 ? n(totalAmount) : computedTotalDue;
-  //replaced by Kath
   const amountDueFinal = isVanLoad
     ? vl_grandTotal
-    : (n(amountDue) > 0 ? n(amountDue) : computedTotalDue);
+    : n(amountDue) > 0
+    ? n(amountDue)
+    : computedTotalDue;
 
   const totalAmountFinal = isVanLoad
     ? vl_grandTotal
-    : (n(totalAmount) > 0 ? n(totalAmount) : computedTotalDue);
+    : n(totalAmount) > 0
+    ? n(totalAmount)
+    : computedTotalDue;
 
   const showChange = String(cashReceived).trim() !== "";
   const change = Math.max(n(cashReceived) - amountDueFinal, 0);
+
+  // ===== Totals for the two tables (memoized, eslint-safe) =====
+  // Product Summary totals
+  const sumExpectedSale = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.expected_sale), 0),
+    [tableRows]
+  );
+
+  const sumActualSale = useMemo(
+    () =>
+      tableRows.reduce((a, r) => {
+        const lt = typeof getLineTotal === "function" ? getLineTotal(r) : r?.line_total;
+        return a + n(r?.actual_sale ?? lt);
+      }, 0),
+    [tableRows]
+  );
+
+  // Returnables Summary counts
+  const sumEmptyRetShell = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.empty_return_shell), 0),
+    [tableRows]
+  );
+  const sumEmptyRetPcs = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.empty_return_pcs), 0),
+    [tableRows]
+  );
+  const sumDiscEmptyShell = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.discrepancy_empties_shell), 0),
+    [tableRows]
+  );
+  const sumDiscEmptyPcs = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.discrepancy_empties_pc), 0),
+    [tableRows]
+  );
+  const sumFullRetShell = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.actual_return_shell), 0),
+    [tableRows]
+  );
+  const sumFullRetPcs = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.actual_return_pcs), 0),
+    [tableRows]
+  );
+  const sumDiscFullShell = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.discrepancy_full_shell), 0),
+    [tableRows]
+  );
+  const sumDiscFullPcs = useMemo(
+    () => tableRows.reduce((a, r) => a + n(r?.discrepancy_full_pcs), 0),
+    [tableRows]
+  );
 
   // ------------- early return AFTER hooks -------------
   if (!open) return null;
@@ -252,7 +311,6 @@ const PaymentModal = ({
           </div>
           <div>
             <strong>Customer</strong>: {(customerName ?? "").trim() || "Walk-in"}
-
           </div>
           <div>
             <strong>Handled By</strong>: {handledBy || "—"}
@@ -260,57 +318,295 @@ const PaymentModal = ({
         </div>
 
         {/* Product Summary */}
-        <div className="mt-6">
-          <h3 className="font-semibold mb-2">Products Summary</h3>
-          <table className="w-full mt-4 border">
-            <thead className="bg-gray-200">
-              <tr>
-                <th className="p-2 text-left">Product</th>
-                <th className="p-2 text-left">Sold Qty (Shell)</th>
-                <th className="p-2 text-left">Sold Qty (PC)</th>
-                <th className="p-2 text-left">Unit Price</th>
-                <th className="p-2 text-left">Discount (%)</th>
-                <th className="p-2 text-left">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {tableRows.map((row, index) => (
-                <tr key={index} className="border-t">
-                  <td className="p-2">{getProdName(row)}</td>
-                  <td className="p-2">{getSoldShell(row)}</td>
-                  <td className="p-2">{getSoldPcs(row)}</td>
-                  <td className="p-2">₱{fmt(getUnitPrice(row))}</td>
-                  <td className="p-2">{fmt(getDiscountPercent(row))}</td>
-                  <td className="p-2">₱{fmt(getLineTotal(row))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        {isVanLoad ? (
+          <>
+            {/* ===== 1) PRODUCTS SUMMARY ===== */}
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-2">Products Summary</h3>
 
-        {/* Payment Breakdown */}
-        {/*<div className="mt-6 text-sm">
-          <h3 className="font-semibold mb-2">Payment Breakdown</h3>
-          <div className="border p-4 rounded space-y-2">
-            <div>
-              <strong>Actual Sales:</strong> ₱{fmt(actualSalesValue)}
+              <table className="w-full mt-4 border">
+                <thead className="bg-gray-200 text-sm text-gray-800">
+                  <tr className="text-xs font-semibold">
+                    <th className="p-2 text-left">Product</th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      Dispatched
+                    </th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      Sold
+                    </th>
+                    <th className="p-2 text-center">Selling Price</th>
+                    <th className="p-2 text-center">Discount (%)</th>
+                    <th className="p-2 text-center">Expected Sale</th>
+                    <th className="p-2 text-center">Actual Sale</th>
+                  </tr>
+                  <tr className="text-[11px] bg-gray-200">
+                    <td className="p-2"></td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {tableRows.map((row, index) => {
+                    const productName =
+                      (typeof getProdName === "function" && getProdName(row)) ||
+                      row.productName ||
+                      row.product_detail?.product_name ||
+                      `#${row.productId ?? index + 1}`;
+
+                    const soldShell =
+                      typeof getSoldShell === "function" ? getSoldShell(row) : row.sold_shell;
+                    const soldPcs =
+                      typeof getSoldPcs === "function" ? getSoldPcs(row) : row.sold_pcs;
+                    const unitPrice =
+                      typeof getUnitPrice === "function" ? getUnitPrice(row) : row.selling_price;
+                    const discount =
+                      typeof getDiscountPercent === "function"
+                        ? getDiscountPercent(row)
+                        : row.discount;
+                    const lineTotal =
+                      typeof getLineTotal === "function" ? getLineTotal(row) : row.line_total;
+
+                    return (
+                      <tr key={row.id ?? index} className="hover:bg-gray-50">
+                        <td className="p-2">{productName}</td>
+                        <td className="p-2 text-center">{n(row.dispatched_shell)}</td>
+                        <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
+                        <td className="p-2 text-center">{n(soldShell)}</td>
+                        <td className="p-2 text-center">{n(soldPcs)}</td>
+                        <td className="p-2 text-center">{peso(unitPrice)}</td>
+                        <td className="p-2 text-center">{n(discount).toFixed(2)}</td>
+                        <td className="p-2 text-center">{peso(row.expected_sale)}</td>
+                        <td className="p-2 text-center">{peso(row.actual_sale ?? lineTotal)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+
+                <tfoot>
+                  <tr className="bg-slate-100 font-semibold text-[13px]">
+                    <td className="p-2 text-left">TOTAL</td>
+                    {/* Dispatched & Sold – blank for clean layout */}
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    {/* Selling Price, Discount – no totals */}
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2 text-center">{peso(sumExpectedSale)}</td>
+                    <td className="p-2 text-center">{peso(sumActualSale)}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
-            <div className="ml-4"> Empties Price Total: ₱{fmt(emptiesPriceTotal)}</div>
-            <div className="ml-4"> Empty Returns: ₱{fmt(emptyReturns)}</div>
-            <div className="ml-4"> Empty Discrepancies: ₱{fmt(emptyDiscrepancies)}</div>
-            {isVanLoad && <div className="ml-4">- Expenses: ₱{fmt(expensesTotal)}</div>}
-            <div className="text-blue-600 font-bold">
-              Total Amount Due: ₱{fmt(totalAmountFinal)}
+
+            {/* ===== 2) RETURNABLES SUMMARY ===== */}
+            <div className="mt-8">
+              <h3 className="text-lg font-semibold mb-2">Returnables Summary</h3>
+
+              <table className="w-full mt-4 border">
+                <thead className="bg-gray-200 text-sm text-gray-800">
+                  <tr className="text-xs font-semibold">
+                    <th className="p-2 text-left">Product</th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      Dispatched
+                    </th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      Empty Prices
+                    </th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      Empty: Returned
+                    </th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      Empty: Discrepancy
+                    </th>
+                    <th className="p-2 text-center">With Contents: Selling Price</th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      With Contents: Returned
+                    </th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      With Contents: Discrepancy
+                    </th>
+                  </tr>
+                  <tr className="text-[11px] bg-gray-200">
+                    <td className="p-2"></td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-2"></td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {tableRows.map((row, index) => {
+                    const productName =
+                      (typeof getProdName === "function" && getProdName(row)) ||
+                      row.productName ||
+                      row.product_detail?.product_name ||
+                      `#${row.productId ?? index + 1}`;
+
+                    const unitPrice =
+                      typeof getUnitPrice === "function" ? getUnitPrice(row) : row.selling_price;
+
+                    return (
+                      <tr key={row.id ?? index} className="hover:bg-gray-50">
+                        <td className="p-2">{productName}</td>
+
+                        {/* Dispatched */}
+                        <td className="p-2 text-center">{n(row.dispatched_shell)}</td>
+                        <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
+
+                        {/* Empty Prices (peso) */}
+                        <td className="p-2 text-center">{peso(row.empty_price_shell)}</td>
+                        <td className="p-2 text-center">{peso(row.empty_price_pc)}</td>
+
+                        {/* Empty: Returned */}
+                        <td className="p-2 text-center">{n(row.empty_return_shell)}</td>
+                        <td className="p-2 text-center">{n(row.empty_return_pcs)}</td>
+
+                        {/* Empty: Discrepancy */}
+                        <td className="p-2 text-center">
+                          <span
+                            className={
+                              n(row.discrepancy_empties_shell)
+                                ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
+                                : ""
+                            }
+                          >
+                            {n(row.discrepancy_empties_shell)}
+                          </span>
+                        </td>
+                        <td className="p-2 text-center">
+                          <span
+                            className={
+                              n(row.discrepancy_empties_pc)
+                                ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
+                                : ""
+                            }
+                          >
+                            {n(row.discrepancy_empties_pc)}
+                          </span>
+                        </td>
+
+                        {/* With Contents */}
+                        <td className="p-2 text-center">{peso(unitPrice)}</td>
+                        <td className="p-2 text-center">{n(row.actual_return_shell)}</td>
+                        <td className="p-2 text-center">{n(row.actual_return_pcs)}</td>
+                        <td className="p-2 text-center">
+                          <span
+                            className={
+                              n(row.discrepancy_full_shell)
+                                ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
+                                : ""
+                            }
+                          >
+                            {n(row.discrepancy_full_shell)}
+                          </span>
+                        </td>
+                        <td className="p-2 text-center">
+                          <span
+                            className={
+                              n(row.discrepancy_full_pcs)
+                                ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
+                                : ""
+                            }
+                          >
+                            {n(row.discrepancy_full_pcs)}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+
+                <tfoot>
+                  <tr className="bg-slate-100 font-semibold text-[13px]">
+                    <td className="p-2 text-left">TOTAL</td>
+
+                    {/* Dispatched – blank */}
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+
+                    {/* Empty Prices – no total */}
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+
+                    {/* Empty: Returned totals */}
+                    <td className="p-2 text-center">{sumEmptyRetShell}</td>
+                    <td className="p-2 text-center">{sumEmptyRetPcs}</td>
+
+                    {/* Empty: Discrepancy totals */}
+                    <td className="p-2 text-center">{sumDiscEmptyShell}</td>
+                    <td className="p-2 text-center">{sumDiscEmptyPcs}</td>
+
+                    {/* With Contents: Selling Price – no total */}
+                    <td className="p-2"></td>
+
+                    {/* With Contents: Returned totals */}
+                    <td className="p-2 text-center">{sumFullRetShell}</td>
+                    <td className="p-2 text-center">{sumFullRetPcs}</td>
+
+                    {/* With Contents: Discrepancy totals */}
+                    <td className="p-2 text-center">{sumDiscFullShell}</td>
+                    <td className="p-2 text-center">{sumDiscFullPcs}</td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
+          </>
+        ) : (
+          /* your non-van-load table stays as-is */
+          <div className="mt-6">
+            <h3 className="font-semibold mb-2">Products Summary</h3>
+            <table className="w-full mt-4 border">
+              <thead className="bg-gray-200">
+                <tr>
+                  <th className="p-2 text-left">Product</th>
+                  <th className="p-2 text-left">Sold Qty (Shell)</th>
+                  <th className="p-2 text-left">Sold Qty (PC)</th>
+                  <th className="p-2 text-left">Unit Price</th>
+                  <th className="p-2 text-left">Discount (%)</th>
+                  <th className="p-2 text-left">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.map((row, index) => (
+                  <tr key={index} className="border-t">
+                    <td className="p-2">{getProdName(row)}</td>
+                    <td className="p-2">{getSoldShell(row)}</td>
+                    <td className="p-2">{getSoldPcs(row)}</td>
+                    <td className="p-2">₱{n(getUnitPrice(row)).toFixed(2)}</td>
+                    <td className="p-2">{n(getDiscountPercent(row)).toFixed(2)}</td>
+                    <td className="p-2">₱{n(getLineTotal(row)).toFixed(2)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        </div> */}
+        )}
 
         {/* Payment Breakdown */}
         <h3 className="font-semibold mt-4 mb-0">Payment Breakdown</h3>
         <div className="mt-6 text-sm">
           <div className="flex flex-col bg-transparent p-6 border-[1px] border-black">
             {isVanLoad ? (
-              // ---------- VAN LOAD layout (matches screenshot) ----------
+              // ---------- VAN LOAD layout ----------
               <div className="space-y-8">
                 {/* Expected Sale */}
                 <div className="flex items-center justify-between">
@@ -377,41 +673,41 @@ const PaymentModal = ({
                 </div>
               </div>
             ) : (
-              // ---------- WAREHOUSE: original block ----------
+              // ---------- WAREHOUSE ----------
               <>
                 <h3 className="font-semibold mb-2">Payment Breakdown</h3>
-                  <div className="space-y-1">
-                    <div className="font-semibold mb-2 flex justify-between">
-                      <span>Actual Sales:</span>
-                      <span className="tabular-nums">₱{fmt(actualSalesValue)}</span>
-                    </div>
-                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                      <span>Discrepancy:</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Empties Price Total: </span>
-                      <span className="tabular-nums"> ₱{fmt(emptiesPriceTotal)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span>Empty Returns:</span>
-                      <span className="tabular-nums">- ₱{fmt(emptyReturns)}</span>
-                    </div>
-
-                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                      <span>Total:</span>
-                      <span className="tabular-nums">₱{fmt(emptyDiscrepancies)}</span>
-                    </div>
-
-                    <div className="flex justify-between">
-                      <span>Actual Sales</span>
-                      <span className="tabular-nums">+ ₱{fmt(actualSalesValue)}</span>
-                    </div>
-
-                    <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-                      <span>Total Amount Due:</span>
-                      <span className="tabular-nums">₱{fmt(totalAmountFinal)}</span>
-                    </div>
+                <div className="space-y-1">
+                  <div className="font-semibold mb-2 flex justify-between">
+                    <span>Actual Sales:</span>
+                    <span className="tabular-nums">₱{fmt(actualSalesValue)}</span>
                   </div>
+                  <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                    <span>Discrepancy:</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Empties Price Total: </span>
+                    <span className="tabular-nums"> ₱{fmt(emptiesPriceTotal)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Empty Returns:</span>
+                    <span className="tabular-nums">- ₱{fmt(emptyReturns)}</span>
+                  </div>
+
+                  <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                    <span>Total:</span>
+                    <span className="tabular-nums">₱{fmt(emptyDiscrepancies)}</span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span>Actual Sales</span>
+                    <span className="tabular-nums">+ ₱{fmt(actualSalesValue)}</span>
+                  </div>
+
+                  <div className="border-t mt-2 pt-2 flex justify-between font-bold">
+                    <span>Total Amount Due:</span>
+                    <span className="tabular-nums">₱{fmt(totalAmountFinal)}</span>
+                  </div>
+                </div>
               </>
             )}
           </div>
@@ -433,20 +729,6 @@ const PaymentModal = ({
               </button>
             ))}
           </div>
-
-           {/* Van Load only: Remarks
-          {isVanLoad && (
-            <div className="mt-4">
-              <label className="block text-sm font-semibold mb-1">Remarks (Van Load)</label>
-              <textarea
-                rows={3}
-                className="w-full border rounded px-2 py-1"
-                value={remarks}
-                onChange={(e) => (onRemarksChange ? onRemarksChange(e.target.value) : null)}
-                placeholder="Add remarks for this Van Load transaction..."
-              />
-            </div>
-          )} */}
 
           {paymentMethod === "cash" && (
             <div className="grid grid-cols-2 gap-4">
@@ -478,7 +760,7 @@ const PaymentModal = ({
                 </div>
               )}
             </div>
-          )}      
+          )}
 
           {paymentMethod === "credit" && (
             <div className="border p-4 rounded space-y-4">
@@ -576,26 +858,24 @@ const PaymentModal = ({
                 transactionTypeName,
                 remarks,
 
-                miscItems, //karen changes
+                miscItems,
 
-                // credit extras to send
-                paymentTermsDays: days,                       // 7/15/30
-                dueDate: paymentDueDate.toISOString(),        // ISO
-                creditNotes,                                   // optional
+                // credit extras
+                paymentTermsDays: days,
+                dueDate: paymentDueDate.toISOString(),
+                creditNotes,
 
-                //Kath: carry these so invoice can match the PaymentModal breakdown exactly
+                // carry these for invoice parity
                 expectedSale: n(expectedSale),
                 totalReturnedWithContent: n(totalReturnedWithContent),
                 totalDiscrepancyNonEmpty: n(totalDiscrepancyNonEmpty),
 
-                // if parent provided explicit totals, forward them too so we can honor overrides
                 totalActualRetrievedVL: n(totalActualRetrievedVL),
                 overallTotalVL: n(overallTotalVL),
                 grandTotalVL: n(grandTotalVL),
 
-                // carry the final due used in the modal (helps cash section on invoice)
+                // final due used in the modal
                 amountDue: amountDueFinal,
-                //Kath:
               };
 
               const isCredit = data.paymentMethod === "credit";
@@ -619,7 +899,7 @@ const PaymentModal = ({
                     console.error("Create credit failed:", err);
                     alert("Credit save failed:\n" + details);
                     setSubmitting(false);
-                    return; // stop; don't proceed to invoice
+                    return;
                   }
                 }
 
@@ -630,8 +910,8 @@ const PaymentModal = ({
                 if (typeof onConfirm === "function") {
                   await onConfirm(data);
                 }
-                 if (typeof onSave === "function") { //karen changes
-                  await onSave(data);   
+                if (typeof onSave === "function") {
+                  await onSave(data);
                 }
 
                 // 3) Show invoice
@@ -652,7 +932,7 @@ const PaymentModal = ({
 
       {showInvoiceModal && (
         <InvoiceModal
-          transactionTypes={transactionTypes} //kath
+          transactionTypes={transactionTypes}
           onClose={() => {
             setShowInvoiceModal(false);
             if (typeof onClose === "function") onClose();
