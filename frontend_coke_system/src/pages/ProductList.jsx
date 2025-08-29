@@ -1,9 +1,9 @@
+// import { getProductImage } from '../utils/productImages';
 import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { FaEdit, FaTrash } from 'react-icons/fa';
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
-import { getProductImage } from '../utils/productImages';
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -318,7 +318,7 @@ const ProductList = () => {
                 }}
               >
                 <img 
-                  src={getProductImage(prod)}
+                  src={'https://via.placeholder.com/120x120/6366F1/FFFFFF?text=P'}
                   alt={prod.product_name}
                   style={{
                     width: '120px',
