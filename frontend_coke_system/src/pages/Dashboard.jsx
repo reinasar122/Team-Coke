@@ -10,6 +10,11 @@ import React, {
 import { useLocation } from "react-router-dom";
 import axios from "axios";
 import "../styles/dashboard.scss";
+import Statistics from "../components/Statistics";
+import WidgetPickerModal, { SECTIONS, CATALOG_MAP } from "../components/WidgetPickerModal";
+import MetricsCards from "../components/MetricsCards";
+import ProductPerformance from "../components/ProductPerformance";
+import TopSellingProductsWidget from "../components/TopSellingProductsWidget";
 
 /* -------------------- helpers -------------------- */
 const n = (v, d = 0) =>
@@ -44,33 +49,11 @@ const isSameDayManila = (isoString) => {
   return todayStr === dateStr;
 };
 
-/* -------------------- inline icons -------------------- */
-const IconRefresh = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
-    <path d="M20 12a8 8 0 1 1-2.34-5.66" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    <path d="M20 5v5h-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-  </svg>
-);
+/* -------------------- inline icons (only those used here) -------------------- */
 const IconWarehouse = (props) => (
   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
     <path d="M3 9l9-6 9 6v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
     <path d="M7 20v-8h10v8" fill="none" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-);
-const IconProducts = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
-    <path d="M3 7h18M6 7v13h12V7M8 3h8" fill="none" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-);
-const IconStock = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
-    <path d="M4 18h16M4 14h16M4 10h16" fill="none" stroke="currentColor" strokeWidth="1.6" />
-  </svg>
-);
-const IconReceiving = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
-    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" fill="none" stroke="currentColor" strokeWidth="1.6" />
-    <path d="M7 10l5 5 5-5M12 15V3" fill="none" stroke="currentColor" strokeWidth="1.6" />
   </svg>
 );
 const IconSales = (props) => (
@@ -84,27 +67,6 @@ const Skeleton = ({ className = "" }) => (
   <div className={`animate-pulse rounded-md bg-slate-200/60 ${className}`} />
 );
 
-/* -------------------- glass card -------------------- */
-const GlassCard = ({ title, icon, actions, children, className = "" }) => (
-  <section
-    className={[
-      "rounded-2xl border bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60",
-      "border-gray-200/70 shadow-sm hover:shadow-md transition-shadow",
-      "p-4",
-      className,
-    ].join(" ")}
-  >
-    <header className="flex items-center justify-between mb-2">
-      <div className="flex items-center gap-2">
-        {icon}
-        <h2 className="text-sm font-semibold text-slate-900 tracking-tight">{title}</h2>
-      </div>
-      {actions}
-    </header>
-    <div className="min-h-[120px] flex items-center justify-center text-slate-700">{children}</div>
-  </section>
-);
-
 /* -------------------- mini cards + accents -------------------- */
 const ACCENTS = {
   stocks: "ring-amber-300/70 focus-visible:ring-amber-400 border-amber-100 hover:ring-amber-300/70",
@@ -116,10 +78,9 @@ const ACCENTS = {
   "return-empties": "ring-sky-300/70 focus-visible:ring-sky-400 border-sky-100 hover:ring-sky-300/70",
   users: "ring-fuchsia-300/70 focus-visible:ring-fuchsia-400 border-fuchsia-100 hover:ring-fuchsia-300/70",
   roles: "ring-cyan-300/70 focus-visible:ring-cyan-400 border-cyan-100 hover:ring-cyan-300/70",
-  vans: "ring-lime-300/70 focus-visible:ring-lime-400 border-lime-100 hover:ring-lime-300/70", // NEW
+  vans: "ring-lime-300/70 focus-visible:ring-lime-400 border-lime-100 hover:ring-lime-300/70",
   suppliers: "ring-lime-300/70 focus-visible:ring-lime-400 border-lime-100 hover:ring-lime-300/70",
   warehouses: "ring-orange-300/70 focus-visible:ring-orange-400 border-orange-100 hover:ring-orange-300/70",
-
 };
 
 const MiniCard = memo(function MiniCard({
@@ -169,87 +130,188 @@ const MiniCard = memo(function MiniCard({
   );
 });
 
-/* -------------------- statistics -------------------- */
-const Stat = ({ label, value, sub, icon, tone = "slate" }) => {
-  const toneMap = {
-    slate: "bg-slate-50 border-slate-200",
-    indigo: "bg-indigo-50 border-indigo-200",
-    emerald: "bg-emerald-50 border-emerald-200",
-    amber: "bg-amber-50 border-amber-200",
-    rose: "bg-rose-50 border-rose-200",
-    purple: "bg-purple-50 border-purple-200",
-    teal: "bg-teal-50 border-teal-200",
-    sky: "bg-sky-50 border-sky-200",
-  };
-  return (
-    <div
-      className={[
-        "rounded-xl border p-3 text-center shadow-xs",
-        toneMap[tone] || toneMap.slate,
-        "motion-safe:transition-all motion-safe:duration-200",
-      ].join(" ")}
-    >
-      <div className="flex items-center justify-center gap-2 text-slate-600 mb-1">
-        {icon}
-        <span className="text-[11px] font-medium">{label}</span>
+/* -------------------- reusable table shell -------------------- */
+const TableShell = ({ headers, rows, emptyText }) => {
+  if (!rows) {
+    return (
+      <div className="grid gap-2">
+        <Skeleton className="h-5 w-full" />
+        <Skeleton className="h-5 w-[92%]" />
+        <Skeleton className="h-5 w-[86%]" />
       </div>
-      <div className="text-[17px] font-semibold text-slate-900 leading-tight">{value ?? "—"}</div>
-      {sub && <div className="text-[11px] text-slate-500 mt-0.5">{sub}</div>}
+    );
+  }
+  if (rows.length === 0) {
+    return <div className="text-xs text-slate-500">{emptyText}</div>;
+  }
+  return (
+    <div className="w-full">
+      <table className="w-full text-[12px] text-slate-800">
+        <thead>
+          <tr className="text-left text-slate-500">
+            {headers.map((h, i) => (
+              <th
+                key={i}
+                className={`py-1 ${i === headers.length - 1 ? "pr-0" : "pr-2"} ${h.right ? "text-right" : ""}`}
+              >
+                {h.label}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, idx) => (
+            <tr key={r.id ?? idx} className="border-t">
+              {headers.map((h, i) => (
+                <td
+                  key={h.key}
+                  className={`py-1 ${i === headers.length - 1 ? "pr-0" : "pr-2"} ${h.right ? "text-right" : ""} ${h.truncate ? "truncate" : ""}`}
+                  title={h.truncate ? (h.title ? h.title(r) : r[h.key]) : undefined}
+                >
+                  {h.render ? h.render(r[h.key], r) : r[h.key]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 };
 
-const Statistics = memo(function Statistics({ metrics, onRefresh, loading, lastUpdated }) {
+/* -------------------- widgets -------------------- */
+const LowStockWidget = memo(function LowStockWidget({ items }) {
   return (
-    <GlassCard
-      title="Statistics"
-      icon={<IconSales className="text-slate-500" />}
-      className="col-span-1 lg:col-span-3"
-      actions={
-        <button
-          onClick={onRefresh}
-          className="inline-flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white shadow-sm hover:shadow disabled:opacity-60"
-          disabled={loading}
-        >
-          <IconRefresh />
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
-      }
-    >
-      {!metrics ? (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 w-full gap-2">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-[72px] w-full" />
-          ))}
-        </div>
-      ) : (
-        <div className="w-full">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 w-full">
-            <Stat label="Products" value={metrics.totalProducts} icon={<IconProducts />} tone="indigo" />
-            <Stat label="Stock (PCS)" value={metrics.totalStockPcs.toLocaleString()} icon={<IconStock />} tone="amber" />
-            <Stat label="Low/Out of Stock" value={metrics.lowOrOutCount} icon={<IconStock />} tone="rose" />
-            <Stat label="Stock Value (est.)" value={peso(metrics.stockValueEstimate)} icon={<IconProducts />} />
-            <Stat label="Today’s Sales" value={peso(metrics.todaysSales)} icon={<IconSales />} tone="emerald" />
-            <Stat
-              label="Today’s Returns"
-              value={peso(metrics.todaysReturns)}
-              sub={metrics.todaysReturnsCount ? `${metrics.todaysReturnsCount} txn` : undefined}
-              icon={<IconReceiving />}
-              tone="teal"
-            />
-          </div>
-
-          <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-end gap-2">
-            <span className="inline-flex items-center gap-1">
-              <IconWarehouse /> Last updated:
-            </span>
-            <time dateTime={lastUpdated?.toISOString?.() || ""}>
-              {lastUpdated ? lastUpdated.toLocaleString() : "—"}
-            </time>
-          </div>
-        </div>
-      )}
-    </GlassCard>
+    <TableShell
+      headers={[
+        { key: "name", label: "Product", truncate: true },
+        { key: "pcs", label: "PCS", right: true, render: (v) => n(v).toLocaleString() },
+        { key: "status", label: "Status", right: true },
+      ]}
+      rows={items}
+      emptyText="No low/out-of-stock items"
+    />
+  );
+});
+const ProductsWidget = memo(function ProductsWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "system_code", label: "System" },
+        { key: "name", label: "Name", truncate: true },
+        { key: "category", label: "Category" },
+      ]}
+      rows={rows}
+      emptyText="No products found"
+    />
+  );
+});
+const ReceivingWidget = memo(function ReceivingWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "receive_no", label: "Receipt" },
+        { key: "supplier", label: "Supplier", truncate: true },
+        { key: "net_amount", label: "Net", right: true, render: (v) => peso(v) },
+      ]}
+      rows={rows}
+      emptyText="No recent receivings"
+    />
+  );
+});
+const SupplierReturnsWidget = memo(function SupplierReturnsWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "sup_no", label: "Sup No." },
+        { key: "supplier", label: "Supplier", truncate: true },
+        { key: "total_amount", label: "Total", right: true, render: (v) => peso(v) },
+        { key: "date", label: "Date", right: true, render: (v) => (v ? formatToManila(v) : "—") },
+      ]}
+      rows={rows}
+      emptyText="No recent supplier returns"
+    />
+  );
+});
+const ReturnEmptiesWidget = memo(function ReturnEmptiesWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "product_name", label: "Product", truncate: true },
+        { key: "supplier_name", label: "Supplier", truncate: true },
+        { key: "empty_return_shell", label: "Shells", right: true },
+        { key: "empty_return_pcs", label: "PCs", right: true },
+        { key: "transaction_count", label: "Txns", right: true },
+        { key: "latest_date", label: "Latest", right: true, render: (v) => (v ? formatToManila(v) : "—") },
+      ]}
+      rows={rows}
+      emptyText="No return empties found"
+    />
+  );
+});
+const UsersWidget = memo(function UsersWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "name", label: "Name", truncate: true },
+        { key: "username", label: "Username" },
+        { key: "role", label: "Role", right: true },
+      ]}
+      rows={rows}
+      emptyText="No users found"
+    />
+  );
+});
+const RolesWidget = memo(function RolesWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "name", label: "Role" },
+        { key: "users_count", label: "Users", right: true },
+      ]}
+      rows={rows}
+      emptyText="No roles found"
+    />
+  );
+});
+const VansWidget = memo(function VansWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "van_id", label: "Van ID" },
+        { key: "plate_number", label: "Plate Number", truncate: true },
+      ]}
+      rows={rows}
+      emptyText="No vans found for this warehouse"
+    />
+  );
+});
+const WarehousesWidget = memo(function WarehousesWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "name", label: "Name", truncate: true },
+        { key: "city", label: "City", truncate: true },
+        { key: "province", label: "Province", truncate: true },
+        { key: "phone_number", label: "Phone", right: true },
+      ]}
+      rows={rows}
+      emptyText="No warehouses found"
+    />
+  );
+});
+const SuppliersWidget = memo(function SuppliersWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "registration_number", label: "Reg. No." },
+        { key: "company_name", label: "Company", truncate: true },
+        { key: "contact_person", label: "Contact", truncate: true },
+        { key: "phone_number", label: "Phone", right: true },
+      ]}
+      rows={rows}
+      emptyText="No suppliers found"
+    />
   );
 });
 
@@ -268,56 +330,6 @@ const GenericSidebarWidget = memo(function GenericSidebarWidget({
     </MiniCard>
   );
 });
-
-/* -------------------- catalog map -------------------- */
-const SECTIONS = [
-  {
-    id: "transactions",
-    label: "Transactions",
-    items: [
-      { id: "receiving", name: "Receiving", route: "/receiving" },
-      { id: "trading", name: "Trading", route: "/trading" },
-      { id: "supplier-returns", name: "Supplier Return", route: "/supplier-returns" },
-      { id: "invoice", name: "Invoice", route: "/invoice" },
-      { id: "credit", name: "Credit", route: "/credit" },
-    ],
-  },
-  {
-    id: "inventory",
-    label: "Inventory",
-    items: [
-      { id: "stocks", name: "Stocks", route: "/stocks" },
-      { id: "products", name: "Product", route: "/products" },
-      { id: "return-empties", name: "Return Empties", route: "/return-empties" },
-    ],
-  },
-  {
-    id: "report",
-    label: "Report",
-    items: [
-      { id: "salesreport", name: "Sales Report", route: "/salesreport" },
-      { id: "inventoryreport", name: "Inventory Report", route: "/inventoryreport" },
-    ],
-  },
-  {
-    id: "manage",
-    label: "Manage",
-    items: [
-      { id: "users", name: "Users", route: "/users" },
-      { id: "roles", name: "Roles", route: "/roles" },
-      { id: "warehouses", name: "Warehouses", route: "/warehouses" },
-      { id: "suppliers", name: "Suppliers", route: "/suppliers" },
-      { id: "vans", name: "Van", route: "/vans" }, // already present
-    ],
-  },
-  { id: "settings", label: "Settings", items: [{ id: "settings", name: "Settings", route: "/settings" }] },
-];
-
-const CATALOG_MAP = (() => {
-  const map = new Map();
-  SECTIONS.forEach((sec) => sec.items.forEach((it) => map.set(it.id, it)));
-  return map;
-})();
 
 /* -------------------- localStorage selections + cache -------------------- */
 const LS_KEY = "dashboard:selectedWidgets";
@@ -368,7 +380,6 @@ const getCurrentWarehouseId = () => {
   }
   return user.warehouse_id;
 };
-
 const axiosCfgForWarehouse = (wid) => (wid ? { headers: { "X-Warehouse-ID": wid } } : {});
 
 /** Fetch everything the dashboard needs */
@@ -387,7 +398,7 @@ async function fetchDashboard(wid) {
     suppliersRes,
     usersRes,
     rolesRes,
-    vansRes, // NEW
+    vansRes,
     warehousesRes,
   ] = await Promise.all([
     axios.get(`http://localhost:8080/api/stocks/${qsWid}`),
@@ -400,8 +411,8 @@ async function fetchDashboard(wid) {
     axios.get(`http://localhost:8080/api/suppliers/${qsWid}`),
     axios.get(`http://localhost:8080/api/users/`, axiosCfgForWarehouse(wid)),
     axios.get(`http://localhost:8080/api/roles/`),
-    axios.get(`http://localhost:8080/api/vans/${qsWid}`), // NEW (matches your VanList pattern ?warehouse=)
-    axios.get(`http://127.0.0.1:8080/api/warehouses/${qsWid}`), // <-- NEW
+    axios.get(`http://localhost:8080/api/vans/${qsWid}`),
+    axios.get(`http://127.0.0.1:8080/api/warehouses/${qsWid}`),
   ]);
 
   const parseList = (res) =>
@@ -414,7 +425,7 @@ async function fetchDashboard(wid) {
   const credits = parseList(creditsRes);
   const supplierReturns = parseList(supplierReturnsRes);
   const merch = parseList(merchRes);
-  const warehouses = parseList(warehousesRes); // <-- NEW
+  const warehouses = parseList(warehousesRes);
 
   const warehousesList = [...warehouses]
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
@@ -429,18 +440,18 @@ async function fetchDashboard(wid) {
 
   const suppliers = parseList(suppliersRes);
   const suppliersList = [...suppliers]
-  .sort((a, b) => String(a.company_name || "").localeCompare(String(b.company_name || "")))
-  .slice(0, 5)
-  .map((s) => ({
-    id: s.id,
-    registration_number: s.registration_number || "—",
-    company_name: s.company_name || "—",
-    contact_person: s.contact_person || "—",
-    phone_number: s.phone_number || "—",
-  }));
+    .sort((a, b) => String(a.company_name || "").localeCompare(String(b.company_name || "")))
+    .slice(0, 5)
+    .map((s) => ({
+      id: s.id,
+      registration_number: s.registration_number || "—",
+      company_name: s.company_name || "—",
+      contact_person: s.contact_person || "—",
+      phone_number: s.phone_number || "—",
+    }));
   const users = parseList(usersRes);
   const roles = parseList(rolesRes);
-  const vans = parseList(vansRes); // NEW
+  const vans = parseList(vansRes);
 
   const supplierNameById = new Map(
     suppliers.map((s) => [s.id, s.company_name || s.name || `Supplier #${s.id}`])
@@ -455,7 +466,7 @@ async function fetchDashboard(wid) {
     return sum + (status.includes("low") || status.includes("out") ? 1 : 0);
   }, 0);
 
-  /* -------- lists: stocks/products/receivings/transactions -------- */
+  /* -------- lists -------- */
   const lowStockList = stocks
     .filter((s) => {
       const st = (s.stock_status || "").toLowerCase();
@@ -499,7 +510,6 @@ async function fetchDashboard(wid) {
       status: t.status || "—",
     }));
 
-  /* -------- Supplier Returns list + today's total -------- */
   const supplierReturnsList = [...supplierReturns]
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
     .slice(0, 5)
@@ -515,7 +525,7 @@ async function fetchDashboard(wid) {
   const todaysReturns = todaysReturnsArray.reduce((sum, sr) => sum + n(sr.total_amount), 0);
   const todaysReturnsCount = todaysReturnsArray.length;
 
-  /* -------- Return Empties aggregation (from merchandisings) -------- */
+  /* -------- Return Empties aggregation -------- */
   const emptiesRaw = [];
   for (const m of merch) {
     const type = m.transaction_type_name;
@@ -551,7 +561,6 @@ async function fetchDashboard(wid) {
       }
     }
   }
-
   const grouped = new Map();
   for (const row of emptiesRaw) {
     const g = grouped.get(row.product_id);
@@ -579,14 +588,11 @@ async function fetchDashboard(wid) {
       }
     }
   }
-
   const returnEmptiesList = Array.from(grouped.values())
     .sort((a, b) => b.empty_return_shell + b.empty_return_pcs - (a.empty_return_shell + a.empty_return_pcs))
     .slice(0, 5);
 
-    
-
-  /* -------- Users list -------- */
+  /* -------- Users / Roles / Credit -------- */
   const usersList = users.slice(0, 5).map((u) => ({
     id: u.id,
     name:
@@ -599,14 +605,12 @@ async function fetchDashboard(wid) {
     role: u.role?.name || u.role || u.role_name || "—",
   }));
 
-  /* -------- Roles list -------- */
   const rolesList = roles.slice(0, 5).map((r) => ({
     id: r.id,
     name: r.name || r.role || "—",
     users_count: Number(r.users_count ?? r.user_count ?? 0),
   }));
 
-  /* -------- Credits summary -------- */
   const creditSummary = (() => {
     const outstanding = credits.filter(
       (c) => String(c.status || "").toUpperCase() !== "PAID" && Number(c.balance || 0) > 0
@@ -630,7 +634,7 @@ async function fetchDashboard(wid) {
       date_time: c.created_at || null,
     }));
 
-  /* -------- Vans list (NEW) -------- */
+  /* -------- Vans list -------- */
   const vansList = [...vans]
     .sort((a, b) => String(a.plate_number || "").localeCompare(String(b.plate_number || "")))
     .slice(0, 5)
@@ -639,6 +643,62 @@ async function fetchDashboard(wid) {
       van_id: v.van_id || `#${v.id}`,
       plate_number: v.plate_number || "—",
     }));
+
+  /* -------- Sales points for money chart (used by <Statistics/>) -------- */
+  const salesPoints = merch
+    .map((m) => ({
+      date: m.date_time || m.created_at || m.updated_at,
+      amount: n(m.actual_sale || m.total_amount || m.payment_amount || m.cash_received || 0),
+    }))
+    .filter((p) => p.date && p.amount >= 0);
+
+  /* -------- Product Performance TIME SERIES -------- */
+  const ppSeriesByDate = new Map();  // key: YYYY-MM-DD -> row object
+  const categoryMapObj = {};         // product name -> category
+
+  for (const m of merch) {
+    const txDate = m?.date_time || m?.created_at || m?.updated_at;
+    if (!txDate || !Array.isArray(m.items)) continue;
+    const dateKey = new Date(txDate).toISOString().slice(0, 10);
+    if (!ppSeriesByDate.has(dateKey)) ppSeriesByDate.set(dateKey, { date: dateKey });
+
+    const row = ppSeriesByDate.get(dateKey);
+
+    for (const it of m.items) {
+      const prod = productById.get(it.product);
+      const prodName = prod?.product_name || prod?.name || `Product #${it.product}`;
+      const catName =
+        prod?.product_category?.name ||
+        prod?.category?.name ||
+        prod?.category ||
+        "Uncategorized";
+      categoryMapObj[prodName] = catName;
+
+      const qty = n(it.sold ?? it.sold_pcs ?? it.quantity ?? it.qty ?? it.actual_qty ?? 0);
+      const price = n(it.price ?? it.selling_price ?? it.unit_price ?? it.actual_price ?? 0);
+      const line =
+        n(it.line_total ?? it.total_amount ?? it.actual_amount ?? 0) || qty * price;
+
+      row[prodName] = n(row[prodName]) + n(line);
+    }
+  }
+
+  const productPerformanceSeries = Array
+    .from(ppSeriesByDate.values())
+    .sort((a, b) => a.date.localeCompare(b.date));
+
+  const catTotals = new Map();
+  for (const row of productPerformanceSeries) {
+    for (const [k, v] of Object.entries(row)) {
+      if (k === "date") continue;
+      const cat = categoryMapObj[k] || "Uncategorized";
+      catTotals.set(cat, n(catTotals.get(cat)) + n(v));
+    }
+  }
+  const productPerformance = Array.from(catTotals.entries())
+    .map(([name, value]) => ({ name, value: n(value) }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
 
   return {
     metrics: {
@@ -662,402 +722,16 @@ async function fetchDashboard(wid) {
       creditSummary,
       usersList,
       rolesList,
-      vansList, // NEW
+      vansList,
       suppliersList,
       warehousesList,
+      salesPoints,
+      productPerformance,        // category totals (optional)
+      productPerformanceSeries,  // product daily series (for chart + widget)
+      categoryMap: categoryMapObj,
     },
   };
 }
-
-/* -------------------- reusable table shell -------------------- */
-const TableShell = ({ headers, rows, emptyText }) => {
-  if (!rows) {
-    return (
-      <div className="grid gap-2">
-        <Skeleton className="h-5 w-full" />
-        <Skeleton className="h-5 w-[92%]" />
-        <Skeleton className="h-5 w-[86%]" />
-      </div>
-    );
-  }
-  if (rows.length === 0) {
-    return <div className="text-xs text-slate-500">{emptyText}</div>;
-  }
-  return (
-    <div className="w-full">
-      <table className="w-full text-[12px] text-slate-800">
-        <thead>
-          <tr className="text-left text-slate-500">
-            {headers.map((h, i) => (
-              <th key={i} className={`py-1 ${i === headers.length - 1 ? "pr-0" : "pr-2"} ${h.right ? "text-right" : ""}`}>
-                {h.label}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r, idx) => (
-            <tr key={r.id ?? idx} className="border-t">
-              {headers.map((h, i) => (
-                <td
-                  key={h.key}
-                  className={`py-1 ${i === headers.length - 1 ? "pr-0" : "pr-2"} ${h.right ? "text-right" : ""} ${h.truncate ? "truncate" : ""}`}
-                  title={h.truncate ? (h.title ? h.title(r) : r[h.key]) : undefined}
-                >
-                  {h.render ? h.render(r[h.key], r) : r[h.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-};
-
-/* -------------------- widgets -------------------- */
-const LowStockWidget = memo(function LowStockWidget({ items }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "name", label: "Product", truncate: true },
-        { key: "pcs", label: "PCS", right: true, render: (v) => n(v).toLocaleString() },
-        { key: "status", label: "Status", right: true },
-      ]}
-      rows={items}
-      emptyText="No low/out-of-stock items"
-    />
-  );
-});
-
-const ProductsWidget = memo(function ProductsWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "system_code", label: "System" },
-        { key: "name", label: "Name", truncate: true },
-        { key: "category", label: "Category" },
-      ]}
-      rows={rows}
-      emptyText="No products found"
-    />
-  );
-});
-
-const ReceivingWidget = memo(function ReceivingWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "receive_no", label: "Receipt" },
-        { key: "supplier", label: "Supplier", truncate: true },
-        { key: "net_amount", label: "Net", right: true, render: (v) => peso(v) },
-      ]}
-      rows={rows}
-      emptyText="No recent receivings"
-    />
-  );
-});
-
-const SupplierReturnsWidget = memo(function SupplierReturnsWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "sup_no", label: "Sup No." },
-        { key: "supplier", label: "Supplier", truncate: true },
-        { key: "total_amount", label: "Total", right: true, render: (v) => peso(v) },
-        { key: "date", label: "Date", right: true, render: (v) => (v ? formatToManila(v) : "—") },
-      ]}
-      rows={rows}
-      emptyText="No recent supplier returns"
-    />
-  );
-});
-
-const ReturnEmptiesWidget = memo(function ReturnEmptiesWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "product_name", label: "Product", truncate: true },
-        { key: "supplier_name", label: "Supplier", truncate: true },
-        { key: "empty_return_shell", label: "Shells", right: true },
-        { key: "empty_return_pcs", label: "PCs", right: true },
-        { key: "transaction_count", label: "Txns", right: true },
-        { key: "latest_date", label: "Latest", right: true, render: (v) => (v ? formatToManila(v) : "—") },
-      ]}
-      rows={rows}
-      emptyText="No return empties found"
-    />
-  );
-});
-
-const UsersWidget = memo(function UsersWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "name", label: "Name", truncate: true },
-        { key: "username", label: "Username" },
-        { key: "role", label: "Role", right: true },
-      ]}
-      rows={rows}
-      emptyText="No users found"
-    />
-  );
-});
-
-const RolesWidget = memo(function RolesWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "name", label: "Role" },
-        { key: "users_count", label: "Users", right: true },
-      ]}
-      rows={rows}
-      emptyText="No roles found"
-    />
-  );
-});
-
-/* ---- Warehouses widget ---- */
-const WarehousesWidget = React.memo(function WarehousesWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "name", label: "Name", truncate: true },
-        { key: "city", label: "City", truncate: true },
-        { key: "province", label: "Province", truncate: true },
-        { key: "phone_number", label: "Phone", right: true },
-      ]}
-      rows={rows}
-      emptyText="No warehouses found"
-    />
-  );
-});
-
-
-/* ---- Suppliers widget ---- */
-const SuppliersWidget = React.memo(function SuppliersWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "registration_number", label: "Reg. No." },
-        { key: "company_name", label: "Company", truncate: true },
-        { key: "contact_person", label: "Contact", truncate: true },
-        { key: "phone_number", label: "Phone", right: true },
-      ]}
-      rows={rows}
-      emptyText="No suppliers found"
-    />
-  );
-});
-
-const StatusPill = ({ status }) => {
-  const st = (status || "").toLowerCase();
-  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
-  if (st === "pending") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
-  if (st === "complete" || st === "completed") return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
-};
-
-const TradingPreview = memo(function TradingPreview({ rows }) {
-  if (!rows) return <div className="text-xs text-slate-500">Loading…</div>;
-  if (rows.length === 0) return <div className="text-xs text-slate-500">No recent transactions</div>;
-
-  const latest = rows[0];
-  return (
-    <div className="text-sm text-slate-700">
-      <div className="font-medium">
-        Latest: {latest.msp_no} — {latest.transaction_type_name || "—"}{" "}
-        <span className="ml-1 align-middle"><StatusPill status={latest.status} /></span>
-      </div>
-      <div className="text-xs text-slate-500 mt-1">
-        {rows.length} recent {rows.length === 1 ? "transaction" : "transactions"} ·{" "}
-        {latest.date_time ? formatToManila(latest.date_time) : "—"}
-      </div>
-    </div>
-  );
-});
-
-/* ---- Credit minimal widget ---- */
-const CreditStatusPill = ({ status }) => {
-  const st = String(status || "").toUpperCase();
-  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
-  if (st === "PENDING") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
-  if (st === "PARTIAL") return <span className={`${base} bg-amber-100 text-amber-800`}>Partial</span>;
-  if (st === "PAID") return <span className={`${base} bg-green-100 text-green-800`}>Paid</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
-};
-
-const CreditWidget = memo(function CreditWidget({ rows, summary }) {
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between text-[11px] text-slate-600">
-        <div>
-          <span className="font-medium">Outstanding:</span>{" "}
-          <span>{summary?.countOutstanding ?? 0}</span>
-        </div>
-        <div>
-          <span className="font-medium">Total Balance:</span>{" "}
-          <span className="font-semibold">{peso(summary?.totalOutstandingBalance ?? 0)}</span>
-        </div>
-      </div>
-
-      <TableShell
-        headers={[
-          { key: "msp_no", label: "MSP" },
-          { key: "customer", label: "Customer", truncate: true },
-          { key: "balance", label: "Balance", right: true, render: (v) => peso(v) },
-          { key: "status", label: "Status", right: true, render: (v) => <CreditStatusPill status={v} /> },
-        ]}
-        rows={rows}
-        emptyText="No credit records"
-      />
-    </div>
-  );
-});
-
-/* ---- Vans widget (NEW) ---- */
-const VansWidget = memo(function VansWidget({ rows }) {
-  return (
-    <TableShell
-      headers={[
-        { key: "van_id", label: "Van ID" },
-        { key: "plate_number", label: "Plate Number", truncate: true },
-      ]}
-      rows={rows}
-      emptyText="No vans found for this warehouse"
-    />
-  );
-});
-
-/* -------------------- widget picker modal -------------------- */
-const WidgetPickerModal = memo(function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
-  const [expanded, setExpanded] = useState(() => new Set(SECTIONS.map((s) => s.id)));
-  const [checked, setChecked] = useState(() => new Set(selectedIds));
-
-  useEffect(() => setChecked(new Set(selectedIds)), [selectedIds, open]);
-
-  const toggleSection = (sid) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(sid) ? next.delete(sid) : next.add(sid);
-      return next;
-    });
-  };
-
-  const toggleItem = (id) => {
-    setChecked((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
-  };
-
-  const selectAllVisible = () => {
-    const all = [];
-    SECTIONS.forEach((sec) => sec.items.forEach((it) => all.push(it.id)));
-    setChecked(new Set(all));
-  };
-
-  const clearAll = () => setChecked(new Set());
-
-  if (!open) return null;
-
-  return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} />
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Add Dashboard Widgets"
-        className="absolute inset-x-0 top-10 mx-auto w-[95%] max-w-4xl bg-white rounded-2xl shadow-xl overflow-hidden"
-      >
-        <div className="flex items-center justify-between px-4 py-3 border-b">
-          <h3 className="text-sm font-semibold text-slate-900">Add Dashboard Widgets</h3>
-          <div className="flex gap-2">
-            <button
-              onClick={selectAllVisible}
-              className="px-2.5 py-1.5 rounded-lg bg-brand-600 text-white text-xs hover:bg-brand-500"
-            >
-              Select All
-            </button>
-            <button
-              onClick={clearAll}
-              className="px-2.5 py-1.5 rounded-lg bg-slate-100 text-xs text-slate-800 hover:bg-slate-200"
-            >
-              Clear
-            </button>
-            <button
-              onClick={onClose}
-              className="h-8 w-8 inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
-              aria-label="Close"
-              title="Close"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-
-        <div className="px-4 py-3 max-h-[65vh] overflow-y-auto custom-scroll">
-          {SECTIONS.map((sec) => (
-            <div key={sec.id} className="mb-3 border rounded-xl">
-              <button
-                type="button"
-                onClick={() => toggleSection(sec.id)}
-                className="w-full flex items-center justify-between px-3 py-2 bg-slate-50 hover:bg-slate-100 rounded-t-xl"
-              >
-                <span className="font-medium text-xs text-slate-800">{sec.label}</span>
-                <span className="text-[11px] text-slate-500">{expanded.has(sec.id) ? "▾" : "▸"}</span>
-              </button>
-
-              {expanded.has(sec.id) && (
-                <div className="p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {sec.items.map((it) => (
-                    <label
-                      key={it.id}
-                      className={[
-                        "border rounded-lg p-2 text-xs",
-                        "hover:border-brand-400 cursor-pointer transition-colors",
-                        "bg-white has-[:checked]:border-brand-600",
-                      ].join(" ")}
-                    >
-                      <div className="flex items-start gap-2">
-                        <input
-                          type="checkbox"
-                          className="mt-0.5 accent-brand-600"
-                          checked={checked.has(it.id)}
-                          onChange={() => toggleItem(it.id)}
-                        />
-                        <div>
-                          <div className="font-medium text-slate-900">{it.name}</div>
-                          <div className="text-[10px] text-slate-500 mt-0.5">Preview</div>
-                        </div>
-                      </div>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t">
-          <button
-            onClick={onClose}
-            className="px-3 py-1.5 rounded-lg bg-slate-100 text-xs text-slate-800 hover:bg-slate-200"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={() => onSave(Array.from(checked))}
-            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white text-xs shadow-sm hover:shadow"
-          >
-            Add Selected
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-});
 
 /* -------------------- page -------------------- */
 const Dashboard = () => {
@@ -1080,11 +754,18 @@ const Dashboard = () => {
     creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
     usersList: null,
     rolesList: null,
-    vansList: null, // NEW
-    suppliersList: null, // <-- add this
+    vansList: null,
+    suppliersList: null,
     warehousesList: null,
+    salesPoints: [],
+    productPerformance: [],
+    productPerformanceSeries: [],
+    categoryMap: {},
   });
   const [lastUpdated, setLastUpdated] = useState(null);
+
+  // 🔗 Shared period between Statistics, ProductPerformance, and TopSellingProductsWidget
+  const [period, setPeriod] = useState("this-week");
 
   const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
   const userLS = JSON.parse(localStorage.getItem("user") || "{}");
@@ -1131,8 +812,13 @@ const Dashboard = () => {
             creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
             usersList: [],
             rolesList: [],
-            vansList: [], // NEW
+            vansList: [],
             suppliersList: [],
+            warehousesList: [],
+            salesPoints: [],
+            productPerformance: [],
+            productPerformanceSeries: [],
+            categoryMap: {},
           });
           setLastUpdated(new Date());
           return;
@@ -1187,7 +873,13 @@ const Dashboard = () => {
           creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
           usersList: [],
           rolesList: [],
-          vansList: [], // NEW
+          vansList: [],
+          suppliersList: [],
+          warehousesList: [],
+          salesPoints: [],
+          productPerformance: [],
+          productPerformanceSeries: [],
+          categoryMap: {},
         });
         setLastUpdated(new Date());
       } finally {
@@ -1241,15 +933,52 @@ const Dashboard = () => {
 
       {/* Content grid */}
       <div className="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* TOP METRICS ROW */}
+        <div className="col-span-1 md:col-span-2 lg:col-span-3">
+          <MetricsCards
+            data={{
+              totalRevenue: metrics?.todaysSales ?? 0,
+              productsSold: metrics?.totalProducts ?? 0,
+              supplierReturnables: lists?.supplierReturnsList?.length ?? 0,
+              miscCharges: 0,
+              actualProfit: 0,
+            }}
+          />
+        </div>
+
+        {/* STATISTICS CHART */}
         <Statistics
           metrics={metrics}
           onRefresh={() => loadData(true)}
           loading={loading || isPending}
           lastUpdated={lastUpdated}
+          salesPoints={lists.salesPoints}
+          period={period}
+          onPeriodChange={setPeriod}
         />
 
+        {/* PRODUCT PERFORMANCE (category lines over time) */}
+        <div className="col-span-1 md:col-span-1 lg:col-span-2">
+          <ProductPerformance
+            title="Product Performance (Zig-zag)"
+            data={lists.productPerformanceSeries}
+            categoryMap={lists.categoryMap}
+            period={period}
+            height={300}
+          />
+        </div>
+
+        {/* TOP SELLING PRODUCTS (product-level, period-synced) */}
+        <div className="col-span-1 md:col-span-1 lg:col-span-1">
+          <TopSellingProductsWidget
+            series={lists.productPerformanceSeries}
+            period={period}
+            topN={10}
+          />
+        </div>
+
         {/* Widgets */}
-        {visibleSelectedItems.map((item) => {
+        {useMemo(() => visibleSelectedItems.map((item) => {
           const id = item.id;
           const route = item.route;
 
@@ -1335,13 +1064,7 @@ const Dashboard = () => {
 
           if (id === "suppliers") {
             return (
-              <GenericSidebarWidget
-                key={id}
-                id={id}
-                title={item.name}
-                route={route}
-                onRemove={removeWidget}
-              >
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
                 <SuppliersWidget rows={lists.suppliersList} />
               </GenericSidebarWidget>
             );
@@ -1349,24 +1072,16 @@ const Dashboard = () => {
 
           if (id === "warehouses") {
             return (
-              <GenericSidebarWidget
-                key={id}
-                id={id}
-                title={item.name}
-                route={route}
-                onRemove={removeWidget}
-              >
+              <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
                 <WarehousesWidget rows={lists.warehousesList} />
               </GenericSidebarWidget>
             );
           }
 
-
-
           return (
             <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget} />
           );
-        })}
+        }), [visibleSelectedItems, removeWidget, lists])}
 
         {/* Empty state */}
         {visibleSelectedItems.length === 0 && (
@@ -1394,5 +1109,69 @@ const Dashboard = () => {
     </div>
   );
 };
+
+/* ---- tiny status components used above ---- */
+const StatusPill = ({ status }) => {
+  const st = (status || "").toLowerCase();
+  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
+  if (st === "pending") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
+  if (st === "complete" || st === "completed") return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+};
+
+const TradingPreview = memo(function TradingPreview({ rows }) {
+  if (!rows) return <div className="text-xs text-slate-500">Loading…</div>;
+  if (rows.length === 0) return <div className="text-xs text-slate-500">No recent transactions</div>;
+  const latest = rows[0];
+  return (
+    <div className="text-sm text-slate-700">
+      <div className="font-medium">
+        Latest: {latest.msp_no} — {latest.transaction_type_name || "—"}{" "}
+        <span className="ml-1 align-middle"><StatusPill status={latest.status} /></span>
+      </div>
+      <div className="text-xs text-slate-500 mt-1">
+        {rows.length} recent {rows.length === 1 ? "transaction" : "transactions"} ·{" "}
+        {latest.date_time ? formatToManila(latest.date_time) : "—"}
+      </div>
+    </div>
+  );
+});
+
+/* ---- Credit widget (compact) ---- */
+const CreditStatusPill = ({ status }) => {
+  const st = String(status || "").toUpperCase();
+  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
+  if (st === "PENDING") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
+  if (st === "PARTIAL") return <span className={`${base} bg-amber-100 text-amber-800`}>Partial</span>;
+  if (st === "PAID") return <span className={`${base} bg-green-100 text-green-800`}>Paid</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+};
+const CreditWidget = memo(function CreditWidget({ rows, summary }) {
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between text-[11px] text-slate-600">
+        <div>
+          <span className="font-medium">Outstanding:</span>{" "}
+          <span>{summary?.countOutstanding ?? 0}</span>
+        </div>
+        <div>
+          <span className="font-medium">Total Balance:</span>{" "}
+          <span className="font-semibold">{peso(summary?.totalOutstandingBalance ?? 0)}</span>
+        </div>
+      </div>
+
+      <TableShell
+        headers={[
+          { key: "msp_no", label: "MSP" },
+          { key: "customer", label: "Customer", truncate: true },
+          { key: "balance", label: "Balance", right: true, render: (v) => peso(v) },
+          { key: "status", label: "Status", right: true, render: (v) => <CreditStatusPill status={v} /> },
+        ]}
+        rows={rows}
+        emptyText="No credit records"
+      />
+    </div>
+  );
+});
 
 export default Dashboard;
