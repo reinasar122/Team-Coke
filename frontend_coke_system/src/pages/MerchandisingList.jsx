@@ -17,18 +17,40 @@ const formatToManila = (isoString) => {
     minute: "2-digit",
     hour12: false,
   }).format(d);
-};
+}; 
+
+// YYYY-MM-DD in Asia/Manila (safe for comparisons)
+const toYMD_PH = (d) =>
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+
 
 // Status pill component (using global styles)
+// const StatusPill = ({ status }) => {
+//   const st = (status || "").toLowerCase();
+//   const base = "px-2 py-1 rounded text-xs font-semibold";
+//   if (st === "pending")
+//     return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
+//   if (st === "complete" || st === "completed")
+//     return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
+//   return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+// };
+
 const StatusPill = ({ status }) => {
-  const st = (status || "").toLowerCase();
+  const st = (status || "").toLowerCase().trim();
   const base = "px-2 py-1 rounded text-xs font-semibold";
-  if (st === "pending")
+  if (st === "pending" || st === "draft")
     return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
-  if (st === "complete" || st === "completed")
+  if (st.startsWith("complete"))
     return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
+  if (st === "in progress" || st === "in-progress" || st === "ongoing" || st === "on going")
+    return <span className={`${base} bg-blue-100 text-blue-800`}>In Progress</span>;
   return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
-};
+}; //Kath
 
 const MerchandisingList = () => {
   const [sales, setSales] = useState([]);
@@ -237,24 +259,26 @@ const MerchandisingList = () => {
             <tbody>
               {!loading && displayRows.map((row) => {
                 if (row._kind === "warehouse-group") {
-                  return (
-                    <tr
-                      key={`wa-${row.msp_no}-${row.dateYmd}`}
-                      onClick={() => handleAnyRowClick(row)}
-                      title="View warehouse products for this MSP (grouped)"
-                    >
-                      <td className="p-2 font-semibold">{row.msp_no}</td>
-                      <td className="p-2">{row.date_display}</td>
-                      <td className="p-2">Warehouse</td>
-                      <td className="p-2">—</td>
-                      <td className="p-2">
-                        <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
-                          {row.txn_count} txn • ₱{row.total_actual_sale.toFixed(2)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                }
+                const dayPH = toYMD_PH(new Date(row.sortTime));
+                const todayPH = toYMD_PH(new Date());
+                const status = dayPH === todayPH ? "In Progress" : "Completed";
+
+                return (
+                  <tr
+                    key={`wa-${row.msp_no}-${row.dateYmd}`}
+                    onClick={() => handleAnyRowClick(row)}
+                    title="View warehouse products for this MSP (grouped)"
+                  >
+                    <td className="p-2 font-semibold">{row.msp_no}</td>
+                    <td className="p-2">{row.date_display}</td>
+                    <td className="p-2">Warehouse</td>
+                    <td className="p-2">—</td>
+                    <td className="p-2">
+                      <StatusPill status={status} />
+                    </td>
+                  </tr>
+                );
+              }
 
                 const sale = row.record;
                 return (
