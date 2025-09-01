@@ -432,15 +432,32 @@ useEffect(() => {
   }, [rows]);
 
   // Discrepancy (Non-Empty)
-  const totalDiscrepancyNonEmpty = useMemo(() => {
-    return rows.reduce((sum, r) => {
-      const pcsDisc   = parseFloat(r.discrepancy_full_pcs   || 0);
-      const shellDisc = parseFloat(r.discrepancy_full_shell || 0);
-      const selling   = parseFloat(r.selling_price || 0);
-      const shellP    = parseFloat(r.empty_price_shell || 0); // mirror ProductTable logic
-      return sum + pcsDisc * selling + shellDisc * shellP;
-    }, 0);
-  }, [rows]);
+  // Discrepancy (Non-Empty) — PCS-only × unit price
+const totalDiscrepancyNonEmpty = useMemo(() => {
+  return (rows || []).reduce((sum, r) => {
+    // robust unit price fallback
+    const unitPrice = Number(r?.unitPrice ?? r?.selling_price ?? r?.price ?? 0);
+
+    // content per shell (for fallback conversion)
+    const contentNo =
+      Number(
+        r?.contentNo ??
+          (r?.unitTypeId != null ? unitTypeMap?.[r.unitTypeId] : undefined)
+      ) || 1;
+
+    // prefer PCS discrepancy; if missing, convert from shell
+    const hasPcs =
+      r?.discrepancy_full_pcs !== undefined &&
+      r.discrepancy_full_pcs !== null &&
+      r.discrepancy_full_pcs !== "";
+    const discPcs = hasPcs
+      ? Number(r.discrepancy_full_pcs) || 0
+      : (Number(r?.discrepancy_full_shell) || 0) * contentNo;
+
+    return sum + discPcs * unitPrice;
+  }, 0);
+}, [rows, unitTypeMap]);
+
 
   const overallDiscrepancy = useMemo(
     () => totalDiscrepancyEmpty + totalDiscrepancyNonEmpty,
@@ -463,23 +480,33 @@ useEffect(() => {
 
   // ✅ replace your totalReturnedWithContent with this
   const totalReturnedWithContent = useMemo(() => {
-    return rows.reduce((sum, row) => {
-      const price = parseFloat(row.selling_price || 0);
+    return (rows || []).reduce((sum, row) => {
+      // match the price logic used elsewhere: unitPrice → selling_price → price
+      const price = parseFloat(
+        (row.unitPrice ?? row.selling_price ?? row.price ?? 0)
+      );
+
+      // content per shell (fallback to map, then 1)
       const contentNo =
-        parseFloat(row.contentNo || 0) ||
-        parseFloat((row.unitTypeId && unitTypeMap[row.unitTypeId]) || 0) ||
+        parseFloat(row.contentNo ?? "") ||
+        parseFloat(
+          row.unitTypeId != null ? (unitTypeMap?.[row.unitTypeId] ?? "") : ""
+        ) ||
         1;
 
-      const actualShell = parseFloat(row.actual_return_shell || 0);
-      const actualPcs   = parseFloat(row.actual_return_pcs   || 0);
+      // PCS is canonical; only convert from shell if PCS isn’t present
+      const hasPcs =
+        row.actual_return_pcs !== undefined &&
+        row.actual_return_pcs !== null &&
+        row.actual_return_pcs !== "";
+      const actualPcs = hasPcs
+        ? parseFloat(row.actual_return_pcs) || 0
+        : (parseFloat(row.actual_return_shell) || 0) * contentNo;
 
-      // convert shell → pcs then sum
-      const pcsFromShell = actualShell * contentNo;
-      const totalPcs     = actualPcs + pcsFromShell;
-
-      return sum + totalPcs * price;
+      return sum + actualPcs * price;
     }, 0);
   }, [rows, unitTypeMap]);
+
 
 
   // ✅ Van Load overall total identical to ProductTable:
@@ -976,11 +1003,15 @@ const handleSubmit = () => {
           customerName={sale.customer?.name || 'Walk-in'}
           handledBy={sale.handled_by}
           transactionTypeName={sale.transaction_type_name}
+
+           // 🔽 pass these: Kath
+          miscItems={miscItems}
           expensesTotal={calculateTotalExpenses()}
+
+          
           remarks={remarks}
           onRemarksChange={setRemarks}
           onPaymentSuccess={handleVanLoadPaymentSuccess}
-          miscItems={miscItems}
         />
       )}
     </div>
