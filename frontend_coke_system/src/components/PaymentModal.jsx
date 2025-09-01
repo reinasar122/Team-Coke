@@ -1,5 +1,5 @@
 // src/components/PaymentModal.jsx
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import InvoiceModal from "./InvoiceModal";
 import axios from "axios";
 
@@ -83,6 +83,7 @@ const PaymentModal = ({
   // ------------ helpers ------------
   const n = (v) => Number(v || 0);
   const fmt = (v) => n(v).toFixed(2);
+
   const peso = (v) =>
     `₱${n(v).toLocaleString("en-PH", {
       minimumFractionDigits: 2,
@@ -194,6 +195,13 @@ const PaymentModal = ({
     return tableRows.reduce((sum, r) => sum + getLineTotal(r), 0);
   }, [actualSales, tableRows]);
 
+  // Clear cash input every time the modal opens or a new MSP is loaded //Kath: Import useEffect
+  useEffect(() => {
+    if (open) {
+      setCashReceived("");      // clears the Cash Amount Received box
+    }
+  }, [open, mspNo]);
+
   // ---- Compute a consistent total due inside the modal ----
   const computedTotalDue = useMemo(() => {
     const base =
@@ -257,39 +265,96 @@ const PaymentModal = ({
     [tableRows]
   );
 
+  const expensesList = useMemo(() => miscItems || [], [miscItems]);
+
+  const expensesTotalComputed = useMemo(
+    () => expensesList.reduce((s, i) => s + n(i?.amount), 0),
+    [expensesList]
+  );
+
+
   // Returnables Summary counts
-  const sumEmptyRetShell = useMemo(
-    () => tableRows.reduce((a, r) => a + n(r?.empty_return_shell), 0),
+  const sumEmptyRetShellValue = useMemo(
+    () =>
+      tableRows.reduce(
+        (a, r) => a + n(r?.empty_return_shell) * n(r?.empty_price_shell),
+        0
+      ),
     [tableRows]
   );
-  const sumEmptyRetPcs = useMemo(
-    () => tableRows.reduce((a, r) => a + n(r?.empty_return_pcs), 0),
+
+  const sumEmptyRetPcsValue = useMemo(
+    () =>
+      tableRows.reduce(
+        (a, r) => a + n(r?.empty_return_pcs) * n(r?.empty_price_pc),
+        0
+      ),
     [tableRows]
   );
+
   const sumDiscEmptyShell = useMemo(
-    () => tableRows.reduce((a, r) => a + n(r?.discrepancy_empties_shell), 0),
+    () => 
+      tableRows.reduce(
+        (a, r) => a + n(r?.discrepancy_empties_shell) * n(r?.empty_price_shell), 
+        0
+      ),
     [tableRows]
   );
+  
   const sumDiscEmptyPcs = useMemo(
-    () => tableRows.reduce((a, r) => a + n(r?.discrepancy_empties_pc), 0),
+    () => 
+      tableRows.reduce(
+        (a, r) => a + n(r?.discrepancy_empties_pc) * n(r?.empty_price_pc),
+        0
+      ),
     [tableRows]
   );
-  const sumFullRetShell = useMemo(
-    () => tableRows.reduce((a, r) => a + n(r?.actual_return_shell), 0),
-    [tableRows]
-  );
+  
+  // With contents (PCS) — peso value (unit price × actual_return_pcs)
   const sumFullRetPcs = useMemo(
-    () => tableRows.reduce((a, r) => a + n(r?.actual_return_pcs), 0),
+    () =>
+      tableRows.reduce(
+        (a, r) =>
+          a +
+          n(r?.actual_return_pcs) *
+            n(r?.unitPrice ?? r?.selling_price ?? r?.price),
+        0
+      ),
     [tableRows]
   );
-  const sumDiscFullShell = useMemo(
-    () => tableRows.reduce((a, r) => a + n(r?.discrepancy_full_shell), 0),
-    [tableRows]
-  );
+
+  // With contents discrepancy (PCS) — peso value (unit price × discrepancy_full_pcs)
   const sumDiscFullPcs = useMemo(
-    () => tableRows.reduce((a, r) => a + n(r?.discrepancy_full_pcs), 0),
+    () =>
+      tableRows.reduce(
+        (a, r) =>
+          a +
+          n(r?.discrepancy_full_pcs) *
+            n(r?.unitPrice ?? r?.selling_price ?? r?.price),
+        0
+      ),
     [tableRows]
   );
+
+
+  // Debug: modal & transaction type: Do not Delete for future debugging
+  // useEffect(() => {
+  //   console.log("[PaymentModal] open:", open);
+  //   console.log("[PaymentModal] transactionTypeName:", transactionTypeName);
+  //   console.log("[PaymentModal] isVanLoad:", isVanLoad);
+  // }, [open, transactionTypeName, isVanLoad]);
+
+  // // Debug: incoming miscItems prop
+  // useEffect(() => {
+  //   console.log("[PaymentModal] miscItems prop:", miscItems);
+  //   console.log("[PaymentModal] miscItems length:", (miscItems && miscItems.length) || 0);
+  // }, [miscItems]);
+
+  // // Debug: memoized expenses list & total
+  // useEffect(() => {
+  //   console.log("[PaymentModal] expensesList (memo):", expensesList);
+  //   console.log("[PaymentModal] expensesTotalComputed:", expensesTotalComputed);
+  // }, [expensesList, expensesTotalComputed]);
 
   // ------------- early return AFTER hooks -------------
   if (!open) return null;
@@ -407,169 +472,161 @@ const PaymentModal = ({
               </table>
             </div>
 
-            {/* ===== 2) RETURNABLES SUMMARY ===== */}
-            <div className="mt-8">
-              <h3 className="text-lg font-semibold mb-2">Returnables Summary</h3>
+            {/* ===== 2) RETURNABLES SUMMARY (PCS-only) ===== */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold mb-2">Returnables Summary</h3>
+
+                <table className="w-full mt-4 border">
+                  <thead className="bg-gray-200 text-sm text-gray-800">
+                    <tr className="text-xs font-semibold">
+                      <th className="p-2 text-left">Product</th>
+
+                      {/* Dispatched */}
+                      <th className="p-2 text-center">Dispatched (PCS)</th>
+
+                      {/* Empty Prices */}
+                      <th className="p-2 text-center">Empty Price (PC)</th>
+
+                      {/* Empty: Returned / Discrepancy (PCS) */}
+                      <th className="p-2 text-center">Empty: Returned (PCS)</th>
+                      <th className="p-2 text-center">Empty: Discrepancy (PCS)</th>
+
+                      {/* With Contents */}
+                      <th className="p-2 text-center">With Contents: Unit Price</th>
+                      <th className="p-2 text-center">With Contents: Returned (PCS)</th>
+                      <th className="p-2 text-center">With Contents: Discrepancy (PCS)</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+                    {tableRows.map((row, index) => {
+                      const productName =
+                        (typeof getProdName === "function" && getProdName(row)) ||
+                        row.productName ||
+                        row.product_detail?.product_name ||
+                        `#${row.productId ?? index + 1}`;
+
+                      const unitPrice =
+                        (typeof getUnitPrice === "function" && getUnitPrice(row)) ||
+                        row.selling_price;
+
+                      return (
+                        <tr key={row.id ?? index} className="hover:bg-gray-50">
+                          <td className="p-2">{productName}</td>
+
+                          {/* Dispatched (PCS only) */}
+                          <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
+
+                          {/* Empty Price (PC) */}
+                          <td className="p-2 text-center">{peso(row.empty_price_pc)}</td>
+
+                          {/* Empty: Returned (PCS) */}
+                          <td className="p-2 text-center">{n(row.empty_return_pcs)}</td>
+
+                          {/* Empty: Discrepancy (PCS) */}
+                          <td className="p-2 text-center">
+                            <span
+                              className={
+                                n(row.discrepancy_empties_pc)
+                                  ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
+                                  : ""
+                              }
+                            >
+                              {n(row.discrepancy_empties_pc)}
+                            </span>
+                          </td>
+
+                          {/* With Contents */}
+                          <td className="p-2 text-center">{peso(unitPrice)}</td>
+
+                          {/* With Contents: Returned (PCS) */}
+                          <td className="p-2 text-center">{n(row.actual_return_pcs)}</td>
+
+                          {/* With Contents: Discrepancy (PCS) */}
+                          <td className="p-2 text-center">
+                            <span
+                              className={
+                                n(row.discrepancy_full_pcs)
+                                  ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
+                                  : ""
+                              }
+                            >
+                              {n(row.discrepancy_full_pcs)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+                  <tfoot>
+                    <tr className="bg-slate-100 font-semibold text-[13px]">
+                      <td className="p-2 text-left">TOTAL</td>
+
+                      {/* Dispatched (PCS) — no peso */}
+                      <td className="p-2"></td>
+
+                      {/* Empty Price (PC) — no total */}
+                      <td className="p-2"></td>
+
+                      {/* Empty: Returned (PCS) — show peso total */}
+                      <td className="p-2 text-center">{peso(sumEmptyRetPcsValue)}</td>
+
+                      {/* Empty: Discrepancy (PCS) — show peso total */}
+                      <td className="p-2 text-center">{peso(sumDiscEmptyPcs)}</td>
+
+                      {/* With Contents: Unit Price — no total */}
+                      <td className="p-2"></td>
+
+                      {/* With Contents: Returned (PCS) — peso total */}
+                      <td className="p-2 text-center">{peso(sumFullRetPcs)}</td>
+
+                      {/* With Contents: Discrepancy (PCS) — peso total */}
+                      <td className="p-2 text-center">{peso(sumDiscFullPcs)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+
+            <div className="mt-6">
+              <h3 className="font-semibold mb-2">Expenses Summary</h3>
 
               <table className="w-full mt-4 border">
-                <thead className="bg-gray-200 text-sm text-gray-800">
-                  <tr className="text-xs font-semibold">
-                    <th className="p-2 text-left">Product</th>
-                    <th className="p-2 text-center" colSpan={2}>
-                      Dispatched
-                    </th>
-                    <th className="p-2 text-center" colSpan={2}>
-                      Empty Prices
-                    </th>
-                    <th className="p-2 text-center" colSpan={2}>
-                      Empty: Returned
-                    </th>
-                    <th className="p-2 text-center" colSpan={2}>
-                      Empty: Discrepancy
-                    </th>
-                    <th className="p-2 text-center">With Contents: Selling Price</th>
-                    <th className="p-2 text-center" colSpan={2}>
-                      With Contents: Returned
-                    </th>
-                    <th className="p-2 text-center" colSpan={2}>
-                      With Contents: Discrepancy
-                    </th>
-                  </tr>
-                  <tr className="text-[11px] bg-gray-200">
-                    <td className="p-2"></td>
-                    <td className="p-1 font-medium text-center">Shell</td>
-                    <td className="p-1 font-medium text-center">PCS</td>
-                    <td className="p-1 font-medium text-center">Shell</td>
-                    <td className="p-1 font-medium text-center">PCS</td>
-                    <td className="p-1 font-medium text-center">Shell</td>
-                    <td className="p-1 font-medium text-center">PCS</td>
-                    <td className="p-1 font-medium text-center">Shell</td>
-                    <td className="p-1 font-medium text-center">PCS</td>
-                    <td className="p-2"></td>
-                    <td className="p-1 font-medium text-center">Shell</td>
-                    <td className="p-1 font-medium text-center">PCS</td>
-                    <td className="p-1 font-medium text-center">Shell</td>
-                    <td className="p-1 font-medium text-center">PCS</td>
+                <thead className="bg-gray-200">
+                  <tr>
+                    <th className="p-2 text-left">Description</th>
+                    <th className="p-2 text-right">Amount (₱)</th>
                   </tr>
                 </thead>
-
                 <tbody>
-                  {tableRows.map((row, index) => {
-                    const productName =
-                      (typeof getProdName === "function" && getProdName(row)) ||
-                      row.productName ||
-                      row.product_detail?.product_name ||
-                      `#${row.productId ?? index + 1}`;
-
-                    const unitPrice =
-                      typeof getUnitPrice === "function" ? getUnitPrice(row) : row.selling_price;
-
-                    return (
-                      <tr key={row.id ?? index} className="hover:bg-gray-50">
-                        <td className="p-2">{productName}</td>
-
-                        {/* Dispatched */}
-                        <td className="p-2 text-center">{n(row.dispatched_shell)}</td>
-                        <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
-
-                        {/* Empty Prices (peso) */}
-                        <td className="p-2 text-center">{peso(row.empty_price_shell)}</td>
-                        <td className="p-2 text-center">{peso(row.empty_price_pc)}</td>
-
-                        {/* Empty: Returned */}
-                        <td className="p-2 text-center">{n(row.empty_return_shell)}</td>
-                        <td className="p-2 text-center">{n(row.empty_return_pcs)}</td>
-
-                        {/* Empty: Discrepancy */}
-                        <td className="p-2 text-center">
-                          <span
-                            className={
-                              n(row.discrepancy_empties_shell)
-                                ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
-                                : ""
-                            }
-                          >
-                            {n(row.discrepancy_empties_shell)}
-                          </span>
-                        </td>
-                        <td className="p-2 text-center">
-                          <span
-                            className={
-                              n(row.discrepancy_empties_pc)
-                                ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
-                                : ""
-                            }
-                          >
-                            {n(row.discrepancy_empties_pc)}
-                          </span>
-                        </td>
-
-                        {/* With Contents */}
-                        <td className="p-2 text-center">{peso(unitPrice)}</td>
-                        <td className="p-2 text-center">{n(row.actual_return_shell)}</td>
-                        <td className="p-2 text-center">{n(row.actual_return_pcs)}</td>
-                        <td className="p-2 text-center">
-                          <span
-                            className={
-                              n(row.discrepancy_full_shell)
-                                ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
-                                : ""
-                            }
-                          >
-                            {n(row.discrepancy_full_shell)}
-                          </span>
-                        </td>
-                        <td className="p-2 text-center">
-                          <span
-                            className={
-                              n(row.discrepancy_full_pcs)
-                                ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
-                                : ""
-                            }
-                          >
-                            {n(row.discrepancy_full_pcs)}
-                          </span>
-                        </td>
+                  {expensesList.length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="p-2 text-center text-gray-500">
+                        No expenses added
+                      </td>
+                    </tr>
+                  ) : (
+                    expensesList.map((exp, idx) => (
+                      <tr key={idx}>
+                        <td className="p-2">{exp?.description || "—"}</td>
+                        <td className="p-2 text-right">₱{n(exp?.amount).toFixed(2)}</td>
                       </tr>
-                    );
-                  })}
-                </tbody>
+                    ))
+                  )}
 
-                <tfoot>
-                  <tr className="bg-slate-100 font-semibold text-[13px]">
-                    <td className="p-2 text-left">TOTAL</td>
-
-                    {/* Dispatched – blank */}
-                    <td className="p-2"></td>
-                    <td className="p-2"></td>
-
-                    {/* Empty Prices – no total */}
-                    <td className="p-2"></td>
-                    <td className="p-2"></td>
-
-                    {/* Empty: Returned totals */}
-                    <td className="p-2 text-center">{sumEmptyRetShell}</td>
-                    <td className="p-2 text-center">{sumEmptyRetPcs}</td>
-
-                    {/* Empty: Discrepancy totals */}
-                    <td className="p-2 text-center">{sumDiscEmptyShell}</td>
-                    <td className="p-2 text-center">{sumDiscEmptyPcs}</td>
-
-                    {/* With Contents: Selling Price – no total */}
-                    <td className="p-2"></td>
-
-                    {/* With Contents: Returned totals */}
-                    <td className="p-2 text-center">{sumFullRetShell}</td>
-                    <td className="p-2 text-center">{sumFullRetPcs}</td>
-
-                    {/* With Contents: Discrepancy totals */}
-                    <td className="p-2 text-center">{sumDiscFullShell}</td>
-                    <td className="p-2 text-center">{sumDiscFullPcs}</td>
+                  <tr className="font-semibold bg-gray-50">
+                    <td className="p-2">Total</td>
+                    <td className="p-2 text-right">₱{expensesTotalComputed.toFixed(2)}</td>
                   </tr>
-                </tfoot>
+                </tbody>
               </table>
             </div>
+
           </>
+
+
+
         ) : (
           /* your non-van-load table stays as-is */
           <div className="mt-6">

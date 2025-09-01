@@ -440,22 +440,8 @@ class ReceivingListCreateView(generics.ListCreateAPIView):
             print("No warehouse_id provided")  # Debug log
             receiving = serializer.save()
 
-        # ✅ Create or update stock for each detail
-        for detail in receiving.details.all():
-            product = detail.product
-            pcs_qty = detail.pcs_qty or 0
-
-            stock, created = Stock.objects.get_or_create(
-                product=product,
-                warehouse=receiving.warehouse,
-                defaults={"quantity_available": pcs_qty}
-            )
-
-            if not created:
-                stock.quantity_available += pcs_qty
-                stock.save()
-
-            print(f"{'Created' if created else 'Updated'} stock for product {product.id} in warehouse {receiving.warehouse.id} — Qty: {stock.quantity_available}")
+        # Stock update is handled in ReceivingSerializer.create() method
+        print(f"Receiving {receiving.receive_no} created successfully")
 
     def create(self, request, *args, **kwargs):
         try:
@@ -467,8 +453,8 @@ class ReceivingListCreateView(generics.ListCreateAPIView):
             import traceback
             print(traceback.format_exc())
             return Response({"detail": f"Error creating receiving: {str(e)}"}, status=500)
-     
-        
+
+
 class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ReceivingSerializer
     
@@ -1544,32 +1530,42 @@ class VanLoadReturnUpdateAPIView(APIView):
                 sale.status = "COMPLETE"
                 sale.save(update_fields=["remarks", "status"])
 
-                # 4) Stock movements
+                # 4) ✅ CORRECTED Stock movements for Van Load completion
                 for data in items:
                     product_id = data.get("productId")
                     if not product_id:
                         continue
 
-                    # saleable stock deduction (pcs)
-                    sold_pcs = to_int(data.get("sold_pcs"))
-                    if sold_pcs:
+                    # ✅ IMPORTANT: For Van Load, ONLY add back unsold returns
+                    # The sold quantities were already deducted during dispatch
+                    # We should NOT deduct sold_pcs again
+                    
+                    actual_return_pcs = to_int(data.get("actual_return_pcs"))
+                    if actual_return_pcs > 0:
                         stock_obj, _ = Stock.objects.get_or_create(
                             product_id=product_id, warehouse_id=sale.warehouse_id,
                             defaults={"quantity_available": 0}
                         )
-                        # clamp to 0, avoid negative on PositiveIntegerField
+                        
+                        # Add back the unsold returns to stock
+                        old_qty = stock_obj.quantity_available or 0
                         Stock.objects.filter(pk=stock_obj.pk).update(
-                            quantity_available=Case(
-                                When(quantity_available__gte=sold_pcs,
-                                     then=F("quantity_available") - sold_pcs),
-                                default=Value(0),
-                                output_field=IntegerField(),
-                            )
+                            quantity_available=F("quantity_available") + actual_return_pcs
+                        )
+                        
+                        # Refresh to get updated quantity for logging
+                        stock_obj.refresh_from_db()
+                        
+                        print(
+                            f"[STOCK DEBUG] Unsold return added | MSP: {sale.msp_no} "
+                            f"| Product: {Product.objects.get(id=product_id).product_name} "
+                            f"| Returned: {actual_return_pcs} "
+                            f"| Before: {old_qty} | After: {stock_obj.quantity_available}"
                         )
 
-                    # returnables increment (empties) — robust single-row update
+                    # Handle empty returns (bottles/shells) to ReturnableStock
                     empty_shells = to_int(data.get("empty_return_shell"))
-                    empty_pcs    = to_int(data.get("empty_return_pcs"))
+                    empty_pcs = to_int(data.get("empty_return_pcs"))
                     if empty_shells or empty_pcs:
                         qs = ReturnableStock.objects.select_for_update().filter(
                             product_id=product_id,
@@ -1577,7 +1573,6 @@ class VanLoadReturnUpdateAPIView(APIView):
                             source="customer",
                         )
 
-                        # Prefer the "no supplier" bucket; fall back to any "customer" row
                         obj = qs.filter(supplier__isnull=True).order_by("id").first() or qs.order_by("id").first()
 
                         if not obj:

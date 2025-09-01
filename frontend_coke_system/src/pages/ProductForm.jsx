@@ -33,6 +33,12 @@ const ProductForm = () => {
   const [showModal, setShowModal] = useState({ type: null, rowIndex: null });
   const [newValue, setNewValue] = useState("");
   const [suppliers, setSuppliers] = useState([]);
+  const [validationErrors, setValidationErrors] = useState([]);
+  const [notice, setNotice] = useState({
+    open: false,
+    type: "success",
+    text: "",
+  });
 
   // Get current warehouse from user session
   const getCurrentWarehouse = () => {
@@ -70,13 +76,13 @@ const ProductForm = () => {
     if (file) {
       // Validate file type
       if (!file.type.startsWith('image/')) {
-        alert('Please select a valid image file.');
+        showNotice('Please select a valid image file.', 'error');
         return;
       }
       
       // Validate file size (5MB max)
       if (file.size > 5 * 1024 * 1024) {
-        alert('Image size should be less than 5MB.');
+        showNotice('Image size should be less than 5MB.', 'error');
         return;
       }
 
@@ -120,6 +126,10 @@ const ProductForm = () => {
       }
       return newRows;
     });
+    
+    // Clear validation errors for this field when user starts typing
+    setValidationErrors(prev => prev.filter(error => !(error.rowIndex === index && error.field === name)));
+    
     checkAndAddRow(index);
   };
 
@@ -162,7 +172,7 @@ const ProductForm = () => {
       setNewValue("");
     } catch (err) {
       console.error("❌ Add New Error:", err.response?.data || err.message);
-      alert("❌ Failed to add new item");
+      showNotice("❌ Failed to add new item", "error");
     }
   };
 
@@ -205,30 +215,126 @@ const ProductForm = () => {
     }
   };
 
+  // Show notice function
+  const showNotice = (text, type = "success") => {
+    setNotice({ open: true, type, text });
+    setTimeout(() => {
+      setNotice({ open: false, type: "success", text: "" });
+    }, 3000);
+  };
+
+  // Validate form before submission
+  const validateForm = () => {
+    const errors = [];
+    const filledRows = rows.filter(row => row.product_name.trim() !== "");
+    
+    if (filledRows.length === 0) {
+      showNotice("❌ Please fill at least one product row before saving.", "error");
+      return false;
+    }
+
+    filledRows.forEach((row, index) => {
+      const actualIndex = rows.findIndex(r => r === row);
+      
+      // Required fields validation
+      const requiredFields = [
+        { field: 'supplier_code', label: 'Supplier Code' },
+        { field: 'product_name', label: 'Product Name' },
+        { field: 'product_category', label: 'Product Category' },
+        { field: 'purchase_price', label: 'Purchase Price' },
+        { field: 'selling_price', label: 'Selling Price' },
+        { field: 'content_no', label: 'Content No' },
+        { field: 'shell_type', label: 'Shell Type' },
+        { field: 'content_type', label: 'Content Type' }
+      ];
+
+      requiredFields.forEach(({ field, label }) => {
+        if (!row[field] || row[field] === "") {
+          errors.push({
+            rowIndex: actualIndex,
+            field: field,
+            message: `${label} is required in row ${actualIndex + 1}`
+          });
+        }
+      });
+
+      // Validate numeric fields
+      const numericFields = ['purchase_price', 'selling_price', 'content_no'];
+      numericFields.forEach(field => {
+        if (row[field] && (isNaN(row[field]) || parseFloat(row[field]) < 0)) {
+          errors.push({
+            rowIndex: actualIndex,
+            field: field,
+            message: `${field.replace('_', ' ')} must be a valid positive number in row ${actualIndex + 1}`
+          });
+        }
+      });
+
+      // Validate shell_price and bottle_price if returnable
+      if (row.returnable) {
+        if (row.shell_price && (isNaN(row.shell_price) || parseFloat(row.shell_price) < 0)) {
+          errors.push({
+            rowIndex: actualIndex,
+            field: 'shell_price',
+            message: `Shell price must be a valid positive number in row ${actualIndex + 1}`
+          });
+        }
+        if (row.bottle_price && (isNaN(row.bottle_price) || parseFloat(row.bottle_price) < 0)) {
+          errors.push({
+            rowIndex: actualIndex,
+            field: 'bottle_price',
+            message: `Bottle price must be a valid positive number in row ${actualIndex + 1}`
+          });
+        }
+      }
+    });
+
+    if (errors.length > 0) {
+      setValidationErrors(errors);
+      showNotice(`❌ Please fix ${errors.length} validation error(s) before saving.`, "error");
+      return false;
+    }
+
+    return true;
+  };
+
+  // Check if field has validation error
+  const hasFieldError = (rowIndex, fieldName) => {
+    return validationErrors.some(error => error.rowIndex === rowIndex && error.field === fieldName);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // Clear previous validation errors
+    setValidationErrors([]);
+
+    // Validate form
+    if (!validateForm()) {
+      return;
+    }
+
     const currentWarehouse = getCurrentWarehouse();
     if (!currentWarehouse) {
-      alert("❌ No warehouse assigned. Please contact administrator.");
+      showNotice("❌ No warehouse assigned. Please contact administrator.", "error");
       return;
     }
 
     try {
-      for (let formData of rows) {
-        if (!formData.product_name) continue;
-
+      const filledRows = rows.filter(row => row.product_name.trim() !== "");
+      
+      for (let formData of filledRows) {
         // Create pricing
         const pricingRes = await axios.post("http://localhost:8080/api/pricing/", {
-          purchase_price: formData.purchase_price,
-          selling_price: formData.selling_price,
-          shell_price: formData.shell_price,
-          bottle_price: formData.bottle_price,
+          purchase_price: parseFloat(formData.purchase_price) || 0,
+          selling_price: parseFloat(formData.selling_price) || 0,
+          shell_price: parseFloat(formData.shell_price) || 0,
+          bottle_price: parseFloat(formData.bottle_price) || 0,
         });
 
         // Create unit type
         const unitTypeRes = await axios.post("http://localhost:8080/api/unit-types/", {
-          content_no: formData.content_no,
+          content_no: parseInt(formData.content_no) || 0,
           returnable: formData.returnable,
           shell_type: formData.shell_type,
           content_type: formData.content_type,
@@ -239,7 +345,7 @@ const ProductForm = () => {
         const productData = new FormData();
         productData.append('system_code', formData.system_code);
         productData.append('supplier_code', formData.supplier_code);
-        productData.append('supplier', formData.supplier);
+        productData.append('supplier', formData.supplier || '');
         productData.append('product_name', formData.product_name);
         productData.append('product_category', formData.product_category);
         productData.append('unit_type', unitTypeRes.data.id);
@@ -257,12 +363,15 @@ const ProductForm = () => {
           },
         });
       }
-      alert("✅ Products saved to your warehouse!");
-      navigate("/products/");
+      
+      showNotice("✅ Products saved to your warehouse!", "success");
+      setTimeout(() => {
+        navigate("/products/");
+      }, 1500);
     } catch (err) {
       console.log("Form values when saving:", rows);
       console.error("❌ Save Error:", err.response?.data || err.message);
-      alert("❌ Error saving products: " + (err.response?.data?.message || err.message));
+      showNotice("❌ Error saving products: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
@@ -273,6 +382,25 @@ const ProductForm = () => {
         <h2 className="page-title">Product Form</h2>
       </div>
 
+      {/* Validation Errors Summary */}
+      {validationErrors.length > 0 && (
+        <div className="card" style={{ marginBottom: '20px', padding: '16px', borderLeft: '4px solid #dc2626', backgroundColor: '#fef2f2' }}>
+          <h4 style={{ color: '#dc2626', marginBottom: '12px' }}>Please fix the following errors:</h4>
+          <ul style={{ margin: 0, paddingLeft: '20px' }}>
+            {validationErrors.slice(0, 5).map((error, index) => (
+              <li key={index} style={{ color: '#dc2626', marginBottom: '4px' }}>
+                {error.message}
+              </li>
+            ))}
+            {validationErrors.length > 5 && (
+              <li style={{ color: '#dc2626', fontStyle: 'italic' }}>
+                ... and {validationErrors.length - 5} more errors
+              </li>
+            )}
+          </ul>
+        </div>
+      )}
+
       {/* Table Card */}
       <div className="card pf-scroll">
         <table className="table table-hover">
@@ -280,19 +408,19 @@ const ProductForm = () => {
             <tr>
               {[
                 "System Code",
-                "Supplier Code",
+                "Supplier Code*",
                 "Supplier",
-                "Product Name",
-                "Product Category",
+                "Product Name*",
+                "Product Category*",
                 "Image",
                 "Returnable",
-                "Purchase Price",
-                "Selling Price",
+                "Purchase Price*",
+                "Selling Price*",
                 "Shell Price",
                 "Bottle Price",
-                "Content No",
-                "Shell Type",
-                "Content Type",
+                "Content No*",
+                "Shell Type*",
+                "Content Type*",
               ].map((header) => (
                 <th key={header}>{header}</th>
               ))}
@@ -319,7 +447,7 @@ const ProductForm = () => {
                     name="supplier_code"
                     value={row.supplier_code}
                     onChange={(e) => handleChange(index, e)}
-                    className="pf-input"
+                    className={`pf-input ${hasFieldError(index, 'supplier_code') ? 'pf-input-error' : ''}`}
                     placeholder="Supplier code"
                   />
                 </td>
@@ -347,7 +475,7 @@ const ProductForm = () => {
                     name="product_name"
                     value={row.product_name}
                     onChange={(e) => handleChange(index, e)}
-                    className="pf-input"
+                    className={`pf-input ${hasFieldError(index, 'product_name') ? 'pf-input-error' : ''}`}
                     placeholder="Product name"
                   />
                 </td>
@@ -358,7 +486,7 @@ const ProductForm = () => {
                     name="product_category"
                     value={row.product_category}
                     onChange={(e) => handleSelectChange(index, e, "category")}
-                    className="pf-select"
+                    className={`pf-select ${hasFieldError(index, 'product_category') ? 'pf-input-error' : ''}`}
                   >
                     <option value="">-- Select --</option>
                     {categories.map((cat) => (
@@ -468,7 +596,9 @@ const ProductForm = () => {
                         name={field}
                         value={row[field]}
                         onChange={(e) => handleChange(index, e)}
-                        className="pf-input"
+                        className={`pf-input ${hasFieldError(index, field) ? 'pf-input-error' : ''} ${
+                          !row.returnable && (field === "shell_price" || field === "bottle_price") ? 'pf-input-disabled' : ''
+                        }`}
                         placeholder={field.replace("_", " ")}
                         disabled={
                           !row.returnable && (field === "shell_price" || field === "bottle_price")
@@ -484,7 +614,7 @@ const ProductForm = () => {
                     name="shell_type"
                     value={row.shell_type}
                     onChange={(e) => handleSelectChange(index, e, "shell")}
-                    className="pf-select"
+                    className={`pf-select ${hasFieldError(index, 'shell_type') ? 'pf-input-error' : ''}`}
                   >
                     <option value="">-- Select --</option>
                     {shellTypes.map((shell) => (
@@ -502,7 +632,7 @@ const ProductForm = () => {
                     name="content_type"
                     value={row.content_type}
                     onChange={(e) => handleSelectChange(index, e, "content")}
-                    className="pf-select"
+                    className={`pf-select ${hasFieldError(index, 'content_type') ? 'pf-input-error' : ''}`}
                   >
                     <option value="">-- Select --</option>
                     {contentTypes.map((content) => (
@@ -560,6 +690,17 @@ const ProductForm = () => {
                   Add
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notice Modal */}
+      {notice.open && (
+        <div className="modal-overlay">
+          <div className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}>
+            <div className="modal-body">
+              <p className="pf-modal-text text-center">{notice.text}</p>
             </div>
           </div>
         </div>
