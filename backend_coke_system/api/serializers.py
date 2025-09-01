@@ -312,11 +312,25 @@ class ProductSerializer(serializers.ModelSerializer):
     product_category = serializers.PrimaryKeyRelatedField(queryset=ProductCategory.objects.all())
     unit_type = serializers.PrimaryKeyRelatedField(queryset=UnitType.objects.all())
     price = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all())
-    image = serializers.ImageField(required=False, allow_null=True)  # NEW: Image field
+    image = serializers.ImageField(required=False, allow_null=True)
+    remove_image = serializers.CharField(required=False, allow_blank=True, write_only=True)  # Add this
     
     class Meta:
         model = Product
         fields = '__all__'
+    
+    def update(self, instance, validated_data):
+        # Handle image removal
+        remove_image = validated_data.pop('remove_image', None)
+        
+        if remove_image == 'true':
+            # Delete the old image file if it exists
+            if instance.image:
+                instance.image.delete(save=False)
+            validated_data['image'] = None
+        
+        return super().update(instance, validated_data)
+    
 
 class ProductDetailSerializer(serializers.ModelSerializer):
     unit_type = UnitTypeSerializer(read_only=True)
