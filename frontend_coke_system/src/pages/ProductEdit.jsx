@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 
-import "../styles/pages/productedit.scss"; // ⬅️ NEW: local styles not covered by global.scss
+import "../styles/pages/productedit.scss";
 
 const ProductEdit = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const fileInputRef = useRef(null);
 
   const [formData, setFormData] = useState({
     system_code: "",
@@ -25,6 +26,9 @@ const ProductEdit = () => {
     price_id: null,
     unit_type_id: null,
     warehouse: null,
+    image: null,
+    imagePreview: null,
+    currentImage: null
   });
 
   const [loading, setLoading] = useState(true);
@@ -35,10 +39,9 @@ const ProductEdit = () => {
   const [newValue, setNewValue] = useState("");
   const [suppliers, setSuppliers] = useState([]);
 
-  // ✅ Centered notice state (success/error)
   const [notice, setNotice] = useState({
     open: false,
-    type: "success", // "success" | "error"
+    type: "success",
     text: "",
   });
 
@@ -50,6 +53,51 @@ const ProductEdit = () => {
       return selectedWarehouse?.id || userData.warehouse_id;
     }
     return userData.warehouse_id;
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setNotice({
+          open: true,
+          type: "error",
+          text: "Please select a valid image file",
+        });
+        return;
+      }
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setNotice({
+          open: true,
+          type: "error",
+          text: "Image size must be less than 5MB",
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setFormData(prev => ({
+          ...prev,
+          image: file,
+          imagePreview: event.target.result
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = () => {
+    setFormData(prev => ({
+      ...prev,
+      image: null,
+      imagePreview: null
+    }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const fetchDropdowns = async () => {
@@ -86,7 +134,6 @@ const ProductEdit = () => {
             type: "error",
             text: "⚠️ You don't have access to edit this product from another warehouse.",
           });
-          // Close after 1.5s and go back
           setTimeout(() => navigate("/products"), 1500);
           return;
         }
@@ -110,6 +157,9 @@ const ProductEdit = () => {
           price_id: product.price?.id || null,
           unit_type_id: product.unit_type?.id || null,
           warehouse: product.warehouse || warehouseId,
+          image: null,
+          imagePreview: null,
+          currentImage: product.image || null
         });
       } catch (err) {
         console.error("❌ Failed to load product:", err);
@@ -164,28 +214,34 @@ const ProductEdit = () => {
         content_returnable: formData.returnable,
       });
 
-      // 3) Product
-      const productUpdatePayload = {
-        system_code: formData.system_code,
-        supplier_code: formData.supplier_code,
-        supplier: formData.supplier,
-        product_name: formData.product_name,
-        product_category: formData.product_category,
-        unit_type: formData.unit_type_id,
-        price: formData.price_id,
-        warehouse: formData.warehouse,
-      };
+      // 3) Product with image
+      const productFormData = new FormData();
+      productFormData.append('system_code', formData.system_code);
+      productFormData.append('supplier_code', formData.supplier_code);
+      productFormData.append('supplier', formData.supplier);
+      productFormData.append('product_name', formData.product_name);
+      productFormData.append('product_category', formData.product_category);
+      productFormData.append('unit_type', formData.unit_type_id);
+      productFormData.append('price', formData.price_id);
+      productFormData.append('warehouse', formData.warehouse);
 
-      await axios.put(`http://localhost:8080/api/products/${id}/`, productUpdatePayload);
+      // Add image if new one was selected
+      if (formData.image) {
+        productFormData.append('image', formData.image);
+      }
 
-      // ✅ Centered success notice
+      await axios.put(`http://localhost:8080/api/products/${id}/`, productFormData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
       setNotice({
         open: true,
         type: "success",
         text: "✅ Product updated successfully!",
       });
 
-      // Navigate after a moment so the user sees the message
       setTimeout(() => {
         navigate("/products", { state: { refresh: true, timestamp: Date.now() }, replace: true });
       }, 1200);
@@ -284,6 +340,7 @@ const ProductEdit = () => {
                 "Supplier",
                 "Product Name",
                 "Product Category",
+                "Image",
                 "Returnable",
                 "Purchase Price",
                 "Selling Price",
@@ -359,6 +416,98 @@ const ProductEdit = () => {
                   ))}
                   <option value="add_new">+ Add New</option>
                 </select>
+              </td>
+
+              {/* Image Upload for Edit */}
+              <td>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                  {formData.imagePreview || formData.currentImage ? (
+                    <>
+                      <img
+                        src={formData.imagePreview || formData.currentImage}
+                        alt="Product"
+                        style={{ 
+                          width: '80px', 
+                          height: '80px', 
+                          objectFit: 'cover', 
+                          borderRadius: '6px',
+                          border: '2px solid #e5e7eb'
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            background: '#f3f4f6',
+                            color: '#374151',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Change
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fecaca',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div style={{
+                        width: '80px',
+                        height: '80px',
+                        background: '#f3f4f6',
+                        border: '2px dashed #d1d5db',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#9ca3af',
+                        fontSize: '24px'
+                      }}>
+                        📷
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Upload
+                      </button>
+                    </>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    style={{ display: 'none' }}
+                  />
+                </div>
               </td>
 
               <td>
@@ -464,7 +613,7 @@ const ProductEdit = () => {
         </table>
       </div>
 
-      {/* Add New modal (existing)
+      {/* Add New modal */}
       {showModal.type && (
         <div className="modal-overlay">
           <div className="modal">
@@ -490,9 +639,9 @@ const ProductEdit = () => {
             </div>
           </div>
         </div>
-      )} */}
+      )}
 
-      {/* ✅ Centered notice modal */}
+      {/* Notice modal */}
       {notice.open && (
         <div className="modal-overlay">
           <div className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}>

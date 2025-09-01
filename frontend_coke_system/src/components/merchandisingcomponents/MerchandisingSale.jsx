@@ -10,6 +10,16 @@ import ExpensesSection from "./ExpensesSection"; // adjust path if it's elsewher
 import '../../styles/components/merchandisingSale.scss';
 
 
+const API = "http://localhost:8080/api";
+const authHeaders = {
+  headers: {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${localStorage.getItem("token")}`,
+  },
+};
+
+
+
 // Convert a Date to a value usable by <input type="datetime-local"> in LOCAL time
 const toDatetimeLocalValue = (date = new Date()) => {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -52,7 +62,9 @@ const MerchandisingSale = () => {
   
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
 
-  
+  // at top of component
+  const editingExistingRef = useRef(false);
+
 
   //Kath
   const [stocks, setStocks] = useState([]);
@@ -258,15 +270,20 @@ const MerchandisingSale = () => {
       const allProducts = productRes.data;
       console.log("All products retrieved:", allProducts);
 
-      const availableProducts = allProducts.filter((product) => {
-        const stock = stockData.find(
-          (s) => s.product === product.id && s.warehouse === warehouseId
-        );
-        return stock && stock.quantity_available > 0;
-      });
-
-      console.log("Available products (filtered by stock):", availableProducts);
-      setProducts(availableProducts);
+      // ⚠️ If we arrived here to EDIT a Van Load, show ALL products so existing lines don't vanish
+      if (location.state?.editMode) {
+        console.log("Edit mode: show ALL products for editing");
+        setProducts(allProducts);
+      } else {
+        const availableProducts = allProducts.filter((product) => {
+          const stock = stockData.find(
+            (s) => s.product === product.id && s.warehouse === warehouseId
+          );
+          return stock && stock.quantity_available > 0;
+        });
+        console.log("Available products (filtered by stock):", availableProducts);
+        setProducts(availableProducts);
+      }
     } catch (err) {
       console.error("Error loading stocks/products:", err);
       setStocks([]);
@@ -333,37 +350,54 @@ const MerchandisingSale = () => {
     }
   }, [transactionType, transactionTypes]);
 
+
+
    // After transactionTypes are fetched, pick the initial type
   useEffect(() => {
-    if (initTxTypeOnce.current) return;
-    if (!transactionTypes || transactionTypes.length === 0) return;
+  if (initTxTypeOnce.current) return;
+  if (!transactionTypes || transactionTypes.length === 0) return;
 
-    // what invoice.jsx might have sent:
-    const fromStateId   = location.state?.transactionTypeId || location.state?.transactionType;
-    const fromStateName = location.state?.transactionTypeName || location.state?.selectedTransactionTypeName;
+  // If we arrived from "Edit Van Load", keep Van Load
+  if (location.state?.editMode) {
+    const incomingSale = location.state.sale;
 
-    let chosen = null;
-
-    if (fromStateId) {
-      chosen = transactionTypes.find(tt => tt.id === Number(fromStateId));
-    }
-    if (!chosen && fromStateName) {
-      chosen = transactionTypes.find(tt =>
-        tt.name.toLowerCase() === String(fromStateName).toLowerCase()
-      );
-    }
-    // fallback: default to “Warehouse”, else first item
-    if (!chosen) {
-      chosen = transactionTypes.find(tt => tt.name.toLowerCase() === "warehouse") || transactionTypes[0];
-    }
+    const chosen =
+      (incomingSale?.transaction_type &&
+        transactionTypes.find(tt => tt.id === Number(incomingSale.transaction_type))) ||
+      transactionTypes.find(tt => tt.name.toLowerCase() === "van load");
 
     if (chosen) {
-      setTransactionType(String(chosen.id));           // id
-      setSelectedTransactionTypeName(chosen.name);     // name
+      setTransactionType(String(chosen.id));
+      setSelectedTransactionTypeName(chosen.name);
       initTxTypeOnce.current = true;
-      console.log("🔧 Initialized transaction type:", chosen);
+      console.log("🟡 Preserved Van Load because editMode is true:", chosen);
     }
-  }, [transactionTypes, location.state, setTransactionType, setSelectedTransactionTypeName]);
+    return; // important: don’t run the normal create flow below
+  }
+
+  // Normal CREATE flow (not editing)
+  const fromStateId   = location.state?.transactionTypeId || location.state?.transactionType;
+  const fromStateName = location.state?.transactionTypeName || location.state?.selectedTransactionTypeName;
+
+  let chosen = null;
+  if (fromStateId) {
+    chosen = transactionTypes.find(tt => tt.id === Number(fromStateId));
+  }
+  if (!chosen && fromStateName) {
+    chosen = transactionTypes.find(tt => tt.name.toLowerCase() === String(fromStateName).toLowerCase());
+  }
+  if (!chosen) {
+    chosen = transactionTypes.find(tt => tt.name.toLowerCase() === "warehouse") || transactionTypes[0];
+  }
+
+  if (chosen) {
+    setTransactionType(String(chosen.id));
+    setSelectedTransactionTypeName(chosen.name);
+    initTxTypeOnce.current = true;
+    console.log("🔧 Initialized transaction type (create):", chosen);
+  }
+}, [transactionTypes, location.state]);
+
 
 
   // ✅ Fetch users when currentWarehouse is set
@@ -414,20 +448,19 @@ const MerchandisingSale = () => {
   }, []);
 
   useEffect(() => {
-    const warehouseId = getCurrentWarehouse();
-    if (!transactionType || !selectedTransactionTypeName || !warehouseId) return;
+  const warehouseId = getCurrentWarehouse();
+  if (!transactionType || !selectedTransactionTypeName || !warehouseId) return;
 
-    axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
-      params: {
-        transaction_type: transactionType,
-        warehouse: warehouseId
-      }
-    })
-    .then(res => {
-      setMspNo(res.data.msp_no || "");
-    })
-    .catch(err => console.error("MSP preview error:", err));
-  }, [transactionType, selectedTransactionTypeName, currentWarehouse?.id]);
+  // 👇 skip generating a new MSP No while editing an existing sale
+  if (editMode || editingExistingRef.current) return;
+
+  axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
+    params: { transaction_type: transactionType, warehouse: warehouseId }
+  })
+  .then(res => setMspNo(res.data.msp_no || ""))
+  .catch(err => console.error("MSP preview error:", err));
+}, [transactionType, selectedTransactionTypeName, currentWarehouse?.id, editMode]);
+
 
   useEffect(() => {
     // optional: keep it synced to "now" when page opens
@@ -469,6 +502,121 @@ const MerchandisingSale = () => {
   console.log("🧮 miscItems state changed:", miscItems);
 }, [miscItems]);
   // karen changes
+
+
+  // ADD THIS EFFECT (near your other useEffects)
+useEffect(() => {
+  const sale = location.state?.sale;
+  const isEdit = location.state?.editMode === true;
+  if (!sale || !isEdit) return;
+
+  // mark the page as editing an existing record
+  editingExistingRef.current = true;
+  setEditMode(true);
+
+  // show the Van Load UI
+  setSelectedTransactionTypeName("Van Load");
+  const vanTypeId =
+    sale.transaction_type ??
+    transactionTypes.find(tt => tt.name?.toLowerCase() === "van load")?.id;
+  if (vanTypeId) setTransactionType(String(vanTypeId));
+
+  // ✅ keep the original MSP no. (avoid getting a new one)
+  if (sale.msp_no) setMspNo(sale.msp_no);
+
+  // ✅ prefill van/route if your API returns them (object or id)
+  if (sale.van) {
+    const id = typeof sale.van === "object" ? sale.van.id : sale.van;
+    setSelectedVan(id);
+  }
+  if (sale.route) {
+    const id = typeof sale.route === "object" ? sale.route.id : sale.route;
+    setRoute(id);
+  }
+
+  // optionally reflect the original timestamp
+  if (sale.date_time) {
+    setTransactionDate(toDatetimeLocalValue(new Date(sale.date_time)));
+  }
+
+  // wait until products are in memory so we can map item.product -> product info
+  if (!products?.length) return;
+
+  (async () => {
+    // Try plural, then singular, to match whichever endpoint you actually have
+    const urls = [
+      `http://localhost:8080/api/merchandisings/${sale.id}/`,
+      `http://localhost:8080/api/merchandising/${sale.id}/`,
+    ];
+
+    let data = null;
+    for (const url of urls) {
+      try {
+        const res = await axios.get(url);
+        data = res.data;
+        break;
+      } catch {}
+    }
+    if (!data) {
+      console.error("❌ Could not load merchandising detail (both URLs failed).");
+      return;
+    }
+
+    const items = Array.isArray(data.items) ? data.items : [];
+
+const mapped = items.map((it, idx) => {
+  const prodId = typeof it.product === "object" ? it.product?.id : it.product;
+  const prod = products.find(p => Number(p.id) === Number(prodId));
+  const contentNo = prod?.unit_type?.content_no || 1;
+  const pcs = Math.max(0, Math.round(Number(it.dispatched_pcs ?? it.dispatchedPcs ?? 0)));
+  const price = prod?.price;
+
+  return {
+    id: `${sale.id}-${idx}`,
+    dbItemId: it.id,                 // ✅ keep the line item id
+    productId: prodId,
+    priceId: price?.id ?? null,
+    contentNo,
+    dispatchedPcs: pcs,
+    dispatchedShell: (pcs / contentNo).toFixed(2),
+    sellingPrice: price?.selling_price ?? "",
+    shellPrice:   price?.shell_price   ?? "",
+    bottlePrice:  price?.bottle_price  ?? "",
+    expectedSale: Number(((price?.selling_price || 0) * pcs).toFixed(2)),
+  };
+});
+
+
+    // keep one blank row at the end
+    mapped.push({
+      id: Date.now(),
+      productId: "",
+      priceId: null,
+      dispatchedShell: "",
+      dispatchedPcs: "",
+      expectedSale: "",
+      contentNo: "",
+      sellingPrice: "",
+      shellPrice: "",
+      bottlePrice: "",
+    });
+
+    setRows(mapped);
+    setTotalExpectedSale(mapped.reduce((s, r) => s + (Number(r.expectedSale) || 0), 0));
+  })();
+}, [
+  location.state?.sale?.id,
+  location.state?.editMode,
+  products?.length,              // wait for products
+  transactionTypes?.length
+]);
+
+
+
+
+
+
+
 
 
   // 🔧 FIXED: Two-step process - create transaction first, then payments separately
@@ -762,6 +910,51 @@ const MerchandisingSale = () => {
     console.log("💳 Payment confirmed (parent):", paymentData);
   };
 
+
+
+  // ADD THIS FUNCTION near your other handlers
+const handleSaveVanLoadEdit = async () => {
+  const incomingSale = location.state?.sale;
+  if (!incomingSale?.id) {
+    showAlert("Sale not found.");
+    return;
+  }
+
+  const payload = {
+  items: rows
+    .filter(r => Number(r.productId))
+    .map(r => {
+      const pcs = Math.max(0, parseInt(r.dispatchedPcs) || 0);
+      const perShell = Number(r.contentNo) || 1;
+      const shells = perShell ? +(pcs / perShell).toFixed(2) : 0;
+
+      return {
+        id: r.dbItemId || undefined,
+        product: Number(r.productId),
+        dispatched_pcs: pcs,
+        dispatched_shell: shells,   // <<< send this too
+      };
+    }),
+  expected_sale: Number(totalExpectedSale) || 0,
+  status: "Pending",
+};
+
+  try {
+    // ✅ FIX: use plural endpoint + authHeaders
+    await axios.patch(`${API}/merchandisings/${incomingSale.id}/`, payload, authHeaders);
+
+    showAlert("Van Load updated.");
+    navigate(`/merchandising-sale/${incomingSale.id}`, { state: { sale: incomingSale } });
+  } catch (e) {
+    console.error("Failed to save Van Load edits:", e?.response?.data || e.message);
+    showAlert("Failed to save changes.");
+  }
+};
+
+
+
+
+
   return (
       <div className="p-6">
         <h1 className="text-xl font-bold mb-4">
@@ -1050,13 +1243,34 @@ const MerchandisingSale = () => {
 
 
 
+      {editMode && selectedTransactionTypeName === "Van Load" ? (
+      // 👉 EDIT MODE for a Pending Van Load: show Save/Cancel
+      <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
+        <button
+          onClick={() => navigate(-1)}
+          className="bg-gray-500 text-white px-4 py-2 rounded"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveVanLoadEdit}
+          className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded"
+        >
+          Save Changes
+        </button>
+      </div>
+    ) : (
+      // 👉 NORMAL MODE: keep your existing ActionButtons
       <ActionButtons
         transactionType={selectedTransactionTypeName}
         onBack={() => navigate(-1)}
         onFinalize={handleFinalizeSale}
         onPay={handlePay}
-        finalizeDisabled={selectedTransactionTypeName === "Van Load" && !dispatchAdjustments.length}
+        finalizeDisabled={
+          selectedTransactionTypeName === "Van Load" && !dispatchAdjustments.length
+        }
       />
+    )}
 
       <PaymentModal
         open={isPaymentModalOpen}

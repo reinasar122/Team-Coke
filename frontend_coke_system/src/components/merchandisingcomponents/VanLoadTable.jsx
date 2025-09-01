@@ -329,7 +329,7 @@ const VanLoadTable = ({
                 <td className="border border-gray-200 py-1 px-1 w-[150px]">
                   <select
                     className="w-full text-md text-center rounded py-1 px-1  bg-white border"
-                    value={row.productId ?? ""}
+                    value={row.productId != null ? String(row.productId) : ""}
                     onChange={(e) => handleProductChange(index, e.target.value)}
                   >
                     <option value="">Select Product</option>
@@ -337,7 +337,7 @@ const VanLoadTable = ({
                       const id = Number(product.id);
                       const isPickedElsewhere = pickedIds.has(id) && id !== Number(row.productId);
                       return (
-                        <option key={id} value={id} disabled={isPickedElsewhere}>
+                        <option key={id} value={String(id)} disabled={isPickedElsewhere}>
                           {product.product_name}
                           {isPickedElsewhere ? " (selected)" : ""}
                         </option>

@@ -102,7 +102,7 @@ const ReturnEmpties = () => {
     }
   }, [currentWarehouse]);
 
-  // FIXED: Enhanced empty returns processing
+  // FIXED: Enhanced empty returns processing - ONLY empty containers (no products with contents)
   const fetchReturnedEmptiesFromMerchandising = useCallback(async () => {
     if (!currentWarehouse) {
       setLoading(false);
@@ -124,37 +124,42 @@ const ReturnEmpties = () => {
           if ((merchandising.transaction_type_name === "Warehouse" || merchandising.transaction_type_name === "Van Load") && merchandising.items) {
             
             merchandising.items.forEach(item => {
-              // FIXED: Enhanced processing logic for different transaction types
+              // FIXED: Only consider EMPTY returns (exclude products with contents)
               let emptyShell = 0;
               let emptyPcs = 0;
               
               if (merchandising.transaction_type_name === "Warehouse") {
-                // For warehouse transactions, check all possible return fields
-                emptyShell = parseInt(item.empty_return_shell) || 
-                           parseInt(item.actual_return_shell) || 
-                           parseInt(item.returned_shell) || 0;
-                emptyPcs = parseInt(item.empty_return_pcs) || 
-                          parseInt(item.actual_return_pcs) || 
-                          parseInt(item.returned_pcs) || 0;
+                // For warehouse transactions, ONLY consider empty return fields (not products with contents)
+                emptyShell = parseInt(item.empty_return_shell) || 0;
+                emptyPcs = parseInt(item.empty_return_pcs) || 0;
                 
-                console.log(`🏪 Warehouse return for item ${item.id}:`, {
+                console.log(`🏪 Warehouse empty return for item ${item.id}:`, {
                   empty_return_shell: item.empty_return_shell,
-                  actual_return_shell: item.actual_return_shell,
-                  calculated_shell: emptyShell,
                   empty_return_pcs: item.empty_return_pcs,
-                  actual_return_pcs: item.actual_return_pcs,
-                  calculated_pcs: emptyPcs
+                  calculated_shell: emptyShell,
+                  calculated_pcs: emptyPcs,
+                  // Excluded fields (products with contents):
+                  excluded_actual_return_shell: item.actual_return_shell,
+                  excluded_actual_return_pcs: item.actual_return_pcs
                 });
                 
               } else if (merchandising.transaction_type_name === "Van Load") {
-                // For van load, prioritize actual returns over expected
-                emptyShell = parseInt(item.actual_return_shell) || 
-                           parseInt(item.empty_return_shell) || 0;
-                emptyPcs = parseInt(item.actual_return_pcs) || 
-                          parseInt(item.empty_return_pcs) || 0;
+                // For van load, ONLY consider empty return fields (not products with contents)
+                emptyShell = parseInt(item.empty_return_shell) || 0;
+                emptyPcs = parseInt(item.empty_return_pcs) || 0;
+                
+                console.log(`🚐 Van Load empty return for item ${item.id}:`, {
+                  empty_return_shell: item.empty_return_shell,
+                  empty_return_pcs: item.empty_return_pcs,
+                  calculated_shell: emptyShell,
+                  calculated_pcs: emptyPcs,
+                  // Excluded fields (products with contents):
+                  excluded_actual_return_shell: item.actual_return_shell,
+                  excluded_actual_return_pcs: item.actual_return_pcs
+                });
               }
               
-              // Include if either shell or pcs has returns (even if shell is 0 but pcs > 0)
+              // Include if either shell or pcs has EMPTY returns (not products with contents)
               if (emptyShell > 0 || emptyPcs > 0) {
                 const productId = item.product;
                 const product = products.find(p => p.id === productId);
@@ -183,12 +188,11 @@ const ReturnEmpties = () => {
                       warehouse_id: currentWarehouse.id,
                       warehouse_name: currentWarehouse.name,
                       transaction_type: merchandising.transaction_type_name,
-                      // Debug info
+                      // Debug info - only empty returns
                       raw_item_data: {
                         empty_return_shell: item.empty_return_shell,
                         empty_return_pcs: item.empty_return_pcs,
-                        actual_return_shell: item.actual_return_shell,
-                        actual_return_pcs: item.actual_return_pcs
+                        // Note: actual_return fields excluded as they contain products with contents
                       }
                     });
                   }
@@ -229,8 +233,8 @@ const ReturnEmpties = () => {
       
       const aggregatedReturns = Object.values(groupedReturns);
       
-      console.log(`📊 Processed ${emptyReturns.length} individual returns into ${aggregatedReturns.length} grouped returns`);
-      console.log("🔍 Sample grouped return:", aggregatedReturns[0]);
+      console.log(`📊 Processed ${emptyReturns.length} individual EMPTY returns into ${aggregatedReturns.length} grouped returns`);
+      console.log("🔍 Sample grouped empty return:", aggregatedReturns[0]);
       
       setReturnedEmpties(aggregatedReturns);
       setError(null);
@@ -316,7 +320,7 @@ const ReturnEmpties = () => {
         <table className="w-full">
           <thead className="bg-gray-100 dark:bg-gray-700">
             <tr>
-              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">MSP No(s).</th>
+              {/* <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">MSP No(s).</th> */}
               <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Product</th>
               <th className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Total Empty Returns</th>
               <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Supplier</th>
@@ -329,7 +333,7 @@ const ReturnEmpties = () => {
             {filteredEmpties.length > 0 ? (
               filteredEmpties.map((item, index) => (
                 <tr key={item.id} className={index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-750"}>
-                  <td className="px-4 py-3 border-b dark:border-gray-600 text-gray-800 dark:text-gray-200 font-medium">
+                  {/* <td className="px-4 py-3 border-b dark:border-gray-600 text-gray-800 dark:text-gray-200 font-medium">
                     {item.msp_numbers ? (
                       <div className="space-y-1">
                         {item.msp_numbers.slice(0, 2).map((msp, i) => (
@@ -344,7 +348,7 @@ const ReturnEmpties = () => {
                     ) : (
                       item.msp_no
                     )}
-                  </td>
+                  </td> */}
                   <td className="px-4 py-3 border-b dark:border-gray-600 text-gray-800 dark:text-gray-200">
                     <div className="flex flex-col gap-1">
                       <div>{item.product_name}</div>
@@ -393,7 +397,7 @@ const ReturnEmpties = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="7" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                <td colSpan="6" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                   No returned empties available
                 </td>
               </tr>

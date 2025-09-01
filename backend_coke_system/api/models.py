@@ -259,6 +259,7 @@ class Product(models.Model):
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE,  null=True, blank=True)  # NEW: Add warehouse field
+    image = models.ImageField(upload_to='product_images/', null=True, blank=True)  # NEW: Image field
 
     def save(self, *args, **kwargs):
         if not self.system_code:
@@ -269,6 +270,14 @@ class Product(models.Model):
 
     def __str__(self):
         return self.product_name
+
+    @property
+    def image_url(self):
+        """Return image URL or None if no image"""
+        if self.image:
+            return self.image.url
+        return None
+
 
 # You can continue the remaining models following the same patterns...
 

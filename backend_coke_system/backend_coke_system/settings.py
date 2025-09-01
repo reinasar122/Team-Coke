@@ -86,14 +86,13 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'test',
+         'NAME': 'db_1',
          'USER': 'root',
          'PASSWORD': 'yjh434ctuG@-@',
          'HOST': 'localhost',
          'PORT': '3306',
      }
  }
-
 
 
 
@@ -182,6 +181,12 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Make sure CORS is enabled
 CORS_ALLOW_CREDENTIALS = True
+
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
 
 #To automatically install dependencies for backend from requirements.txt, run:
 #"pip install -r backend_coke_system/requirements.txt" inside coke-POS-system/backend_coke_system

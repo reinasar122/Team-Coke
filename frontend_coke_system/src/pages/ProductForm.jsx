@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import "../styles/pages/productform.scss"; // ⬅️ add this
+import "../styles/pages/productform.scss";
 
 const ProductForm = () => {
   const navigate = useNavigate();
@@ -20,9 +20,12 @@ const ProductForm = () => {
       shell_type: "",
       content_type: "",
       supplier: "",
+      image: null,
+      imagePreview: null
     }
   ]);
   const inputRefs = useRef([]);
+  const fileInputRefs = useRef([]);
 
   const [categories, setCategories] = useState([]);
   const [shellTypes, setShellTypes] = useState([]);
@@ -60,6 +63,46 @@ const ProductForm = () => {
       newRows[index].system_code = code;
       return newRows;
     });
+  };
+
+  const handleImageUpload = (index, e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        alert('Please select a valid image file.');
+        return;
+      }
+      
+      // Validate file size (5MB max)
+      if (file.size > 5 * 1024 * 1024) {
+        alert('Image size should be less than 5MB.');
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        setRows((prev) => {
+          const newRows = [...prev];
+          newRows[index].image = file;
+          newRows[index].imagePreview = event.target.result;
+          return newRows;
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleRemoveImage = (index) => {
+    setRows((prev) => {
+      const newRows = [...prev];
+      newRows[index].image = null;
+      newRows[index].imagePreview = null;
+      return newRows;
+    });
+    if (fileInputRefs.current[index]) {
+      fileInputRefs.current[index].value = '';
+    }
   };
 
   const handleChange = (index, e) => {
@@ -150,6 +193,8 @@ const ProductForm = () => {
             content_no: "",
             shell_type: "",
             content_type: "",
+            image: null,
+            imagePreview: null
           },
         ];
         setTimeout(() => {
@@ -173,6 +218,7 @@ const ProductForm = () => {
       for (let formData of rows) {
         if (!formData.product_name) continue;
 
+        // Create pricing
         const pricingRes = await axios.post("http://localhost:8080/api/pricing/", {
           purchase_price: formData.purchase_price,
           selling_price: formData.selling_price,
@@ -180,6 +226,7 @@ const ProductForm = () => {
           bottle_price: formData.bottle_price,
         });
 
+        // Create unit type
         const unitTypeRes = await axios.post("http://localhost:8080/api/unit-types/", {
           content_no: formData.content_no,
           returnable: formData.returnable,
@@ -188,15 +235,26 @@ const ProductForm = () => {
           content_returnable: formData.returnable,
         });
 
-        await axios.post("http://localhost:8080/api/products/", {
-          system_code: formData.system_code,
-          supplier_code: formData.supplier_code,
-          supplier: formData.supplier,
-          product_name: formData.product_name,
-          product_category: formData.product_category,
-          unit_type: unitTypeRes.data.id,
-          price: pricingRes.data.id,
-          warehouse: currentWarehouse,
+        // Prepare product data
+        const productData = new FormData();
+        productData.append('system_code', formData.system_code);
+        productData.append('supplier_code', formData.supplier_code);
+        productData.append('supplier', formData.supplier);
+        productData.append('product_name', formData.product_name);
+        productData.append('product_category', formData.product_category);
+        productData.append('unit_type', unitTypeRes.data.id);
+        productData.append('price', pricingRes.data.id);
+        productData.append('warehouse', currentWarehouse);
+        
+        // Add image if exists
+        if (formData.image) {
+          productData.append('image', formData.image);
+        }
+
+        await axios.post("http://localhost:8080/api/products/", productData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
         });
       }
       alert("✅ Products saved to your warehouse!");
@@ -226,6 +284,7 @@ const ProductForm = () => {
                 "Supplier",
                 "Product Name",
                 "Product Category",
+                "Image",
                 "Returnable",
                 "Purchase Price",
                 "Selling Price",
@@ -311,6 +370,81 @@ const ProductForm = () => {
                   </select>
                 </td>
 
+                {/* Image Upload Column */}
+                <td>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                    {row.imagePreview ? (
+                      <>
+                        <img
+                          src={row.imagePreview}
+                          alt="Product preview"
+                          style={{ 
+                            width: '80px', 
+                            height: '80px', 
+                            borderRadius: '6px', 
+                            objectFit: 'cover',
+                            border: '2px solid #e5e7eb'
+                          }}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveImage(index)}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fecaca',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{
+                          width: '80px',
+                          height: '80px',
+                          borderRadius: '6px',
+                          background: '#f3f4f6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#9ca3af',
+                          fontSize: '12px',
+                          border: '2px solid #e5e7eb'
+                        }}>
+                          📷
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRefs.current[index]?.click()}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            background: '#f3f4f6',
+                            color: '#374151',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          Upload
+                        </button>
+                      </>
+                    )}
+                    <input
+                      ref={(el) => (fileInputRefs.current[index] = el)}
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleImageUpload(index, e)}
+                      style={{ display: 'none' }}
+                    />
+                  </div>
+                </td>
+
                 {/* Returnable */}
                 <td>
                   <label className="pf-check-wrap">
@@ -384,7 +518,7 @@ const ProductForm = () => {
           </tbody>
         </table>
 
-        {/* Footer actions (duplicates header for convenience) */}
+        {/* Footer actions */}
         <div className="pf-actions">
           <button
             type="button"
