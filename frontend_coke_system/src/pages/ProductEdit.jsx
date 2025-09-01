@@ -28,7 +28,8 @@ const ProductEdit = () => {
     warehouse: null,
     image: null,
     imagePreview: null,
-    currentImage: null
+    currentImage: null,
+    removeImage: false
   });
 
   const [loading, setLoading] = useState(true);
@@ -82,7 +83,8 @@ const ProductEdit = () => {
         setFormData(prev => ({
           ...prev,
           image: file,
-          imagePreview: event.target.result
+          imagePreview: event.target.result,
+          removeImage: false // Reset remove flag when new image is selected
         }));
       };
       reader.readAsDataURL(file);
@@ -90,14 +92,24 @@ const ProductEdit = () => {
   };
 
   const handleRemoveImage = () => {
+    // Update local state to mark image for removal
     setFormData(prev => ({
       ...prev,
       image: null,
-      imagePreview: null
+      imagePreview: null,
+      currentImage: null,
+      removeImage: true // Flag to indicate image should be removed
     }));
+    
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+
+    setNotice({
+      open: true,
+      type: "success",
+      text: "✅ Image will be removed when you save the product!",
+    });
   };
 
   const fetchDropdowns = async () => {
@@ -159,7 +171,8 @@ const ProductEdit = () => {
           warehouse: product.warehouse || warehouseId,
           image: null,
           imagePreview: null,
-          currentImage: product.image || null
+          currentImage: product.image || null,
+          removeImage: false
         });
       } catch (err) {
         console.error("❌ Failed to load product:", err);
@@ -214,7 +227,7 @@ const ProductEdit = () => {
         content_returnable: formData.returnable,
       });
 
-      // 3) Product with image
+      // 3) Product with image handling
       const productFormData = new FormData();
       productFormData.append('system_code', formData.system_code);
       productFormData.append('supplier_code', formData.supplier_code);
@@ -225,8 +238,12 @@ const ProductEdit = () => {
       productFormData.append('price', formData.price_id);
       productFormData.append('warehouse', formData.warehouse);
 
-      // Add image if new one was selected
-      if (formData.image) {
+      // Handle image logic
+      if (formData.removeImage) {
+        // Send empty string or special value to indicate image removal
+        productFormData.append('remove_image', 'true');
+      } else if (formData.image) {
+        // Add new image if one was selected
         productFormData.append('image', formData.image);
       }
 
@@ -421,7 +438,7 @@ const ProductEdit = () => {
               {/* Image Upload for Edit */}
               <td>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
-                  {formData.imagePreview || formData.currentImage ? (
+                  {(formData.imagePreview || formData.currentImage) && !formData.removeImage ? (
                     <>
                       <img
                         src={formData.imagePreview || formData.currentImage}
