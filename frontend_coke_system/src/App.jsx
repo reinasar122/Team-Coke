@@ -176,11 +176,6 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 />
                 <Route
                   path="/trading"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaChartLine /> Trading
-                    </h1>
-                  }
                 />
                 <Route
                   path="/invoice"

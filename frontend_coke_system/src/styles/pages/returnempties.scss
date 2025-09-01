@@ -108,7 +108,7 @@
       }
 
       @media (prefers-color-scheme: dark) {
-        background: #1f2937; /* gray-800 */
+        background: var(--bg); /* gray-800 */
         border-color: #374151; /* gray-600 */
         color: #e5e7eb; /* gray-200 */
       }
@@ -116,95 +116,6 @@
       @media (max-width: 640px) {
         width: 100%;
         min-width: auto;
-      }
-    }
-  }
-
-  /* Main table container */
-  &__table-container {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--r-md);
-    overflow: hidden;
-    box-shadow: var(--shadow);
-  }
-
-  /* Table styles */
-  &__table {
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 13px;
-
-    th, td {
-      padding: 12px var(--sp-4);
-      border-bottom: 1px solid var(--border);
-    }
-
-    thead th {
-      background: var(--table-head);
-      font-weight: 600;
-      color: var(--text);
-      text-align: left;
-      position: sticky;
-      top: 0;
-      z-index: 1;
-
-      &.text-center {
-        text-align: center;
-      }
-
-      @media (prefers-color-scheme: dark) {
-        background: #111827; /* gray-900 */
-        border-bottom-color: #374151; /* gray-600 */
-      }
-    }
-
-    tbody {
-      tr {
-        transition: background-color 120ms ease;
-
-        &:hover {
-          background: var(--row-hover);
-
-          @media (prefers-color-scheme: dark) {
-            background: #0b1220;
-          }
-        }
-
-        &:nth-child(even) {
-          background: #fafafa;
-
-          @media (prefers-color-scheme: dark) {
-            background: #0c1426;
-          }
-
-          &:hover {
-            background: var(--row-hover);
-
-            @media (prefers-color-scheme: dark) {
-              background: #0b1220;
-            }
-          }
-        }
-      }
-
-      td {
-        color: var(--text);
-
-        @media (prefers-color-scheme: dark) {
-          color: #e5e7eb; /* gray-200 */
-          border-bottom-color: #374151; /* gray-600 */
-        }
-      }
-    }
-
-    /* Responsive table */
-    @media (max-width: 768px) {
-      font-size: 12px;
-
-      th, td {
-        padding: 8px 12px;
       }
     }
   }
@@ -350,7 +261,7 @@
     border-radius: var(--r-md);
 
     @media (prefers-color-scheme: dark) {
-      background: #1f2937; /* gray-800 */
+      background: var(--bg); 
     }
 
     &-grid {

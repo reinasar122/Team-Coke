@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { FaChartLine} from "react-icons/fa";
 import "../styles/pages/merchandisinglist.scss";  // Import the custom styles
 
 // Date formatting for Manila timezone
@@ -205,23 +206,24 @@ const MerchandisingList = () => {
   return (
     <div className="page p-3 min-h-screen">
 
-      <div className="flex justify-end gap-3 items-center mb-6">
-        {/* <button
-           onClick={handleBack}
-          className="btn btn-back"
-        >
-          Back
-        </button> */}
-        <button
-          onClick={handleCreateNew}
-          className="btn btn-add"
-        >
-          + NEW SALE
-        </button>
-      </div>
 
-      <div className="w-full shadow">
+      <div className="w-full">
         <div className="table-wrapper">
+          
+         <div className="flex items-center justify-between m-4">
+            <h1 className="text-2xl flex items-center gap-2">
+              <FaChartLine /> Trading
+            </h1>
+
+            <button
+              onClick={handleCreateNew}
+              className="btn btn-add"
+            >
+              + NEW SALE
+            </button>
+          </div>
+
+         
           <table className="table table-hover ">
             <thead>
               <tr>
