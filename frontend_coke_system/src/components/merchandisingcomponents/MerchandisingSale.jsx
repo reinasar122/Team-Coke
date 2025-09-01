@@ -420,6 +420,32 @@ const MerchandisingSale = () => {
     },
   ]);
 
+
+  // ✅ PREFILL "Handled By" when editing an existing Van Load
+useEffect(() => {
+  const sale = location.state?.sale;
+  const isEdit = location.state?.editMode === true;
+  if (!isEdit || !sale) return;
+
+  // Prefer an explicit handled_by_user id if your API returns it
+  if (sale.handled_by_user) {
+    setSelectedUser(String(sale.handled_by_user));
+    return;
+  }
+
+  // Fallback: match the "First Last" full name to a user in the fetched users list
+  if (sale.handled_by && Array.isArray(users) && users.length) {
+    const wanted = String(sale.handled_by).trim().toLowerCase();
+    const match = users.find(
+      u => `${u.first_name} ${u.last_name}`.trim().toLowerCase() === wanted
+    );
+    if (match) setSelectedUser(String(match.id));
+  }
+}, [location.state?.sale, location.state?.editMode, users]);
+
+
+
+
   // ✅ Only fetch routes and customers here (not users/products)
   useEffect(() => {
     if (!currentWarehouse?.id) return;
@@ -913,6 +939,7 @@ const mapped = items.map((it, idx) => {
 
 
   // ADD THIS FUNCTION near your other handlers
+// ADD/REPLACE THIS FUNCTION
 const handleSaveVanLoadEdit = async () => {
   const incomingSale = location.state?.sale;
   if (!incomingSale?.id) {
@@ -920,8 +947,15 @@ const handleSaveVanLoadEdit = async () => {
     return;
   }
 
-  const payload = {
-  items: rows
+  // Build the handler values from the dropdown
+  const handler = users.find(u => String(u.id) === String(selectedUser));
+  const handled_by = handler
+    ? `${handler.first_name} ${handler.last_name}`.trim()
+    : (incomingSale.handled_by || ""); // keep previous value if none picked
+  const handled_by_user = handler ? Number(handler.id) : undefined;
+
+  // Build the rows to PATCH
+  const items = rows
     .filter(r => Number(r.productId))
     .map(r => {
       const pcs = Math.max(0, parseInt(r.dispatchedPcs) || 0);
@@ -932,24 +966,45 @@ const handleSaveVanLoadEdit = async () => {
         id: r.dbItemId || undefined,
         product: Number(r.productId),
         dispatched_pcs: pcs,
-        dispatched_shell: shells,   // <<< send this too
+        dispatched_shell: shells,
       };
-    }),
-  expected_sale: Number(totalExpectedSale) || 0,
-  status: "Pending",
-};
+    });
+
+  const payload = {
+    // ✅ include handler changes so backend saves them
+    handled_by,
+    ...(handled_by_user ? { handled_by_user } : {}),
+
+    items,
+    expected_sale: Number(totalExpectedSale) || 0,
+    status: "Pending",
+  };
 
   try {
-    // ✅ FIX: use plural endpoint + authHeaders
-    await axios.patch(`${API}/merchandisings/${incomingSale.id}/`, payload, authHeaders);
+    await axios.patch(
+      `${API}/merchandisings/${incomingSale.id}/`,
+      payload,
+      authHeaders
+    );
 
     showAlert("Van Load updated.");
-    navigate(`/merchandising-sale/${incomingSale.id}`, { state: { sale: incomingSale } });
+
+    // Option A: just go back
+    // navigate(-1);
+
+    // Option B: re-open the same page with fresh sale in state (keeps UX tight)
+    navigate(`/merchandising-sale/${incomingSale.id}`, {
+      state: {
+        sale: { ...incomingSale, handled_by, handled_by_user },
+        editMode: true,
+      },
+    });
   } catch (e) {
     console.error("Failed to save Van Load edits:", e?.response?.data || e.message);
     showAlert("Failed to save changes.");
   }
 };
+
 
 
 
