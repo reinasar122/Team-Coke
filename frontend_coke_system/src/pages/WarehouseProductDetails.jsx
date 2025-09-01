@@ -28,6 +28,27 @@ export default function WarehouseProductDetails() {
     return { id: user.warehouse_id, name: user.warehouse };
   }, []);
 
+  // Format a Date to YYYY-MM-DD in Asia/Manila
+  const toYMD_PH = (d) =>
+    new Intl.DateTimeFormat("en-CA", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(d);
+
+  // Normalize API date to YYYY-MM-DD (handles ISO or "YYYY-MM-DD")
+  const warehouseYMD = useMemo(() => {
+    const ds = data?.date;
+    if (!ds) return null;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds; // already YYYY-MM-DD
+    const d = new Date(ds);
+    return Number.isNaN(d.getTime()) ? null : toYMD_PH(d);
+  }, [data?.date]);
+
+  const todayYMD = useMemo(() => toYMD_PH(new Date()), []);
+  const isTodayInPH = warehouseYMD === todayYMD;
+
   useEffect(() => {
     // wait until both mspNo and warehouse id exist
     if (!mspNo || !currentWarehouse?.id) return;
@@ -77,13 +98,24 @@ export default function WarehouseProductDetails() {
           >
             Back
           </button>
-          <button
-            type="button"
-            onClick={handleNewSale}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm active:translate-y-[1px] transition"
-          >
-            New Sale
-          </button>
+           {isTodayInPH ? (
+              <button
+                type="button"
+                onClick={handleNewSale}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm active:translate-y-[1px] transition"
+              >
+                New Sale
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled
+                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-600 cursor-not-allowed"
+                title={warehouseYMD ? `Completed (${warehouseYMD})` : "Completed"}
+              >
+                Completed
+              </button>
+            )}
         </div>
       </div>
 
