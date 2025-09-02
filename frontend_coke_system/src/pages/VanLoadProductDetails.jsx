@@ -69,6 +69,16 @@ const pickRouteLabel = (obj) => {
   return typeof val === "string" ? val.trim() : "";
 };
 
+/* ---------- NEW: InfoField helper for the header ---------- */
+const InfoField = ({ label, value }) => (
+  <div>
+    <div className="text-sm text-gray-600 mb-1">{label}</div>
+    <div className="w-full rounded-md px-3 py-2 bg-gray-50 border border-gray-100 text-sm text-gray-800">
+      {value ?? "—"}
+    </div>
+  </div>
+);
+
 const VanLoadProductDetails = () => {
   const { id } = useParams();
   const location = useLocation();
@@ -98,7 +108,6 @@ const VanLoadProductDetails = () => {
 
   // Resolve Route name with robust fallbacks
   useEffect(() => {
-    // 1) Already present in payload?
     const flat = pickRouteLabel(sale);
     if (flat) {
       setResolvedRouteName(flat);
@@ -110,7 +119,6 @@ const VanLoadProductDetails = () => {
       return;
     }
 
-    // 2) Only an id? accept number OR string "1"
     const maybeId = sale?.route && typeof sale.route === "object" ? sale.route.id : sale?.route;
     const routeId = Number.isFinite(Number(maybeId)) ? Number(maybeId) : null;
 
@@ -233,50 +241,59 @@ const VanLoadProductDetails = () => {
   );
 
   // EMPTIES RETURNED
-const emptiesRows = useMemo(() => {
-  return items.map((it) => {
-    const name = pickName(it);
-    const contentNo = pickContentNo(it);
+  const emptiesRows = useMemo(() => {
+    return items.map((it) => {
+      const name = pickName(it);
+      const contentNo = pickContentNo(it);
 
-    // 🔧 CHANGED: use the actual serializer fields
-    const emptyShell = Number(safe(it.empty_return_shell));
-    const emptyPcs   = Number(safe(it.empty_return_pcs));
+      // serializer fields
+      const emptyShell = Number(safe(it.empty_return_shell));
+      const emptyPcs = Number(safe(it.empty_return_pcs));
 
-    // 🔧 CHANGED: "Returned with Contents" are the ACTUAL returns
-    const withContentShell = Number(safe(it.actual_return_shell));
-    const withContentPcs   = Number(safe(it.actual_return_pcs));
+      // ACTUAL returns with contents
+      const withContentShell = Number(safe(it.actual_return_shell));
+      const withContentPcs = Number(safe(it.actual_return_pcs));
 
-    return {
-      name,
-      contentNo,
-      emptyShell,
-      emptyPcs,
-      withContentShell,
-      withContentPcs,
-    };
-  });
-}, [items]);
+      return {
+        name,
+        contentNo,
+        emptyShell,
+        emptyPcs,
+        withContentShell,
+        withContentPcs,
+      };
+    });
+  }, [items]);
 
-// (optional) you can keep your totals reducer as-is; it now sums the right props:
-const emptiesTotals = useMemo(
-  () =>
-    emptiesRows.reduce(
-      (acc, r) => {
-        acc.emptyShell += r.emptyShell;
-        acc.emptyPcs += r.emptyPcs;
-        acc.withContentShell += r.withContentShell;
-        acc.withContentPcs += r.withContentPcs;
-        return acc;
-      },
-      { emptyShell: 0, emptyPcs: 0, withContentShell: 0, withContentPcs: 0 }
-    ),
-  [emptiesRows]
-);
+  const emptiesTotals = useMemo(
+    () =>
+      emptiesRows.reduce(
+        (acc, r) => {
+          acc.emptyShell += r.emptyShell;
+          acc.emptyPcs += r.emptyPcs;
+          acc.withContentShell += r.withContentShell;
+          acc.withContentPcs += r.withContentPcs;
+          return acc;
+        },
+        { emptyShell: 0, emptyPcs: 0, withContentShell: 0, withContentPcs: 0 }
+      ),
+    [emptiesRows]
+  );
 
   // Header fields
   const handledBy =
     sale?.handled_by_name || sale?.handled_by_username || sale?.handled_by || "—";
   const statusText = sale?.status || "";
+
+  // Nice van label
+  const vanDisplay =
+    sale?.van_label ||
+    (sale?.van &&
+      [sale.van.code || sale.van.plate_no || sale.van.id, sale.van.name]
+        .filter(Boolean)
+        .join(" - ")) ||
+    sale?.van_name ||
+    "—";
 
   return (
     <div className="page">
@@ -285,129 +302,102 @@ const emptiesTotals = useMemo(
 
       {!loading && sale && (
         <>
-         {/* HEADER */}
-      <div className="bg-white p-4 rounded-lg shadow-sm">
-        <div className="grid grid-cols-2 gap-4">
-          {/* Left: MSP Info */}
-          <div>
-            <div className="text-sm text">MSP No.</div>
-            <div className="text-sm font-bold text">{sale.msp_no}</div>
-            <div className="text-sm text mt-1">
-              Van Load • {formatToManila(sale.date_time)}
+          {/* HEADER (updated to 3-column form-style grid) */}
+          <div className="bg-white p-4 rounded-lg shadow-sm">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              <InfoField label="MSP No" value={sale.msp_no} />
+              <InfoField label="Date Time" value={formatToManila(sale.date_time)} />
+              <InfoField
+                label="Transaction Type"
+                value={sale.transaction_type_name || "Van Load"}
+              />
+              <InfoField label="Route" value={routeLabel} />
+              {/* <InfoField label="Van" value={vanDisplay} /> */}
+              <InfoField label="Handled By" value={handledBy} />
+              {/* include Status as a field */}
+              <InfoField label="Status" value={<StatusPill status={statusText} />} />
             </div>
           </div>
-
-          {/* Right: Handler Info */}
-          <div className="text-right">
-            <div className="text-xs text">Handled By</div>
-            <div className="text-base font-semibold text">{handledBy}</div>
-            <div className="text-sm text-gray-600 mt-1">Route: {routeLabel}</div>
-            <div className="mt-3 flex justify-end">
-              <StatusPill status={statusText} />
-            </div>
-          </div>
-        </div>
-      </div>
-
-
-
 
           {/* PRODUCTS SOLD */}
-            <div className="table-wrapper m-5">
-               <div className="p-3 m-4 border-b font-semibold">Products Sold</div>
-              <table className="table">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="p-2 text-left">Product</th>
-                    <th className="p-2 text-center">Sold (Shell)</th>
-                    <th className="p-2 text-center">Sold (PCS)</th>
-                    <th className="p-2 text-center">Unit Price</th>
-                    <th className="p-2 text-center">Line Total</th>
+          <div className="table-wrapper m-5">
+            <div className="p-3 m-4 border-b font-semibold">Products Sold</div>
+            <table className="table">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-2 text-left">Product</th>
+                  <th className="p-2 text-center">Sold (Shell)</th>
+                  <th className="p-2 text-center">Sold (PCS)</th>
+                  <th className="p-2 text-center">Unit Price</th>
+                  <th className="p-2 text-center">Line Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {soldRows.map((r, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="p-2 text-left">{r.name}</td>
+                    <td className="p-2 text-center">{r.soldShell}</td>
+                    <td className="p-2 text-center">{r.soldPcs}</td>
+                    <td className="p-2 text-center">{formatPhp(r.sellingPrice)}</td>
+                    <td className="p-2 text-center font-semibold">{formatPhp(r.lineTotal)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {soldRows.map((r, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="p-2 text-left">{r.name}</td>
-                      <td className="p-2 text-center">{r.soldShell}</td>
-                      <td className="p-2 text-center">{r.soldPcs}</td>
-                      <td className="p-2 text-center">{formatPhp(r.sellingPrice)}</td>
-                      <td className="p-2 text-center font-semibold">{formatPhp(r.lineTotal)}</td>
-                    </tr>
-                  ))}
+                ))}
 
-                  {/* TOTAL row */}
-                 <tr className="border-t bg-gray-50 font-semibold">
-                    {/* label aligned at the start */}
-                    <td colSpan={4} className="p-2 text-left">
-                      TOTAL
-                    </td>
+                {/* TOTAL row */}
+                <tr className="border-t bg-gray-50 font-semibold">
+                  <td colSpan={4} className="p-2 text-left">
+                    TOTAL
+                  </td>
+                  <td className="p-2 text-right">{formatPhp(soldTotals.amount)}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
 
-                    {/* number aligned at the end */}
-                    <td className="p-2 text-right">
-                      {formatPhp(soldTotals.amount)}
-                    </td>
+          {/* EMPTIES RETURNED */}
+          <div className="table-wrapper m-4">
+            <div className="p-3 border-b font-semibold m-4">Empties Returned</div>
+            <table className="table">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="p-2 text-left">Product</th>
+                  <th className="p-2 text-center">Empty (Shell)</th>
+                  <th className="p-2 text-center">Empty (PCS)</th>
+                  <th className="p-2 text-center">With Contents (Shell)</th>
+                  <th className="p-2 text-center">With Contents (PCS)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {emptiesRows.map((r, i) => (
+                  <tr key={i} className="border-t">
+                    <td className="p-2 text-left">{r.name}</td>
+                    <td className="p-2 text-center">{r.emptyShell}</td>
+                    <td className="p-2 text-center">{r.emptyPcs}</td>
+                    <td className="p-2 text-center">{r.withContentShell}</td>
+                    <td className="p-2 text-center">{r.withContentPcs}</td>
                   </tr>
-
-                  
-                </tbody>
-              </table>
-            </div>
-
-          {/* EMPTIES RETURNED */}     
-            <div className="table-wrapper m-4">
-              <div className="p-3 border-b font-semibold m-4">Empties Returned</div>
-              <table className="table">
-                <thead>
-                  <tr className="bg-gray-100">
-                    <th className="p-2 text-left">Product</th>
-                    <th className="p-2 text-center">Empty (Shell)</th>
-                    <th className="p-2 text-center">Empty (PCS)</th>
-                    <th className="p-2 text-center">With Contents (Shell)</th>
-                    <th className="p-2 text-center">With Contents (PCS)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {emptiesRows.map((r, i) => (
-                    <tr key={i} className="border-t">
-                      <td className="p-2 text-left">{r.name}</td>
-                      <td className="p-2 text-center">{r.emptyShell}</td>
-                      <td className="p-2 text-center">{r.emptyPcs}</td>
-                      <td className="p-2 text-center">{r.withContentShell}</td>
-                      <td className="p-2 text-center">{r.withContentPcs}</td>
-                    </tr>
-                  ))}
-
-                  {/* Totals row for empties (optional, currently commented out) */}
-                  {/*
-                  <tr className="border-t bg-gray-50 font-semibold">
-                    <td className="p-2 text-right">TOTAL</td>
-                    <td className="p-2 text-center">{emptiesTotals.emptyShell}</td>
-                    <td className="p-2 text-center">{emptiesTotals.emptyPcs}</td>
-                    <td className="p-2 text-center">{emptiesTotals.withContentShell}</td>
-                    <td className="p-2 text-center">{emptiesTotals.withContentPcs}</td>
-                  </tr>
-                  */}
-                </tbody>
-              </table>
-            </div>
-          
+                ))}
+                {/* (Optional) totals for empties
+                <tr className="border-t bg-gray-50 font-semibold">
+                  <td className="p-2 text-right">TOTAL</td>
+                  <td className="p-2 text-center">{emptiesTotals.emptyShell}</td>
+                  <td className="p-2 text-center">{emptiesTotals.emptyPcs}</td>
+                  <td className="p-2 text-center">{emptiesTotals.withContentShell}</td>
+                  <td className="p-2 text-center">{emptiesTotals.withContentPcs}</td>
+                </tr>
+                */}
+              </tbody>
+            </table>
+          </div>
 
           {/* ACTIONS */}
           <div className="flex justify-end gap-4">
-            <button
-              className="btn btn-back"
-              onClick={() => navigate("/trading")}
-            >
+            <button className="btn btn-back" onClick={() => navigate("/trading")}>
               Back
             </button>
-          <button
-            className="btn btn-print no-print"
-            onClick={() => window.print()}
-          >
-            Print
-          </button>
-
+            <button className="btn btn-print no-print" onClick={() => window.print()}>
+              Print
+            </button>
           </div>
         </>
       )}
