@@ -866,22 +866,20 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
                 ) : (
                   miscItems.map((exp, idx) => (
                     <tr key={idx} className="border-t">
-                      <td className="p-2">{exp.description}</td>
+                      <td className="p-2 text-left">{exp.description}</td>
                       <td className="p-2 text-right">₱{Number(exp.amount || 0).toFixed(2)}</td>
                     </tr>
                   ))
                 )}
-
-                <tr className="font-semibold border-t bg-gray-50">
-                  <td className="p-2">Total</td>
-                  <td className="p-2 text-right">
+                
+              </tbody>
+            </table>
+                 <p className="text-right font-semibold mt-1">Total
+               
                     ₱{(miscItems || [])
                       .reduce((s, i) => s + Number(i.amount || 0), 0)
                       .toFixed(2)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </p>
           </div>
         )}
 
