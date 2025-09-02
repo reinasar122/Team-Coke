@@ -469,7 +469,6 @@ const ProductTable = ({
 
   // -------------------- Render --------------------
   return (
-    <div className="card">
       <div className="table-wrapper">
         <table className="table">
               <thead >
@@ -790,7 +789,6 @@ const ProductTable = ({
                 </tr>
               </tbody>
             </table>
-      </div>
 
     
 

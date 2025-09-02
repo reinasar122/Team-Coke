@@ -700,7 +700,6 @@ const handleSubmit = () => {
 
       <h3 className="text-lg font-semibold mt-6 mb-2">Product Details</h3>
       {/* jelyn changes starts here */}
-      <div className='card'>
         <div className='table-wrapper'>
           <table className="table">
             <thead className="bg-gray-100 text-sm text-gray-800">
@@ -935,12 +934,8 @@ const handleSubmit = () => {
                 </td>
               </tr>
             </tbody>
-          </table>
-         
+          </table>       
         </div>
-      </div>
-      
-     
 
       {/* Overall total
       <div className="flex justify-end mt-2 pr-4">

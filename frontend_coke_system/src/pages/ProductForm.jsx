@@ -583,7 +583,7 @@ const ProductForm = () => {
                       onChange={(e) => handleChange(index, e)}
                       className="pf-checkbox"
                     />
-                    <span className="pf-check-label">Yes</span>
+                    <span className="text">Yes</span>
                   </label>
                 </td>
 
@@ -674,11 +674,11 @@ const ProductForm = () => {
                 type="text"
                 value={newValue}
                 onChange={(e) => setNewValue(e.target.value)}
-                className="pf-input w-full"
+                className="pf-input mb-4 w-full"
                 placeholder={`Enter ${showModal.type} value`}
               />
 
-              <div className="modal-actions">
+              <div className="pf-actions">
                 <button
                   type="button"
                   onClick={() => setShowModal({ type: null, rowIndex: null })}

@@ -83,7 +83,7 @@ export default function WarehouseProductDetails() {
   const handleNewSale = () => navigate("/merchandising-sale");
 
   return (
-    <div className="p-6 bg-sky-200 min-h-screen">
+    <div className="card">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">
           Warehouse Product Details — {mspNo}{data?.date ? ` (${data.date})` : ""}
@@ -94,7 +94,7 @@ export default function WarehouseProductDetails() {
           <button
             type="button"
             onClick={handleBack}
-            className="px-4 py-2 rounded-lg border border-sky-300 bg-white text-sky-700 hover:bg-gray-50 active:translate-y-[1px] transition"
+            className="btn btn-back"
           >
             Back
           </button>
@@ -102,7 +102,7 @@ export default function WarehouseProductDetails() {
               <button
                 type="button"
                 onClick={handleNewSale}
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-sm active:translate-y-[1px] transition"
+                className="btn btn-add"
               >
                 New Sale
               </button>
@@ -119,11 +119,11 @@ export default function WarehouseProductDetails() {
         </div>
       </div>
 
-      <div className="bg-white rounded shadow overflow-x-auto">
+      <div className="table-wrapper">
         {loading ? (
           <div className="p-4">Loading…</div>
         ) : (
-          <table className="w-full text-sm">
+          <table className="table">
             <thead>
               <tr className="bg-gray-200 text-center">
                 <th className="p-2 text-left">Product</th>
@@ -151,12 +151,13 @@ export default function WarehouseProductDetails() {
                 </tr>
               )}
             </tbody>
-            <tfoot>
-              <tr className="bg-gray-100 font-semibold">
-                <td className="p-2 text-left" colSpan={5}>Overall Total</td>
-                <td className="p-2 text-center">{Peso(data.overall_total)}</td>
-              </tr>
-            </tfoot>
+           <tfoot className="sticky bottom-0 z-10 bg-gray-100">
+            <tr className="font-semibold">
+              <td className="p-2 text-left" colSpan={5}>Overall Total</td>
+              <td className="p-2 text-right">{Peso(data.overall_total)}</td>
+            </tr>
+          </tfoot>
+
           </table>
         )}
       </div>

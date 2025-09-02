@@ -16,9 +16,23 @@ export default function LoadOutPage() {
     { id: 3, name: "Coke Zero", stock: 90, returnable: true },
   ];
 
-  const filteredProducts = products.filter(product =>
-    product.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredProducts = useMemo(() => {
+    if (!products?.length) return [];
+    const availIds = new Set(
+      Object.entries(availableStock)
+        .filter(([, qty]) => Number(qty) > 0)
+        .map(([pid]) => Number(pid))
+    );
+    const usedIds = new Set(
+      (rows || [])
+        .map(r => Number(r.productId))
+        .filter(Boolean)
+    );
+    const keep = new Set([...availIds, ...usedIds]); // union
+
+    return products.filter(p => keep.has(Number(p.id)));
+  }, [products, availableStock, rows]);
+
 
   const addToLoadOut = () => {
     if (!selectedProduct || quantity <= 0) return;

@@ -779,7 +779,7 @@ const ReceivingForm = () => {
             )}
           </div>
           <div>
-            <label className="form-label">Invoice No:</label>
+            <label className="form-label">Receipt No:</label>
             <input
               type="text"
               value={form.invoice_no}
@@ -877,7 +877,6 @@ const ReceivingForm = () => {
         )}
 
         {/* Receiving Table */}
-        <div className="card">
           <div className="table-wrapper">
             <table className="table table-hover">
               <thead>
@@ -895,39 +894,54 @@ const ReceivingForm = () => {
                   <tr key={index}>
                     <td>
                       <select
-                        value={row.product_id || ""}
-                        onChange={(e) => handleRowChange(index, "product_id", e.target.value)}
-                        className="form-input"
-                        disabled={!form.supplier}
-                      >
-                        <option value="">
-                          {!form.supplier
-                            ? "Select Supplier First"
-                            : filteredProducts.length === 0
-                            ? `No products from this supplier in ${currentWarehouse.name}`
-                            : `Select Product (${filteredProducts.length} available)`}
-                        </option>
-                        {filteredProducts.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.product_name}
+                          value={row.product_id || ""}
+                          onChange={(e) => handleRowChange(index, "product_id", e.target.value)}
+                          className="form-input"
+                          disabled={!form.supplier}
+                        >
+                          <option value="">
+                            {!form.supplier
+                              ? "Select Supplier First"
+                              : filteredProducts.length === 0
+                              ? `No products from this supplier in ${currentWarehouse.name}`
+                              : `Select Product (${filteredProducts.length} available)`}
                           </option>
-                        ))}
+
+                          {/* Split products into enabled vs disabled */}
+                          {filteredProducts
+                            .filter((p) => !form.details.some((r, i) => i !== index && r.product_id === p.id)) // not selected in other rows
+                            .map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.product_name}
+                              </option>
+                            ))}
+
+                          {/* Then render the disabled ones at the bottom */}
+                          {filteredProducts
+                            .filter((p) => form.details.some((r, i) => i !== index && r.product_id === p.id)) // already selected elsewhere
+                            .map((p) => (
+                              <option key={p.id} value={p.id} disabled>
+                                {p.product_name} (already selected)
+                              </option>
+                            ))}
                       </select>
+
                     </td>
-                    <td>
-                      <input
-                        type="number"
-                        disabled={!row.product_id}
-                        value={
-                          row.shell_qty === "" || row.shell_qty === 0
-                            ? ""                         // empty so placeholder shows
-                            : row.shell_qty              // show the actual number
-                        }
-                        placeholder={row.shell_qty ? String(row.shell_qty) : "0"}
-                        onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
-                        className="form-input text-center"
-                      />
-                    </td>
+                   <td>
+                    <input
+                      type="number"
+                      disabled={!row.product_id}
+                      value={
+                        row.shell_qty === "" || row.shell_qty === 0
+                          ? ""                         // empty so placeholder shows
+                          : row.shell_qty              // show the actual number
+                      }
+                      placeholder={row.shell_qty ? String(row.shell_qty) : "0"}
+                      onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
+                      className="form-input text-center bg-yellow-50 input-always-spinner"
+                    />
+                  </td>
+
 
                     <td>
                       <input
@@ -939,19 +953,20 @@ const ReceivingForm = () => {
                       />
                     </td>
                    <td>
-                    <input
-                      type="number"
-                      disabled={!row.product_id}
-                      value={
-                        row.bad_order_pcs === "" || row.bad_order_pcs === 0
-                          ? ""                       // show placeholder when empty or zero
-                          : row.bad_order_pcs
-                      }
-                      placeholder={row.bad_order_pcs ? String(row.bad_order_pcs) : "0"}
-                      onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
-                      className="form-input text-center"
-                      min="0"
-                    />
+                   <input
+                    type="number"
+                    disabled={!row.product_id}
+                    value={
+                      row.bad_order_pcs === "" || row.bad_order_pcs === 0
+                        ? ""                       // show placeholder when empty or zero
+                        : row.bad_order_pcs
+                    }
+                    placeholder={row.bad_order_pcs ? String(row.bad_order_pcs) : "0"}
+                    onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
+                    className="form-input text-center bg-yellow-50 input-always-spinner"
+                    min="0"
+                  />
+
                   </td>
 
                     <td className="text-right">₱{parseFloat(row.unit_cost || 0).toFixed(2)}</td>
@@ -961,7 +976,6 @@ const ReceivingForm = () => {
               </tbody>
             </table>
           </div>
-        </div>
 
         {/* Footer */}
         <div className="grid md:grid-cols-2 gap-6 mt-10">

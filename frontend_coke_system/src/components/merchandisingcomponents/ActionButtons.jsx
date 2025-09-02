@@ -3,7 +3,7 @@ import React from "react";
 
 const ActionButtons = ({ transactionType, onBack, onFinalize, onPay, finalizeDisabled }) => {
   return (
-    <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
+    <div className="flex justify-end gap-4 mt-6">
       <button onClick={onBack} className="bg-gray-500 text-white px-4 py-2 rounded">
         Back
       </button>

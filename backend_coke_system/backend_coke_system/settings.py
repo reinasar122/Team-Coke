@@ -86,14 +86,13 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'kath2',
+         'NAME': 'db_1',
          'USER': 'root',
-         'PASSWORD': 'karen_123',
+         'PASSWORD': 'yjh434ctuG@-@',
          'HOST': 'localhost',
          'PORT': '3306',
      }
  }
-
 
 
 

@@ -5,7 +5,7 @@ import { successStyle } from "../utils/toastStyles";
 
 const MODULES = {
   "Sales Report": ["Dashboard"],
-  Transactions: ["Receiving", "Trading", "Supplier Return"],
+  Transactions: ["Receiving", "Trading", "Supplier Return", "Invoice", "Credit"],
   Inventory: ["Stocks", "Product", "Returned Empties"],
   Reports: ["Sales Report", "Inventory Report"],
   Manage: ["User", "Roles", "Supplier", "Warehouse", "Van"],
@@ -37,6 +37,7 @@ const initializePermissions = (role) => {
   } else if (role === "Supervisor") {
     [
       "Dashboard",
+      "Invoice", "Credit",
       "Stocks", "Product", "Returned Empties",
       "Sales Report", "Inventory Report",
       "User", "Roles", "Supplier", "Warehouse", "Van",
@@ -49,7 +50,7 @@ const initializePermissions = (role) => {
         delete: false,
       };
     });
-    ["Receiving", "Trading", "Supplier Return"].forEach((submenu) => {
+    ["Receiving", "Trading", "Supplier Return", "Invoice", "Credit"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: true,
         view: true,
@@ -59,7 +60,7 @@ const initializePermissions = (role) => {
       };
     });
   } else if (role === "Cashier") {
-    ["Stocks", "Product", "Returned Empties"].forEach((submenu) => {
+    ["Stocks", "Product", "Returned Empties", "Invoice", "Credit"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: false,
         view: true,

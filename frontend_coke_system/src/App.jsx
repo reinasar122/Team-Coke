@@ -48,6 +48,7 @@ import SupplierReturnList from "./pages/SupplierReturnList";
 import ReturnEmpties from "./pages/ReturnEmpties";
 // import PaymentModal from "./components/PaymentModal";
 import WarehouseProductDetails from "./pages/WarehouseProductDetails";
+import ReceivingDetails from "./pages/ReceivingDetails";
 
 
 // Karen Changes
@@ -175,11 +176,6 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 />
                 <Route
                   path="/trading"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaChartLine /> Trading
-                    </h1>
-                  }
                 />
                 <Route
                   path="/invoice"
@@ -252,6 +248,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/products/:id/edit" element={<ProductEdit />} />
             <Route path="/vans" element={<VanList />} />
             <Route path="/receiving" element={<ReceivingList />} />
+            <Route path="/receiving/:id" element={<ReceivingDetails />} />
             <Route path="/receiving/new" element={<ReceivingForm />} />
             <Route path="/trading" element={<MerchandisingList />} />
             <Route

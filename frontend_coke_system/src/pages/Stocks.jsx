@@ -122,7 +122,7 @@ const Stocks = () => {
       </div> */}
       <h2 className="page-title mt-5 mb-5" style={{ marginRight: 'auto' }}>🧾 Stocks Table</h2>
 
-      <div className="card">{/* light by default (#f4f4f4) */}
+     
         <div className="table-wrapper">
             <table className="table table-hover">
           <thead>
@@ -168,8 +168,6 @@ const Stocks = () => {
           </tbody>
         </table>
         </div>
-      
-      </div>
     </div>
   );
 };

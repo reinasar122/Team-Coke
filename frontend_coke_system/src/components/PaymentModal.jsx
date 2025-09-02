@@ -58,6 +58,7 @@ const PaymentModal = ({
   transactionTypeName, // "Warehouse" | "Van Load"
   expensesTotal = 0,
   remarks = "",
+
   onRemarksChange,
 
   // van load breakdown props
@@ -695,7 +696,7 @@ const PaymentModal = ({
         {/* Payment Breakdown */}
         <h3 className="font-semibold mt-4 mb-0">Payment Breakdown</h3>
         <div className="mt-6 text-sm">
-          <div className="flex flex-col bg-transparent p-6 border-[1px] border-black">
+          <div className="flex flex-col bg-transparent p-6 border-[2px] border-slate-200">
             {isVanLoad ? (
               // ---------- VAN LOAD layout ----------
               <div className="space-y-8">
@@ -827,7 +828,7 @@ const PaymentModal = ({
                 <label className="block mb-1">Cash Amount Received</label>
                 <input
                   type="number"
-                  className="w-full border rounded px-2 py-1"
+                  className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
                   value={cashReceived}
                   onChange={(e) => setCashReceived(e.target.value)}
                 />
@@ -835,7 +836,7 @@ const PaymentModal = ({
               <div>
                 <label className="block mb-1">Amount Due</label>
                 <input
-                  className="w-full border rounded px-2 py-1"
+                  className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
                   value={`₱${fmt(amountDueFinal)}`}
                   readOnly
                 />
@@ -844,7 +845,7 @@ const PaymentModal = ({
                 <div>
                   <label className="block mb-1">Change</label>
                   <input
-                    className="w-full border rounded px-2 py-1"
+                    className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
                     value={`₱${fmt(change)}`}
                     readOnly
                   />
@@ -854,7 +855,7 @@ const PaymentModal = ({
           )}
 
           {paymentMethod === "credit" && (
-            <div className="border p-4 rounded space-y-4">
+            <div className="p-4 border-[2px] border-slate-200 rounded space-y-4">
               <div>
                 <h4 className="font-semibold text-blue-600 mb-2">📅 Credit Terms</h4>
                 <div className="grid grid-cols-2 gap-4">

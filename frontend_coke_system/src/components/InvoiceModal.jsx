@@ -74,6 +74,7 @@ const InvoiceModal = ({ onClose, invoiceData = {} }) => {
 
     // van load only
     expensesTotal = 0,
+    miscItems = [],
     remarks = "",
 
     amountDue, // final due from PaymentModal
@@ -432,6 +433,12 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
         unitPrice: getUnitPrice(r),
         discountPercent: getDiscountPercent(r),
         amount: getRowActual(r),
+        // jelyn changes start
+        expenses: (miscItems || []).map(e => ({
+        description: e.description,
+        amount: Number(e.amount || 0),
+       })),
+      //  jelyn changes ends here
       })),
       empties: tableRows.map((r) => ({
         product: getProdName(r),
@@ -837,6 +844,47 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
           </table>
           <p className="text-right font-semibold mt-1">SUBTOTAL: ₱-{fmt(emptyReturns)}</p>
         </div>
+
+      {/* Expenses Summary — only if NOT Warehouse */}
+        {!isWarehouse && (
+          <div className="mt-6 mb-6">
+            <h3 className="font-semibold mb-2">Expenses Summary</h3>
+            <table className="w-full mt-2 border">
+              <thead className="bg-gray-200">
+                <tr>
+                  <th className="p-2 text-left">Description</th>
+                  <th className="p-2 text-right">Amount (₱)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(miscItems || []).length === 0 ? (
+                  <tr>
+                    <td colSpan={2} className="p-2 text-center text-gray-500">
+                      No expenses added
+                    </td>
+                  </tr>
+                ) : (
+                  miscItems.map((exp, idx) => (
+                    <tr key={idx} className="border-t">
+                      <td className="p-2">{exp.description}</td>
+                      <td className="p-2 text-right">₱{Number(exp.amount || 0).toFixed(2)}</td>
+                    </tr>
+                  ))
+                )}
+
+                <tr className="font-semibold border-t bg-gray-50">
+                  <td className="p-2">Total</td>
+                  <td className="p-2 text-right">
+                    ₱{(miscItems || [])
+                      .reduce((s, i) => s + Number(i.amount || 0), 0)
+                      .toFixed(2)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
+
 
         {/* PAYMENT BREAKDOWN */}
         <h4 className="font-bold mb-2 text-gray-700">PAYMENT BREAKDOWN</h4>
