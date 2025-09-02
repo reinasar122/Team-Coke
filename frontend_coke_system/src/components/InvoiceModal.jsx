@@ -509,6 +509,8 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
         </style>
       </head>
       <body>
+
+      
         <div class="header">
           <h1>INVOICE</h1>
           <p>Invoice No: ${invoiceNumber}</p>
@@ -662,8 +664,8 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
           </div>
         </div>
 
-        {/* Header */}
-        <div className="bg-blue-500 text-white p-4 rounded-md flex justify-between items-center relative">
+        Header
+        {/* <div className="bg-blue-500 text-white p-4 rounded-md flex justify-between items-center relative">
           <div>
             <h2 className="text-lg font-bold">INVOICE</h2>
             <p className="text-sm">Invoice No: {invoiceNumber}</p>
@@ -675,12 +677,12 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
           >
             {paymentMethod === "credit" ? "CREDIT" : "PAID"}
           </span>
-        </div>
+        </div> */}
 
         {/* From / To / Meta */}
         <div className="mt-4 text-sm">
           <div className="grid grid-cols-2 gap-6">
-            <div>
+            {/* <div>
               <h4 className="font-semibold text-gray-600 mb-2">From (Source Warehouse):</h4>
               <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
                 <p className="font-bold text-xl text-blue-700 mb-1">{getWarehouseName()}</p>
@@ -699,8 +701,8 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
                     <p className="text-gray-500 italic">Warehouse details not available</p>
                   )}
               </div>
-            </div>
-            <div>
+            </div> */}
+            {/* <div>
               <h4 className="font-semibold text-gray-600 mb-2">To (Customer):</h4>
               <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
                 <p className="font-bold text-xl text-green-700 mb-1">{customerName || "Walk-in"}</p>
@@ -710,7 +712,7 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
                   <p className="text-gray-500 italic"></p>
                 )}
               </div>
-            </div>
+            </div> */}
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-6 p-4 bg-gray-50 rounded-lg">

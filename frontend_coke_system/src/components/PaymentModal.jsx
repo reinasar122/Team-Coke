@@ -147,7 +147,13 @@ const PaymentModal = ({
   const getUnitPrice = (row) => pickNum(row.unitPrice, row.selling_price, row.price);
   const getEmptyShellPrice = (row) =>
     pickNum(row.empty_price_shell, row.emptyPriceShell, row.shellPrice);
-  const getDiscountPercent = (row) => pickNum(row.discount_percent, row.discount);
+  // const getDiscountPercent = (row) => pickNum(row.discount_percent, row.discount);
+  const getDiscountPercent = (row) => {
+    const discount = pickNum(row.discount_percent, row.discount) || 0;
+    console.log("Discount for product:", row.productName, "is", discount);
+    return discount;
+  };
+
   const getDiscountAmount = (row) => pickNum(row.discount_amount, row.discount_amt);
   const getDirectTotal = (row) =>
     pickNum(row.actualSale, row.actual_sale, row.total, row.line_total, row.lineTotal);
@@ -337,6 +343,14 @@ const PaymentModal = ({
     [tableRows]
   );
 
+  useEffect(() => {
+    console.log("Rows in PaymentModal:", rows);
+    rows.forEach((row, index) => {
+      console.log(`Row ${index + 1} Discount:`, row.discount_percent, row.discount);
+    });
+  }, [rows]);
+
+
 
   // Debug: modal & transaction type: Do not Delete for future debugging
   // useEffect(() => {
@@ -418,7 +432,7 @@ const PaymentModal = ({
                   </tr>
                 </thead>
 
-                <tbody>
+                {/* <tbody>
                   {tableRows.map((row, index) => {
                     const productName =
                       (typeof getProdName === "function" && getProdName(row)) ||
@@ -432,12 +446,69 @@ const PaymentModal = ({
                       typeof getSoldPcs === "function" ? getSoldPcs(row) : row.sold_pcs;
                     const unitPrice =
                       typeof getUnitPrice === "function" ? getUnitPrice(row) : row.selling_price;
-                    const discount =
+                    const discountPct =
                       typeof getDiscountPercent === "function"
                         ? getDiscountPercent(row)
                         : row.discount;
+
                     const lineTotal =
                       typeof getLineTotal === "function" ? getLineTotal(row) : row.line_total;
+
+                    // ---------- DISCOUNT DEBUG LOGS ----------
+                    try {
+                      const emptyShellPrice =
+                        typeof getEmptyShellPrice === "function"
+                          ? getEmptyShellPrice(row)
+                          : row.empty_price_shell;
+
+                      const explicitDiscAmt =
+                        typeof getDiscountAmount === "function"
+                          ? getDiscountAmount(row)
+                          : row.discount_amount ?? row.discount_amt ?? 0;
+
+                      const mode = isWarehouse ? "warehouse" : "van-load";
+                      const discPctNum = Number(discountPct || 0);
+                      const pcs = Number(soldPcs || 0);
+                      const shell = Number(soldShell || 0);
+
+                      // Compute gross & discount applied the same way your getLineTotal does
+                      let gross = 0;
+                      let discountApplied = 0;
+
+                      if (isWarehouse) {
+                        gross = pcs * Number(unitPrice || 0);
+                        const pctAmt = (gross * discPctNum) / 100;
+                        discountApplied = Number(explicitDiscAmt || pctAmt || 0);
+                      } else {
+                        gross = pcs * Number(unitPrice || 0) + shell * Number(emptyShellPrice || 0);
+                        discountApplied = gross * (discPctNum / 100);
+                      }
+
+                      // Only log when there's a discount involved
+                      if (discPctNum !== 0 || Number(explicitDiscAmt || 0) !== 0) {
+                        // eslint-disable-next-line no-console
+                        console.log("[ProductsSummary][Discount]", {
+                          index,
+                          productName,
+                          mode,
+                          pcs,
+                          shell,
+                          unitPrice: Number(unitPrice || 0),
+                          emptyShellPrice: Number(emptyShellPrice || 0),
+                          discountPercent: discPctNum,
+                          discountAmountField: Number(explicitDiscAmt || 0),
+                          gross,
+                          discountApplied: Number(discountApplied || 0),
+                          expectedSale: Number(row.expected_sale || 0),
+                          actualSaleField: Number(row.actual_sale || 0),
+                          lineTotalComputed: Number(lineTotal || 0),
+                        });
+                      }
+                    } catch (e) {
+                      // eslint-disable-next-line no-console
+                      console.log("[ProductsSummary][Discount] debug error on row", index, e);
+                    }
+                    // ---------- END DISCOUNT DEBUG LOGS ----------
 
                     return (
                       <tr key={row.id ?? index} className="hover:bg-gray-50">
@@ -447,13 +518,46 @@ const PaymentModal = ({
                         <td className="p-2 text-center">{n(soldShell)}</td>
                         <td className="p-2 text-center">{n(soldPcs)}</td>
                         <td className="p-2 text-center">{peso(unitPrice)}</td>
-                        <td className="p-2 text-center">{n(discount).toFixed(2)}</td>
+                        <td className="p-2 text-center">{n(discountPct).toFixed(2)}</td>
                         <td className="p-2 text-center">{peso(row.expected_sale)}</td>
                         <td className="p-2 text-center">{peso(row.actual_sale ?? lineTotal)}</td>
                       </tr>
                     );
                   })}
-                </tbody>
+                </tbody> */}
+                <tbody>
+                    {tableRows.map((row, index) => {
+                      const productName =
+                        (typeof getProdName === "function" && getProdName(row)) ||
+                        row.productName ||
+                        row.product_detail?.product_name ||
+                        `#${row.productId ?? index + 1}`;
+
+                      const soldShell = typeof getSoldShell === "function" ? getSoldShell(row) : row.sold_shell;
+                      const soldPcs = typeof getSoldPcs === "function" ? getSoldPcs(row) : row.sold_pcs;
+                      const unitPrice = typeof getUnitPrice === "function" ? getUnitPrice(row) : row.selling_price;
+                      const discountAmount = row.discount || 0; // Use row.discount directly for discount amount
+
+                      const lineTotal = typeof getLineTotal === "function" ? getLineTotal(row) : row.line_total;
+
+                      return (
+                        <tr key={row.id ?? index} className="hover:bg-gray-50">
+                          <td className="p-2">{productName}</td>
+                          <td className="p-2 text-center">{n(row.dispatched_shell)}</td>
+                          <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
+                          <td className="p-2 text-center">{n(soldShell)}</td>
+                          <td className="p-2 text-center">{n(soldPcs)}</td>
+                          <td className="p-2 text-center">{peso(unitPrice)}</td>
+                          <td className="p-2 text-center">{(discountAmount)}</td> {/* Display Discount Amount */}
+                          <td className="p-2 text-center">{peso(row.expected_sale)}</td>
+                          <td className="p-2 text-center">{peso(row.actual_sale ?? lineTotal)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+
+
 
                 <tfoot>
                   <tr className="bg-slate-100 font-semibold text-[13px]">
