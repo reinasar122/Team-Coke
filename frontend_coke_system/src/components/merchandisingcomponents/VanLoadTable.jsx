@@ -3,6 +3,8 @@ import React, { useEffect, useState, useCallback, useMemo } from "react";
 import axios from "axios";
 import { FaTrash } from 'react-icons/fa';
 import '../../styles/global.scss';
+import ProductSearchSelect from "../common/ProductSearchSelect"; // adjust path
+
 
 
 /**
@@ -326,25 +328,17 @@ const VanLoadTable = ({
             return (
               <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
                 {/* PRODUCT SELECT with duplicate prevention & bottom-sorted disabled options */}
-                <td className="border border-gray-200 py-1 px-1 w-[150px]">
-                  <select
-                    className="w-full text-md text-center rounded py-1 px-1  bg-white border"
-                    value={row.productId != null ? String(row.productId) : ""}
-                    onChange={(e) => handleProductChange(index, e.target.value)}
-                  >
-                    <option value="">Select Product</option>
-                    {sortedOptions.map((product) => {
-                      const id = Number(product.id);
-                      const isPickedElsewhere = pickedIds.has(id) && id !== Number(row.productId);
-                      return (
-                        <option key={id} value={String(id)} disabled={isPickedElsewhere}>
-                          {product.product_name}
-                          {isPickedElsewhere ? " (selected)" : ""}
-                        </option>
-                      );
-                    })}
-                  </select>
+                <td className="border border-gray-200 py-1 px-1 w-[200px]">
+                  <ProductSearchSelect
+                    products={getSortedProductsForRow(row.productId)} // keep your “unpicked first” sort
+                    value={row.productId ?? ""}
+                    onChange={(id) => handleProductChange(index, String(id))}
+                    // hide items that are already picked on other rows
+                    excludeIds={Array.from(pickedIds).filter(id => id !== Number(row.productId))}
+                    placeholder="Search product…"
+                  />
                 </td>
+
 
               {/* DISPATCHED Shell */}
                 <td className="border border-gray-200 py-1 px-1">
