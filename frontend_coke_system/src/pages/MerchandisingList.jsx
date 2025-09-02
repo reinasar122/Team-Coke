@@ -26,7 +26,7 @@ const StatusPill = ({ status }) => {
     return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
   if (st === "complete" || st === "completed")
     return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "--"}</span>;
 };
 
 const MerchandisingList = () => {
@@ -47,7 +47,6 @@ const MerchandisingList = () => {
       setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
     }
 
-  
     const handleWarehouseChange = (event) => {
       const { warehouse } = event.detail || {};
       if (warehouse) {
@@ -61,16 +60,49 @@ const MerchandisingList = () => {
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, []);
 
-  // Fetch list for current warehouse
+  // Fetch list for current warehouse with proper filtering
   useEffect(() => {
-    if (!currentWarehouse?.id) return;
+    if (!currentWarehouse?.id) {
+      console.log("❌ No warehouse selected, skipping fetch");
+      setSales([]);
+      return;
+    }
+    
     setLoading(true);
+    console.log(`🏪 Fetching transactions for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
+    
     axios
-      .get("http://localhost:8080/api/merchandising-set/", {
+      .get("http://localhost:8080/api/merchandisings/", {
         params: { warehouse: currentWarehouse.id },
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json',
+        },
       })
-      .then((res) => setSales(res.data || []))
-      .catch((err) => console.error("Error fetching sales:", err))
+      .then((res) => {
+        const transactions = res.data || [];
+        console.log(`✅ Loaded ${transactions.length} transactions for warehouse ${currentWarehouse.name}`);
+        
+        // Extra client-side filtering for safety
+        const filteredTransactions = transactions.filter(transaction => {
+          const warehouseMatch = 
+            transaction.warehouse === currentWarehouse.id ||
+            transaction.warehouse_id === currentWarehouse.id ||
+            (transaction.warehouse && transaction.warehouse.id === currentWarehouse.id);
+          
+          if (!warehouseMatch) {
+            console.warn(`⚠️ Transaction ${transaction.msp_no} doesn't belong to current warehouse, filtering out`);
+          }
+          return warehouseMatch;
+        });
+        
+        console.log(`📋 After filtering: ${filteredTransactions.length} transactions for warehouse ${currentWarehouse.name}`);
+        setSales(filteredTransactions);
+      })
+      .catch((err) => {
+        console.error("❌ Error fetching sales:", err);
+        setSales([]);
+      })
       .finally(() => setLoading(false));
   }, [currentWarehouse]);
 
@@ -142,76 +174,59 @@ const MerchandisingList = () => {
 
   const handleCreateNew = () => navigate("/merchandising-sale");
 
- const handleAnyRowClick = (row) => {
-  if (row._kind === "warehouse-group") {
-    navigate(`/warehouse-details/${encodeURIComponent(row.msp_no)}`);
-    return;
-  }
+  const handleAnyRowClick = (row) => {
+    if (row._kind === "warehouse-group") {
+      navigate(`/warehouse-details/${encodeURIComponent(row.msp_no)}`, {
+        state: { warehouse: currentWarehouse }
+      });
+      return;
+    }
 
-  const sale = row.record ?? row; // fail-safe if shape changes
+    const sale = row.record ?? row;
 
-  // --- robust normalizers ---
-  const norm = (v) => (v ?? "").toString().trim().toLowerCase();
-  const collapse = (v) => norm(v).replace(/\s+/g, " "); // collapse multiple spaces
+    const norm = (v) => (v ?? "").toString().trim().toLowerCase();
+    const collapse = (v) => norm(v).replace(/\s+/g, " ");
 
-  // Try several fields for the type label coming from API
-  const tnameRaw =
-    sale.transaction_type_name ??
-    sale.transaction_type?.name ??
-    sale.transaction_type ??
-    sale.transactionType ??
-    "";
+    const tnameRaw =
+      sale.transaction_type_name ??
+      sale.transaction_type?.name ??
+      sale.transaction_type ??
+      sale.transactionType ??
+      "";
 
-  const tname = collapse(tnameRaw);
-  // Accept "van load", "van-load", "vanload", "van load transaction", etc.
-  const isVanLoad =
-    tname.includes("van load") ||
-    tname.includes("van-load") ||
-    tname.includes("vanload") ||
-    (tname.includes("van") && tname.includes("load"));
+    const tname = collapse(tnameRaw);
+    const isVanLoad =
+      tname.includes("van load") ||
+      tname.includes("van-load") ||
+      tname.includes("vanload") ||
+      (tname.includes("van") && tname.includes("load"));
 
-  // Status checks: accept "pending", "draft", "in progress" variants, trailing spaces, etc.
-  const s = collapse(sale.status);
-  const isCompleted = s.startsWith("complete"); // "complete" / "completed"
-  const isPending =
-    s === "pending" ||
-    s === "draft" ||
-    s === "in progress" ||
-    s === "in-progress";
+    const s = collapse(sale.status);
+    const isCompleted = s.startsWith("complete");
+    const isPending =
+      s === "pending" ||
+      s === "draft" ||
+      s === "in progress" ||
+      s === "in-progress";
 
-  // TEMP: uncomment to inspect what we clicked
-  // console.log({ id: sale.id, tnameRaw, tname, statusRaw: sale.status, s, isVanLoad, isCompleted, isPending });
+    if (isVanLoad && isCompleted) {
+      navigate(`/van-load-product-details/${sale.id}`, { state: { sale } });
+      return;
+    }
 
-  if (isVanLoad && isCompleted) {
-    navigate(`/van-load-product-details/${sale.id}`, { state: { sale } });
-    return;
-  }
+    if (isVanLoad && isPending) {
+      navigate(`/merchandising-sale/${sale.id}`, { state: { sale } });
+      return;
+    }
 
-  if (isVanLoad && isPending) {
-    // Your App.jsx maps /merchandising-sale/:id -> MerchandisingSaleDetailPage
-    navigate(`/merchandising-sale/${sale.id}`, { state: { sale } });
-    return;
-  }
-
-  // Fallback (other types)
-  navigate(`/merchandising-sale/${sale.id}`, {
-    state: { data: sale, editMode: true },
-  });
-};
-
-// 
-  // const handleBack = () => navigate("/trading");
+    navigate(`/merchandising-sale/${sale.id}`, {
+      state: { data: sale, editMode: true },
+    });
+  };
 
   return (
     <div className="page p-3 min-h-screen">
-
       <div className="flex justify-end gap-3 items-center mb-6">
-        {/* <button
-           onClick={handleBack}
-          className="btn btn-back"
-        >
-          Back
-        </button> */}
         <button
           onClick={handleCreateNew}
           className="btn btn-add"
@@ -222,7 +237,7 @@ const MerchandisingList = () => {
 
       <div className="w-full card rounded shadow">
         <div className="table-wrapper">
-          <table className="table table-hover ">
+          <table className="table table-hover">
             <thead>
               <tr>
                 <th className="p-2">MSP No.</th>
@@ -233,6 +248,25 @@ const MerchandisingList = () => {
               </tr>
             </thead>
             <tbody>
+              {loading && (
+                <tr>
+                  <td colSpan="5" className="p-4 text-center">
+                    <div className="flex items-center justify-center">
+                      <div className="spinner"></div>
+                      <span className="ml-2">Loading transactions...</span>
+                    </div>
+                  </td>
+                </tr>
+              )}
+              
+              {!loading && displayRows.length === 0 && (
+                <tr>
+                  <td colSpan="5" className="p-4 text-center text-gray-500">
+                    No transactions found for {currentWarehouse?.name || "this warehouse"}
+                  </td>
+                </tr>
+              )}
+
               {!loading && displayRows.map((row) => {
                 if (row._kind === "warehouse-group") {
                   return (
@@ -240,11 +274,12 @@ const MerchandisingList = () => {
                       key={`wa-${row.msp_no}-${row.dateYmd}`}
                       onClick={() => handleAnyRowClick(row)}
                       title="View warehouse products for this MSP (grouped)"
+                      className="cursor-pointer hover:bg-blue-50"
                     >
                       <td className="p-2 font-semibold">{row.msp_no}</td>
                       <td className="p-2">{row.date_display}</td>
                       <td className="p-2">Warehouse</td>
-                      <td className="p-2">—</td>
+                      <td className="p-2">--</td>
                       <td className="p-2">
                         <span className="px-2 py-1 rounded text-xs bg-blue-100 text-blue-800">
                           {row.txn_count} txn • ₱{row.total_actual_sale.toFixed(2)}
@@ -265,7 +300,7 @@ const MerchandisingList = () => {
                     <td className="p-2">{formatToManila(sale.date_time)}</td>
                     <td className="p-2">{sale.transaction_type_name}</td>
                     <td className="p-2">
-                      {sale.handled_by_name || sale.handled_by_username || sale.handled_by || "—"}
+                      {sale.handled_by_name || sale.handled_by_username || sale.handled_by || "--"}
                     </td>
                     <td className="p-2">
                       <StatusPill status={sale.status} />
@@ -274,7 +309,6 @@ const MerchandisingList = () => {
                 );
               })}
             </tbody>
-          
           </table>
         </div>
       </div>

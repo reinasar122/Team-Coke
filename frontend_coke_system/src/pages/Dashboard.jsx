@@ -61,11 +61,174 @@ const IconSales = (props) => (
     <path d="M4 20V8m6 12V4m6 16v-8" fill="none" stroke="currentColor" strokeWidth="1.6" />
   </svg>
 );
+const IconChevronDown = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
+  </svg>
+);
 
 /* -------------------- skeleton -------------------- */
 const Skeleton = ({ className = "" }) => (
   <div className={`animate-pulse rounded-md bg-slate-200/60 ${className}`} />
 );
+
+/* -------------------- Single-Select Warehouse Selector Component -------------------- */
+const WarehouseSelector = memo(function WarehouseSelector({ 
+  selectedWarehouses, 
+  availableWarehouses, 
+  onWarehouseChange,
+  loading 
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  // Create dropdown options
+  const dropdownOptions = useMemo(() => {
+    const options = [];
+    
+    // Add "Both Warehouses" option if there are exactly 2 warehouses
+    if (availableWarehouses.length === 2) {
+      options.push({
+        id: 'both',
+        label: 'Both Warehouses',
+        value: [...availableWarehouses]
+      });
+    }
+    
+    // Add "All Warehouses" option if there are more than 2 warehouses
+    if (availableWarehouses.length > 2) {
+      options.push({
+        id: 'all',
+        label: 'All Warehouses',
+        value: [...availableWarehouses]
+      });
+    }
+    
+    // Add individual warehouse options
+    availableWarehouses.forEach(warehouse => {
+      options.push({
+        id: warehouse.id,
+        label: warehouse.name || `Warehouse #${warehouse.id}`,
+        sublabel: warehouse.city && warehouse.province 
+          ? `${warehouse.city}, ${warehouse.province}`
+          : warehouse.city || warehouse.province || "Location not specified",
+        value: [warehouse]
+      });
+    });
+    
+    return options;
+  }, [availableWarehouses]);
+
+  const handleOptionSelect = (option) => {
+    onWarehouseChange(option.value);
+    setIsOpen(false);
+  };
+
+  const getCurrentSelection = () => {
+    if (selectedWarehouses.length === 0) {
+      return { label: "No Warehouses Selected", sublabel: null };
+    } else if (selectedWarehouses.length === 1) {
+      const warehouse = selectedWarehouses[0];
+      return { 
+        label: warehouse.name || `Warehouse #${warehouse.id}`,
+        sublabel: warehouse.city && warehouse.province 
+          ? `${warehouse.city}, ${warehouse.province}`
+          : warehouse.city || warehouse.province || null
+      };
+    } else if (selectedWarehouses.length === 2) {
+      return { label: "Both Warehouses", sublabel: null };
+    } else if (selectedWarehouses.length === availableWarehouses.length && availableWarehouses.length > 2) {
+      return { label: "All Warehouses", sublabel: null };
+    } else {
+      return { label: `${selectedWarehouses.length} Warehouses`, sublabel: null };
+    }
+  };
+
+  const currentSelection = getCurrentSelection();
+
+  const isOptionSelected = (option) => {
+    if (option.id === 'both' && selectedWarehouses.length === 2) {
+      return selectedWarehouses.every(selected => 
+        availableWarehouses.some(available => available.id === selected.id)
+      );
+    }
+    if (option.id === 'all' && selectedWarehouses.length === availableWarehouses.length) {
+      return true;
+    }
+    if (typeof option.id === 'number' && selectedWarehouses.length === 1) {
+      return selectedWarehouses[0].id === option.id;
+    }
+    return false;
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        disabled={loading}
+        className={[
+          "inline-flex items-center gap-2 px-3 py-2 rounded-lg border",
+          "bg-white/80 backdrop-blur border-slate-200/70 shadow-sm",
+          "hover:bg-white hover:shadow-md transition-all duration-200",
+          "text-sm font-medium text-slate-700 min-w-[180px] justify-between",
+          loading ? "opacity-50 cursor-not-allowed" : "cursor-pointer",
+        ].join(" ")}
+      >
+        <div className="flex items-center gap-2">
+          <IconWarehouse className="text-slate-500" />
+          <span className="truncate">{currentSelection.label}</span>
+        </div>
+        <IconChevronDown className={`text-slate-400 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+      </button>
+
+      {isOpen && (
+        <>
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 z-10" 
+            onClick={() => setIsOpen(false)}
+          />
+          
+          {/* Dropdown */}
+          <div className="absolute top-full left-0 mt-1 w-full min-w-[240px] bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+            <div className="py-1">
+              {dropdownOptions.length === 0 ? (
+                <div className="px-3 py-2 text-sm text-slate-500 text-center">
+                  No warehouses available
+                </div>
+              ) : (
+                dropdownOptions.map((option) => {
+                  const isSelected = isOptionSelected(option);
+                  return (
+                    <button
+                      key={option.id}
+                      onClick={() => handleOptionSelect(option)}
+                      className={[
+                        "w-full text-left px-3 py-2 hover:bg-slate-50 transition-colors",
+                        isSelected ? "bg-brand-50 text-brand-700" : "text-slate-700"
+                      ].join(" ")}
+                    >
+                      <div className={[
+                        "font-medium text-sm",
+                        isSelected ? "text-brand-700" : "text-slate-700"
+                      ].join(" ")}>
+                        {option.label}
+                      </div>
+                      {option.sublabel && (
+                        <div className="text-xs text-slate-500 mt-0.5">
+                          {option.sublabel}
+                        </div>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+});
 
 /* -------------------- mini cards + accents -------------------- */
 const ACCENTS = {
@@ -187,6 +350,7 @@ const LowStockWidget = memo(function LowStockWidget({ items }) {
         { key: "name", label: "Product", truncate: true },
         { key: "pcs", label: "PCS", right: true, render: (v) => n(v).toLocaleString() },
         { key: "status", label: "Status", right: true },
+        { key: "warehouse", label: "Warehouse", truncate: true },
       ]}
       rows={items}
       emptyText="No low/out-of-stock items"
@@ -213,6 +377,7 @@ const ReceivingWidget = memo(function ReceivingWidget({ rows }) {
         { key: "receive_no", label: "Receipt" },
         { key: "supplier", label: "Supplier", truncate: true },
         { key: "net_amount", label: "Net", right: true, render: (v) => peso(v) },
+        { key: "warehouse", label: "Warehouse", truncate: true },
       ]}
       rows={rows}
       emptyText="No recent receivings"
@@ -226,7 +391,8 @@ const SupplierReturnsWidget = memo(function SupplierReturnsWidget({ rows }) {
         { key: "sup_no", label: "Sup No." },
         { key: "supplier", label: "Supplier", truncate: true },
         { key: "total_amount", label: "Total", right: true, render: (v) => peso(v) },
-        { key: "date", label: "Date", right: true, render: (v) => (v ? formatToManila(v) : "—") },
+        { key: "warehouse", label: "Warehouse", truncate: true },
+        { key: "date", label: "Date", right: true, render: (v) => (v ? formatToManila(v) : "--") },
       ]}
       rows={rows}
       emptyText="No recent supplier returns"
@@ -241,8 +407,8 @@ const ReturnEmptiesWidget = memo(function ReturnEmptiesWidget({ rows }) {
         { key: "supplier_name", label: "Supplier", truncate: true },
         { key: "empty_return_shell", label: "Shells", right: true },
         { key: "empty_return_pcs", label: "PCs", right: true },
-        { key: "transaction_count", label: "Txns", right: true },
-        { key: "latest_date", label: "Latest", right: true, render: (v) => (v ? formatToManila(v) : "—") },
+        { key: "warehouse", label: "Warehouse", truncate: true },
+        { key: "latest_date", label: "Latest", right: true, render: (v) => (v ? formatToManila(v) : "--") },
       ]}
       rows={rows}
       emptyText="No return empties found"
@@ -280,9 +446,10 @@ const VansWidget = memo(function VansWidget({ rows }) {
       headers={[
         { key: "van_id", label: "Van ID" },
         { key: "plate_number", label: "Plate Number", truncate: true },
+        { key: "warehouse", label: "Warehouse", truncate: true },
       ]}
       rows={rows}
-      emptyText="No vans found for this warehouse"
+      emptyText="No vans found"
     />
   );
 });
@@ -334,6 +501,7 @@ const GenericSidebarWidget = memo(function GenericSidebarWidget({
 /* -------------------- localStorage selections + cache -------------------- */
 const LS_KEY = "dashboard:selectedWidgets";
 const DATA_KEY = "dashboard:data";
+const WAREHOUSES_KEY = "dashboard:selectedWarehouses";
 const DATA_TTL_MS = 5 * 60 * 1000;
 
 const loadSelection = () => {
@@ -344,223 +512,316 @@ const loadSelection = () => {
     return [];
   }
 };
+
+const loadSelectedWarehouses = () => {
+  try {
+    const raw = localStorage.getItem(WAREHOUSES_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+};
+
 const saveSelection = (ids) => {
   try {
     localStorage.setItem(LS_KEY, JSON.stringify(ids));
   } catch {}
 };
 
-const readCachedData = (wid) => {
+const saveSelectedWarehouses = (warehouses) => {
+  try {
+    localStorage.setItem(WAREHOUSES_KEY, JSON.stringify(warehouses));
+  } catch {}
+};
+
+const readCachedData = (warehouseIds) => {
   try {
     const raw = localStorage.getItem(DATA_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw);
-    if (!parsed?.__ts || parsed.warehouseId !== wid) return null;
+    if (!parsed?.__ts) return null;
+    
+    // Check if warehouse selection has changed
+    const cachedIds = (parsed.warehouseIds || []).sort();
+    const currentIds = (warehouseIds || []).sort();
+    if (JSON.stringify(cachedIds) !== JSON.stringify(currentIds)) return null;
+    
     if (Date.now() - parsed.__ts > DATA_TTL_MS) return null;
     return parsed;
   } catch {
     return null;
   }
 };
-const writeCachedData = (wid, payload) => {
+
+const writeCachedData = (warehouseIds, payload) => {
   try {
     localStorage.setItem(
       DATA_KEY,
-      JSON.stringify({ __ts: Date.now(), warehouseId: wid, ...payload })
+      JSON.stringify({ __ts: Date.now(), warehouseIds, ...payload })
     );
   } catch {}
 };
 
 /* -------------------- API helpers -------------------- */
-const getCurrentWarehouseId = () => {
+const getCurrentWarehouseIds = (selectedWarehouses) => {
+  if (selectedWarehouses && selectedWarehouses.length > 0) {
+    return selectedWarehouses.map(w => w.id);
+  }
+  
+  // Fallback to single warehouse logic
   const user = JSON.parse(localStorage.getItem("user") || "{}");
   const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
   if ((user.role || "").toLowerCase() === "admin") {
-    return selectedWarehouse?.id || user.warehouse_id;
+    return selectedWarehouse?.id ? [selectedWarehouse.id] : (user.warehouse_id ? [user.warehouse_id] : []);
   }
-  return user.warehouse_id;
+  return user.warehouse_id ? [user.warehouse_id] : [];
 };
-const axiosCfgForWarehouse = (wid) => (wid ? { headers: { "X-Warehouse-ID": wid } } : {});
 
-/** Fetch everything the dashboard needs */
-async function fetchDashboard(wid) {
-  const qsWid = wid ? `?warehouse=${wid}` : "";
-  const qsWidId = wid ? `?warehouse_id=${wid}` : "";
+/** Fetch and aggregate data from multiple warehouses */
+async function fetchDashboard(warehouseIds) {
+  if (!warehouseIds || warehouseIds.length === 0) {
+    return {
+      metrics: {
+        totalProducts: 0,
+        totalStockPcs: 0,
+        lowOrOutCount: 0,
+        stockValueEstimate: 0,
+        todaysSales: 0,
+        todaysReturns: 0,
+        todaysReturnsCount: 0,
+      },
+      lists: {
+        lowStockList: [],
+        productsList: [],
+        receivingsList: [],
+        recentSales: [],
+        recentTransactions: [],
+        supplierReturnsList: [],
+        returnEmptiesList: [],
+        creditList: [],
+        creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
+        usersList: [],
+        rolesList: [],
+        vansList: [],
+        suppliersList: [],
+        warehousesList: [],
+        salesPoints: [],
+        productPerformance: [],
+        productPerformanceSeries: [],
+        categoryMap: {},
+      },
+    };
+  }
 
-  const [
-    stocksRes,
-    productsRes,
-    receivingsRes,
-    merchSetRes,
-    creditsRes,
-    supplierReturnsRes,
-    merchRes,
-    suppliersRes,
-    usersRes,
-    rolesRes,
-    vansRes,
-    warehousesRes,
-  ] = await Promise.all([
-    axios.get(`http://localhost:8080/api/stocks/${qsWid}`),
-    axios.get(`http://localhost:8080/api/products/${qsWidId}`),
-    axios.get(`http://localhost:8080/api/receiving/`, axiosCfgForWarehouse(wid)),
-    axios.get(`http://localhost:8080/api/merchandising-set/`, { params: { warehouse: wid } }),
-    axios.get(`http://localhost:8080/api/credits/`, axiosCfgForWarehouse(wid)),
-    axios.get(`http://localhost:8080/api/supplier-return-form/${qsWidId}`),
-    axios.get(`http://localhost:8080/api/merchandisings/${qsWid}`),
-    axios.get(`http://localhost:8080/api/suppliers/${qsWid}`),
-    axios.get(`http://localhost:8080/api/users/`, axiosCfgForWarehouse(wid)),
-    axios.get(`http://localhost:8080/api/roles/`),
-    axios.get(`http://localhost:8080/api/vans/${qsWid}`),
-    axios.get(`http://127.0.0.1:8080/api/warehouses/${qsWid}`),
-  ]);
+  // Fetch data for each warehouse and aggregate
+  const warehouseDataPromises = warehouseIds.map(async (wid) => {
+    const qsWid = wid ? `?warehouse=${wid}` : "";
+    const qsWidId = wid ? `?warehouse_id=${wid}` : "";
+    const axiosCfg = wid ? { headers: { "X-Warehouse-ID": wid } } : {};
 
-  const parseList = (res) =>
-    Array.isArray(res.data) ? res.data : res.data?.results || res.data?.data || [];
+    const [
+      stocksRes,
+      productsRes,
+      receivingsRes,
+      merchSetRes,
+      creditsRes,
+      supplierReturnsRes,
+      merchRes,
+      suppliersRes,
+      usersRes,
+      rolesRes,
+      vansRes,
+      warehousesRes,
+    ] = await Promise.all([
+      axios.get(`http://localhost:8080/api/stocks/${qsWid}`),
+      axios.get(`http://localhost:8080/api/products/${qsWidId}`),
+      axios.get(`http://localhost:8080/api/receiving/`, axiosCfg),
+      axios.get(`http://localhost:8080/api/merchandising-set/`, { params: { warehouse: wid } }),
+      axios.get(`http://localhost:8080/api/credits/`, axiosCfg),
+      axios.get(`http://localhost:8080/api/supplier-return-form/${qsWidId}`),
+      axios.get(`http://localhost:8080/api/merchandisings/${qsWid}`),
+      axios.get(`http://localhost:8080/api/suppliers/${qsWid}`),
+      axios.get(`http://localhost:8080/api/users/`, axiosCfg),
+      axios.get(`http://localhost:8080/api/roles/`),
+      axios.get(`http://localhost:8080/api/vans/${qsWid}`),
+      axios.get(`http://127.0.0.1:8080/api/warehouses/${qsWid}`),
+    ]);
 
-  const stocks = parseList(stocksRes);
-  const products = parseList(productsRes);
-  const receivings = parseList(receivingsRes);
-  const transactions = parseList(merchSetRes);
-  const credits = parseList(creditsRes);
-  const supplierReturns = parseList(supplierReturnsRes);
-  const merch = parseList(merchRes);
-  const warehouses = parseList(warehousesRes);
+    const parseList = (res) =>
+      Array.isArray(res.data) ? res.data : res.data?.results || res.data?.data || [];
 
-  const warehousesList = [...warehouses]
-    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
-    .slice(0, 5)
-    .map((w) => ({
-      id: w.id,
-      name: w.name || "—",
-      city: w.city || "—",
-      province: w.province || "—",
-      phone_number: w.phone_number || "—",
-    }));
+    return {
+      warehouseId: wid,
+      stocks: parseList(stocksRes),
+      products: parseList(productsRes),
+      receivings: parseList(receivingsRes),
+      transactions: parseList(merchSetRes),
+      credits: parseList(creditsRes),
+      supplierReturns: parseList(supplierReturnsRes),
+      merch: parseList(merchRes),
+      suppliers: parseList(suppliersRes),
+      users: parseList(usersRes),
+      roles: parseList(rolesRes),
+      vans: parseList(vansRes),
+      warehouses: parseList(warehousesRes),
+    };
+  });
 
-  const suppliers = parseList(suppliersRes);
-  const suppliersList = [...suppliers]
-    .sort((a, b) => String(a.company_name || "").localeCompare(String(b.company_name || "")))
-    .slice(0, 5)
-    .map((s) => ({
-      id: s.id,
-      registration_number: s.registration_number || "—",
-      company_name: s.company_name || "—",
-      contact_person: s.contact_person || "—",
-      phone_number: s.phone_number || "—",
-    }));
-  const users = parseList(usersRes);
-  const roles = parseList(rolesRes);
-  const vans = parseList(vansRes);
+  const warehouseData = await Promise.all(warehouseDataPromises);
+  
+  // Get warehouse lookup map
+  const warehouseMap = new Map();
+  warehouseData.forEach(data => {
+    data.warehouses.forEach(w => {
+      warehouseMap.set(w.id, w);
+    });
+  });
+
+  // Aggregate all data
+  const allStocks = warehouseData.flatMap(data => 
+    data.stocks.map(s => ({ ...s, warehouse: warehouseMap.get(data.warehouseId)?.name || `Warehouse #${data.warehouseId}` }))
+  );
+  const allProducts = warehouseData.flatMap(data => data.products);
+  const allReceivings = warehouseData.flatMap(data => 
+    data.receivings.map(r => ({ ...r, warehouse: warehouseMap.get(data.warehouseId)?.name || `Warehouse #${data.warehouseId}` }))
+  );
+  const allTransactions = warehouseData.flatMap(data => data.transactions);
+  const allCredits = warehouseData.flatMap(data => data.credits);
+  const allSupplierReturns = warehouseData.flatMap(data => 
+    data.supplierReturns.map(sr => ({ ...sr, warehouse: warehouseMap.get(data.warehouseId)?.name || `Warehouse #${data.warehouseId}` }))
+  );
+  const allMerch = warehouseData.flatMap(data => data.merch);
+  const allSuppliers = warehouseData.flatMap(data => data.suppliers);
+  const allUsers = warehouseData.flatMap(data => data.users);
+  const allRoles = warehouseData.flatMap(data => data.roles);
+  const allVans = warehouseData.flatMap(data => 
+    data.vans.map(v => ({ ...v, warehouse: warehouseMap.get(data.warehouseId)?.name || `Warehouse #${data.warehouseId}` }))
+  );
+  const allWarehouses = warehouseData.flatMap(data => data.warehouses);
+
+  // Remove duplicates and create lookup maps
+  const uniqueProducts = Array.from(new Map(allProducts.map(p => [p.id, p])).values());
+  const uniqueSuppliers = Array.from(new Map(allSuppliers.map(s => [s.id, s])).values());
+  const uniqueRoles = Array.from(new Map(allRoles.map(r => [r.id, r])).values());
+  const uniqueWarehouses = Array.from(new Map(allWarehouses.map(w => [w.id, w])).values());
 
   const supplierNameById = new Map(
-    suppliers.map((s) => [s.id, s.company_name || s.name || `Supplier #${s.id}`])
+    uniqueSuppliers.map((s) => [s.id, s.company_name || s.name || `Supplier #${s.id}`])
   );
-  const productById = new Map(products.map((p) => [p.id, p]));
+  const productById = new Map(uniqueProducts.map((p) => [p.id, p]));
 
-  /* -------- metrics -------- */
-  const totalProducts = products.length;
-  const totalStockPcs = stocks.reduce((sum, s) => sum + n(s.quantity_available), 0);
-  const lowOrOutCount = stocks.reduce((sum, s) => {
+  /* -------- aggregated metrics -------- */
+  const totalProducts = uniqueProducts.length;
+  const totalStockPcs = allStocks.reduce((sum, s) => sum + n(s.quantity_available), 0);
+  const lowOrOutCount = allStocks.reduce((sum, s) => {
     const status = (s.stock_status || "").toLowerCase();
     return sum + (status.includes("low") || status.includes("out") ? 1 : 0);
   }, 0);
 
-  /* -------- lists -------- */
-  const lowStockList = stocks
+  /* -------- aggregated lists -------- */
+  const lowStockList = allStocks
     .filter((s) => {
       const st = (s.stock_status || "").toLowerCase();
       return st.includes("low") || st.includes("out");
     })
-    .slice(0, 5)
+    .slice(0, 10)
     .map((s) => ({
       id: s.id,
       name: s.product_name || "Unknown Product",
       pcs: n(s.quantity_available),
       status: s.stock_status || "",
+      warehouse: s.warehouse,
     }));
 
-  const productsList = products.slice(0, 5).map((p) => ({
+  const productsList = uniqueProducts.slice(0, 10).map((p) => ({
     id: p.id,
-    system_code: p.system_code || "—",
+    system_code: p.system_code || "--",
     name: p.product_name || p.name || "Untitled",
     category: p.product_category?.name || "N/A",
   }));
 
-  const receivingsList = [...receivings]
+  const receivingsList = [...allReceivings]
     .sort((a, b) => new Date(b.date_time || 0) - new Date(a.date_time || 0))
-    .slice(0, 5)
+    .slice(0, 10)
     .map((r) => ({
       id: r.id,
       receive_no: r.receive_no || r.receiveNo || `#${r.id}`,
-      supplier: r.supplier_name || r.supplier?.name || "—",
+      supplier: r.supplier_name || r.supplier?.name || "--",
       date: r.date_time ? new Date(r.date_time) : null,
       net_amount: n(r.net_amount),
+      warehouse: r.warehouse,
     }));
 
-  const recentTransactions = [...transactions]
+  const recentTransactions = [...allTransactions]
     .sort((a, b) => new Date(b.date_time || 0) - new Date(a.date_time || 0))
-    .slice(0, 5)
+    .slice(0, 10)
     .map((t) => ({
       id: t.id,
       msp_no: t.msp_no || `#${t.id}`,
       date_time: t.date_time || null,
-      transaction_type_name: t.transaction_type_name || t.transaction_type || "—",
-      handled_by: t.handled_by_name || t.handled_by_username || t.handled_by || "—",
-      status: t.status || "—",
+      transaction_type_name: t.transaction_type_name || t.transaction_type || "--",
+      handled_by: t.handled_by_name || t.handled_by_username || t.handled_by || "--",
+      status: t.status || "--",
     }));
 
-  const supplierReturnsList = [...supplierReturns]
+  const supplierReturnsList = [...allSupplierReturns]
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-    .slice(0, 5)
+    .slice(0, 10)
     .map((sr) => ({
       id: sr.id,
       sup_no: sr.sup_no || `#${sr.id}`,
-      supplier: sr.supplier_name || sr.supplier || "—",
+      supplier: sr.supplier_name || sr.supplier || "--",
       total_amount: n(sr.total_amount),
       date: sr.date || null,
+      warehouse: sr.warehouse,
     }));
 
-  const todaysReturnsArray = supplierReturns.filter((sr) => isSameDayManila(sr.date));
+  const todaysReturnsArray = allSupplierReturns.filter((sr) => isSameDayManila(sr.date));
   const todaysReturns = todaysReturnsArray.reduce((sum, sr) => sum + n(sr.total_amount), 0);
   const todaysReturnsCount = todaysReturnsArray.length;
 
-  /* -------- Return Empties aggregation -------- */
+  /* -------- Return Empties aggregation (across all warehouses) -------- */
   const emptiesRaw = [];
-  for (const m of merch) {
-    const type = m.transaction_type_name;
-    if (!m.items || !["Warehouse", "Van Load"].includes(type)) continue;
+  warehouseData.forEach((data) => {
+    const warehouseName = warehouseMap.get(data.warehouseId)?.name || `Warehouse #${data.warehouseId}`;
+    
+    for (const m of data.merch) {
+      const type = m.transaction_type_name;
+      if (!m.items || !["Warehouse", "Van Load"].includes(type)) continue;
 
-    for (const it of m.items) {
-      const emptyShell =
-        (type === "Warehouse"
-          ? n(it.empty_return_shell) || n(it.actual_return_shell) || n(it.returned_shell)
-          : n(it.actual_return_shell) || n(it.empty_return_shell)) || 0;
+      for (const it of m.items) {
+        const emptyShell =
+          (type === "Warehouse"
+            ? n(it.empty_return_shell) || n(it.actual_return_shell) || n(it.returned_shell)
+            : n(it.actual_return_shell) || n(it.empty_return_shell)) || 0;
 
-      const emptyPcs =
-        (type === "Warehouse"
-          ? n(it.empty_return_pcs) || n(it.actual_return_pcs) || n(it.returned_pcs)
-          : n(it.actual_return_pcs) || n(it.empty_return_pcs)) || 0;
+        const emptyPcs =
+          (type === "Warehouse"
+            ? n(it.empty_return_pcs) || n(it.actual_return_pcs) || n(it.returned_pcs)
+            : n(it.actual_return_pcs) || n(it.empty_return_pcs)) || 0;
 
-      if (emptyShell > 0 || emptyPcs > 0) {
-        const prod = productById.get(it.product);
-        const supplierName = prod
-          ? supplierNameById.get(prod.supplier) || "Unknown Supplier"
-          : "Unknown Supplier";
-        emptiesRaw.push({
-          key: `${m.id}-${it.id}`,
-          msp_no: m.msp_no,
-          product_id: it.product,
-          product_name: prod?.product_name || `Product #${it.product}`,
-          supplier_name: supplierName,
-          empty_return_shell: emptyShell,
-          empty_return_pcs: emptyPcs,
-          date: m.date_time || null,
-          transaction_type: type,
-        });
+        if (emptyShell > 0 || emptyPcs > 0) {
+          const prod = productById.get(it.product);
+          const supplierName = prod
+            ? supplierNameById.get(prod.supplier) || "Unknown Supplier"
+            : "Unknown Supplier";
+          emptiesRaw.push({
+            key: `${data.warehouseId}-${m.id}-${it.id}`,
+            msp_no: m.msp_no,
+            product_id: it.product,
+            product_name: prod?.product_name || `Product #${it.product}`,
+            supplier_name: supplierName,
+            empty_return_shell: emptyShell,
+            empty_return_pcs: emptyPcs,
+            date: m.date_time || null,
+            transaction_type: type,
+            warehouse: warehouseName,
+          });
+        }
       }
     }
-  }
+  });
+
   const grouped = new Map();
   for (const row of emptiesRaw) {
     const g = grouped.get(row.product_id);
@@ -576,6 +837,8 @@ async function fetchDashboard(wid) {
         transaction_types: [row.transaction_type],
         msp_numbers: [row.msp_no].filter(Boolean),
         latest_date: row.date,
+        warehouse: row.warehouse,
+        warehouses: [row.warehouse],
       });
     } else {
       g.empty_return_shell += row.empty_return_shell;
@@ -583,36 +846,42 @@ async function fetchDashboard(wid) {
       g.transaction_count += 1;
       if (!g.transaction_types.includes(row.transaction_type)) g.transaction_types.push(row.transaction_type);
       if (row.msp_no) g.msp_numbers.push(row.msp_no);
+      if (!g.warehouses.includes(row.warehouse)) g.warehouses.push(row.warehouse);
       if (row.date && (!g.latest_date || new Date(row.date) > new Date(g.latest_date))) {
         g.latest_date = row.date;
       }
     }
   }
+
   const returnEmptiesList = Array.from(grouped.values())
     .sort((a, b) => b.empty_return_shell + b.empty_return_pcs - (a.empty_return_shell + a.empty_return_pcs))
-    .slice(0, 5);
+    .slice(0, 10)
+    .map(item => ({
+      ...item,
+      warehouse: item.warehouses.join(", "),
+    }));
 
-  /* -------- Users / Roles / Credit -------- */
-  const usersList = users.slice(0, 5).map((u) => ({
+  /* -------- Users / Roles / Credit (aggregated) -------- */
+  const usersList = allUsers.slice(0, 10).map((u) => ({
     id: u.id,
     name:
       u.full_name ||
       u.name ||
       `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() ||
       u.username ||
-      "—",
-    username: u.username || "—",
-    role: u.role?.name || u.role || u.role_name || "—",
+      "--",
+    username: u.username || "--",
+    role: u.role?.name || u.role || u.role_name || "--",
   }));
 
-  const rolesList = roles.slice(0, 5).map((r) => ({
+  const rolesList = uniqueRoles.slice(0, 10).map((r) => ({
     id: r.id,
-    name: r.name || r.role || "—",
+    name: r.name || r.role || "--",
     users_count: Number(r.users_count ?? r.user_count ?? 0),
   }));
 
   const creditSummary = (() => {
-    const outstanding = credits.filter(
+    const outstanding = allCredits.filter(
       (c) => String(c.status || "").toUpperCase() !== "PAID" && Number(c.balance || 0) > 0
     );
     const totalOutstandingBalance = outstanding.reduce((s, c) => s + Number(c.balance || 0), 0);
@@ -622,41 +891,65 @@ async function fetchDashboard(wid) {
     };
   })();
 
-  const creditList = [...credits]
+  const creditList = [...allCredits]
     .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0))
-    .slice(0, 5)
+    .slice(0, 10)
     .map((c) => ({
       id: c.id,
       msp_no: c.msp_no || `#${c.id}`,
-      customer: c.customer_name || "—",
+      customer: c.customer_name || "--",
       balance: Number(c.balance || 0),
       status: String(c.status || "").toUpperCase(),
       date_time: c.created_at || null,
     }));
 
-  /* -------- Vans list -------- */
-  const vansList = [...vans]
+  /* -------- Vans list (aggregated) -------- */
+  const vansList = [...allVans]
     .sort((a, b) => String(a.plate_number || "").localeCompare(String(b.plate_number || "")))
-    .slice(0, 5)
+    .slice(0, 10)
     .map((v) => ({
       id: v.id,
       van_id: v.van_id || `#${v.id}`,
-      plate_number: v.plate_number || "—",
+      plate_number: v.plate_number || "--",
+      warehouse: v.warehouse,
     }));
 
-  /* -------- Sales points for money chart (used by <Statistics/>) -------- */
-  const salesPoints = merch
+  /* -------- Suppliers list -------- */
+  const suppliersList = [...uniqueSuppliers]
+    .sort((a, b) => String(a.company_name || "").localeCompare(String(b.company_name || "")))
+    .slice(0, 10)
+    .map((s) => ({
+      id: s.id,
+      registration_number: s.registration_number || "--",
+      company_name: s.company_name || "--",
+      contact_person: s.contact_person || "--",
+      phone_number: s.phone_number || "--",
+    }));
+
+  /* -------- Warehouses list -------- */
+  const warehousesList = [...uniqueWarehouses]
+    .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
+    .map((w) => ({
+      id: w.id,
+      name: w.name || "--",
+      city: w.city || "--",
+      province: w.province || "--",
+      phone_number: w.phone_number || "--",
+    }));
+
+  /* -------- Sales points for money chart (aggregated) -------- */
+  const salesPoints = allMerch
     .map((m) => ({
       date: m.date_time || m.created_at || m.updated_at,
       amount: n(m.actual_sale || m.total_amount || m.payment_amount || m.cash_received || 0),
     }))
     .filter((p) => p.date && p.amount >= 0);
 
-  /* -------- Product Performance TIME SERIES -------- */
+  /* -------- Product Performance TIME SERIES (aggregated) -------- */
   const ppSeriesByDate = new Map();  // key: YYYY-MM-DD -> row object
   const categoryMapObj = {};         // product name -> category
 
-  for (const m of merch) {
+  for (const m of allMerch) {
     const txDate = m?.date_time || m?.created_at || m?.updated_at;
     if (!txDate || !Array.isArray(m.items)) continue;
     const dateKey = new Date(txDate).toISOString().slice(0, 10);
@@ -726,8 +1019,8 @@ async function fetchDashboard(wid) {
       suppliersList,
       warehousesList,
       salesPoints,
-      productPerformance,        // category totals (optional)
-      productPerformanceSeries,  // product daily series (for chart + widget)
+      productPerformance,
+      productPerformanceSeries,
       categoryMap: categoryMapObj,
     },
   };
@@ -763,13 +1056,27 @@ const Dashboard = () => {
     categoryMap: {},
   });
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [availableWarehouses, setAvailableWarehouses] = useState([]);
+  const [selectedWarehouses, setSelectedWarehouses] = useState(loadSelectedWarehouses());
 
   // 🔗 Shared period between Statistics, ProductPerformance, and TopSellingProductsWidget
   const [period, setPeriod] = useState("this-week");
 
-  const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-  const userLS = JSON.parse(localStorage.getItem("user") || "{}");
-  const warehouseMeta = selectedWarehouse || (userLS?.warehouse ? userLS.warehouse : null);
+  // Handle warehouse selection change
+  const handleWarehouseChange = useCallback(async (warehouses) => {
+    try {
+      setSelectedWarehouses(warehouses);
+      saveSelectedWarehouses(warehouses);
+      
+      // Trigger warehouse change event
+      window.dispatchEvent(new CustomEvent("warehouseChanged"));
+      
+      // Reload data with new warehouse selection
+      loadData(true);
+    } catch (error) {
+      console.error("Error changing warehouses:", error);
+    }
+  }, []);
 
   useEffect(() => {
     if (location.state?.openWidgetsModal) {
@@ -789,54 +1096,23 @@ const Dashboard = () => {
     async (force = false) => {
       try {
         setLoading(true);
-        const wid = getCurrentWarehouseId();
-        if (!wid) {
-          setMetrics({
-            totalProducts: 0,
-            totalStockPcs: 0,
-            lowOrOutCount: 0,
-            stockValueEstimate: 0,
-            todaysSales: 0,
-            todaysReturns: 0,
-            todaysReturnsCount: 0,
-          });
-          setLists({
-            lowStockList: [],
-            productsList: [],
-            receivingsList: [],
-            recentSales: [],
-            recentTransactions: [],
-            supplierReturnsList: [],
-            returnEmptiesList: [],
-            creditList: [],
-            creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
-            usersList: [],
-            rolesList: [],
-            vansList: [],
-            suppliersList: [],
-            warehousesList: [],
-            salesPoints: [],
-            productPerformance: [],
-            productPerformanceSeries: [],
-            categoryMap: {},
-          });
-          setLastUpdated(new Date());
-          return;
-        }
+        const warehouseIds = getCurrentWarehouseIds(selectedWarehouses);
 
         if (!force) {
-          const cached = readCachedData(wid);
+          const cached = readCachedData(warehouseIds);
           if (cached?.metrics && cached?.lists) {
             setMetrics(cached.metrics);
             setLists(cached.lists);
+            setAvailableWarehouses(cached.lists.warehousesList || []);
             setLastUpdated(new Date(cached.__ts));
             setLoading(false);
             startTransition(() => {
-              fetchDashboard(wid)
+              fetchDashboard(warehouseIds)
                 .then((fresh) => {
                   setMetrics(fresh.metrics);
                   setLists(fresh.lists);
-                  writeCachedData(wid, fresh);
+                  setAvailableWarehouses(fresh.lists.warehousesList || []);
+                  writeCachedData(warehouseIds, fresh);
                   setLastUpdated(new Date());
                 })
                 .catch(() => {});
@@ -845,10 +1121,11 @@ const Dashboard = () => {
           }
         }
 
-        const fresh = await fetchDashboard(wid);
+        const fresh = await fetchDashboard(warehouseIds);
         setMetrics(fresh.metrics);
         setLists(fresh.lists);
-        writeCachedData(wid, fresh);
+        setAvailableWarehouses(fresh.lists.warehousesList || []);
+        writeCachedData(warehouseIds, fresh);
         setLastUpdated(new Date());
       } catch (e) {
         console.error("Dashboard load error:", e);
@@ -881,22 +1158,52 @@ const Dashboard = () => {
           productPerformanceSeries: [],
           categoryMap: {},
         });
+        setAvailableWarehouses([]);
         setLastUpdated(new Date());
       } finally {
         setLoading(false);
       }
     },
-    [startTransition]
+    [startTransition, selectedWarehouses]
   );
 
   useEffect(() => {
     loadData(false);
-    const handleWarehouseChange = () => loadData(true);
-    window.addEventListener("warehouseChanged", handleWarehouseChange);
-    return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
+    const handleWarehouseChangeEvent = () => loadData(true);
+    window.addEventListener("warehouseChanged", handleWarehouseChangeEvent);
+    return () => window.removeEventListener("warehouseChanged", handleWarehouseChangeEvent);
   }, [loadData]);
 
+  // Initialize selected warehouses when available warehouses are loaded
+  useEffect(() => {
+    if (availableWarehouses.length > 0 && selectedWarehouses.length === 0) {
+      // Auto-select "Both Warehouses" if exactly 2 warehouses, otherwise select first warehouse
+      if (availableWarehouses.length === 2) {
+        setSelectedWarehouses(availableWarehouses);
+        saveSelectedWarehouses(availableWarehouses);
+      } else {
+        const defaultWarehouse = availableWarehouses[0];
+        setSelectedWarehouses([defaultWarehouse]);
+        saveSelectedWarehouses([defaultWarehouse]);
+      }
+    }
+  }, [availableWarehouses, selectedWarehouses.length]);
+
   const removeWidget = useCallback((id) => setSelectedIds((prev) => prev.filter((x) => x !== id)), []);
+
+  const getWarehouseDisplayText = () => {
+    if (selectedWarehouses.length === 0) {
+      return "No Warehouse Assigned";
+    } else if (selectedWarehouses.length === 1) {
+      return selectedWarehouses[0].name || `Warehouse #${selectedWarehouses[0].id}`;
+    } else if (selectedWarehouses.length === 2) {
+      return "Both Warehouses";
+    } else if (selectedWarehouses.length === availableWarehouses.length && availableWarehouses.length > 2) {
+      return "All Warehouses Selected";
+    } else {
+      return `${selectedWarehouses.length} Warehouses Selected`;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-100px,rgba(99,102,241,0.10),transparent)]">
@@ -914,13 +1221,21 @@ const Dashboard = () => {
                   <IconWarehouse /> Warehouse:
                 </span>
                 <span className="font-medium">
-                  {warehouseMeta?.warehouse || warehouseMeta?.name || "No Warehouse Assigned"}
+                  {getWarehouseDisplayText()}
                 </span>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Single-Select Warehouse Selector */}
+            <WarehouseSelector
+              selectedWarehouses={selectedWarehouses}
+              availableWarehouses={availableWarehouses}
+              onWarehouseChange={handleWarehouseChange}
+              loading={loading || isPending}
+            />
+            
             <button
               onClick={() => setPickerOpen(true)}
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white text-xs shadow-sm hover:shadow"
@@ -1116,7 +1431,7 @@ const StatusPill = ({ status }) => {
   const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
   if (st === "pending") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
   if (st === "complete" || st === "completed") return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "--"}</span>;
 };
 
 const TradingPreview = memo(function TradingPreview({ rows }) {
@@ -1126,12 +1441,12 @@ const TradingPreview = memo(function TradingPreview({ rows }) {
   return (
     <div className="text-sm text-slate-700">
       <div className="font-medium">
-        Latest: {latest.msp_no} — {latest.transaction_type_name || "—"}{" "}
+        Latest: {latest.msp_no} -- {latest.transaction_type_name || "--"}{" "}
         <span className="ml-1 align-middle"><StatusPill status={latest.status} /></span>
       </div>
       <div className="text-xs text-slate-500 mt-1">
         {rows.length} recent {rows.length === 1 ? "transaction" : "transactions"} ·{" "}
-        {latest.date_time ? formatToManila(latest.date_time) : "—"}
+        {latest.date_time ? formatToManila(latest.date_time) : "--"}
       </div>
     </div>
   );
@@ -1144,8 +1459,9 @@ const CreditStatusPill = ({ status }) => {
   if (st === "PENDING") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
   if (st === "PARTIAL") return <span className={`${base} bg-amber-100 text-amber-800`}>Partial</span>;
   if (st === "PAID") return <span className={`${base} bg-green-100 text-green-800`}>Paid</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "--"}</span>;
 };
+
 const CreditWidget = memo(function CreditWidget({ rows, summary }) {
   return (
     <div className="grid gap-2">
