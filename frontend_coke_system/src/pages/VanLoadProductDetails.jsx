@@ -279,14 +279,14 @@ const emptiesTotals = useMemo(
   const statusText = sale?.status || "";
 
   return (
-    <div className="p-6 bg-sky-200 min-h-screen">
+    <div className="page">
       {loading && <div className="p-6">Loading…</div>}
       {!loading && !sale && <div className="p-6 text-red-600">Sale not found.</div>}
 
       {!loading && sale && (
         <>
           {/* HEADER */}
-          <div className="mb-4 p-4 bg-blue-600 rounded-lg text-white">
+          <div className="card">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-sm opacity-90">MSP No.</div>
@@ -307,10 +307,9 @@ const emptiesTotals = useMemo(
           </div>
 
           {/* PRODUCTS SOLD */}
-          <div className="bg-white rounded shadow mb-6">
-            <div className="p-3 border-b font-semibold">Products Sold</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="table-wrapper m-5">
+               <div className="p-3 m-4 border-b font-semibold">Products Sold</div>
+              <table className="table">
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="p-2 text-left">Product</th>
@@ -323,7 +322,7 @@ const emptiesTotals = useMemo(
                 <tbody>
                   {soldRows.map((r, i) => (
                     <tr key={i} className="border-t">
-                      <td className="p-2">{r.name}</td>
+                      <td className="p-2 text-left">{r.name}</td>
                       <td className="p-2 text-center">{r.soldShell}</td>
                       <td className="p-2 text-center">{r.soldPcs}</td>
                       <td className="p-2 text-center">{formatPhp(r.sellingPrice)}</td>
@@ -332,22 +331,27 @@ const emptiesTotals = useMemo(
                   ))}
 
                   {/* TOTAL row */}
-                  <tr className="border-t bg-gray-50">
-                    <td colSpan={4} className="p-2 text-right font-semibold">TOTAL</td>
-                    <td className="p-2 text-center font-semibold">
+                 <tr className="border-t bg-gray-50 font-semibold">
+                    {/* label aligned at the start */}
+                    <td colSpan={4} className="p-2 text-left">
+                      TOTAL
+                    </td>
+
+                    {/* number aligned at the end */}
+                    <td className="p-2 text-right">
                       {formatPhp(soldTotals.amount)}
                     </td>
                   </tr>
+
+                  
                 </tbody>
               </table>
             </div>
-          </div>
 
-          {/* EMPTIES RETURNED */}
-          <div className="bg-white rounded shadow mb-6">
-            <div className="p-3 border-b font-semibold">Empties Returned</div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+          {/* EMPTIES RETURNED */}     
+            <div className="table-wrapper m-4">
+              <div className="p-3 border-b font-semibold m-4">Empties Returned</div>
+              <table className="table">
                 <thead>
                   <tr className="bg-gray-100">
                     <th className="p-2 text-left">Product</th>
@@ -360,7 +364,7 @@ const emptiesTotals = useMemo(
                 <tbody>
                   {emptiesRows.map((r, i) => (
                     <tr key={i} className="border-t">
-                      <td className="p-2">{r.name}</td>
+                      <td className="p-2 text-left">{r.name}</td>
                       <td className="p-2 text-center">{r.emptyShell}</td>
                       <td className="p-2 text-center">{r.emptyPcs}</td>
                       <td className="p-2 text-center">{r.withContentShell}</td>
@@ -381,22 +385,23 @@ const emptiesTotals = useMemo(
                 </tbody>
               </table>
             </div>
-          </div>
+          
 
           {/* ACTIONS */}
-          <div className="flex gap-2">
+          <div className="flex justify-end gap-4">
             <button
-              className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300"
+              className="btn btn-back"
               onClick={() => navigate("/trading")}
             >
-              Back to List
+              Back
             </button>
-            <button
-              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-              onClick={() => window.print()}
-            >
-              Print
-            </button>
+          <button
+            className="btn btn-print no-print"
+            onClick={() => window.print()}
+          >
+            Print
+          </button>
+
           </div>
         </>
       )}
