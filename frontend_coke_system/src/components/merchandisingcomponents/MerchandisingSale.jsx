@@ -65,6 +65,9 @@ const MerchandisingSale = () => {
   // at top of component
   const editingExistingRef = useRef(false);
 
+  const [allProductsRaw, setAllProductsRaw] = useState([]);
+
+
 
   //Kath
   const [stocks, setStocks] = useState([]);
@@ -253,43 +256,90 @@ const MerchandisingSale = () => {
   //   }
   // }, [stocks]);
 
-  // Define it at the component level
-  const loadStocksAndProducts = async () => {
+  // REPLACE your current loadStocksAndProducts with this
+const loadStocksAndProducts = async () => {
   const warehouseId = getCurrentWarehouse();
   console.log("Current warehouse ID:", warehouseId);
-
   if (!warehouseId) return;
 
   try {
-      const stockRes = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
-      const stockData = stockRes.data;
-      console.log("Stocks retrieved:", stockData);
-      setStocks(stockData);
+    // 1) Load stocks (support both param styles)
+    const stockRes = await axios.get(`${API}/stocks/`, { params: { warehouse: warehouseId } });
+    let stockData = stockRes.data;
 
-      const productRes = await axios.get(`http://localhost:8080/api/products/`);
-      const allProducts = productRes.data;
-      console.log("All products retrieved:", allProducts);
-
-      // ⚠️ If we arrived here to EDIT a Van Load, show ALL products so existing lines don't vanish
-      if (location.state?.editMode) {
-        console.log("Edit mode: show ALL products for editing");
-        setProducts(allProducts);
-      } else {
-        const availableProducts = allProducts.filter((product) => {
-          const stock = stockData.find(
-            (s) => s.product === product.id && s.warehouse === warehouseId
-          );
-          return stock && stock.quantity_available > 0;
-        });
-        console.log("Available products (filtered by stock):", availableProducts);
-        setProducts(availableProducts);
-      }
-    } catch (err) {
-      console.error("Error loading stocks/products:", err);
-      setStocks([]);
-      setProducts([]);
+    // Some backends return a single object or {results: [...]}
+    if (!Array.isArray(stockData)) {
+      stockData = Array.isArray(stockData?.results) ? stockData.results : (stockData ? [stockData] : []);
     }
-  };
+    setStocks(stockData);
+    console.log("Stocks retrieved:", stockData);
+
+    // 2) Load products
+    const productRes = await axios.get(`${API}/products/`);
+    const allProducts = Array.isArray(productRes.data) ? productRes.data : [];
+    setAllProductsRaw(allProducts);
+    console.log("All products retrieved:", allProducts);
+
+    // 3) Helpers to normalize fields
+    const getPidFromStock = (s) =>
+      Number(
+        s.product_id ??
+        (typeof s.product === "object" ? s.product?.id : s.product)
+      );
+
+    const getWidFromStock = (s) =>
+      Number(s.warehouse_id ?? s.warehouse);
+
+    const getQtyFromStock = (s) =>
+      Number(s.quantity_available ?? s.quantity ?? s.qty ?? 0);
+
+    // 4) Build "available" list = products with qty > 0 in THIS warehouse
+    const availableProducts = allProducts.filter((p) => {
+      const pid = Number(p.id);
+      // any stock row for this product in this warehouse with qty > 0
+      return stockData.some((s) => {
+        const wid = getWidFromStock(s);
+        const spid = getPidFromStock(s);
+        const q = getQtyFromStock(s);
+        return wid === Number(warehouseId) && spid === pid && q > 0;
+      });
+    });
+
+    // 5) If editing: keep already-used products even if out of stock now
+    if (location.state?.editMode) {
+      const usedIds = new Set(
+        (location.state?.sale?.items || []).map((it) =>
+          Number(it.product?.id ?? it.product)
+        )
+      );
+
+      const usedButNotAvailable = allProducts.filter(
+        (p) => usedIds.has(Number(p.id)) && !availableProducts.some((ap) => ap.id === p.id)
+      );
+
+      const union = [...availableProducts, ...usedButNotAvailable];
+      console.log(`Products shown (edit): ${union.length}`, union);
+      setProducts(union);
+    } else {
+      console.log(`Products shown (create): ${availableProducts.length}`, availableProducts);
+      setProducts(availableProducts);
+    }
+
+    // (Optional) If zero available, you can let the user know:
+    if (!location.state?.editMode && availableProducts.length === 0) {
+      console.warn("No in-stock products found for this warehouse.");
+      // showAlert("No in-stock products available for this warehouse.");
+    }
+  } catch (err) {
+    console.error("Error loading stocks/products:", err?.response?.data || err.message);
+    setStocks([]);
+    setProducts([]);
+  }
+};
+
+
+
+  
 
   useEffect(() => {
     loadStocksAndProducts();
