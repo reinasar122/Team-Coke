@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import VanLoadTable from "../components/merchandisingcomponents/VanLoadTable";
 
+
 const API = "http://localhost:8080/api";
 
 // format to <input type="datetime-local">
@@ -57,7 +58,7 @@ export default function MerchandisingSaleDetailPage() {
       <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
         <p class="text-gray-700 mb-4">${message}</p>
         <div class="flex justify-end">
-          <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
+          <button class="btn btn-primary" onclick="this.closest('.fixed').remove()">OK</button>
         </div>
       </div>
     `;
@@ -357,8 +358,8 @@ export default function MerchandisingSaleDetailPage() {
 
     return (
       <div className="table-wrapper overflow-x-auto">
-        <table className="table min-w-full">
-          <thead className="bg-gray-200 text-gray-700">
+        <table className="table">
+          <thead>
             <tr>
               <th className="border px-2 py-2 text-left">Product</th>
               <th className="border px-2 py-2 text-center" colSpan={2}>Dispatched</th>
@@ -477,24 +478,17 @@ export default function MerchandisingSaleDetailPage() {
 
   // ==== UI ====
   const topBar = (
-    <div className="mb-4 p-4 rounded-lg bg-blue-600 flex items-center justify-between">
-      <div className="text-white">
-        <span className="text-blue-100">Current Warehouse: </span>
-        <span className="font-bold text-lg">
-          {currentWarehouse?.name || "No Warehouse Selected"}
-        </span>
-      </div>
-
-      {!editMode && isVanLoad && !isComplete && (
-        <div className="flex gap-3">
+    <div className=" mb-6">
+       {!editMode && isVanLoad && !isComplete && (
+        <div className="flex gap-3 justify-end">
           <button
-            className="px-5 py-2 rounded bg-amber-500 hover:bg-amber-600 text-white"
+            className="btn btn-edit"
             onClick={() => setEditMode(true)}
           >
             Edit Van Load
           </button>
           <button
-            className="px-5 py-2 rounded bg-blue-500 hover:bg-blue-600 text-white"
+            className="btn btn-primary"
             onClick={() =>
               navigate("/van-load-update", {
                 state: { id: sale.id, warehouse: currentWarehouse, mode: "receive" },
@@ -507,39 +501,47 @@ export default function MerchandisingSaleDetailPage() {
       )}
 
       {editMode && (
-        <div className="flex gap-3">
+        <div className="flex gap-3 justify-end">
           <button
-            className="px-5 py-2 rounded bg-gray-500 hover:bg-gray-600 text-white"
+            className="btn btn-cancel"
             onClick={() => setEditMode(false)}
           >
             Cancel
           </button>
           <button
-            className="px-5 py-2 rounded bg-amber-600 hover:bg-amber-700 text-white"
+            className="btn btn-primary"
             onClick={handleSaveVanLoadEdit}
           >
             Save Changes
           </button>
         </div>
       )}
+      <div>
+        <span className="text">Current Warehouse: </span>
+        <span className="font-bold text-lg">
+          {currentWarehouse?.name || "No Warehouse Selected"}
+        </span>
+      </div>   
     </div>
   );
 
   const InfoField = ({ label, value }) => (
     <div className="flex flex-col gap-1">
-      <label className="text-sm text-gray-600">{label}</label>
+      <label className="text">{label}</label>
       <input
         value={value ?? ""}
         readOnly
-        className="w-full bg-gray-100 text-gray-800 rounded px-3 py-2"
+        className="w-full bg-gray-100 text rounded px-3 py-2"
       />
     </div>
   );
 
   const headerCard = (
-    <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-      <h2 className="text-2xl font-bold mb-6">Van Load Details</h2>
-
+    <div className="border-none p-6">
+      <div className=" p-1">
+         <h2 className="text-2xl font-bold mb-6">Van Load Details</h2>
+      </div>
+     
       {/* view mode header grid */}
       {!editMode && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -554,8 +556,8 @@ export default function MerchandisingSaleDetailPage() {
           <InfoField label="Van"   value={vanDisplay} />
 
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-600">Handled By</label>
-            <div className="w-full rounded px-3 py-2 bg-blue-50 text-blue-700">
+            <label className="text-sm text">Handled By</label>
+            <div className="w-full rounded px-3 py-2 bg-gray-100 text">
               {sale.handled_by}
             </div>
           </div>
@@ -566,7 +568,7 @@ export default function MerchandisingSaleDetailPage() {
       {editMode && isVanLoad && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-600">Date Time</label>
+            <label className="text-sm text">Date Time</label>
             <input
               type="datetime-local"
               className="w-full rounded px-3 py-2 border"
@@ -575,7 +577,7 @@ export default function MerchandisingSaleDetailPage() {
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-600">Route</label>
+            <label className="text-sm text">Route</label>
             <select
               className="w-full rounded px-3 py-2 border"
               value={route || ""}
@@ -590,7 +592,7 @@ export default function MerchandisingSaleDetailPage() {
             </select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm text-gray-600">Van</label>
+            <label className="text-sm text">Van</label>
             <select
               className="w-full rounded px-3 py-2 border"
               value={selectedVan || ""}
@@ -637,10 +639,10 @@ export default function MerchandisingSaleDetailPage() {
       {headerCard}
 
       {/* Handler details (simple inline panel to keep page lightweight) */}
-      {showHandlerDetails && (
+      {/* {showHandlerDetails && (
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <div className="flex justify-between items-start">
-            <h4 className="text-lg font-semibold text-blue-800 mb-3">Handler Details</h4>
+            <h4 className="text-lg font-semibold text mb-3">Handler Details</h4>
             <button
               onClick={() => setShowHandlerDetails(false)}
               className="text-blue-600 hover:text-blue-800 text-xl"
@@ -650,20 +652,20 @@ export default function MerchandisingSaleDetailPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <span className="font-medium text-blue-700">User Name:</span>
-              <p className="text-blue-900">{handlerInfo.user_name}</p>
+              <span className="font-medium text">User Name:</span>
+              <p className="text">{handlerInfo.user_name}</p>
             </div>
             <div>
-              <span className="font-medium text-blue-700">Warehouse:</span>
-              <p className="text-blue-900">{handlerInfo.warehouse_name}</p>
+              <span className="font-medium text">Warehouse:</span>
+              <p className="text">{handlerInfo.warehouse_name}</p>
             </div>
             <div>
-              <span className="font-medium text-blue-700">Role:</span>
-              <p className="text-blue-900">{handlerInfo.user_role}</p>
+              <span className="font-medium text">Role:</span>
+              <p className="text">{handlerInfo.user_role}</p>
             </div>
             <div>
-              <span className="font-medium text-blue-700">Date Handled:</span>
-              <p className="text-blue-900">{handlerInfo.date_handled}</p>
+              <span className="font-medium text">Date Handled:</span>
+              <p className="text">{handlerInfo.date_handled}</p>
             </div>
             <div>
               <span className="font-medium text-blue-700">Contact:</span>
@@ -671,12 +673,12 @@ export default function MerchandisingSaleDetailPage() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Back */}
       <div className="flex justify-end mt-6">
         <button
-          className="bg-white border border-gray-300 px-5 py-2 rounded hover:bg-gray-50"
+          className="btn btn-back"
           onClick={() => navigate("/trading")}
         >
           BACK

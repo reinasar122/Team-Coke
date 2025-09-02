@@ -285,26 +285,32 @@ const emptiesTotals = useMemo(
 
       {!loading && sale && (
         <>
-          {/* HEADER */}
-          <div className="card">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-sm opacity-90">MSP No.</div>
-                <div className="font-bold text-2xl">{sale.msp_no}</div>
-                <div className="text-sm mt-1">
-                  Van Load • {formatToManila(sale.date_time)}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm opacity-90">Handled By</div>
-                <div className="font-semibold">{handledBy}</div>
-                <div className="text-sm mt-1">Route: {routeLabel}</div>
-                <div className="mt-2 inline-block">
-                  <StatusPill status={statusText} />
-                </div>
-              </div>
+         {/* HEADER */}
+      <div className="bg-white p-4 rounded-lg shadow-sm">
+        <div className="grid grid-cols-2 gap-4">
+          {/* Left: MSP Info */}
+          <div>
+            <div className="text-sm text">MSP No.</div>
+            <div className="text-sm font-bold text">{sale.msp_no}</div>
+            <div className="text-sm text mt-1">
+              Van Load • {formatToManila(sale.date_time)}
             </div>
           </div>
+
+          {/* Right: Handler Info */}
+          <div className="text-right">
+            <div className="text-xs text">Handled By</div>
+            <div className="text-base font-semibold text">{handledBy}</div>
+            <div className="text-sm text-gray-600 mt-1">Route: {routeLabel}</div>
+            <div className="mt-3 flex justify-end">
+              <StatusPill status={statusText} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+
 
           {/* PRODUCTS SOLD */}
             <div className="table-wrapper m-5">
