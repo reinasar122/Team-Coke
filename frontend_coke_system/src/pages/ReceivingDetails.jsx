@@ -198,7 +198,7 @@ export default function ReceivingDetails() {
 
       <div className="totals">
         <div className="spacer" />
-        <div className="net">
+        <div className="text-right font-semibold mt-1">
           <strong>Net Amount:</strong> {peso(receipt.net_amount)}
         </div>
       </div>
