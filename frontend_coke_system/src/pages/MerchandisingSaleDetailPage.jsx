@@ -46,6 +46,32 @@ export default function MerchandisingSaleDetailPage() {
   const [saleItems, setSaleItems] = useState([]); // merchandising.items normalized
   const [availableStock, setAvailableStock] = useState({}); // productId -> pcs
 
+
+  // Only show: (in-stock in this warehouse) ∪ (already used in current rows)
+  const filteredProducts = useMemo(() => {
+    if (!Array.isArray(products) || products.length === 0) return [];
+
+    // products that have > 0 available in this warehouse
+    const inStockIds = new Set(
+      Object.entries(availableStock)
+        .filter(([, qty]) => Number(qty) > 0)
+        .map(([pid]) => Number(pid))
+    );
+
+    // products already present on the ticket (keep even if out of stock now)
+    const usedIds = new Set(
+      (rows || [])
+        .map(r => Number(r.productId))
+        .filter(Boolean)
+    );
+
+    const keepIds = new Set([...inStockIds, ...usedIds]);
+    return products.filter(p => keepIds.has(Number(p.id)));
+  }, [products, availableStock, rows]);
+
+
+
+
   const isVanLoad = (sale?.transaction_type_name || "").toLowerCase() === "van load";
   const isComplete = (sale?.status || "").toLowerCase() === "complete";
 
@@ -621,8 +647,8 @@ export default function MerchandisingSaleDetailPage() {
           <VanLoadTable
             rows={rows}
             setRows={setRows}
-            products={products}
-            warehouseId={currentWarehouse}
+            products={filteredProducts}
+            warehouseId={currentWarehouse?.id}
             setTotalExpectedSale={setTotalExpectedSale}
             onAdjustmentsChange={() => {}}
           />
