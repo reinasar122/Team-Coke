@@ -1,109 +1,140 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 
-/**
- * Props:
- * - products: [{ id, product_name, ... }]
- * - value: selected productId (number|string)
- * - onChange: (id:number) => void
- * - excludeIds?: Set<number> | number[]   // hide from suggestions (e.g., already picked)
- * - placeholder?: string
- * - disabled?: boolean
- * - maxItems?: number
- */
-export default function ProductSearchSelect({
+const ProductSearchSelect = ({
   products = [],
   value,
   onChange,
-  excludeIds,
+  excludeIds = [],
   placeholder = "Search product…",
-  disabled = false,
-  maxItems = 8,
-}) {
-  const excluded = useMemo(() => {
-    if (!excludeIds) return new Set();
-    return excludeIds instanceof Set ? excludeIds : new Set(excludeIds.map(Number));
-  }, [excludeIds]);
+}) => {
+  const inputRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(value || ""); // Ensure query is always a string
+  const [hover, setHover] = useState(-1);
+  const [menuStyle, setMenuStyle] = useState({});
 
-  const selected = useMemo(
-    () => products.find(p => Number(p.id) === Number(value)) || null,
-    [products, value]
+  // Filter the products based on the query value
+  const filtered = useMemo(() => {
+    const q = (query || "").trim().toLowerCase();  // Make sure query is treated as a string
+    const excludes = new Set(excludeIds);
+    return products
+      .filter((p) => !excludes.has(p.id))
+      .filter((p) => (q ? p.product_name.toLowerCase().includes(q) : true))
+      .slice(0, 100);
+  }, [products, query, excludeIds]);
+
+  const commit = useCallback(
+    (p) => {
+      onChange(p.id);
+      setQuery(p.product_name); // Update the query state to the selected product name
+      setOpen(false);
+    },
+    [onChange]
   );
 
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState(selected?.product_name || "");
-  const [hover, setHover] = useState(0);
-  const wrapRef = useRef(null);
+  const updateMenuPosition = () => {
+    const inputEl = inputRef.current;
+    if (!inputEl) return;
 
-  useEffect(() => {
-    const onClick = (e) => { if (!wrapRef.current?.contains(e.target)) setOpen(false); };
-    window.addEventListener("mousedown", onClick);
-    return () => window.removeEventListener("mousedown", onClick);
-  }, []);
+    const rect = inputEl.getBoundingClientRect();
+    const viewportHeight = window.innerHeight;
+    const spaceBelow = viewportHeight - rect.bottom;
+    const spaceAbove = rect.top;
 
-  useEffect(() => {
-    if (selected && query !== selected.product_name) setQuery(selected.product_name);
-    if (!selected && !open) setQuery("");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [value]);
+    const isAbove = spaceBelow < 160 && spaceAbove > spaceBelow;
 
-  const filtered = useMemo(() => {
-    const q = (query || "").trim().toLowerCase();
-    const list = products.filter(p => !excluded.has(Number(p.id)));
-    if (!q) return list.slice(0, maxItems);
+    const top = isAbove ? Math.max(8, rect.top - 200) : rect.bottom + 4;
+    const left = Math.max(8, rect.left);
+    const width = Math.max(200, rect.width);
+    const maxHeight = Math.min(240, spaceBelow - 16);
 
-    const starts = [];
-    const contains = [];
-    for (const p of list) {
-      const name = (p.product_name || "").toLowerCase();
-      if (name.startsWith(q)) starts.push(p);
-      else if (name.includes(q)) contains.push(p);
-    }
-    return [...starts, ...contains].slice(0, maxItems);
-  }, [products, query, excluded, maxItems]);
-
-  const commit = (prod) => {
-    if (!prod) return;
-    setQuery(prod.product_name || "");
-    setOpen(false);
-    setHover(0);
-    onChange?.(Number(prod.id));
+    setMenuStyle({
+      position: "fixed",
+      top: Math.round(top),
+      left: Math.round(left),
+      width: Math.round(width),
+      maxHeight: Math.round(maxHeight),
+      zIndex: 9999,
+    });
   };
 
-  const onKeyDown = (e) => {
-    if (!open && (e.key === "ArrowDown" || e.key === "ArrowUp")) { setOpen(true); return; }
+  useEffect(() => {
     if (!open) return;
-    if (e.key === "ArrowDown") { e.preventDefault(); setHover(h => Math.min(filtered.length - 1, h + 1)); }
-    else if (e.key === "ArrowUp") { e.preventDefault(); setHover(h => Math.max(0, h - 1)); }
-    else if (e.key === "Enter") { e.preventDefault(); commit(filtered[hover]); }
-    else if (e.key === "Escape") { setOpen(false); }
-  };
+    updateMenuPosition();
+    const handleScrollResize = () => updateMenuPosition();
+    window.addEventListener("scroll", handleScrollResize, true);
+    window.addEventListener("resize", handleScrollResize);
+
+    return () => {
+      window.removeEventListener("scroll", handleScrollResize, true);
+      window.removeEventListener("resize", handleScrollResize);
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const onOutsideClick = (e) => {
+      if (!inputRef.current || inputRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("mousedown", onOutsideClick);
+    return () => document.removeEventListener("mousedown", onOutsideClick);
+  }, [open]);
 
   return (
-    <div ref={wrapRef} className="relative">
+    <>
       <input
+        ref={inputRef}
         type="text"
-        className="w-full p-1 text-sm text-center rounded bg-white border"
-        placeholder={placeholder}
-        value={query}
-        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        value={query} // Always bind query (which is a string) to the input field
+        onChange={(e) => {
+          setQuery(e.target.value); // Update query on user input
+          setOpen(true);
+        }}
         onFocus={() => setOpen(true)}
-        onKeyDown={onKeyDown}
-        disabled={disabled}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") {
+            e.preventDefault();
+            setHover(Math.min(filtered.length - 1, hover + 1));
+          } else if (e.key === "ArrowUp") {
+            e.preventDefault();
+            setHover(Math.max(0, hover - 1));
+          } else if (e.key === "Enter") {
+            e.preventDefault();
+            if (hover >= 0 && filtered[hover]) commit(filtered[hover]);
+          } else if (e.key === "Escape") {
+            setOpen(false);
+          }
+        }}
+        placeholder={placeholder}
+        className="form-input w-full"
       />
-      {open && filtered.length > 0 && (
-        <ul className="absolute z-20 mt-1 max-h-60 w-full overflow-auto rounded border bg-white shadow">
-          {filtered.map((p, i) => (
-            <li
-              key={p.id}
-              className={`px-2 py-1 text-sm cursor-pointer ${i===hover ? "bg-blue-50" : "hover:bg-slate-100"}`}
-              onMouseEnter={() => setHover(i)}
-              onMouseDown={(e) => { e.preventDefault(); commit(p); }}
-            >
-              {p.product_name}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+
+      {open && filtered.length > 0 &&
+        createPortal(
+          <ul
+            style={menuStyle}
+            className="mt-1 overflow-auto rounded border bg-white shadow-lg"
+            role="listbox"
+          >
+            {filtered.map((p, i) => (
+              <li
+                key={p.id}
+                role="option"
+                aria-selected={i === hover}
+                className={`px-2 py-1 text-sm cursor-pointer ${i === hover ? "bg-blue-50" : "hover:bg-slate-100"}`}
+                onMouseEnter={() => setHover(i)}
+                onMouseDown={(e) => { e.preventDefault(); commit(p); }}
+              >
+                {p.product_name}
+              </li>
+            ))}
+          </ul>,
+          document.body
+        )}
+    </>
   );
-}
+};
+
+export default ProductSearchSelect;

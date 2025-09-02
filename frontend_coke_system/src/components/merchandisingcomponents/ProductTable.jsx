@@ -519,15 +519,18 @@ const ProductTable = ({
                   return (
                   <tr key={row.id ?? index} className="bg-white hover:bg-slate-100 transition duration-150">
                    {/* PRODUCT SELECT */}
-                    <td className="border border-gray-200 py-1 px-1 w-[180px]">
-                      <ProductSearchSelect
-                        products={products}                       // already filtered to in-stock (from parent)
-                        value={row.productId ?? ""}               // current selection
-                        onChange={(id) => handleProductChange(index, String(id))} // reuse your handler
-                        excludeIds={getSelectedProductIds(index)} // hide items already chosen on other rows
-                        placeholder="Search product…"
-                      />
-                    </td>
+              <td className="border border-gray-200 py-1 px-1 w-[180px] relative">
+                <ProductSearchSelect
+                  products={products}
+                  value={row.productId ?? ""}
+                  onChange={(id) => handleProductChange(index, String(id))}
+                  excludeIds={getSelectedProductIds(index)}
+                  placeholder="Search product…"
+                />
+              </td>
+
+
+
 
 
 
