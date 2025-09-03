@@ -98,6 +98,15 @@ const Sidebar = ({ isSidebarOpen }) => {
               ) : (
                 <DisabledSubItem text="Credit" />
               )}
+              {canView("Expenses") ? (
+                <li>
+                  <Link to="/expenses" className="block p-2 text-sm hover:bg-gray-600 rounded">
+                    Expenses
+                  </Link>
+                </li>
+              ) : (
+                <DisabledSubItem text="Expenses" />
+              )}
             </ul>
           )}
 
@@ -152,11 +161,6 @@ const Sidebar = ({ isSidebarOpen }) => {
                 <li><Link to="/salesreport" className="block p-2 text-sm hover:bg-gray-600 rounded">Sales Report</Link></li>
               ) : (
                 <DisabledSubItem text="Sales Report" />
-              )}
-              {canView("Inventory Report") ? (
-                <li><Link to="/inventoryreport" className="block p-2 text-sm hover:bg-gray-600 rounded">Inventory Report</Link></li>
-              ) : (
-                <DisabledSubItem text="Inventory Report" />
               )}
             </ul>
           )}
