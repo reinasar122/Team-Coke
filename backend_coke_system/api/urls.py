@@ -49,6 +49,9 @@ from .views import SupplierReturnFormDetailView
 from .views import ProcessEmptiesReturnView
 
 
+from .views_reports import SalesReportAPIView
+
+
 urlpatterns = [
     # User URLs
     path('users/', UserListCreateView.as_view(), name='user-list-create'),
@@ -151,15 +154,20 @@ path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="c
     path('login/', LoginAPIView.as_view(), name='login'),
 
     # Supplier Return Form
-      path('supplier-return-form/', SupplierReturnFormListCreateView.as_view(), name='supplier-return-form'),
-      path('supplier-return-form/<int:pk>/', SupplierReturnFormDetailView.as_view(), name='supplier-return-form-detail'),
+    path('supplier-return-form/', SupplierReturnFormListCreateView.as_view(), name='supplier-return-form'),
+    path('supplier-return-form/<int:pk>/', SupplierReturnFormDetailView.as_view(), name='supplier-return-form-detail'),
 
     # Process Empties Return
-       path('process-empties-return/', ProcessEmptiesReturnView.as_view(), name='process-empties-return'),
+    path('process-empties-return/', ProcessEmptiesReturnView.as_view(), name='process-empties-return'),
 
-     path("van-load-return/", VanLoadReturnUpdateAPIView.as_view(), name="van-load-return"),
+    path("van-load-return/", VanLoadReturnUpdateAPIView.as_view(), name="van-load-return"),
 
-       path('stocks/bulk-adjust/', BulkAdjustStockView.as_view(), name='bulk-adjust-stocks'),
+    path('stocks/bulk-adjust/', BulkAdjustStockView.as_view(), name='bulk-adjust-stocks'),
+
+    #Sales Report API
+    path("reports/sales/", SalesReportAPIView.as_view(), name="reports-sales"),
+    path("sales_report/", SalesReportAPIView.as_view(), name="sales-report-legacy"),
+  
 ]
 
 router = DefaultRouter()
