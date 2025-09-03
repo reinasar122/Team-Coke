@@ -12,6 +12,22 @@ const toDatetimeLocalValue = (date = new Date()) => {
   return d.toISOString().slice(0, 16);
 };
 
+
+// Show UTC date in Manila time
+const formatToManila = (isoString) => {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (isNaN(d)) return "";
+  return new Intl.DateTimeFormat("en-PH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    hour12: true,
+    timeZone: "Asia/Manila",
+  }).format(d);
+};
+
+
+
 const peso = (x) =>
   `₱${Number(x || 0).toLocaleString("en-PH", {
     minimumFractionDigits: 2,
@@ -573,7 +589,7 @@ export default function MerchandisingSaleDetailPage() {
       {!editMode && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           <InfoField label="MSP No" value={sale.msp_no} />
-          <InfoField label="Date Time" value={sale.date_time} />
+          <InfoField label="Date Time" value={formatToManila(sale.date_time)} />
           {/*<InfoField
             label="Warehouse"
             value={sale.warehouse_name || currentWarehouse?.name || "N/A"}
