@@ -748,14 +748,14 @@ const PaymentModal = ({
                   ) : (
                     expensesList.map((exp, idx) => (
                       <tr key={idx}>
-                        <td className="p-2">{exp?.description || "—"}</td>
+                        <td className="p-2 text-left">{exp?.description || "—"}</td>
                         <td className="p-2 text-right">₱{n(exp?.amount).toFixed(2)}</td>
                       </tr>
                     ))
                   )}
 
-                  <tr className="font-semibold bg-gray-50">
-                    <td className="p-2">Total</td>
+                  <tr className="font-semibold bg-slate-100">
+                    <td className="p-2 text-left">Total</td>
                     <td className="p-2 text-right">₱{expensesTotalComputed.toFixed(2)}</td>
                   </tr>
                 </tbody>

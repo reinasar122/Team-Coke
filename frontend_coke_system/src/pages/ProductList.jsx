@@ -26,11 +26,6 @@ const ProductList = () => {
 
   // Calculate products per page based on zoom level (only for carousel mode)
   const calculateProductsPerPage = useCallback(() => {
-    if (viewMode === 'table') {
-      setProductsPerPage(10); // Fixed number for table view
-      return;
-    }
-
     // Get zoom level - different methods for different browsers
     let zoomLevel = 1;
     
@@ -65,7 +60,7 @@ const ProductList = () => {
     }
     
     setProductsPerPage(productsCount);
-  }, [viewMode]);
+  }, []);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -95,10 +90,10 @@ const ProductList = () => {
     return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
   }, [fetchProducts]);
 
-  // Set up zoom detection (only for carousel mode)
+  // Set up view mode specific logic
   useEffect(() => {
     if (viewMode === 'carousel') {
-      // Initial calculation
+      // Initial calculation for carousel
       const timer = setTimeout(calculateProductsPerPage, 300);
 
       const handleResize = () => {
@@ -130,22 +125,29 @@ const ProductList = () => {
         window.removeEventListener('keydown', handleKeyZoom);
         window.removeEventListener('focus', calculateProductsPerPage);
       };
-    } else {
-      // For table view, set fixed products per page
-      setProductsPerPage(10);
     }
-  }, [calculateProductsPerPage, viewMode]);
+  }, [viewMode, calculateProductsPerPage]);
 
   // Update pagination visibility when products or productsPerPage changes
   useEffect(() => {
-    setShowPagination(products.length > productsPerPage);
+    if (viewMode === 'table') {
+      // For table view, NEVER show pagination - always show all products
+      setShowPagination(false);
+    } else {
+      // For carousel view, use dynamic pagination
+      setShowPagination(products.length > productsPerPage);
+    }
     setCurrentPage(0); // Reset to first page when products change
-  }, [products.length, productsPerPage]);
+  }, [products.length, productsPerPage, viewMode]);
 
   const totalPages = Math.ceil(products.length / productsPerPage);
   const startIndex = currentPage * productsPerPage;
   const endIndex = startIndex + productsPerPage;
-  const currentProducts = showPagination ? products.slice(startIndex, endIndex) : products;
+  
+  // For table view, ALWAYS show all products. For carousel, use pagination
+  const currentProducts = viewMode === 'table' 
+    ? products 
+    : products.slice(startIndex, endIndex);
 
   const nextPage = () => {
     setCurrentPage(prev => (prev + 1) % totalPages);
@@ -424,17 +426,24 @@ const ProductList = () => {
           <p className="text-muted">No products found in your warehouse.</p>
         </div>
       ) : viewMode === 'table' ? (
-        /* Table View */
+        /* Table View - Shows ALL products with scroll */
         <>
           <div style={{
             background: '#fff',
             borderRadius: '8px',
             border: '1px solid #e5e7eb',
-            overflow: 'hidden'
+            overflow: 'hidden',
+            maxHeight: '70vh', // Limit height to enable scrolling
+            overflowY: 'auto'   // Enable vertical scrolling
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+              <thead style={{ 
+                position: 'sticky', 
+                top: 0, 
+                background: '#f9fafb',
+                zIndex: 1
+              }}>
+                <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
                   <th style={{ padding: '12px 16px', textAlign: 'left', fontWeight: '600', fontSize: '14px', color: '#374151' }}>
                     Product Name
                   </th>
@@ -518,6 +527,16 @@ const ProductList = () => {
                 ))}
               </tbody>
             </table>
+          </div>
+          
+          {/* Product Count Info for Table */}
+          <div style={{
+            textAlign: 'center',
+            marginTop: 16,
+            color: '#6b7280',
+            fontSize: '14px'
+          }}>
+            Showing all {products.length} products
           </div>
         </>
       ) : (
@@ -648,150 +667,150 @@ const ProductList = () => {
               </div>
             ))}
           </div>
-        </>
-      )}
 
-      {/* Pagination Controls at Bottom */}
-      {showPagination && (
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          gap: 20,
-          marginTop: 40,
-          padding: '20px 0',
-          borderTop: '1px solid #e5e7eb'
-        }}>
-          {/* Previous Button */}
-          <button
-            onClick={prevPage}
-            disabled={currentPage === 0}
-            style={{
+          {/* Carousel Pagination Controls - Only for Carousel View */}
+          {showPagination && (
+            <div style={{
               display: 'flex',
+              justifyContent: 'center',
               alignItems: 'center',
-              gap: 8,
-              padding: '12px 20px',
-              border: '1px solid #e5e7eb',
-              background: currentPage === 0 ? '#f8f9fa' : '#fff',
-              color: currentPage === 0 ? '#9ca3af' : '#374151',
-              borderRadius: '8px',
-              cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-            onMouseEnter={(e) => {
-              if (currentPage !== 0) {
-                e.target.style.background = '#f3f4f6';
-                e.target.style.borderColor = '#d1d5db';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (currentPage !== 0) {
-                e.target.style.background = '#fff';
-                e.target.style.borderColor = '#e5e7eb';
-              }
-            }}
-          >
-            <FaChevronLeft style={{ fontSize: '12px' }} />
-            Previous
-          </button>
-
-          {/* Page Indicators */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 12
-          }}>
-            {/* Page Dots */}
-            <div style={{ display: 'flex', gap: 6 }}>
-              {Array.from({ length: totalPages }).map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => goToPage(index)}
-                  style={{
-                    width: '10px',
-                    height: '10px',
-                    borderRadius: '50%',
-                    border: 'none',
-                    background: index === currentPage ? '#5D5CDE' : '#d1d5db',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s ease'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (index !== currentPage) {
-                      e.target.style.background = '#9ca3af';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (index !== currentPage) {
-                      e.target.style.background = '#d1d5db';
-                    }
-                  }}
-                />
-              ))}
-            </div>
-
-            {/* Page Numbers */}
-            <span style={{ 
-              color: '#6b7280', 
-              fontSize: '14px',
-              fontWeight: '500'
+              gap: 20,
+              marginTop: 40,
+              padding: '20px 0',
+              borderTop: '1px solid #e5e7eb'
             }}>
-              {currentPage + 1} of {totalPages}
-            </span>
-          </div>
+              {/* Previous Button */}
+              <button
+                onClick={prevPage}
+                disabled={currentPage === 0}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 20px',
+                  border: '1px solid #e5e7eb',
+                  background: currentPage === 0 ? '#f8f9fa' : '#fff',
+                  color: currentPage === 0 ? '#9ca3af' : '#374151',
+                  borderRadius: '8px',
+                  cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                onMouseEnter={(e) => {
+                  if (currentPage !== 0) {
+                    e.target.style.background = '#f3f4f6';
+                    e.target.style.borderColor = '#d1d5db';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (currentPage !== 0) {
+                    e.target.style.background = '#fff';
+                    e.target.style.borderColor = '#e5e7eb';
+                  }
+                }}
+              >
+                <FaChevronLeft style={{ fontSize: '12px' }} />
+                Previous
+              </button>
 
-          {/* Next Button */}
-          <button
-            onClick={nextPage}
-            disabled={currentPage >= totalPages - 1}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              padding: '12px 20px',
-              border: '1px solid #e5e7eb',
-              background: currentPage >= totalPages - 1 ? '#f8f9fa' : '#fff',
-              color: currentPage >= totalPages - 1 ? '#9ca3af' : '#374151',
-              borderRadius: '8px',
-              cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-              transition: 'all 0.2s ease',
-              fontSize: '14px',
-              fontWeight: '500'
-            }}
-            onMouseEnter={(e) => {
-              if (currentPage < totalPages - 1) {
-                e.target.style.background = '#f3f4f6';
-                e.target.style.borderColor = '#d1d5db';
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (currentPage < totalPages - 1) {
-                e.target.style.background = '#fff';
-                e.target.style.borderColor = '#e5e7eb';
-              }
-            }}
-          >
-            Next
-            <FaChevronRight style={{ fontSize: '12px' }} />
-          </button>
-        </div>
-      )}
+              {/* Page Indicators */}
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 12
+              }}>
+                {/* Page Dots */}
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {Array.from({ length: totalPages }).map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => goToPage(index)}
+                      style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: index === currentPage ? '#5D5CDE' : '#d1d5db',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        if (index !== currentPage) {
+                          e.target.style.background = '#9ca3af';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (index !== currentPage) {
+                          e.target.style.background = '#d1d5db';
+                        }
+                      }}
+                    />
+                  ))}
+                </div>
 
-      {/* Product Count Info */}
-      {showPagination && (
-        <div style={{
-          textAlign: 'center',
-          marginTop: 16,
-          color: '#6b7280',
-          fontSize: '14px'
-        }}>
-          Showing {startIndex + 1}-{Math.min(endIndex, products.length)} of {products.length} products
-          <span style={{ marginLeft: '8px', fontSize: '12px', opacity: 0.8 }}>
-            ({productsPerPage} per page - {viewMode} view)
-          </span>
-        </div>
+                {/* Page Numbers */}
+                <span style={{ 
+                  color: '#6b7280', 
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}>
+                  {currentPage + 1} of {totalPages}
+                </span>
+              </div>
+
+              {/* Next Button */}
+              <button
+                onClick={nextPage}
+                disabled={currentPage >= totalPages - 1}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  padding: '12px 20px',
+                  border: '1px solid #e5e7eb',
+                  background: currentPage >= totalPages - 1 ? '#f8f9fa' : '#fff',
+                  color: currentPage >= totalPages - 1 ? '#9ca3af' : '#374151',
+                  borderRadius: '8px',
+                  cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                  transition: 'all 0.2s ease',
+                  fontSize: '14px',
+                  fontWeight: '500'
+                }}
+                onMouseEnter={(e) => {
+                  if (currentPage < totalPages - 1) {
+                    e.target.style.background = '#f3f4f6';
+                    e.target.style.borderColor = '#d1d5db';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (currentPage < totalPages - 1) {
+                    e.target.style.background = '#fff';
+                    e.target.style.borderColor = '#e5e7eb';
+                  }
+                }}
+              >
+                Next
+                <FaChevronRight style={{ fontSize: '12px' }} />
+              </button>
+            </div>
+          )}
+
+          {/* Product Count Info - Only for Carousel View */}
+          {showPagination && (
+            <div style={{
+              textAlign: 'center',
+              marginTop: 16,
+              color: '#6b7280',
+              fontSize: '14px'
+            }}>
+              Showing {startIndex + 1}-{Math.min(endIndex, products.length)} of {products.length} products
+              <span style={{ marginLeft: '8px', fontSize: '12px', opacity: 0.8 }}>
+                ({productsPerPage} per page)
+              </span>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
