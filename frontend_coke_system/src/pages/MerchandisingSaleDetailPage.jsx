@@ -228,6 +228,7 @@ export default function MerchandisingSaleDetailPage() {
         id: `${id}-${i}`,
         dbItemId: m.id,
         productId: m.productId,
+        productName: m.productName,
         priceId: prodList.find((p) => Number(p.id) === Number(m.productId))?.price?.id ?? null,
         contentNo: m.contentNo,
         dispatchedPcs: m.dispatchedPcs,

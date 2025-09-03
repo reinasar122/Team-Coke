@@ -330,10 +330,9 @@ const VanLoadTable = ({
                 {/* PRODUCT SELECT with duplicate prevention & bottom-sorted disabled options */}
                 <td className="border border-gray-200 py-1 px-1 w-[200px]">
                   <ProductSearchSelect
-                    products={getSortedProductsForRow(row.productId)} // keep your “unpicked first” sort
-                    value={row.productId ?? ""}
+                    products={getSortedProductsForRow(row.productId)} // products list is sorted and excludes already selected products
+                    value={row.productName ?? ""}
                     onChange={(id) => handleProductChange(index, String(id))}
-                    // hide items that are already picked on other rows
                     excludeIds={Array.from(pickedIds).filter(id => id !== Number(row.productId))}
                     placeholder="Search product…"
                   />

@@ -3,31 +3,31 @@ import { createPortal } from "react-dom";
 
 const ProductSearchSelect = ({
   products = [],
-  value,
+  value = "",  // The value is always the productId
   onChange,
   excludeIds = [],
   placeholder = "Search product…",
 }) => {
   const inputRef = useRef(null);
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState(value || ""); // Ensure query is always a string
+  const [query, setQuery] = useState(value || ""); // The query will always be a string (name)
   const [hover, setHover] = useState(-1);
   const [menuStyle, setMenuStyle] = useState({});
 
-  // Filter the products based on the query value
+  const safeQuery = String(query || "").toLowerCase();  // Ensure it's always a string
+
   const filtered = useMemo(() => {
-    const q = (query || "").trim().toLowerCase();  // Make sure query is treated as a string
     const excludes = new Set(excludeIds);
     return products
       .filter((p) => !excludes.has(p.id))
-      .filter((p) => (q ? p.product_name.toLowerCase().includes(q) : true))
+      .filter((p) => (safeQuery ? p.product_name.toLowerCase().includes(safeQuery) : true))
       .slice(0, 100);
-  }, [products, query, excludeIds]);
+  }, [products, excludeIds, safeQuery]);
 
   const commit = useCallback(
     (p) => {
-      onChange(p.id);
-      setQuery(p.product_name); // Update the query state to the selected product name
+      onChange(p.id);  // Pass selected product's ID to the parent
+      setQuery(p.product_name); // Set the selected product name to the input field
       setOpen(false);
     },
     [onChange]
@@ -87,9 +87,9 @@ const ProductSearchSelect = ({
       <input
         ref={inputRef}
         type="text"
-        value={query} // Always bind query (which is a string) to the input field
+        value={query} // Display the product name (query is product name)
         onChange={(e) => {
-          setQuery(e.target.value); // Update query on user input
+          setQuery(e.target.value || ""); // Set the query (product name)
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
@@ -127,11 +127,11 @@ const ProductSearchSelect = ({
                 onMouseEnter={() => setHover(i)}
                 onMouseDown={(e) => { e.preventDefault(); commit(p); }}
               >
-                {p.product_name}
+                {p.product_name} {/* Display the product name */}
               </li>
             ))}
           </ul>,
-          document.body
+          document.body // Render dropdown to body (not inside the table)
         )}
     </>
   );

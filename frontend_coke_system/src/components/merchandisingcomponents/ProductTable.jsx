@@ -519,20 +519,15 @@ const ProductTable = ({
                   return (
                   <tr key={row.id ?? index} className="bg-white hover:bg-slate-100 transition duration-150">
                    {/* PRODUCT SELECT */}
-              <td className="border border-gray-200 py-1 px-1 w-[180px] relative">
-                <ProductSearchSelect
-                  products={products}
-                  value={row.productId ?? ""}
-                  onChange={(id) => handleProductChange(index, String(id))}
-                  excludeIds={getSelectedProductIds(index)}
-                  placeholder="Search product…"
-                />
-              </td>
-
-
-
-
-
+                    <td className="border border-gray-200 py-1 px-1 w-[180px] relative">
+                      <ProductSearchSelect
+                        products={products}
+                        value={row.productName ?? ""}
+                        onChange={(id) => handleProductChange(index, String(id))}
+                        excludeIds={getSelectedProductIds(index)}
+                        placeholder="Search product…"
+                      />
+                    </td>
 
                   {/* DISPATCHED */}
                   <td className="border border-gray-200 py-1 px-1">
