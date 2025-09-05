@@ -39,7 +39,29 @@ export default function MerchandisingSaleDetailPage() {
   const { state } = useLocation();
   const sale = state?.sale;
 
+  // ⬅️ ADDED: normalize handled_by to a string id
+  const toUserIdString = (hb, usersList = []) => {
+    if (hb === null || hb === undefined) return "";
+
+    // If backend returned a user object
+    if (typeof hb === "object" && hb.id != null) return String(hb.id);
+
+    // If backend returned a name string, map it to an id from users
+    if (typeof hb === "string" && isNaN(Number(hb))) {
+      const match = usersList.find(
+        u =>
+          `${u.first_name} ${u.last_name}`.trim() === hb.trim() ||
+          (u.username && u.username.trim() === hb.trim())
+      );
+      return match ? String(match.id) : "";
+    }
+
+    // Otherwise assume it's already an id
+    return String(hb);
+  };
+
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
+
 
   // view / modals
   const [showHandlerDetails, setShowHandlerDetails] = useState(false);
@@ -62,6 +84,36 @@ export default function MerchandisingSaleDetailPage() {
   const [products, setProducts] = useState([]);
   const [saleItems, setSaleItems] = useState([]); // merchandising.items normalized
   const [availableStock, setAvailableStock] = useState({}); // productId -> pcs
+
+  const [users, setUsers] = useState([]);
+
+  // ⬅️ CHANGED: initialize from sale?.handled_by using the helper
+  const [selectedUser, setSelectedUser] = useState(() =>
+    toUserIdString(sale?.handled_by)
+  );
+
+
+  const [saleDetail, setSaleDetail] = useState(sale);
+
+
+  const handlerName = useMemo(() => {
+    const hb = saleDetail?.handled_by ?? sale?.handled_by;
+    if (!hb) return "";
+
+    // If backend returns a user object
+    if (typeof hb === "object") {
+      const { first_name = "", last_name = "" } = hb;
+      return `${first_name} ${last_name}`.trim();
+    }
+
+    // If backend returns an ID
+    const match = users.find(u => Number(u.id) === Number(hb));
+    if (match) return `${match.first_name} ${match.last_name}`.trim();
+
+    // If backend returns a plain name string, just show it
+    return String(hb);
+  }, [saleDetail?.handled_by, sale?.handled_by, users]);
+
 
 
   // Only show: (in-stock in this warehouse) ∪ (already used in current rows)
@@ -182,21 +234,24 @@ export default function MerchandisingSaleDetailPage() {
      Load merchandising detail (items)
   ------------------------------------*/
   const loadMerchandisingDetail = useCallback(
-  async (id, prodListParam) => {                 // <-- accept prod list
-    if (!id) return;
-    const urls = [`${API}/merchandisings/${id}/`, `${API}/merchandising/${id}/`];
-    let data = null;
-    for (const url of urls) {
-      try {
-        const r = await axios.get(url);
-        data = r.data;
-        break;
-      } catch {}
-    }
-    if (!data) {
-      showAlert("Could not load merchandising detail.");
-      return;
-    }
+    async (id, prodListParam) => {
+      if (!id) return;
+      const urls = [`${API}/merchandisings/${id}/`, `${API}/merchandising/${id}/`];
+      let data = null;
+      for (const url of urls) {
+        try {
+          const r = await axios.get(url);
+          data = r.data;
+          break;
+        } catch {}
+      }
+      if (!data) {
+        showAlert("Could not load merchandising detail.");
+        return;
+      }
+
+    // ⬇️ NEW: update saleDetail
+    setSaleDetail(data);
 
     const prodList = Array.isArray(prodListParam) && prodListParam.length
       ? prodListParam
@@ -298,6 +353,22 @@ export default function MerchandisingSaleDetailPage() {
     []
   );
 
+  useEffect(() => {
+    axios.get(`${API}/users/`)
+      .then(res => setUsers(res.data))
+      .catch(err => console.error("Error fetching users:", err));
+  }, []);
+
+  // ⬅️ ADDED: keep selectedUser in sync when users and data are available
+  useEffect(() => {
+    const source = saleDetail?.handled_by ?? sale?.handled_by;
+    const idStr = toUserIdString(source, users);
+    setSelectedUser(idStr);
+  }, [saleDetail?.handled_by, sale?.handled_by, users]);
+
+
+
+
   // vans & routes for edit header
   useEffect(() => {
     if (!isVanLoad || !currentWarehouse?.id) return;
@@ -350,6 +421,7 @@ export default function MerchandisingSaleDetailPage() {
     const payload = {
       route: route ? Number(route) : null,
       van: selectedVan ? Number(selectedVan) : null,
+      handled_by: selectedUser ? Number(selectedUser) : null, 
       date_time: new Date(transactionDate).toISOString(),
       items,
       expected_sale: Number(totalExpectedSale) || 0,
@@ -365,12 +437,14 @@ export default function MerchandisingSaleDetailPage() {
       });
       showAlert("Van Load updated.");
       setEditMode(false);
-      // refresh the detail table
+
+      // ⬇️ Refresh full sale detail (including handled_by)
       await loadMerchandisingDetail(sale.id);
     } catch (e) {
       console.error("Failed to save Van Load edits:", e?.response?.data || e.message);
       showAlert("Failed to save changes.");
     }
+
   };
 
   /* -----------------------
@@ -601,56 +675,83 @@ export default function MerchandisingSaleDetailPage() {
           <div className="flex flex-col gap-1">
             <label className="text-sm text">Handled By</label>
             <div className="w-full rounded px-3 py-2 bg-gray-100 text">
-              {sale.handled_by}
+              {handlerName}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+    
+      {/* edit header controls to match your flow (date/handled/route/van) */}
+      {editMode && isVanLoad && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* Left column */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text">Date Time</label>
+              <input
+                type="datetime-local"
+                className="w-full rounded px-3 py-2 border"
+                value={transactionDate}
+                onChange={(e) => setTransactionDate(e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text">Handled By</label>
+              <select
+                value={selectedUser || ""}
+                onChange={(e) => setSelectedUser(e.target.value)}
+                className="w-full rounded px-3 py-2 border"
+              >
+                <option value="">-- Select Handler --</option>
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>
+                    {user.first_name} {user.last_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Right column */}
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text">Route</label>
+              <select
+                className="w-full rounded px-3 py-2 border"
+                value={route || ""}
+                onChange={(e) => setRoute(e.target.value)}
+              >
+                <option value="">Select Route</option>
+                {routes.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.route_name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-sm text">Van</label>
+              <select
+                className="w-full rounded px-3 py-2 border"
+                value={selectedVan || ""}
+                onChange={(e) => setSelectedVan(e.target.value)}
+              >
+                <option value="">Select Van</option>
+                {vans.map((v) => (
+                  <option key={v.id} value={v.id}>
+                    {v.van_id} - {v.plate_number}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
       )}
 
-      {/* edit header controls to match your flow (date/van/route) */}
-      {editMode && isVanLoad && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text">Date Time</label>
-            <input
-              type="datetime-local"
-              className="w-full rounded px-3 py-2 border"
-              value={transactionDate}
-              onChange={(e) => setTransactionDate(e.target.value)}
-            />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text">Route</label>
-            <select
-              className="w-full rounded px-3 py-2 border"
-              value={route || ""}
-              onChange={(e) => setRoute(e.target.value)}
-            >
-              <option value="">Select Route</option>
-              {routes.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.route_name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-sm text">Van</label>
-            <select
-              className="w-full rounded px-3 py-2 border"
-              value={selectedVan || ""}
-              onChange={(e) => setSelectedVan(e.target.value)}
-            >
-              <option value="">Select Van</option>
-              {vans.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.van_id} - {v.plate_number}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-      )}
 
       {/* Products */}
       {!editMode && (
