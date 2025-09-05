@@ -129,11 +129,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 <Route path="/products" />
                 <Route
                   path="/suppliers"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaTruck /> Suppliers
-                    </h1>
-                  }
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaTruck /> Suppliers
+                  //   </h1>
+                  // }
                 />
                 <Route
                   path="/settings"
@@ -198,7 +198,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   path="/credits/:id"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
-                      <FaFileInvoice /> Credit Detail
+                      Credit Detail
                     </h1>
                   }
                 />

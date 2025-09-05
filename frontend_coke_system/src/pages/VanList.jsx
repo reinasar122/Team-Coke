@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
-import { FaEdit, FaTrash } from "react-icons/fa";
-import VanForm from "./VanForm";
+import { FaSearch, FaEdit, FaTrash } from "react-icons/fa";
 import { toast } from "react-toastify";
-import { errorStyle, successStyle } from "../utils/toastStyles"; 
+import VanForm from "./VanForm";
+import { errorStyle, successStyle } from "../utils/toastStyles";
+import "../styles/pages/vanlist.scss";
+
 const VanList = () => {
   const [vans, setVans] = useState([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -10,23 +12,25 @@ const VanList = () => {
   const [editingVan, setEditingVan] = useState(null);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
+  // ---------------------------
+  // Lifecycle
+  // ---------------------------
   useEffect(() => {
     fetchVans();
     getCurrentWarehouse();
 
-    // Listen for warehouse changes
     const handleWarehouseChange = () => {
       getCurrentWarehouse();
       fetchVans();
     };
 
     window.addEventListener("warehouseChanged", handleWarehouseChange);
-
-    return () => {
-      window.removeEventListener("warehouseChanged", handleWarehouseChange);
-    };
+    return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, []);
 
+  // ---------------------------
+  // Warehouse Helpers
+  // ---------------------------
   const getCurrentWarehouse = () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
@@ -38,12 +42,14 @@ const VanList = () => {
     }
   };
 
+  // ---------------------------
+  // Fetch Vans
+  // ---------------------------
   const fetchVans = async () => {
     try {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
 
-      // Determine which warehouse to filter by
       let warehouseId;
       if (user.role?.toLowerCase() === "admin" && selectedWarehouse) {
         warehouseId = selectedWarehouse.id;
@@ -56,6 +62,7 @@ const VanList = () => {
 
       const response = await fetch(`http://127.0.0.1:8080/api/vans/?warehouse=${warehouseId}`);
       if (!response.ok) throw new Error("Failed to fetch vans");
+
       const data = await response.json();
       setVans(data);
     } catch (error) {
@@ -63,34 +70,47 @@ const VanList = () => {
     }
   };
 
+  // ---------------------------
+  // Handlers
+  // ---------------------------
   const handleVanAdded = (newVan) => {
     const exists = vans.find((v) => v.id === newVan.id);
+
     if (exists) {
       setVans((prev) => prev.map((v) => (v.id === newVan.id ? newVan : v)));
-      toast.success(`Van '${newVan.plate_number}' has been updated successfully!`, { style: successStyle });
+      toast.success(
+        `Van '${newVan.plate_number}' has been updated successfully!`,
+        { style: successStyle }
+      );
     } else {
       setVans((prev) => [...prev, newVan]);
-      toast.success(`Van '${newVan.plate_number}' has been added successfully!`, { style: successStyle });
+      toast.success(
+        `Van '${newVan.plate_number}' has been added successfully!`,
+        { style: successStyle }
+      );
     }
+
     setIsVanFormVisible(false);
     setEditingVan(null);
   };
 
   const showConfirmDialog = (message, onConfirm) => {
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    const modal = document.createElement("div");
+    modal.className =
+      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+
     modal.innerHTML = `
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
-        <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
+      <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+        <p class="text mb-4">${message}</p>
         <div class="flex justify-end space-x-3">
-          <button class="cancel-btn px-4 py-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">Cancel</button>
+          <button class="cancel-btn px-4 py-2 text">Cancel</button>
           <button class="confirm-btn px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded">Confirm</button>
         </div>
       </div>
     `;
 
-    modal.querySelector('.cancel-btn').onclick = () => modal.remove();
-    modal.querySelector('.confirm-btn').onclick = () => {
+    modal.querySelector(".cancel-btn").onclick = () => modal.remove();
+    modal.querySelector(".confirm-btn").onclick = () => {
       modal.remove();
       onConfirm();
     };
@@ -104,9 +124,11 @@ const VanList = () => {
         const response = await fetch(`http://127.0.0.1:8080/api/vans/${id}/`, {
           method: "DELETE",
         });
+
         if (!response.ok) throw new Error("Failed to delete van");
+
         setVans((prev) => prev.filter((v) => v.id !== id));
-        toast.error(`Van has been deleted successfully.`, { style: errorStyle });
+        toast.error("Van has been deleted successfully.", { style: errorStyle });
       } catch (error) {
         console.error("Error deleting van:", error);
         toast.error("Error deleting van.", { style: errorStyle });
@@ -119,78 +141,77 @@ const VanList = () => {
     setIsVanFormVisible(true);
   };
 
+
   const filteredVans = vans.filter((van) =>
     van.plate_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
-    <div className="container mx-auto p-6">
-      {/* Warehouse Indicator */}
-      {currentWarehouse && (
-        <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-          <p className="text-sm text-blue-700 dark:text-blue-300">
-            <span className="font-medium">Current Warehouse:</span> {currentWarehouse.name}
-          </p>
+    <div className="page">
+      {/* Header with Search + Add Van */}
+      <div className="flex justify-between items-center mb-6">
+        {/* Search Bar */}
+        <div className="relative w-72">
+          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search plate number..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
         </div>
-      )}
 
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-        <input
-          type="text"
-          placeholder="Search plate number..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-4 pr-6 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60 mb-4 sm:mb-0 text-base"
-        />
-
+        {/* Add Van Button */}
         <button
           onClick={() => {
             setEditingVan(null);
             setIsVanFormVisible(true);
           }}
-          className="bg-green-500 text-white px-4 py-2 rounded-lg"
+          className="px-4 py-2 bg-green-500 text-white rounded-lg shadow "
         >
           + Add Van
         </button>
       </div>
 
-      <div className="overflow-x-auto w-full bg-white shadow-md rounded-lg">
-        <table className="w-full border-collapse">
-          <thead className="bg-gray-200 text-left">
+      {/* Vans Table */}
+      <div className="table table-wrapper">
+        <table className="table">
+          <thead>
             <tr>
-              <th className="py-3 px-4">VAN ID</th>
-              <th className="py-3 px-4">PLATE NUMBER</th>
-              <th className="py-3 px-14 text-right">ACTIONS</th>
+              <th className="px-4 py-3 w-1/4">Van ID</th>
+              <th className="px-4 py-3 w-1/2">Plate Number</th>
+              <th className="px-4 py-3 w-1/4 text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredVans.length > 0 ? (
               filteredVans.map((van) => (
-                <tr key={van.id} className="border-t hover:bg-gray-100">
-                  <td className="py-3 px-4">{van.van_id}</td>
-                  <td className="py-3 px-4">{van.plate_number}</td>
-                  <td className="py-4 px-16 text-right space-x-3">
+                <tr key={van.id} className="border-b">
+                  <td className="px-4 py-2">{van.van_id}</td>
+                  <td className="px-4 py-2">{van.plate_number}</td>
+                  <td className="px-3 py-2 text-right space-x-2">
                     <button
                       onClick={() => handleEdit(van)}
-                      className="text-blue-500"
+                      className="icon-btn-edit "
                       title="Edit Van"
                     >
-                      <FaEdit size={20} />
+                      <FaEdit />
                     </button>
                     <button
                       onClick={() => handleDelete(van.id)}
-                      className="text-red-500"
+                      className="icon-btn-danger"
                       title="Delete Van"
                     >
-                      <FaTrash size={20} />
+                      <FaTrash />
                     </button>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="3" className="py-6 text-center">
-                  No vans found for this warehouse
+                <td colSpan="3" className="py-6 text text-center">
+                  No vans found
                 </td>
               </tr>
             )}
@@ -198,6 +219,7 @@ const VanList = () => {
         </table>
       </div>
 
+      {/* Van Form */}
       {isVanFormVisible && (
         <VanForm
           vanToEdit={editingVan}

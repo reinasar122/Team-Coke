@@ -84,11 +84,11 @@ const Sidebar = ({ isSidebarOpen }) => {
               ) : (
                 <DisabledSubItem text="Supplier Return" />
               )}
-              {canView("Invoice") ? (
+              {/* {canView("Invoice") ? (
                 <li><Link to="/invoice" className="block p-2 text-sm hover:bg-gray-600 rounded">Invoice</Link></li>
               ) : (
                 <DisabledSubItem text="Invoice" />
-              )}
+              )} */}
               {canView("Credit") ? (
                 <li>
                   <Link to="/credit" className="block p-2 text-sm hover:bg-gray-600 rounded">
@@ -153,11 +153,11 @@ const Sidebar = ({ isSidebarOpen }) => {
               ) : (
                 <DisabledSubItem text="Sales Report" />
               )}
-              {canView("Inventory Report") ? (
+              {/* {canView("Inventory Report") ? (
                 <li><Link to="/inventoryreport" className="block p-2 text-sm hover:bg-gray-600 rounded">Inventory Report</Link></li>
               ) : (
                 <DisabledSubItem text="Inventory Report" />
-              )}
+              )} */}
             </ul>
           )}
         </li>

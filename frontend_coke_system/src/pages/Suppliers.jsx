@@ -28,7 +28,7 @@ const Suppliers = () => {
 
   const formatAddress = (s) => {
     const hasPSGC =
-      s.street || s.barangay || s.city || s.province || s.region || s.zip_code || s.country;
+      s.street || s.barangay || s.city || s.province;
 
     if (!hasPSGC && s.street_address) {
       const parts = [
@@ -36,24 +36,17 @@ const Suppliers = () => {
         s.barangay,
         s.city,
         s.province,
-        s.region,
-        s.country,
-        s.zip_code ? `(${s.zip_code})` : null,
       ].filter(Boolean);
       return parts.join(", ");
     }
 
     const street = s.street ?? s.street_address; 
-    const country = s.country || "Philippines";
 
     const parts = [
       street,
       s.barangay,
       s.city,
       s.province,
-      s.region,
-      country,
-      s.zip_code ? `(${s.zip_code})` : null,
     ].filter(Boolean);
 
     return parts.join(", ");
@@ -84,55 +77,55 @@ const Suppliers = () => {
         <h2 className="text-2xl font-bold">Supplier Registration Details</h2>
         <button
           onClick={() => setShowRegisterModal(true)}
-          className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+          className="btn btn-add"
         >
           + New
         </button>
       </div>
-
-      <table className="w-full border">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="border p-2">REGISTRATION NUMBER</th>
-            <th className="border p-2">COMPANY NAME</th>
-            <th className="border p-2">CONTACT PERSON</th>
-            <th className="border p-2">CONTACT NUMBER</th>
-            <th className="border p-2">ADDRESS</th>
-            <th className="border p-2">ACTIONS</th>
-          </tr>
-        </thead>
-        <tbody className="text-center">
-          {suppliers.map((supplier) => (
-            <tr key={supplier.id} className="border">
-              <td className="border p-2">{supplier.registration_number}</td>
-              <td className="border p-2">{supplier.company_name}</td>
-              <td className="border p-2">{supplier.contact_person}</td>
-              <td className="border p-2">{supplier.phone_number}</td>
-              <td className="border p-2">
-                {/* Full formatted address */}
-                {formatAddress(supplier)}
-              </td>
-              <td className="border p-2">
-                <div className="flex justify-center gap-3">
-                  <FaEdit
-                    size={20}
-                    className="text-blue-500 cursor-pointer"
-                    onClick={() => setEditSupplierId(supplier.id)}
-                  />
-                  <FaTrash
-                    size={20}
-                    className="text-red-500 cursor-pointer"
-                    onClick={() => {
-                      setSupplierToDelete(supplier);
-                      setShowDeleteModal(true);
-                    }}
-                  />
-                </div>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="table-wrapper">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th className="border p-2">Registration Number</th>
+                  <th className="border p-2">Company</th>
+                  <th className="border p-2">Contact Person</th>
+                  <th className="border p-2">Contact Number</th>
+                  <th className="border p-2">Address</th>
+                  <th className="border p-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="text-center">
+                {suppliers.map((supplier) => (
+                  <tr key={supplier.id} className="border">
+                    <td className="border p-2">{supplier.registration_number}</td>
+                    <td className="border p-2">{supplier.company_name}</td>
+                    <td className="border p-2">{supplier.contact_person}</td>
+                    <td className="border p-2">{supplier.phone_number}</td>
+                    <td className="border p-2">
+                      {/* Full formatted address */}
+                      {formatAddress(supplier)}
+                    </td>
+                    <td className="border p-2">
+                      <div className="flex justify-center gap-3">
+                        <FaEdit
+                          className="icon-btn-edit"
+                          onClick={() => setEditSupplierId(supplier.id)}
+                        />
+                        <FaTrash
+                          className="icon-btn-danger"
+                          onClick={() => {
+                            setSupplierToDelete(supplier);
+                            setShowDeleteModal(true);
+                          }}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+      </div>
+      
 
       {/* Registration Modal */}
       {showRegisterModal && (
@@ -172,7 +165,7 @@ const Suppliers = () => {
             </p>
             <div className="flex justify-between">
                 <button
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                className="btn btn-cancel"
                 onClick={() => {
                     setShowDeleteModal(false);
                     setSupplierToDelete(null);
@@ -181,7 +174,7 @@ const Suppliers = () => {
                 Cancel
                 </button>
                 <button
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                className="btn btn-danger"
                 onClick={handleDelete}
                 >
                 Delete

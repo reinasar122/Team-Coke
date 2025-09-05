@@ -370,7 +370,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
           <button
             type="button"
             onClick={addContact}
-            className="bg-blue-500 text-white px-4 py-2 rounded mt-3"
+            className="btn btn-add"
           >
             Add Contact
           </button>
@@ -381,13 +381,13 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
           <button
             type="button"
             onClick={onClose}
-            className="border px-4 py-2 rounded hover:bg-gray-50"
+            className="btn btn-back"
           >
             Back
           </button>
           <button
             type="submit"
-            className="bg-red-500 text-white px-4 py-2 rounded"
+            className="btn btn-primary"
           >
             Submit Registration
           </button>
