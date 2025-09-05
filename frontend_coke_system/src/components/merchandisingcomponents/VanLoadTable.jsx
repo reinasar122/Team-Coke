@@ -295,7 +295,7 @@ const VanLoadTable = ({
   return (
     <div className="table-wrapper">
       <table className="table">
-        <thead className="bg-gray-200 text-gray-700">
+        <thead className="bg-gray-200 text">
           <tr>
             <th className="border">Product</th>
             <th className="border" colSpan={2}>Dispatched</th>

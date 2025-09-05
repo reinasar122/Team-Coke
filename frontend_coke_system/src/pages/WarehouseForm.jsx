@@ -240,7 +240,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
         <div className="flex justify-between">
           <button
             type="button"
-            className="bg-red-500 text-white py-2 px-4 rounded"
+            className="btn-cancel py-2 px-4 rounded"
             onClick={onClose}
           >
             Cancel

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { errorStyle } from "../utils/toastStyles"
-import { FaEdit, FaTrash } from "react-icons/fa";
+import { FaWarehouse, FaEdit, FaTrash } from "react-icons/fa";
 import { canCreate, canEdit, canDelete, canView } from "../utils/accessControl";
 import WarehouseForm from "./WarehouseForm";
 import EditWarehouse from "./EditWarehouse";
+
+
 
 const Warehouses = () => {
   const [warehouses, setWarehouses] = useState([]);
@@ -12,18 +14,26 @@ const Warehouses = () => {
   const [editWarehouseId, setEditWarehouseId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [warehouseToDelete, setWarehouseToDelete] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchWarehouses();
   }, []);
 
   const fetchWarehouses = async () => {
+    setLoading(true);
+    setError(null);
     try {
       const response = await fetch("http://127.0.0.1:8080/api/warehouses/");
+      if (!response.ok) throw new Error("Failed to fetch warehouses.");
       const data = await response.json();
       setWarehouses(data);
     } catch (error) {
+      setError(error.message);
+    } finally {
       console.error("Error fetching warehouses:", error);
+      setLoading(false);
     }
   };
 
@@ -51,9 +61,9 @@ const Warehouses = () => {
     <div className="relative p-6">
       <div className="flex justify-end mb-4">
         <button
-          className={`py-2 rounded w-fit ${
+          className={`px-5 py-2 rounded-lg shadow-md transition ${
             canCreate("Warehouse")
-              ? "bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+              ? "bg-green-500 hover:bg-green-600 text-white"
               : "bg-gray-300 text-gray-500 cursor-not-allowed"
           }`}
           onClick={() => canCreate("Warehouse") && setShowCreateModal(true)}
@@ -63,30 +73,59 @@ const Warehouses = () => {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-6">
+      {loading ? (
+      <div className="text-center py-10 text-gray-400">
+        <svg className="animate-spin h-8 w-8 mx-auto mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
+        </svg>
+        Loading warehouses...
+      </div>
+    ) : error ? (
+      <div className="text-center py-10 text-red-500 font-semibold">
+        {error}
+      </div>
+      //empty State
+   ) : warehouses.length === 0 ? (
+        <div className="text-center text-gray-500 py-10">
+          No warehouses found. Click <span className="font-bold">+ New Warehouse</span> to add one.
+          </div>
+      ) : (
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {warehouses.map((warehouse) => (
-          <div key={warehouse.id} className="bg-white shadow-lg p-4 rounded">
-            <h2 className="font-bold text-lg">{warehouse.name}</h2>
-            <p className="text-sm">{warehouse.street_address},{warehouse.barangay}, {warehouse.city}, {warehouse.province}, </p>
+          <div key={warehouse.id} className="bg-white shadow-lg p-3 rounded-xl border-l-3 border-shadow-500 hover:shadow-xl transition"> 
+           
+              {/* Title */}
+            <div className="flex items-center gap-2 mb-3">
+                <FaWarehouse className="color: var(--text)" size={22} />
+                <h2 className="font-bold text-xl">{warehouse.name}</h2>
+              </div>
 
-            <p className="text-sm text-gray-700">
+            {/* Address */}
+            <p className="text-sm text-gray-600">{warehouse.street_address},{warehouse.barangay}, {warehouse.city}, {warehouse.province}, </p>
+
+            <p className="text-sm text-gray-600">
               {warehouse.region}, {warehouse.country} {warehouse.zip_code}
             </p>
 
-            <p className="text-sm text-gray-700">{warehouse.phone_number}</p>
-            <p className="text-sm text-gray-700">{warehouse.email}</p>
+            {/* Contact */}
+            <p className="text-sm text-gray-700">📞 {warehouse.phone_number}</p>
+            <p className="text-sm text-gray-700">✉️ {warehouse.email}</p>
 
-            <div className="flex justify-end gap-3 mt-2">
+            {/*Edit Warehouse*/}
+            <div className="flex justify-end gap-3 mt-4">
               <button
                 onClick={() => canEdit("Warehouse") && setEditWarehouseId(warehouse.id)}
                 disabled={!canEdit("Warehouse")}
                 title="Edit Warehouse"
-                className={`text-blue-500`}
+                className="icon-btn" 
               >
-                <FaEdit size={20} />
+                <FaEdit/> 
               </button>
+
+            {/*Delete Warehouse*/}
               <button
-                onClick={() => {
+                onClick={() => {  
                   if (canDelete("Warehouse")) {
                     setWarehouseToDelete(warehouse);
                     setShowDeleteModal(true);
@@ -94,15 +133,16 @@ const Warehouses = () => {
                 }}
                 disabled={!canDelete("Warehouse")}
                 title="Delete Warehouse"
-                className={`text-red-500`}
+                className={`icon-btn-danger`}
               >
-                <FaTrash size={20} />
+                <FaTrash/>
               </button>
             </div>
           </div>
         ))}
       </div>
-
+      )}
+        
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
@@ -144,7 +184,7 @@ const Warehouses = () => {
             <div className="flex justify-between">
               <div>
                 <button
-                  className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                  className="btn-cancel py-2 px-4 rounded"
                   onClick={() => setShowDeleteModal(false)}
                 >
                   Cancel
@@ -154,14 +194,14 @@ const Warehouses = () => {
                 <button
                   className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
                   onClick={handleDelete}
-                  >
-                    Delete
-                  </button>
-                </div>
+                >
+                  Delete
+                </button>
               </div>
             </div>
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 };
