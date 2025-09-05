@@ -62,6 +62,32 @@ export default function SalesReport() {
   const [sortKey, setSortKey] = useState("revenue");
   const printRef = useRef(null);
 
+  // --- helpers for date params (Manila-friendly YYYY-MM-DD) --- Kath
+  // Convert Date to ISO string (YYYY-MM-DD) in local timezone
+  // https://stackoverflow.com/a/23593052
+  const toISO = (d) => {
+    const dt = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return dt.toISOString().slice(0, 10);
+  };
+
+  const resolveRange = ({ period, start, end }) => {
+    if (period === "custom" && start && end) return { startISO: start, endISO: end };
+
+    const now = new Date();
+    if (period === "this_week") {
+      // Monday as start of week
+      const dow = (now.getDay() + 6) % 7; // 0=Mon ... 6=Sun
+      const monday = new Date(now);
+      monday.setDate(now.getDate() - dow);
+      return { startISO: toISO(monday), endISO: toISO(now) };
+    }
+
+    // default: this_month
+    const first = new Date(now.getFullYear(), now.getMonth(), 1);
+    return { startISO: toISO(first), endISO: toISO(now) };
+  };
+  // --- end helpers ---: Kath
+
   /* Filters bootstrap */
   useEffect(() => {
     let ok = true;
@@ -108,7 +134,29 @@ export default function SalesReport() {
           `${API}/sales_report/?${params.toString()}`,   // legacy alias, if added
         ];
 
-        let res;
+        // let res;
+        // let lastErr;
+        // for (const url of endpoints) {
+        //   try {
+        //     console.log("[SalesReport] GET:", url);
+        //     res = await axios.get(url, { headers, timeout: 15000 });
+        //     break; // success
+        //   } catch (e) {
+        //     lastErr = e;
+        //     console.warn("[SalesReport] failed:", url, e?.message);
+        //   }
+        // }
+        // if (!res) {
+        //   const status = lastErr?.response?.status;
+        //   const detail =
+        //     lastErr?.response?.data?.detail ||
+        //     lastErr?.response?.data?.message ||
+        //     lastErr?.message ||
+        //     "Network error";
+        //   throw new Error(status ? `HTTP ${status}: ${detail}` : `Network/CORS: ${detail}`);
+        // }
+        // 1) Fetch your existing (full) sales report first (as you already do)
+        let res; //Kath
         let lastErr;
         for (const url of endpoints) {
           try {
@@ -130,14 +178,85 @@ export default function SalesReport() {
           throw new Error(status ? `HTTP ${status}: ${detail}` : `Network/CORS: ${detail}`);
         }
 
-        if (!ok) return;
+        // 2) Compute date range for revenue-summary
+        // after: const { startISO, endISO } = resolveRange(filters);
+        const { startISO, endISO } = resolveRange(filters);
+
+        // ✅ build params for revenue-summary (include filters)
+        const revParams = {
+          start: startISO,
+          end: endISO,
+        };
+        if (filters.warehouse !== "all") revParams.warehouse_id = filters.warehouse;
+        if (filters.route !== "all") revParams.route_id = filters.route;
+
+        // (optional) quick debug in Django console
+        // revParams.debug = 1;
+
+        let rev = { gross_revenue: 0, discounts: 0, net_revenue: 0 };
+        try {
+          const revRes = await axios.get(`${API}/reports/revenue-summary/`, {
+            headers,
+            params: revParams,            // 👈 send the params
+            timeout: 15000,
+          });
+          rev = revRes.data || rev;
+          console.log("[SalesReport] revenue-summary params:", revParams);
+        } catch (e) {
+          console.warn("[SalesReport] revenue-summary failed:", e?.message);
+        }
+         // kath
+
+
+        // if (!ok) return;
+        // const r = res.data || {};
+        // setData({
+        //   summary: {
+        //     total_revenue: n(r?.summary?.total_revenue),
+        //     net_profit: n(r?.summary?.net_profit),
+        //     discounts: n(r?.summary?.discounts),
+        //     return_rate: n(r?.summary?.return_rate),
+        //   },
+        //   product_breakdown: Array.isArray(r?.products)
+        //     ? r.products.map((p) => ({
+        //         product: p.product_name ?? p.product ?? "—",
+        //         qty: n(p.qty_sold),
+        //         revenue: n(p.revenue),
+        //         profit: n(p.profit),
+        //         discount_rate: n(p.discount_rate),
+        //         return_rate: n(p.return_rate),
+        //       }))
+        //     : [],
+        //   sales_by_route: Array.isArray(r?.by_route)
+        //     ? r.by_route.map((x) => ({ name: x.route ?? x.name, revenue: n(x.revenue) }))
+        //     : [],
+        //   sales_by_warehouse: Array.isArray(r?.by_warehouse)
+        //     ? r.by_warehouse.map((x) => ({ name: x.warehouse ?? x.name, revenue: n(x.revenue) }))
+        //     : [],
+        //   returns_block: {
+        //     expected_sale: n(r?.returns?.expected_sale),
+        //     actual_sale: n(r?.returns?.actual_sale),
+        //     difference: n(r?.returns?.difference),
+        //     supplier_returnables: n(r?.returns?.supplier_returnables),
+        //   },
+        //   misc_expenses: Array.isArray(r?.misc_expenses)
+        //     ? r.misc_expenses.map((m) => ({
+        //         description: m.description ?? "—",
+        //         notes: m.notes ?? "",
+        //         amount: n(m.amount),
+        //         date: m.date ?? "",
+        //       }))
+        //     : [],
+        // });
         const r = res.data || {};
         setData({
           summary: {
-            total_revenue: n(r?.summary?.total_revenue),
-            net_profit: n(r?.summary?.net_profit),
-            discounts: n(r?.summary?.discounts),
-            return_rate: n(r?.summary?.return_rate),
+            // 👇 We show Net Revenue in "Total Revenue" tile to reflect actual earned after discounts.
+            // If you want Gross here instead, swap rev.net_revenue -> rev.gross_revenue.
+            total_revenue: n(rev?.net_revenue ?? r?.summary?.total_revenue),
+            net_profit: n(rev?.net_profit ?? r?.summary?.net_profit),
+            discounts: n(rev?.discounts ?? r?.summary?.discounts),
+            return_rate:   n(rev?.return_rate ?? r?.summary?.return_rate),
           },
           product_breakdown: Array.isArray(r?.products)
             ? r.products.map((p) => ({
@@ -169,7 +288,7 @@ export default function SalesReport() {
                 date: m.date ?? "",
               }))
             : [],
-        });
+        }); //kath
       } catch (e) {
         setErr(`Request failed: ${e.message}`);
         setData((d) => ({

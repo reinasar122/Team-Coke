@@ -49,7 +49,7 @@ from .views import SupplierReturnFormDetailView
 from .views import ProcessEmptiesReturnView
 
 
-from .views_reports import SalesReportAPIView
+from .views_reports import RevenueSummaryView, SalesReportAPIView
 
 
 urlpatterns = [
@@ -167,6 +167,7 @@ path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="c
     #Sales Report API
     path("reports/sales/", SalesReportAPIView.as_view(), name="reports-sales"),
     path("sales_report/", SalesReportAPIView.as_view(), name="sales-report-legacy"),
+    path("reports/revenue-summary/", RevenueSummaryView.as_view(), name="revenue-summary"), #kath
   
 ]
 

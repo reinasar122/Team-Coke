@@ -1,33 +1,40 @@
 # app/views_reports.py
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date as _date, datetime, time as _time, timedelta
 from decimal import Decimal
+import logging
+import os
+from tracemalloc import start
 
 from django.db.models import (
     Sum, F, Q, Value, Case, When, ExpressionWrapper,
-    DecimalField, IntegerField
+    DecimalField, IntegerField, Avg
 )
-from django.db.models.functions import Coalesce
+from django.db.models import F as DJF
+from django.db.models.functions import Coalesce, Cast
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 
+from django.core.exceptions import FieldError
 from .models import Merchandising, MerchandisingItem, MiscellaneousItem
+from django.db.models import Min, Max, Count
 
 # ---------- helpers for numeric types ----------
 DECIMAL = DecimalField(max_digits=14, decimal_places=2)
 DEC0 = Value(Decimal("0"), output_field=DECIMAL)
 INT0 = Value(0, output_field=IntegerField())
+ZERO = Decimal("0.00")  # kath
 
 
-def _daterange_from_period(period: str, start: str | None, end: str | None) -> tuple[date, date]:
+def _daterange_from_period(period: str, start: str | None, end: str | None) -> tuple[_date, _date]:
     today = timezone.localdate()
     if period == "this_month":
         return today.replace(day=1), today
     if period == "custom" and start and end:
         try:
-            return date.fromisoformat(start), date.fromisoformat(end)
+            return _date.fromisoformat(start), _date.fromisoformat(end)
         except ValueError:
             pass
     # default: this week (Mon..today)
@@ -226,4 +233,263 @@ class SalesReportAPIView(APIView):
             },
             "misc_expenses": misc_expenses_list,
         }
+        return Response(payload)
+
+
+# Kath
+# ---- Decimal types / constants ----
+DEC_AMOUNT = DecimalField(max_digits=14, decimal_places=2)      # money
+DEC_RATE   = DecimalField(max_digits=12, decimal_places=6)      # percentages
+ZAMT       = Value(Decimal("0.00"),       output_field=DEC_AMOUNT)
+ZRATE      = Value(Decimal("0.000000"),   output_field=DEC_RATE)
+ONE_RATE   = Value(Decimal("1.000000"),   output_field=DEC_RATE)
+HUNDRED    = Value(Decimal("100.000000"), output_field=DEC_RATE)
+
+
+class RevenueSummaryView(APIView):
+    def get(self, request):
+        # ---------- query params ----------
+        start_str = request.GET.get("start")
+        end_str   = request.GET.get("end")
+        debug     = (request.GET.get("debug") or "").lower() in {"1", "true", "yes"}
+
+        def p(*args):
+            # avoid duplicate prints from Django autoreload
+            if debug and (os.environ.get("RUN_MAIN") == "true" or not os.environ.get("RUN_MAIN")):
+                print("[RevenueSummary]", *args, flush=True)
+
+        # ---------- resolve Manila local window [start, end) ----------
+        if not start_str or not end_str:
+            today   = timezone.localdate()
+            start_d = today
+            end_d   = today
+        else:
+            start_d = _date.fromisoformat(start_str)
+            end_d   = _date.fromisoformat(end_str)
+
+        tz = timezone.get_default_timezone()  # Asia/Manila (project setting)
+        start_dt = timezone.make_aware(datetime.combine(start_d, _time.min), tz)
+        end_dt   = timezone.make_aware(datetime.combine(end_d + timedelta(days=1), _time.min), tz)
+        p(f"window_local: {start_dt} → {end_dt} (exclusive)")
+
+        # ---------- status handling ----------
+        # your DB uses 'Complete' (not 'Completed'); override via ?status=any or multiple &status=
+        statuses = [s.strip() for s in request.GET.getlist("status") if s.strip()]
+        use_status_filter = True
+        if statuses:
+            if statuses[0].lower() in {"any", "all"}:
+                use_status_filter = False
+        else:
+            statuses = ["Complete"]
+        p("statuses:", statuses, "use_status_filter:", use_status_filter)
+
+        # ---------- extra filters ----------
+        wid = (request.GET.get("warehouse_id") or "").strip()
+        rid = (request.GET.get("route_id") or "").strip()
+        p("extra filters:", {"warehouse_id": wid or None, "route_id": rid or None})
+
+        # read available header fields once
+        m_fields = {f.name for f in Merchandising._meta.get_fields()}
+
+        # ---------- base queryset (items) ----------
+        base_qs = MerchandisingItem.objects.filter(
+            merchandising__date_time__gte=start_dt,
+            merchandising__date_time__lt=end_dt,
+        )
+        if use_status_filter:
+            base_qs = base_qs.filter(merchandising__status__in=statuses)
+
+        # warehouse filter (items): header → van → product fallback
+        if wid:
+            if "warehouse" in m_fields:
+                base_qs = base_qs.filter(merchandising__warehouse_id=wid)
+                p("warehouse filter (items): merchandising__warehouse_id")
+            elif "van" in m_fields:
+                base_qs = base_qs.filter(merchandising__van__warehouse_id=wid)
+                p("warehouse filter (items): merchandising__van__warehouse_id")
+            else:
+                base_qs = base_qs.filter(product__warehouse_id=wid)  # Product has warehouse FK
+                p("warehouse filter (items): product__warehouse_id (fallback)")
+
+        # route filter (items) if route exists on header
+        if rid:
+            if "route" in m_fields:
+                base_qs = base_qs.filter(merchandising__route_id=rid)
+                p("route filter (items): merchandising__route_id")
+            else:
+                p("route filter (items): skipped (no route field on Merchandising)")
+
+        base_count = base_qs.count()
+        p("matched_items:", base_count)
+
+        if debug and base_count == 0:
+            mm = Merchandising.objects.aggregate(min_dt=Min("date_time"), max_dt=Max("date_time"))
+            p("merchandising date_time range:", mm)
+            overall_statuses = list(Merchandising.objects.values("status").annotate(c=Count("id")).order_by("status"))
+            p("overall status counts:", overall_statuses)
+            inrange_statuses = list(
+                Merchandising.objects.filter(date_time__gte=start_dt, date_time__lt=end_dt)
+                .values("status").annotate(c=Count("id")).order_by("status")
+            )
+            p("in-range status counts:", inrange_statuses)
+
+        # ---------- annotate math (Decimal-safe) ----------
+        # Revenue pieces
+        qs = base_qs.annotate(
+            # selling price snapshot on line (FloatField) → cast to Decimal
+            price=Cast(Coalesce(F("selling_price"), Value(0.0)), DEC_AMOUNT),
+
+            sold=Cast(Coalesce(F("sold_pcs"), Value(0)), DEC_AMOUNT),
+
+            line_gross=ExpressionWrapper(F("sold") * F("price"), output_field=DEC_AMOUNT),
+
+            # normalize discount_percent to 0..1 (supports 10 or 0.10 storage)
+            pct_raw=Coalesce(Cast(F("discount_percent"), DEC_RATE), ZRATE),
+            pct_norm=Case(
+                When(pct_raw__gt=ONE_RATE, then=ExpressionWrapper(F("pct_raw") / HUNDRED, output_field=DEC_RATE)),
+                default=F("pct_raw"),
+                output_field=DEC_RATE,
+            ),
+
+            # prefer stored actual_sale; else compute from percent
+            line_net_calc=ExpressionWrapper(F("line_gross") * (ONE_RATE - F("pct_norm")), output_field=DEC_AMOUNT),
+            line_net_safe=Coalesce(F("actual_sale"), F("line_net_calc")),
+
+            # ---------- COGS: lock to Product.price.purchase_price ----------
+            # Pricing.purchase_price is FloatField → cast to Decimal
+            unit_cost=Cast(Coalesce(F("product__price__purchase_price"), Value(0.0)), DEC_AMOUNT),
+            line_cogs=ExpressionWrapper(F("sold") * F("unit_cost"), output_field=DEC_AMOUNT),
+        )
+
+        sums = qs.aggregate(
+            gross=Coalesce(Sum("line_gross"), ZAMT),
+            net_from_lines=Coalesce(Sum("line_net_safe"), ZAMT),
+            cogs=Coalesce(Sum("line_cogs"), ZAMT),
+        )
+        gross = sums["gross"]
+        net_from_lines = sums["net_from_lines"]
+        cogs = sums["cogs"]
+        p("aggregates: gross=", gross, "net_from_lines=", net_from_lines, "cogs=", cogs)
+
+        # ---------- header-level (transaction) discounts ----------
+        hdr_qs = Merchandising.objects.filter(
+            date_time__gte=start_dt,
+            date_time__lt=end_dt,
+        )
+        if use_status_filter:
+            hdr_qs = hdr_qs.filter(status__in=statuses)
+
+        if wid:
+            if "warehouse" in m_fields:
+                hdr_qs = hdr_qs.filter(warehouse_id=wid)
+                p("warehouse filter (header): warehouse_id")
+            elif "van" in m_fields:
+                hdr_qs = hdr_qs.filter(van__warehouse_id=wid)
+                p("warehouse filter (header): van__warehouse_id")
+            else:
+                p("warehouse filter (header): skipped (no warehouse on header)")
+
+        if rid:
+            if "route" in m_fields:
+                hdr_qs = hdr_qs.filter(route_id=rid)
+                p("route filter (header): route_id")
+            else:
+                p("route filter (header): skipped (no route on header)")
+
+        used_header_field = None
+        txn_discount_total = Decimal("0.00")
+        for field in ("discount_amount", "discount"):
+            try:
+                val = hdr_qs.aggregate(total=Coalesce(Sum(field), ZAMT))["total"]
+                txn_discount_total = val or Decimal("0.00")
+                used_header_field = field
+                break
+            except FieldError:
+                continue
+        p("header_discount:", used_header_field or "None", "=", txn_discount_total)
+
+        # ---------- totals ----------
+        line_discounts = gross - net_from_lines
+        if line_discounts < Decimal("0.00"):
+            p("line_discounts negative -> clamped:", line_discounts)
+            line_discounts = Decimal("0.00")
+
+        total_discounts = line_discounts + txn_discount_total
+        net_revenue = gross - total_discounts
+
+        
+
+        # ---------- Operating Expenses: sum from Miscellaneous (or MiscExpense) ----------
+        expenses = hdr_qs.aggregate(
+            total=Coalesce(Sum(Cast(DJF("miscellaneous"), DEC_AMOUNT)), ZAMT)
+        )["total"] or Decimal("0.00")
+        p("expenses via Merchandising.miscellaneous:", expenses)
+
+        # ---------- Return Rate (macro-average per product) ----------
+        # Shell-based macro average: average of (actual_return_shell / dispatched_shell) across products (items)
+        shell_qs = base_qs.filter(dispatched_shell__gt=0)
+        shell_avg = shell_qs.aggregate(
+            avg=Coalesce(
+                Avg(
+                    ExpressionWrapper(
+                        Cast(DJF("empty_return_shell"), DEC_RATE) / Cast(DJF("dispatched_shell"), DEC_RATE),
+                        output_field=DEC_RATE,
+                    )
+                ),
+                ZRATE,
+            )
+        )["avg"] or Decimal("0.0")
+
+        # Piece-based macro average (optional / diagnostic)
+        pcs_qs = base_qs.filter(dispatched_pcs__gt=0)
+        pcs_avg = pcs_qs.aggregate(
+            avg=Coalesce(
+                Avg(
+                    ExpressionWrapper(
+                        Cast(DJF("empty_return_pcs"), DEC_RATE) / Cast(DJF("dispatched_pcs"), DEC_RATE),
+                        output_field=DEC_RATE,
+                    )
+                ),
+                ZRATE,
+            )
+        )["avg"] or Decimal("0.0")
+
+        # Simple combined average (optional): mean of the two macro-averages
+        combined_avg = (shell_avg + pcs_avg) / Decimal("2") if (shell_qs.exists() and pcs_qs.exists()) else shell_avg
+
+        # For your requirement: returned_rate = shell macro-average
+        returned_rate = shell_avg
+
+        p(
+            "return-rate macro avg:",
+            "shell_avg=", shell_avg, "pcs_avg=", pcs_avg, "combined_avg=", combined_avg,
+            "using returned_rate=", returned_rate,
+        )
+        # ---------- Net Profit ----------
+        net_profit = net_revenue - cogs - expenses
+        p("final: net_revenue=", net_revenue, "cogs=", cogs, "expenses=", expenses, "net_profit=", net_profit)
+
+        # ---------- payload ----------
+        payload = {
+            "gross_revenue": f"{gross:.2f}",
+            "discounts":     f"{total_discounts:.2f}",
+            "net_revenue":   f"{net_revenue:.2f}",
+            "cogs":          f"{cogs:.2f}",
+            "expenses":      f"{expenses:.2f}",   # <-- here
+            "net_profit":    f"{net_profit:.2f}", # <-- and here
+            "return_rate": f"{returned_rate:.6f}",       # 👈 this is (Σ shell ratios) / N
+            "return_rate_shell_avg": f"{shell_avg:.6f}", # optional
+            "return_rate_pcs_avg": f"{pcs_avg:.6f}",     # optional
+            "return_rate_combined_avg": f"{combined_avg:.6f}",  # optional
+        }
+        if debug:
+            payload["debug"] = {
+                "matched_items": base_count,
+                "line_discounts": f"{line_discounts:.2f}",
+                "net_from_lines": f"{net_from_lines:.2f}",
+                "statuses_applied": (statuses if use_status_filter else "ANY"),
+                "warehouse_id": wid or None,
+                "route_id": rid or None,
+                "header_discount_field": used_header_field,
+            }
         return Response(payload)
