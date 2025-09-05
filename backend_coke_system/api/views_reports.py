@@ -18,8 +18,9 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 
 from django.core.exceptions import FieldError
-from .models import Merchandising, MerchandisingItem, MiscellaneousItem
+from .models import Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock
 from django.db.models import Min, Max, Count
+from rest_framework import status
 
 # ---------- helpers for numeric types ----------
 DECIMAL = DecimalField(max_digits=14, decimal_places=2)
@@ -493,3 +494,31 @@ class RevenueSummaryView(APIView):
                 "header_discount_field": used_header_field,
             }
         return Response(payload)
+    
+class SalesAndReturnables(APIView):
+    
+    def get(self, request, *args, **kwargs):
+        # Optionally, filter the data based on some parameters, e.g., date, customer
+        # For now, let's assume you want to fetch all Merchandising data.
+        
+        # Fetch the sales and return data
+        merchandising_data = Merchandising.objects.all()
+
+        # Calculate expected sale, actual sale, difference
+        total_expected_sale = merchandising_data.aggregate(Sum('expected_sale'))['expected_sale__sum'] or 0
+        total_actual_sale = merchandising_data.aggregate(Sum('actual_sale'))['actual_sale__sum'] or 0
+        total_difference = total_actual_sale - total_expected_sale
+
+        # Fetch the total supplier returnables
+        total_supplier_returnables_bottle = ReturnableStock.objects.aggregate(Sum('empty_bottle_qty'))['empty_bottle_qty__sum'] or 0
+        total_supplier_returnables_shell = ReturnableStock.objects.aggregate(Sum('empty_shell_qty'))['empty_shell_qty__sum'] or 0
+        # Prepare the response data
+        retanddisc = {
+            "expected_sale": total_expected_sale,
+            "actual_sale": total_actual_sale,
+            "difference": total_difference,
+            "supplier_returnables_bottle": total_supplier_returnables_bottle,
+            "supplier_returnables_shell": total_supplier_returnables_shell
+        }
+        
+        return Response(retanddisc, status=status.HTTP_200_OK)

@@ -207,6 +207,19 @@ export default function SalesReport() {
         }
          // kath
 
+        let retanddisc = { expected_sale: 0, actual_sale: 0, difference: 0, supplier_returnables: 0 };
+
+        try {
+          const retRes = await axios.get(`${API}/reports/returns-and-discrepancies/`, {
+            headers,
+            params: retanddisc,
+            timeout: 15000,
+          });
+          retanddisc = retRes.data || retanddisc;
+          console.log("[SalesReport] returns-and-discrepancies params:", retanddisc);
+        } catch (e) {
+          console.warn("[SalesReport] returns-and-discrepancies failed:", e?.message);
+        }
 
         // if (!ok) return;
         // const r = res.data || {};
@@ -275,10 +288,11 @@ export default function SalesReport() {
             ? r.by_warehouse.map((x) => ({ name: x.warehouse ?? x.name, revenue: n(x.revenue) }))
             : [],
           returns_block: {
-            expected_sale: n(r?.returns?.expected_sale),
-            actual_sale: n(r?.returns?.actual_sale),
-            difference: n(r?.returns?.difference),
-            supplier_returnables: n(r?.returns?.supplier_returnables),
+            expected_sale: n(retanddisc?.expected_sale),
+            actual_sale: n(retanddisc?.actual_sale),
+            difference: n(retanddisc?.difference),
+            supplier_returnables_bottle: n(retanddisc?.supplier_returnables_bottle),
+            supplier_returnables_shell: n(retanddisc?.supplier_returnables_shell),
           },
           misc_expenses: Array.isArray(r?.misc_expenses)
             ? r.misc_expenses.map((m) => ({
@@ -450,12 +464,11 @@ export default function SalesReport() {
             <Metric label="Expected Sales" value={peso(data.returns_block.expected_sale)} />
             <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
             <Metric
-              label="Difference"
-              value={`${data.returns_block.difference >= 0 ? "+" : ""}${peso(
-                data.returns_block.difference
-              )}`}
-            />
-            <Metric label="Supplier Returnables" value={peso(data.returns_block.supplier_returnables)} />
+                label="Difference"
+                value={peso(data.returns_block.difference)}
+              />
+            <Metric label="Supplier Returnables (Bottle)" value={peso(data.returns_block.supplier_returnables_bottle)} />
+            <Metric label="Supplier Returnables (Shell)" value={(data.returns_block.supplier_returnables_shell)} />
           </div>
           <div className="mt-3">
             <button className="btn btn-back text-xs px-3 py-2">View items</button>
