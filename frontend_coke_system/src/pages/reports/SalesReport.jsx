@@ -1,197 +1,387 @@
-// src/pages/SalesReport.jsx
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
-import ReportFilters from "../../components/reports/ReportFilters";
-import SalesSummary from "../../components/reports/SalesSummary";
+import axios from "axios";
 
-const API_BASE = "http://127.0.0.1:8080"; // backend base
+// ✅ FIXED PATHS (go up two levels)
+import Card from "../../components/common/Card";
+import Metric from "../../components/common/Metric";
+import ProductBreakdownTable from "../../components/tables/ProductBreakdownTable";
+import SalesByRoutePie from "../../components/charts/SalesByRoutePie";
+import SalesByWarehouseBar from "../../components/charts/SalesByWarehouseBar";
+import Empty from "../../components/common/Empty";
+import { n, peso, pct } from "../../utils/formatters";
 
-/* ---------------- helpers ---------------- */
-const startOfDayISO = (d = new Date()) => {
-  const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x.toISOString();
+// CRA/Webpack safe: use REACT_APP_ prefix
+const API = process.env.REACT_APP_API_URL || "http://localhost:8080/api";
+
+const toCSV = (rows, headers) => {
+  const head = headers.map((h) => `"${h.label}"`).join(",");
+  const body = rows
+    .map((r) =>
+      headers
+        .map((h) => `"${(r[h.key] ?? "").toString().replaceAll('"', '""')}"`)
+        .join(",")
+    )
+    .join("\n");
+  return `${head}\n${body}`;
 };
-const endOfNowISO = () => new Date().toISOString();
 
-const rangeFromLabel = (label) => {
-  const now = new Date();
-  const end = endOfNowISO();
-
-  switch ((label || "").toLowerCase()) {
-    case "today": {
-      return { from: startOfDayISO(now), to: end };
-    }
-    case "yesterday": {
-      const y = new Date(now);
-      y.setDate(y.getDate() - 1);
-      const to = new Date(y);
-      to.setHours(23, 59, 59, 999);
-      return { from: startOfDayISO(y), to: to.toISOString() };
-    }
-    case "this week": {
-      const w = new Date(now);
-      const day = w.getDay();
-      const diffToMon = (day + 6) % 7;
-      w.setDate(w.getDate() - diffToMon);
-      return { from: startOfDayISO(w), to: end };
-    }
-    case "this month": {
-      const m = new Date(now.getFullYear(), now.getMonth(), 1);
-      return { from: startOfDayISO(m), to: end };
-    }
-    default:
-      return { from: startOfDayISO(now), to: end };
-  }
+const saveFile = (filename, content, mime = "text/csv;charset=utf-8;") => {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
 };
-/* ----------------------------------------- */
 
-const POLL_MS = 8000; // refresh every 8s
+export default function SalesReport() {
+  const [warehouses, setWarehouses] = useState([]);
+  const [routes, setRoutes] = useState([]);
 
-const SalesReport = () => {
-  // ---- Filters ----
-  const [dateRange, setDateRange] = useState("Today");
-  const [warehouse, setWarehouse] = useState("Both Warehouses");
-  const [reportType, setReportType] = useState("Sales Summary");
-
-  // ---- Data ----
-  const [loading, setLoading] = useState(false);
-  const [metrics, setMetrics] = useState({
-    totalRevenue: 0,
-    productsSold: 0,
-    supplierReturns: 0,
-    netProfit: 0,
+  const [filters, setFilters] = useState({
+    warehouse: "all",
+    route: "all",
+    period: "this_week",
+    start: null,
+    end: null,
   });
-  const [recommendations, setRecommendations] = useState([]);
-  const [rows, setRows] = useState([]);
-  const [topSelling, setTopSelling] = useState([]); // ⬅️ NEW
 
-  // Detect print layout from route or query (?print=1)
-  const { pathname, search } = useLocation();
-  const isPrintLayout =
-    pathname.includes("/print") || new URLSearchParams(search).get("print") === "1";
+  const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState("");
+  const [data, setData] = useState({
+    summary: { total_revenue: 0, net_profit: 0, discounts: 0, return_rate: 0 },
+    product_breakdown: [],
+    sales_by_route: [],
+    sales_by_warehouse: [],
+    returns_block: { expected_sale: 0, actual_sale: 0, difference: 0, supplier_returnables: 0 },
+    misc_expenses: [],
+  });
 
+  const [q, setQ] = useState("");
+  const [sortKey, setSortKey] = useState("revenue");
+  const printRef = useRef(null);
+
+  /* Filters bootstrap */
   useEffect(() => {
-    document.body.classList.add("sales-report-print");
-    return () => document.body.classList.remove("sales-report-print");
+    let ok = true;
+    (async () => {
+      try {
+        const [wh, rt] = await Promise.allSettled([
+          axios.get(`${API}/warehouses/`),
+          axios.get(`${API}/routes/`),
+        ]);
+        if (!ok) return;
+        setWarehouses(wh.status === "fulfilled" ? wh.value.data : []);
+        setRoutes(rt.status === "fulfilled" ? rt.value.data : []);
+      } catch {}
+    })();
+    return () => (ok = false);
   }, []);
 
-  // compute ISO range whenever label changes
-  const { from, to } = useMemo(() => rangeFromLabel(dateRange), [dateRange]);
-
-  // polling machinery
-  const timerRef = useRef(null);
-
-  const fetchData = async () => {
-    if (document.hidden) return;
-    setLoading(true);
-
-    try {
-      // ---- Metrics Summary ----
-      const params = new URLSearchParams();
-      if (from) params.set("from", from);
-      if (to) params.set("to", to);
-      if ((warehouse || "").toLowerCase() !== "both warehouses") {
-        params.set("warehouse", warehouse);
-      }
-      params.set("type", reportType);
-
-      const resp = await fetch(`${API_BASE}/api/sales-report/?${params}`);
-      const data = await resp.json();
-
-      const m = data?.metrics ?? {};
-      setMetrics({
-        totalRevenue: m.total_revenue ?? 0,
-        productsSold: m.products_sold ?? 0,
-        supplierReturns: m.supplier_returns_units ?? 0,
-        netProfit: m.net_profit ?? 0,
-      });
-      setRecommendations(Array.isArray(data?.recommendations) ? data.recommendations : []);
-      setRows(Array.isArray(data?.rows) ? data.rows : []);
-
-      // ---- Top Products ----
-      const tpParams = new URLSearchParams(params); // reuse same filters
-      tpParams.set("limit", "8");
-      const resTop = await fetch(`${API_BASE}/api/top-products/?${tpParams}`);
-      const dataTop = await resTop.json();
-      setTopSelling(Array.isArray(dataTop?.items) ? dataTop.items : []);
-    } catch (err) {
-      console.error("sales-report fetch error:", err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // initial fetch + polling loop; restart whenever filters change
+  /* Fetch report */
   useEffect(() => {
-    fetchData();
-    timerRef.current = setInterval(fetchData, POLL_MS);
+    let ok = true;
+    (async () => {
+      setLoading(true);
+      setErr("");
+      try {
+        const params = new URLSearchParams();
+        if (filters.warehouse !== "all") params.set("warehouse_id", filters.warehouse);
+        if (filters.route !== "all") params.set("route_id", filters.route);
+        params.set("period", filters.period);
+        if (filters.period === "custom") {
+          if (filters.start) params.set("start", filters.start);
+          if (filters.end) params.set("end", filters.end);
+        }
 
-    const onVis = () => {
-      if (!document.hidden) fetchData();
-    };
-    document.addEventListener("visibilitychange", onVis);
+        // 🔐 headers (only add Authorization if token exists)
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
 
-    return () => {
-      clearInterval(timerRef.current);
-      document.removeEventListener("visibilitychange", onVis);
-    };
-  }, [from, to, warehouse, reportType]);
+        // 🌐 Try common endpoints (first one that succeeds wins)
+        const endpoints = [
+          `${API}/reports/sales/?${params.toString()}`,  // recommended new endpoint
+          `${API}/sales_report/?${params.toString()}`,   // legacy alias, if added
+        ];
 
-  const filters = useMemo(
-    () => ({ dateRange, warehouse, reportType, fromISO: from, toISO: to }),
-    [dateRange, warehouse, reportType, from, to]
-  );
+        let res;
+        let lastErr;
+        for (const url of endpoints) {
+          try {
+            console.log("[SalesReport] GET:", url);
+            res = await axios.get(url, { headers, timeout: 15000 });
+            break; // success
+          } catch (e) {
+            lastErr = e;
+            console.warn("[SalesReport] failed:", url, e?.message);
+          }
+        }
+        if (!res) {
+          const status = lastErr?.response?.status;
+          const detail =
+            lastErr?.response?.data?.detail ||
+            lastErr?.response?.data?.message ||
+            lastErr?.message ||
+            "Network error";
+          throw new Error(status ? `HTTP ${status}: ${detail}` : `Network/CORS: ${detail}`);
+        }
+
+        if (!ok) return;
+        const r = res.data || {};
+        setData({
+          summary: {
+            total_revenue: n(r?.summary?.total_revenue),
+            net_profit: n(r?.summary?.net_profit),
+            discounts: n(r?.summary?.discounts),
+            return_rate: n(r?.summary?.return_rate),
+          },
+          product_breakdown: Array.isArray(r?.products)
+            ? r.products.map((p) => ({
+                product: p.product_name ?? p.product ?? "—",
+                qty: n(p.qty_sold),
+                revenue: n(p.revenue),
+                profit: n(p.profit),
+                discount_rate: n(p.discount_rate),
+                return_rate: n(p.return_rate),
+              }))
+            : [],
+          sales_by_route: Array.isArray(r?.by_route)
+            ? r.by_route.map((x) => ({ name: x.route ?? x.name, revenue: n(x.revenue) }))
+            : [],
+          sales_by_warehouse: Array.isArray(r?.by_warehouse)
+            ? r.by_warehouse.map((x) => ({ name: x.warehouse ?? x.name, revenue: n(x.revenue) }))
+            : [],
+          returns_block: {
+            expected_sale: n(r?.returns?.expected_sale),
+            actual_sale: n(r?.returns?.actual_sale),
+            difference: n(r?.returns?.difference),
+            supplier_returnables: n(r?.returns?.supplier_returnables),
+          },
+          misc_expenses: Array.isArray(r?.misc_expenses)
+            ? r.misc_expenses.map((m) => ({
+                description: m.description ?? "—",
+                notes: m.notes ?? "",
+                amount: n(m.amount),
+                date: m.date ?? "",
+              }))
+            : [],
+        });
+      } catch (e) {
+        setErr(`Request failed: ${e.message}`);
+        setData((d) => ({
+          ...d,
+          product_breakdown: [],
+          sales_by_route: [],
+          sales_by_warehouse: [],
+          misc_expenses: [],
+        }));
+      } finally {
+        ok && setLoading(false);
+      }
+    })();
+    return () => (ok = false);
+  }, [filters]);
+
+  /* Derived rows */
+  const filteredRows = useMemo(() => {
+    const s = (q || "").toLowerCase().trim();
+    const rows = data.product_breakdown.filter((r) =>
+      s ? (r.product || "").toLowerCase().includes(s) : true
+    );
+    return [...rows].sort((a, b) => n(b[sortKey]) - n(a[sortKey]));
+  }, [q, data.product_breakdown, sortKey]);
+
+  const productHeaders = [
+    { key: "product", label: "Product" },
+    { key: "qty", label: "Qty Sold" },
+    { key: "revenue", label: "Revenue" },
+    { key: "profit", label: "Profit" },
+    { key: "discount_rate", label: "Discount %" },
+    { key: "return_rate", label: "Return Rate" },
+  ];
+
+  const exportCSV = () => {
+    const csv = toCSV(filteredRows, productHeaders);
+    saveFile("sales_report_products.csv", csv);
+  };
+  const exportExcel = () => {
+    const csv = toCSV(filteredRows, productHeaders);
+    saveFile("sales_report.xls", csv, "application/vnd.ms-excel");
+  };
+  const exportPDF = () => window.print();
 
   return (
-    <div className="sales-report-page compact">
-      {/* Header */}
-      <div className="page-header mb-3 flex items-start justify-between">
+    <div className="px-4 sm:px-6 lg:px-8 py-6" ref={printRef}>
+      {/* Header + filters */}
+      <div className="flex items-center justify-between mb-3">
         <div>
-          <h1 className="text-2xl font-semibold text-gray-900 flex items-center gap-2 mb-1">
-            <span role="img" aria-label="chart">📊</span> Sales Report
-          </h1>
-          <p className="text-gray-500 text-sm mt-0.5">Detailed sales analysis and reporting.</p>
+          <h1 className="text-xl font-semibold text-slate-800">Sales Report</h1>
+          <p className="text-xs text-slate-500">Data-driven deep dive • avoids duplication with Dashboard</p>
         </div>
 
-        {/* ACTIONS (hidden on print layout) */}
-        {!isPrintLayout && (
-          <div className="sr-actions flex items-center gap-2">
-            <button
-              onClick={() => window.print()}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm text-gray-700 bg-white hover:bg-gray-50 shadow-sm"
-            >
-              🖨️ <span>Print</span>
-            </button>
-            <button
-              onClick={() => alert("Exporting…")}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-white bg-gray-900 hover:bg-gray-800 shadow-sm"
-            >
-              ⬇️ <span>Export</span>
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 print:hidden">
+          <select
+            className="border rounded-md px-3 py-2 text-sm"
+            value={filters.warehouse}
+            onChange={(e) => setFilters((f) => ({ ...f, warehouse: e.target.value }))}
+          >
+            <option value="all">All Warehouses</option>
+            {warehouses.map((w) => (
+              <option key={w.id} value={w.id}>
+                {w.name || w.warehouse_name || `#${w.id}`}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="border rounded-md px-3 py-2 text-sm"
+            value={filters.route}
+            onChange={(e) => setFilters((f) => ({ ...f, route: e.target.value }))}
+          >
+            <option value="all">All Routes</option>
+            {routes.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.name || r.route_name || `#${r.id}`}
+              </option>
+            ))}
+          </select>
+
+          <select
+            className="border rounded-md px-3 py-2 text-sm"
+            value={filters.period}
+            onChange={(e) => setFilters((f) => ({ ...f, period: e.target.value }))}
+          >
+            <option value="this_week">This Week</option>
+            <option value="this_month">This Month</option>
+            <option value="custom">Custom Range</option>
+          </select>
+
+          {filters.period === "custom" && (
+            <>
+              <input
+                type="date"
+                className="border rounded-md px-3 py-2 text-sm"
+                value={filters.start || ""}
+                onChange={(e) => setFilters((f) => ({ ...f, start: e.target.value }))}
+              />
+              <input
+                type="date"
+                className="border rounded-md px-3 py-2 text-sm"
+                value={filters.end || ""}
+                onChange={(e) => setFilters((f) => ({ ...f, end: e.target.value }))}
+              />
+            </>
+          )}
+
+          <button onClick={exportPDF} className="btn btn-primary text-sm px-3 py-2">
+            Export PDF
+          </button>
+          <button onClick={exportExcel} className="btn btn-back text-sm px-3 py-2">
+            Export Excel
+          </button>
+        </div>
       </div>
 
-      {/* Filters */}
-      <ReportFilters
-        dateRange={dateRange} setDateRange={setDateRange}
-        warehouse={warehouse} setWarehouse={setWarehouse}
-        reportType={reportType} setReportType={setReportType}
-      />
+      {err && (
+        <div className="bg-rose-50 text-rose-700 border border-rose-200 rounded-md px-4 py-2 mb-4">
+          {err}
+        </div>
+      )}
 
-      {/* Summary */}
-      <SalesSummary
-        loading={loading}
-        metrics={metrics}
-        recommendations={recommendations}
-        rows={rows}
-        filters={filters}
-      />
+      {/* Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
+        <Metric label="Total Revenue" value={peso(data.summary.total_revenue)} />
+        <Metric label="Net Profit" value={peso(data.summary.net_profit)} />
+        <Metric label="Discounts" value={peso(data.summary.discounts)} />
+        <Metric label="Return Rate" value={pct(data.summary.return_rate)} />
+      </div>
 
-      
+      {/* Product + charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <Card title="Product Breakdown" className="lg:col-span-1">
+          <ProductBreakdownTable
+            loading={loading}
+            rows={filteredRows}
+            query={q}
+            sortKey={sortKey}
+            onQuery={setQ}
+            onSort={setSortKey}
+            onExportCSV={exportCSV}
+          />
+        </Card>
+
+        <div className="grid grid-rows-2 gap-4">
+          <Card title="Sales by Route">
+            <SalesByRoutePie data={data.sales_by_route} />
+          </Card>
+          <Card title="Sales by Warehouse">
+            <SalesByWarehouseBar data={data.sales_by_warehouse} />
+          </Card>
+        </div>
+      </div>
+
+      {/* Bottom */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card title="Returns & Discrepancies">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <Metric label="Expected Sales" value={peso(data.returns_block.expected_sale)} />
+            <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
+            <Metric
+              label="Difference"
+              value={`${data.returns_block.difference >= 0 ? "+" : ""}${peso(
+                data.returns_block.difference
+              )}`}
+            />
+            <Metric label="Supplier Returnables" value={peso(data.returns_block.supplier_returnables)} />
+          </div>
+          <div className="mt-3">
+            <button className="btn btn-back text-xs px-3 py-2">View items</button>
+          </div>
+        </Card>
+
+        <Card title="Miscellaneous & Expenses">
+          <div className="overflow-auto rounded-lg border border-slate-200">
+            <table className="min-w-full text-sm">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="text-left font-semibold px-3 py-2 border-b">Description</th>
+                  <th className="text-left font-semibold px-3 py-2 border-b">Notes</th>
+                  <th className="text-left font-semibold px-3 py-2 border-b">Amount</th>
+                  <th className="text-left font-semibold px-3 py-2 border-b">Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-8">
+                      <Empty text="Loading…" />
+                    </td>
+                  </tr>
+                ) : data.misc_expenses.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="px-3 py-8">
+                      <Empty text="No expenses for the selected filters." />
+                    </td>
+                  </tr>
+                ) : (
+                  data.misc_expenses.map((m, i) => (
+                    <tr key={i} className="odd:bg-white even:bg-slate-50/50">
+                      <td className="px-3 py-2 border-b">{m.description}</td>
+                      <td className="px-3 py-2 border-b">{m.notes}</td>
+                      <td className="px-3 py-2 border-b">{peso(m.amount)}</td>
+                      <td className="px-3 py-2 border-b">{m.date}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </div>
     </div>
   );
-};
-
-export default SalesReport;
+}
