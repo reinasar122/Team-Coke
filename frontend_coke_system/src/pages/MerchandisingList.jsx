@@ -248,11 +248,11 @@ const MerchandisingList = () => {
   };
 
   return (
-    <div className="page p-3 min-h-screen">
+    <div className="trading-container">
 
 
       <div className="w-full">
-        <div className="table-wrapper">
+       
           
          <div className="flex items-center justify-between m-4">
             <h1 className="text-2xl flex items-center gap-2">
@@ -267,7 +267,7 @@ const MerchandisingList = () => {
             </button>
           </div>
 
-         
+          <div className="table-wrapper">
           <table className="table table-hover ">
             <thead>
               <tr>

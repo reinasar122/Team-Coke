@@ -263,7 +263,7 @@ const ReceivingList = () => {
   }
 
   return (
-    <div className="page">
+    <div className="receiving-container">
       {/* Header */}
       <div className="page-header">
         <div className="warehouse-chip">

@@ -90,14 +90,14 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
           <div className="flex justify-end gap-2 mt-6">
             <button
               type="button"
-              className="bg-gray-400 text-white px-4 py-2 rounded"
+              className="btn btn-cancel"
               onClick={onClose}
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600"
+              className="btn btn-primary"
             >
               Save
             </button>

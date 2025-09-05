@@ -104,7 +104,7 @@ const VanList = () => {
         <p class="text mb-4">${message}</p>
         <div class="flex justify-end space-x-3">
           <button class="cancel-btn px-4 py-2 text">Cancel</button>
-          <button class="confirm-btn px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded">Confirm</button>
+          <button class="confirm-btn px-4 py-2 text-white">Delete</button>
         </div>
       </div>
     `;
@@ -147,7 +147,7 @@ const VanList = () => {
   );
 
   return (
-    <div className="page">
+    <div className="vanlist-container">
       {/* Header with Search + Add Van */}
       <div className="flex justify-between items-center mb-6">
         {/* Search Bar */}
@@ -175,8 +175,8 @@ const VanList = () => {
       </div>
 
       {/* Vans Table */}
-      <div className="table table-wrapper">
-        <table className="table">
+      <div className=" table-wrapper">
+        <table className="table-van">
           <thead>
             <tr>
               <th className="px-4 py-3 w-1/4">Van ID</th>

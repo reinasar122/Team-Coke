@@ -90,14 +90,21 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
   const hiddenRoutes = ["/change-password", "/forgot-password", "/verify-otp", "/login"];
   const hideLayout = hiddenRoutes.includes(location.pathname);
 
+  // Pages where we want to HIDE the universal scrollbar
+  const lockPrefixes = ["/vans", "/suppliers", "/trading"];
+  const path = location.pathname.toLowerCase();
+  const lockScroll = lockPrefixes.some(p => path === p || path.startsWith(p + "/"));
+
   return (
     <div className="flex flex-col h-screen">
       {!hideLayout && <Header toggleSidebar={toggleSidebar} />}
       <div className="flex flex-1">
         {!hideLayout && <Sidebar isSidebarOpen={isSidebarOpen} />}
+
+        {/* 👇 app-content + conditional lock */}
         <div
-          className={`p-5 flex-1 transition-all duration-300 ${
-            !hideLayout && isSidebarOpen ? "ml-64 mt-16" : "ml-0"
+          className={`app-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${
+            !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
           }`}
         >
           {/* Page Titles */}

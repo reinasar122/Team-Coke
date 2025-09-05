@@ -86,26 +86,26 @@ const Suppliers = () => {
             <table className="table">
               <thead>
                 <tr>
-                  <th className="border p-2">Registration Number</th>
-                  <th className="border p-2">Company</th>
-                  <th className="border p-2">Contact Person</th>
-                  <th className="border p-2">Contact Number</th>
-                  <th className="border p-2">Address</th>
-                  <th className="border p-2">Actions</th>
+                  <th>Registration Number</th>
+                  <th>Company</th>
+                  <th>Contact Person</th>
+                  <th>Contact Number</th>
+                  <th>Address</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody className="text-center">
                 {suppliers.map((supplier) => (
                   <tr key={supplier.id} className="border">
-                    <td className="border p-2">{supplier.registration_number}</td>
-                    <td className="border p-2">{supplier.company_name}</td>
-                    <td className="border p-2">{supplier.contact_person}</td>
-                    <td className="border p-2">{supplier.phone_number}</td>
-                    <td className="border p-2">
+                    <td>{supplier.registration_number}</td>
+                    <td>{supplier.company_name}</td>
+                    <td>{supplier.contact_person}</td>
+                    <td>{supplier.phone_number}</td>
+                    <td>
                       {/* Full formatted address */}
                       {formatAddress(supplier)}
                     </td>
-                    <td className="border p-2">
+                    <td >
                       <div className="flex justify-center gap-3">
                         <FaEdit
                           className="icon-btn-edit"
