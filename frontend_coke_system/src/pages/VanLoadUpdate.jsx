@@ -599,6 +599,13 @@ const VanLoadUpdate = () => {
         }));
       const miscTotal = misc.reduce((s, i) => s + i.amount, 0);
 
+      // keep this just above the PATCH
+      const totalActualSale = rows.reduce(
+        (s, r) => s + (parseFloat(r.actual_sale || 0)),
+        0
+      );
+
+
       const payload = {
         sale_id: saleId,
         total_expected_sale: totalExpectedSale,
@@ -659,6 +666,7 @@ const VanLoadUpdate = () => {
         {
           status: 'Complete',
           miscellaneous: miscTotal, // numeric only is safe
+          actual_sale: Number(totalActualSale.toFixed(2)),
         }
       );
     } catch (err) {
