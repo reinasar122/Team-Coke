@@ -57,12 +57,20 @@ class SalesReportAPIView(APIView):
         if route_id and route_id != "all":
             hdr_q &= Q(route_id=route_id)
 
-        sales_hdr = Merchandising.objects.filter(hdr_q)
+        sales_hdr = (
+            Merchandising.objects
+            .select_related("warehouse", "route")
+            .filter(hdr_q)
+        )
 
         # ------------------------------------
         # Product breakdown (via line items)
         # ------------------------------------
-        items = MerchandisingItem.objects.filter(merchandising__in=sales_hdr)
+        items = (
+            MerchandisingItem.objects
+            .select_related("merchandising__warehouse", "merchandising__route", "product")
+            .filter(merchandising__in=sales_hdr)
+        )
 
         # gross = sold_pcs * selling_price  (Decimal)
         gross_expr = ExpressionWrapper(
@@ -151,15 +159,15 @@ class SalesReportAPIView(APIView):
         ]
 
         # ------------------------------------
-        # Sales by Warehouse (use warehouse_name)
+        # Sales by Warehouse (use warehouse name)
         # ------------------------------------
         by_wh_qs = (
-            items.values("merchandising__warehouse__warehouse_name")
+            items.values("merchandising__warehouse__name")  # <-- fixed here
             .annotate(revenue=Coalesce(Sum(revenue_line_expr), DEC0))
             .order_by("-revenue")
         )
         by_warehouse = [
-            {"name": r["merchandising__warehouse__warehouse_name"] or "—", "revenue": float(r["revenue"])}
+            {"name": r["merchandising__warehouse__name"] or "—", "revenue": float(r["revenue"])}
             for r in by_wh_qs
         ]
 
