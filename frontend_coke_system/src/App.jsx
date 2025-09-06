@@ -300,6 +300,20 @@ function App() {
 
   return (
     <Router>
+
+          {/* Toast container at the root */}
+      <ToastContainer 
+          position="top-center"
+          autoClose={2000}
+          hideProgressBar={true}
+          closeOnClick
+          closeButton={false}
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          style={{ top: '70px' }}
+        />
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />

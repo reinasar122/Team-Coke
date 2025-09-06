@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 
-import "../styles/pages/returnempties.scss";
-
 const ReturnEmpties = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
@@ -13,6 +11,7 @@ const ReturnEmpties = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Get current warehouse information
   const getCurrentWarehouse = useCallback(() => {
@@ -273,161 +272,229 @@ const ReturnEmpties = () => {
 
   if (!currentWarehouse) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900 p-6 flex items-center justify-center">
-        <div className="text-red-600 text-center">
-          <h2 className="text-xl font-bold mb-2">No Warehouse Selected</h2>
-          <p>Please select a warehouse to view return empties.</p>
-        </div>
+      <div className="loading">
+        <div className="spinner" />
+        <div className="loading-text">No warehouse selected. Please select a warehouse to view return empties.</div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-gray-900 p-6 flex items-center justify-center">
-        <div className="text-gray-600 dark:text-gray-300">Loading returned empties...</div>
+      <div className="loading">
+        <div className="spinner" />
+        <div className="loading-text">Loading returned empties...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900 p-6">
+    <div className="page">
       {error && (
-        <div className="mb-4 p-4 bg-red-100 dark:bg-red-900 border border-red-400 text-red-700 dark:text-red-300 rounded">
+        <div style={{ 
+          marginBottom: '1rem', 
+          padding: '1rem', 
+          background: '#fee2e2', 
+          border: '1px solid #fca5a5', 
+          color: '#b91c1c', 
+          borderRadius: 'var(--r-md)' 
+        }}>
           {error}
         </div>
       )}
       
-      <div className="mb-6">
-        <div className="flex items-center gap-4 mb-4">
-          <label className="text-gray-700 dark:text-gray-300 font-medium">Search:</label>
-          <select
-            value={selectedSupplier}
-            onChange={(e) => setSelectedSupplier(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 min-w-[200px] text-base"
-          >
-            <option value="">Filter by Supplier</option>
-            {suppliers.map((supplier) => (
-              <option key={supplier.id} value={supplier.company_name || supplier.name}>
-                {supplier.company_name || supplier.name}
-              </option>
-            ))}
-          </select>
+      {/* Header */}
+      <div className="page-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {/* Supplier dropdown */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="btn btn-ghost"
+              style={{ 
+                fontSize: '1rem', 
+                fontWeight: 600, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                padding: '8px 16px'
+              }}
+            >
+              📦 {selectedSupplier || "All Suppliers"}
+              <svg xmlns="http://www.w3.org/2000/svg" style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            {dropdownOpen && (
+              <div style={{
+                position: 'absolute',
+                left: 0,
+                top: '100%',
+                marginTop: '4px',
+                width: '220px',
+                background: 'var(--surface)',
+                boxShadow: 'var(--shadow)',
+                borderRadius: 'var(--r-md)',
+                border: '1px solid var(--border)',
+                zIndex: 10,
+                maxHeight: '200px',
+                overflowY: 'auto'
+              }}>
+                <button
+                  onClick={() => {
+                    setSelectedSupplier("");
+                    setDropdownOpen(false);
+                  }}
+                  style={{
+                    display: 'block',
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '8px 12px',
+                    border: 'none',
+                    background: 'transparent',
+                    cursor: 'pointer',
+                    fontSize: '0.875rem'
+                  }}
+                  onMouseEnter={(e) => e.target.style.background = 'var(--ghost-hover)'}
+                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                >
+                  All Suppliers
+                </button>
+                {suppliers.map((supplier) => (
+                  <button
+                    key={supplier.id}
+                    onClick={() => {
+                      setSelectedSupplier(supplier.company_name || supplier.name);
+                      setDropdownOpen(false);
+                    }}
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = 'var(--ghost-hover)'}
+                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                  >
+                    {supplier.company_name || supplier.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="actions">
+          <div style={{ 
+            padding: '8px 12px', 
+            background: 'var(--table-head)', 
+            borderRadius: 'var(--r-sm)', 
+            fontSize: '0.875rem',
+            color: 'var(--text-muted)'
+          }}>
+            {currentWarehouse.name}
+          </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg overflow-hidden">
-        <table className="w-full">
-          <thead className="bg-gray-100 dark:bg-gray-700">
+      {/* Table - Same structure as UserList */}
+      <div className="table-wrapper">
+        <table className="table">
+          <thead>
             <tr>
-              {/* <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">MSP No(s).</th> */}
-              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Product</th>
-              <th className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Total Empty Returns</th>
-              <th className="px-4 py-3 text-left text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Supplier</th>
-              <th className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Transactions</th>
-              <th className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Type</th>
-              <th className="px-4 py-3 text-center text-gray-700 dark:text-gray-300 font-medium border-b dark:border-gray-600">Latest Date</th>
+              <th className="text-left">Product</th>
+              <th>Total Empty Returns</th>
+              <th>Supplier</th>
+              <th>Transactions</th>
+              <th>Type</th>
+              <th>Latest Date</th>
             </tr>
           </thead>
           <tbody>
-            {filteredEmpties.length > 0 ? (
+            {filteredEmpties.length === 0 ? (
+              <tr>
+                <td colSpan="6" className="text-muted" style={{ textAlign: "center", padding: 24 }}>
+                  No returned empties available for {currentWarehouse.name}
+                </td>
+              </tr>
+            ) : (
               filteredEmpties.map((item, index) => (
-                <tr key={item.id} className={index % 2 === 0 ? "bg-white dark:bg-gray-800" : "bg-gray-50 dark:bg-gray-750"}>
-                  {/* <td className="px-4 py-3 border-b dark:border-gray-600 text-gray-800 dark:text-gray-200 font-medium">
-                    {item.msp_numbers ? (
-                      <div className="space-y-1">
-                        {item.msp_numbers.slice(0, 2).map((msp, i) => (
-                          <div key={i} className="text-sm">{msp}</div>
-                        ))}
-                        {item.msp_numbers.length > 2 && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400">
-                            +{item.msp_numbers.length - 2} more
-                          </div>
-                        )}
-                      </div>
-                    ) : (
-                      item.msp_no
-                    )}
-                  </td> */}
-                  <td className="px-4 py-3 border-b dark:border-gray-600 text-gray-800 dark:text-gray-200">
-                    <div className="flex flex-col gap-1">
-                      <div>{item.product_name}</div>
-                      <div className="flex gap-1">
+                <tr key={item.id}>
+                  <td className="text-left">
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ fontWeight: 500 }}>{item.product_name}</div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
                         {item.shell_price > 0 && (
-                          <span className="bg-blue-100 dark:bg-blue-800 text-blue-600 dark:text-blue-300 text-xs px-2 py-1 rounded">
+                          <span style={{ 
+                            background: '#dbeafe', 
+                            color: '#2563eb', 
+                            fontSize: '0.75rem', 
+                            padding: '2px 6px', 
+                            borderRadius: '4px' 
+                          }}>
                             Shell: ₱{item.shell_price}
                           </span>
                         )}
                         {item.bottle_price > 0 && (
-                          <span className="bg-green-100 dark:bg-green-800 text-green-600 dark:text-green-300 text-xs px-2 py-1 rounded">
+                          <span style={{ 
+                            background: '#dcfce7', 
+                            color: '#16a34a', 
+                            fontSize: '0.75rem', 
+                            padding: '2px 6px', 
+                            borderRadius: '4px' 
+                          }}>
                             Bottle: ₱{item.bottle_price}
                           </span>
                         )}
                       </div>
                     </div>
                   </td>
-                  <td className="px-4 py-3 border-b dark:border-gray-600 text-center text-gray-800 dark:text-gray-200">
-                    <div className="font-semibold">{item.empty_return_shell} Shell</div>
-                    <div className="text-sm text-gray-600 dark:text-gray-400">{item.empty_return_pcs} PCs</div>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ fontWeight: 600 }}>{item.empty_return_shell} Shell</div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>{item.empty_return_pcs} PCs</div>
                   </td>
-                  <td className="px-4 py-3 border-b dark:border-gray-600 text-gray-800 dark:text-gray-200">{item.supplier_name}</td>
-                  <td className="px-4 py-3 border-b dark:border-gray-600 text-center text-gray-800 dark:text-gray-200">
-                    <span className="bg-blue-100 dark:bg-blue-800 text-blue-800 dark:text-blue-300 px-2 py-1 rounded-full text-sm">
+                  <td>{item.supplier_name}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span style={{ 
+                      background: '#dbeafe', 
+                      color: '#1e40af', 
+                      padding: '4px 8px', 
+                      borderRadius: '50px', 
+                      fontSize: '0.875rem' 
+                    }}>
                       {item.transaction_count || 1}
                     </span>
                   </td>
-                  <td className="px-4 py-3 border-b dark:border-gray-600 text-center text-gray-800 dark:text-gray-200">
-                    <div className="flex flex-col gap-1">
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', alignItems: 'center' }}>
                       {item.transaction_types && item.transaction_types.map((type, i) => (
                         <span 
                           key={i}
-                          className={`text-xs px-2 py-1 rounded ${
-                            type === 'Van Load' 
-                              ? 'bg-purple-100 dark:bg-purple-800 text-purple-600 dark:text-purple-300' 
-                              : 'bg-green-100 dark:bg-green-800 text-green-600 dark:text-green-300'
-                          }`}
+                          style={{
+                            fontSize: '0.75rem',
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: type === 'Van Load' ? '#f3e8ff' : '#dcfce7',
+                            color: type === 'Van Load' ? '#7c3aed' : '#16a34a'
+                          }}
                         >
-                          {type}
+                          {type === 'Warehouse' ? 'Warehouse' : type}
                         </span>
                       ))}
                     </div>
                   </td>
-                  <td className="px-4 py-3 border-b dark:border-gray-600 text-center text-gray-800 dark:text-gray-200">{item.date}</td>
+                  <td style={{ textAlign: 'center' }}>{item.date}</td>
                 </tr>
               ))
-            ) : (
-              <tr>
-                <td colSpan="6" className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No returned empties available
-                </td>
-              </tr>
             )}
           </tbody>
         </table>
       </div>
-
-      {filteredEmpties.length > 0 && (
-        <div className="mt-4 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600 dark:text-gray-400">
-            <div>
-              <span className="font-medium">Unique Products: </span>
-              {filteredEmpties.length}
-            </div>
-            <div>
-              <span className="font-medium">Total Transactions: </span>
-              {filteredEmpties.reduce((sum, item) => sum + (item.transaction_count || 1), 0)}
-            </div>
-            <div>
-              <span className="font-medium">Total Shells: </span>
-              {filteredEmpties.reduce((sum, item) => sum + item.empty_return_shell, 0)}
-            </div>
-            <div>
-              <span className="font-medium">Total PCs: </span>
-              {filteredEmpties.reduce((sum, item) => sum + item.empty_return_pcs, 0)}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

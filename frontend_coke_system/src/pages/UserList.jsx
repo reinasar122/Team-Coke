@@ -6,12 +6,19 @@ import EditUser from "./EditUser";
 import { canCreate, canEdit, canDelete } from "../utils/accessControl";
 import { FaEdit, FaTrash } from "react-icons/fa";
 
-
 // Search Icon Component
 const SearchIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400 transition-all duration-200"
+    style={{ 
+      position: 'absolute', 
+      left: '12px', 
+      top: '50%', 
+      transform: 'translateY(-50%)', 
+      width: '20px', 
+      height: '20px', 
+      color: 'var(--text-muted)' 
+    }}
     viewBox="0 0 20 20"
     fill="currentColor"
   >
@@ -23,13 +30,45 @@ const SearchIcon = () => (
   </svg>
 );
 
+const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, user }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-body">
+          <h3 className="page-title">Confirm Delete</h3>
+          <p>Are you sure you want to delete user "{user?.first_name} {user?.last_name}"?</p>
+          <p className="text-muted">This action cannot be undone.</p>
+
+          <div className="modal-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <button
+              type="button"
+              className="btn btn-cancel"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={onConfirm}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const UserList = () => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [userToDelete, setUserToDelete] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ open: false, user: null });
   const [selectedRole, setSelectedRole] = useState("All Users");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -67,27 +106,25 @@ const UserList = () => {
     setEditingUser(null);
   };
 
- const handleDeleteUser = async () => {
-  if (!userToDelete) return;
+  const handleDeleteUser = async () => {
+    if (!deleteModal.user) return;
 
-  try {
-    const response = await fetch(`http://127.0.0.1:8080/api/users/${userToDelete.id}/`, {
-      method: "DELETE",
-    });
+    try {
+      const response = await fetch(`http://127.0.0.1:8080/api/users/${deleteModal.user.id}/`, {
+        method: "DELETE",
+      });
 
-    if (!response.ok) throw new Error("Failed to delete user");
+      if (!response.ok) throw new Error("Failed to delete user");
 
-    setUsers((prevUsers) => prevUsers.filter((user) => user.id !== userToDelete.id));
+      setUsers((prevUsers) => prevUsers.filter((user) => user.id !== deleteModal.user.id));
+      setDeleteModal({ open: false, user: null });
 
-    toast.error(`User '${userToDelete.username || userToDelete.name}' has been deleted.`, {style: errorStyle });
-  } catch (error) {
-    console.error("Error deleting user:", error);
-    toast.error(`Failed to delete user '${userToDelete.username || userToDelete.name}'.`,errorStyle );
-  } finally {
-    setShowDeleteModal(false);
-    setUserToDelete(null);
-  }
-};
+      toast.error(`User '${deleteModal.user.username || deleteModal.user.first_name}' has been deleted.`, {style: errorStyle });
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      toast.error(`Failed to delete user '${deleteModal.user.username || deleteModal.user.first_name}'.`, errorStyle );
+    }
+  };
 
   const uniqueRoles = ["All Users", ...roles.map((role) => role.name)];
 
@@ -100,22 +137,43 @@ const UserList = () => {
     .sort((a, b) => a.first_name.localeCompare(b.first_name));
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-        <div className="flex flex-col sm:flex-row items-center gap-4 mb-4 sm:mb-0">
-          <div className="relative">
+    <div className="page">
+      {/* Header */}
+      <div className="page-header">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {/* Role dropdown */}
+          <div style={{ position: 'relative' }}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="text-2xl font-semibold flex items-center gap-2 bg-gray-200 px-4 py-2 rounded-lg hover:bg-gray-300"
+              className="btn btn-ghost"
+              style={{ 
+                fontSize: '1rem', 
+                fontWeight: 600, 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px',
+                padding: '8px 16px'
+              }}
             >
-              {selectedRole}
-              <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              👥 {selectedRole}
+              <svg xmlns="http://www.w3.org/2000/svg" style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
 
             {dropdownOpen && (
-              <div className="absolute left-0 mt-2 w-40 bg-white shadow-lg rounded-md border z-10">
+              <div style={{
+                position: 'absolute',
+                left: 0,
+                top: '100%',
+                marginTop: '4px',
+                width: '180px',
+                background: 'var(--surface)',
+                boxShadow: 'var(--shadow)',
+                borderRadius: 'var(--r-md)',
+                border: '1px solid var(--border)',
+                zIndex: 10
+              }}>
                 {uniqueRoles.map((role) => (
                   <button
                     key={role}
@@ -123,7 +181,18 @@ const UserList = () => {
                       setSelectedRole(role);
                       setDropdownOpen(false);
                     }}
-                    className="block w-full text-left px-4 py-2 hover:bg-gray-100"
+                    style={{
+                      display: 'block',
+                      width: '100%',
+                      textAlign: 'left',
+                      padding: '8px 12px',
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      fontSize: '0.875rem'
+                    }}
+                    onMouseEnter={(e) => e.target.style.background = 'var(--ghost-hover)'}
+                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
                   >
                     {role}
                   </button>
@@ -132,7 +201,8 @@ const UserList = () => {
             )}
           </div>
 
-          <div className="relative flex-1">
+          {/* Search input */}
+          <div style={{ position: 'relative', maxWidth: '300px' }}>
             {!isFocused && <SearchIcon />}
             <input
               type="text"
@@ -141,99 +211,141 @@ const UserList = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               onFocus={() => setIsFocused(true)}
               onBlur={() => setIsFocused(searchTerm.length > 0)}
-              className={`pl-10 pr-6 py-2 border rounded-lg bg-gray-100 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
-                isFocused ? "pl-3 w-full sm:w-auto" : "w-60 sm:w-auto"
-              }`}
+              className="input"
+              style={{ 
+                paddingLeft: isFocused ? '12px' : '40px',
+                width: '250px',
+                textAlign: 'left'
+              }}
             />
           </div>
         </div>
 
-        <button
-          className={`px-4 py-2 rounded-lg ${
-            canCreate("User") ? "bg-green-500 text-white px-4 py-2 rounded-lg" : "bg-gray-300 text-gray-500 cursor-not-allowed"
-          }`}
-          onClick={() => {
-            if (canCreate("User")) setShowForm(true);
-          }}
-        >
-          + Create User
-        </button>
+        <div className="actions">
+          <button
+            className={`btn ${canCreate("User") ? "btn-add" : "btn-disabled"}`}
+            onClick={() => {
+              if (canCreate("User")) setShowForm(true);
+            }}
+            disabled={!canCreate("User")}
+          >
+            + Create User
+          </button>
+        </div>
       </div>
 
-      <div className="overflow-x-auto w-full bg-white shadow-md rounded-lg">
-        <table className="w-full border-collapse text-sm">
-          <thead className="bg-gray-200 text-left">
+      {/* Table - Same structure as ReceivingList */}
+      <div className="table-wrapper">
+        <table className="table">
+          <thead>
             <tr>
-              <th className="py-3 px-4">USER DETAILS</th>
-              <th className="py-3 px-4">ROLE</th>
-              <th className="py-3 px-4">WAREHOUSE</th>
-              <th className="py-3 px-4">STATUS</th>
-              <th className="py-3 px-4 text-center">ACTIONS</th>
+              <th className="text-left">USER DETAILS</th>
+              <th className="text-left">ROLE</th>
+              <th className="text-left">WAREHOUSE</th>
+              <th>STATUS</th>
+              <th className="w-128">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
-            {filteredUsers.length > 0 ? (
+            {filteredUsers.length === 0 ? (
+              <tr>
+                <td colSpan="5" className="text-muted" style={{ textAlign: "center", padding: 24 }}>
+                  No users found
+                </td>
+              </tr>
+            ) : (
               filteredUsers.map((user) => (
-                <tr key={user.id} className="border-t hover:bg-gray-100">
-                  <td className="py-3 px-4 flex items-center">
-                    <div className="w-10 h-10 flex items-center justify-center rounded-full border-2 border-black bg-gray-100">
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-6 h-6 text-black" viewBox="0 0 24 24" fill="currentColor">
-                        <path fillRule="evenodd" d="M12 2a5 5 0 015 5v1a5 5 0 01-10 0V7a5 5 0 015-5zm-7 17a7 7 0 0114 0v1a1 1 0 01-1 1H6a1 1 0 01-1-1v-1z" clipRule="evenodd" />
-                      </svg>
-                    </div>
-                    <div className="ml-3">
-                      <span className="text-blue-600 font-medium">{user.first_name} {user.last_name}</span>
-                      <br />
-                      <small className="text-gray-500">{user.email}</small>
+                <tr key={user.id}>
+                  <td className="text-left">
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <div style={{
+                        width: '40px',
+                        height: '40px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        borderRadius: '50%',
+                        border: '2px solid var(--text)',
+                        background: 'var(--bg)'
+                      }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" style={{ width: '24px', height: '24px', color: 'var(--text)' }} viewBox="0 0 24 24" fill="currentColor">
+                          <path fillRule="evenodd" d="M12 2a5 5 0 015 5v1a5 5 0 01-10 0V7a5 5 0 015-5zm-7 17a7 7 0 0114 0v1a1 1 0 01-1 1H6a1 1 0 01-1-1v-1z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div style={{ color: 'var(--primary)', fontWeight: 500 }}>
+                          {user.first_name} {user.last_name}
+                        </div>
+                        <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
+                          {user.email}
+                        </div>
+                      </div>
                     </div>
                   </td>
-                  <td className="py-3 px-4">{user.role_name}</td>
-                  <td className="py-3 px-4">{user.warehouse_name}</td>
-                  <td className="py-3 px-4">
+                  <td className="text-left">{user.role_name}</td>
+                  <td className="text-left">{user.warehouse_name}</td>
+                  <td style={{ textAlign: 'center' }}>
                     {user.is_active ? (
-                      <span className="bg-green-100 text-green-600 px-2 py-1 rounded-md text-sm font-medium">Active</span>
+                      <span style={{ 
+                        background: '#dcfce7', 
+                        color: '#16a34a', 
+                        padding: '4px 8px', 
+                        borderRadius: '6px', 
+                        fontSize: '0.875rem',
+                        fontWeight: 500
+                      }}>
+                        Active
+                      </span>
                     ) : (
-                      <span className="bg-red-100 text-red-600 px-2 py-1 rounded-md text-sm font-medium">Inactive</span>
+                      <span style={{ 
+                        background: '#fee2e2', 
+                        color: '#dc2626', 
+                        padding: '4px 8px', 
+                        borderRadius: '6px', 
+                        fontSize: '0.875rem',
+                        fontWeight: 500
+                      }}>
+                        Inactive
+                      </span>
                     )}
                   </td>
-                  <td className="py-3 px-4 text-center">
-                    <div className="flex justify-center items-center gap-2">
+                  <td>
+                    <div className="actions" style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                       <button
                         onClick={() => canEdit("User") && setEditingUser(user)}
                         disabled={!canEdit("User")}
-                        className="text-blue-500"
+                        className={`icon-btn ${canEdit("User") ? "icon-btn-primary" : "icon-btn-disabled"}`}
                         title="Edit User"
                       >
-                        <FaEdit size={20} />
+                        <FaEdit />
                       </button>
                       <button
                         onClick={() => {
                           if (canDelete("User")) {
-                            setUserToDelete(user);
-                            setShowDeleteModal(true);
+                            setDeleteModal({ open: true, user: user });
                           }
                         }}
                         disabled={!canDelete("User")}
-                        className="text-red-500 cursor-pointer"
+                        className={`icon-btn ${canDelete("User") ? "icon-btn-danger" : "icon-btn-disabled"}`}
                         title="Delete User"
                       >
-                        <FaTrash size={20} />
+                        <FaTrash />
                       </button>
                     </div>
                   </td>
                 </tr>
               ))
-            ) : (
-              <tr><td colSpan="5" className="py-6 text-center">No users found</td></tr>
             )}
           </tbody>
         </table>
       </div>
 
+      {/* Modals */}
       {showForm && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
-          <UserForm onUserAdded={(newUser) => setUsers([...users, newUser])} onClose={() => setShowForm(false)} />
-        </div>
+        <UserForm 
+          onUserAdded={(newUser) => setUsers([...users, newUser])} 
+          onClose={() => setShowForm(false)} 
+        />
       )}
 
       {editingUser && (
@@ -244,21 +356,12 @@ const UserList = () => {
         />
       )}
 
-      {showDeleteModal && (
-        <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50 z-50">
-          <div className="bg-white p-6 rounded-lg shadow-lg w-100">
-            <p className="text-lg font-semibold mb-9">Are you sure you want to delete this user?</p>
-            <div className="flex justify-between">
-              <button className="bg-gray-500 text-white px-4 py-2 rounded-md" onClick={() => setShowDeleteModal(false)}>
-                Cancel
-              </button>
-              <button className="bg-red-500 text-white px-4 py-2 rounded-md" onClick={handleDeleteUser}>
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, user: null })}
+        onConfirm={handleDeleteUser}
+        user={deleteModal.user}
+      />
     </div>
   );
 };

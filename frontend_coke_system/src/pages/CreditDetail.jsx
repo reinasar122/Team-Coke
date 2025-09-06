@@ -1,39 +1,69 @@
 // src/pages/CreditDetail.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 
-const API = "http://localhost:8080"; // backend base URL
+const API = "http://localhost:8080";
 
 export default function CreditDetail() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const [ledger, setLedger] = useState(null);
   const [amount, setAmount] = useState("");
   const [error, setError] = useState("");
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
   // Persist info so it's visible even after full payment/reload
   const [lastCashTendered, setLastCashTendered] = useState(0);
   const [lastChange, setLastChange] = useState(0);
 
+  // Get current warehouse information
+  const getCurrentWarehouse = useCallback(() => {
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    if (userData.role?.toLowerCase() === "admin") {
+      return selectedWarehouse || { id: userData.warehouse_id, name: userData.warehouse };
+    }
+    
+    if (userData.warehouse_id && userData.warehouse) {
+      return { id: userData.warehouse_id, name: userData.warehouse };
+    }
+    
+    return null;
+  }, []);
+
+  useEffect(() => {
+    const warehouse = getCurrentWarehouse();
+    setCurrentWarehouse(warehouse);
+  }, [getCurrentWarehouse]);
+
   const load = async () => {
+    if (!currentWarehouse) return;
+
     try {
       setError("");
-      const { data } = await axios.get(`${API}/api/credits/${id}/`);
+      const warehouseParam = searchParams.get('warehouse') || currentWarehouse.id;
+      const { data } = await axios.get(`${API}/api/credits/${id}/?warehouse=${warehouseParam}`);
       setLedger(data);
     } catch (e) {
       console.error(e);
-      setError("Failed to load credit receipt.");
+      setError("Failed to load credit receipt or access denied.");
     }
   };
 
   useEffect(() => {
-    load();
+    if (currentWarehouse) {
+      load();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+  }, [id, currentWarehouse]);
 
   const fmt = (v) => Number(v || 0).toFixed(2);
 
   const addPayment = async (value, method = "cash", note = "") => {
+    if (!currentWarehouse) return;
+
     try {
       const balance = Number(ledger?.balance || 0);
       const cash = Number(value) || 0;
@@ -46,7 +76,8 @@ export default function CreditDetail() {
       const toPost = Math.min(cash, balance);
       if (!toPost || toPost <= 0) return;
 
-      await axios.post(`${API}/api/credits/${id}/payments/`, {
+      const warehouseParam = searchParams.get('warehouse') || currentWarehouse.id;
+      await axios.post(`${API}/api/credits/${id}/payments/?warehouse=${warehouseParam}`, {
         amount: toPost,
         method,
         note,
@@ -60,6 +91,17 @@ export default function CreditDetail() {
       alert("Failed to add payment.");
     }
   };
+
+  if (!currentWarehouse) {
+    return (
+      <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--danger)' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>No Warehouse Selected</h2>
+          <p>Please select a warehouse to view credit details.</p>
+        </div>
+      </div>
+    );
+  }
 
   if (error) return <div className="p-4 text-red-600">{error}</div>;
   if (!ledger) return <div className="p-4">Loading…</div>;
@@ -107,19 +149,19 @@ export default function CreditDetail() {
   return (
     <div className="p-4 space-y-6">
       <div className="receiving-receipt-header">
-        <h1 className="page-title">Credit Receipt</h1>
+        <h1 className="page-title">Credit Receipt - {ledger.warehouse_name}</h1>
       </div>
 
       <div className="receipt-meta">
         <div className="meta-col">
           <div><strong>MSP No:</strong> {ledger.msp_no}</div>
           <div><strong>Date:</strong> {new Date(ledger.created_at).toLocaleString()}</div>
-          <div><strong>Handled By:</strong> {ledger.handled_by || "—"}</div>
+          <div><strong>Handled By:</strong> {ledger.handled_by || "--"}</div>
         </div>
         <div className="meta-col right">
           <div><strong>Customer:</strong> {ledger.customer_name}</div>
           <div><strong>Status:</strong> {ledger.status}</div>
-          <div><strong>Due Date:</strong> {ledger.due_date ? new Date(ledger.due_date).toLocaleDateString() : "—"}</div>
+          <div><strong>Due Date:</strong> {ledger.due_date ? new Date(ledger.due_date).toLocaleDateString() : "--"}</div>
         </div>
       </div>
 
@@ -140,7 +182,7 @@ export default function CreditDetail() {
             <tbody>
               {(ledger.rows_json || []).map((r, i) => (
                 <tr key={i} className="border-t">
-                  <td className="p-2">{r.productName || r.product_name || "—"}</td>
+                  <td className="p-2">{r.productName || r.product_name || "--"}</td>
                   <td className="p-2">{r.sold_shell ?? r.soldShell ?? 0}</td>
                   <td className="p-2">{r.sold_pcs ?? r.soldPcs ?? r.qty ?? r.quantity ?? 0}</td>
                   <td className="p-2">₱{fmt(r.unitPrice ?? r.selling_price ?? r.price ?? 0)}</td>
