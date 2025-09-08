@@ -1400,6 +1400,7 @@ const handleSaveVanLoadEdit = async () => {
         transactionTypes={transactionTypes}//kath
         expensesTotal={miscItems.reduce((s, i) => s + Number(i.amount || 0), 0)}  //karen changes
         miscItems={miscItems}
+        warehouse={currentWarehouse} // ✅ ADD WAREHOUSE PROP
       />
     </div>
   );

@@ -7,6 +7,12 @@ import axios from "axios";
 async function createCreditLedgerFromModalPayload(payload) {
   if (payload.paymentMethod !== "credit") return null;
 
+  // ✅ GET WAREHOUSE ID FROM PAYLOAD
+  const warehouseId = payload.warehouse?.id || payload.warehouseId;
+  if (!warehouseId) {
+    throw new Error("Warehouse ID is required for credit transactions");
+  }
+
   const body = {
     msp_no: payload.mspNo,
     customerName: payload.customerName,
@@ -20,6 +26,7 @@ async function createCreditLedgerFromModalPayload(payload) {
     rows: payload.rows || [],
     transactionDate: payload.transactionDate || new Date().toISOString(),
     creditNotes: payload.creditNotes || "",
+    warehouse: warehouseId, // ✅ ADD WAREHOUSE FIELD
   };
 
   try {
@@ -71,6 +78,7 @@ const PaymentModal = ({
   transactionTypes = "",
 
   miscItems = [],
+  warehouse, // ✅ ADD WAREHOUSE PROP
 }) => {
   // ------------ hooks ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
@@ -141,7 +149,7 @@ const PaymentModal = ({
   };
 
   const getProdName = (row) =>
-    row.productName || row.product_name || row.product_detail?.product_name || "—";
+    row.productName || row.product_name || row.product_detail?.product_name || "--";
   const getSoldShell = (row) => pickNum(row.sold_shell, row.soldShell);
   const getSoldPcs = (row) => pickNum(row.sold_pcs, row.soldPcs, row.qty, row.quantity);
   const getUnitPrice = (row) => pickNum(row.unitPrice, row.selling_price, row.price);
@@ -181,7 +189,7 @@ const PaymentModal = ({
     () =>
       (rows || []).filter(
         (r) =>
-          getProdName(r) !== "—" ||
+          getProdName(r) !== "--" ||
           getSoldPcs(r) > 0 ||
           getSoldShell(r) > 0 ||
           getUnitPrice(r) > 0
@@ -196,7 +204,7 @@ const PaymentModal = ({
     return tableRows.reduce((sum, r) => sum + getLineTotal(r), 0);
   }, [actualSales, tableRows]);
 
-  // Clear cash input every time the modal opens or a new MSP is loaded //Kath: Import useEffect
+  // Clear cash input every time the modal opens or a new MSP is loaded
   useEffect(() => {
     if (open) {
       setCashReceived("");      // clears the Cash Amount Received box
@@ -234,7 +242,7 @@ const PaymentModal = ({
 
   const vl_grandTotal = n(grandTotalVL) || vl_overallTotal - n(expensesTotal);
 
-  // Prefer parent values only if they’re explicitly positive
+  // Prefer parent values only if they're explicitly positive
   const amountDueFinal = isVanLoad
     ? vl_grandTotal
     : n(amountDue) > 0
@@ -273,7 +281,6 @@ const PaymentModal = ({
     [expensesList]
   );
 
-
   // Returnables Summary counts
   const sumEmptyRetShellValue = useMemo(
     () =>
@@ -311,7 +318,7 @@ const PaymentModal = ({
     [tableRows]
   );
   
-  // With contents (PCS) — peso value (unit price × actual_return_pcs)
+  // With contents (PCS) -- peso value (unit price × actual_return_pcs)
   const sumFullRetPcs = useMemo(
     () =>
       tableRows.reduce(
@@ -324,7 +331,7 @@ const PaymentModal = ({
     [tableRows]
   );
 
-  // With contents discrepancy (PCS) — peso value (unit price × discrepancy_full_pcs)
+  // With contents discrepancy (PCS) -- peso value (unit price × discrepancy_full_pcs)
   const sumDiscFullPcs = useMemo(
     () =>
       tableRows.reduce(
@@ -336,26 +343,6 @@ const PaymentModal = ({
       ),
     [tableRows]
   );
-
-
-  // Debug: modal & transaction type: Do not Delete for future debugging
-  // useEffect(() => {
-  //   console.log("[PaymentModal] open:", open);
-  //   console.log("[PaymentModal] transactionTypeName:", transactionTypeName);
-  //   console.log("[PaymentModal] isVanLoad:", isVanLoad);
-  // }, [open, transactionTypeName, isVanLoad]);
-
-  // // Debug: incoming miscItems prop
-  // useEffect(() => {
-  //   console.log("[PaymentModal] miscItems prop:", miscItems);
-  //   console.log("[PaymentModal] miscItems length:", (miscItems && miscItems.length) || 0);
-  // }, [miscItems]);
-
-  // // Debug: memoized expenses list & total
-  // useEffect(() => {
-  //   console.log("[PaymentModal] expensesList (memo):", expensesList);
-  //   console.log("[PaymentModal] expensesTotalComputed:", expensesTotalComputed);
-  // }, [expensesList, expensesTotalComputed]);
 
   // ------------- early return AFTER hooks -------------
   if (!open) return null;
@@ -370,16 +357,16 @@ const PaymentModal = ({
         {/* Header Info */}
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
-            <strong>MSP No.</strong>: {mspNo || "—"}
+            <strong>MSP No.</strong>: {mspNo || "--"}
           </div>
           <div>
-            <strong>Date</strong>: {formatLocalToManila(transactionDate) || "—"}
+            <strong>Date</strong>: {formatLocalToManila(transactionDate) || "--"}
           </div>
           <div>
             <strong>Customer</strong>: {(customerName ?? "").trim() || "Walk-in"}
           </div>
           <div>
-            <strong>Handled By</strong>: {handledBy || "—"}
+            <strong>Handled By</strong>: {handledBy || "--"}
           </div>
         </div>
 
@@ -458,12 +445,12 @@ const PaymentModal = ({
                 <tfoot>
                   <tr className="bg-slate-100 font-semibold text-[13px]">
                     <td className="p-2 text-left">TOTAL</td>
-                    {/* Dispatched & Sold – blank for clean layout */}
+                    {/* Dispatched & Sold -- blank for clean layout */}
                     <td className="p-2"></td>
                     <td className="p-2"></td>
                     <td className="p-2"></td>
                     <td className="p-2"></td>
-                    {/* Selling Price, Discount – no totals */}
+                    {/* Selling Price, Discount -- no totals */}
                     <td className="p-2"></td>
                     <td className="p-2"></td>
                     <td className="p-2 text-center">{peso(sumExpectedSale)}</td>
@@ -564,31 +551,30 @@ const PaymentModal = ({
                     <tr className="bg-slate-100 font-semibold text-[13px]">
                       <td className="p-2 text-left">TOTAL</td>
 
-                      {/* Dispatched (PCS) — no peso */}
+                      {/* Dispatched (PCS) -- no peso */}
                       <td className="p-2"></td>
 
-                      {/* Empty Price (PC) — no total */}
+                      {/* Empty Price (PC) -- no total */}
                       <td className="p-2"></td>
 
-                      {/* Empty: Returned (PCS) — show peso total */}
+                      {/* Empty: Returned (PCS) -- show peso total */}
                       <td className="p-2 text-center">{peso(sumEmptyRetPcsValue)}</td>
 
-                      {/* Empty: Discrepancy (PCS) — show peso total */}
+                      {/* Empty: Discrepancy (PCS) -- show peso total */}
                       <td className="p-2 text-center">{peso(sumDiscEmptyPcs)}</td>
 
-                      {/* With Contents: Unit Price — no total */}
+                      {/* With Contents: Unit Price -- no total */}
                       <td className="p-2"></td>
 
-                      {/* With Contents: Returned (PCS) — peso total */}
+                      {/* With Contents: Returned (PCS) -- peso total */}
                       <td className="p-2 text-center">{peso(sumFullRetPcs)}</td>
 
-                      {/* With Contents: Discrepancy (PCS) — peso total */}
+                      {/* With Contents: Discrepancy (PCS) -- peso total */}
                       <td className="p-2 text-center">{peso(sumDiscFullPcs)}</td>
                     </tr>
                   </tfoot>
                 </table>
               </div>
-
 
             <div className="mt-6">
               <h3 className="font-semibold mb-2">Expenses Summary</h3>
@@ -610,7 +596,7 @@ const PaymentModal = ({
                   ) : (
                     expensesList.map((exp, idx) => (
                       <tr key={idx}>
-                        <td className="p-2 text-left">{exp?.description || "—"}</td>
+                        <td className="p-2 text-left">{exp?.description || "--"}</td>
                         <td className="p-2 text-right">₱{n(exp?.amount).toFixed(2)}</td>
                       </tr>
                     ))
@@ -623,11 +609,7 @@ const PaymentModal = ({
                 </tbody>
               </table>
             </div>
-
           </>
-
-
-
         ) : (
           /* your non-van-load table stays as-is */
           <div className="mt-6">
@@ -934,6 +916,10 @@ const PaymentModal = ({
 
                 // final due used in the modal
                 amountDue: amountDueFinal,
+                
+                // ✅ ADD WAREHOUSE FOR CREDIT TRANSACTIONS
+                warehouse: warehouse,
+                warehouseId: warehouse?.id,
               };
 
               const isCredit = data.paymentMethod === "credit";
@@ -955,7 +941,23 @@ const PaymentModal = ({
                       ? JSON.stringify(resp.data, null, 2)
                       : err?.message || String(err);
                     console.error("Create credit failed:", err);
-                    alert("Credit save failed:\n" + details);
+                    
+                    // ✅ Use custom alert instead of browser alert
+                    const alertDiv = document.createElement('div');
+                    alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                    alertDiv.innerHTML = `
+                      <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+                        <h3 class="text-lg font-semibold text-red-600 mb-3">Credit Save Failed</h3>
+                        <div class="text-gray-700 mb-4 text-sm max-h-48 overflow-y-auto">
+                          <pre class="whitespace-pre-wrap">${details}</pre>
+                        </div>
+                        <div class="flex justify-end">
+                          <button class="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
+                        </div>
+                      </div>
+                    `;
+                    document.body.appendChild(alertDiv);
+                    
                     setSubmitting(false);
                     return;
                   }
@@ -977,7 +979,19 @@ const PaymentModal = ({
                 setShowInvoiceModal(true);
               } catch (e) {
                 console.error(e);
-                alert("Payment save failed. Please try again.");
+                
+                // ✅ Use custom alert instead of browser alert
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                alertDiv.innerHTML = `
+                  <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+                    <p class="text-gray-700 mb-4">Payment save failed. Please try again.</p>
+                    <div class="flex justify-end">
+                      <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
+                    </div>
+                  </div>
+                `;
+                document.body.appendChild(alertDiv);
               } finally {
                 setSubmitting(false);
               }
