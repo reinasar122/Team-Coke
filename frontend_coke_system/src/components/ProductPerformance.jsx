@@ -1,4 +1,3 @@
-// src/components/ProductPerformance.jsx
 import React from "react";
 import {
   ResponsiveContainer,
@@ -113,6 +112,16 @@ export default function ProductPerformance({
     return Array.from(set);
   }, [src]);
 
+  // 🛠️ FIX 2: Add getCategoryFor function at the top
+  const getCategoryFor = React.useCallback(
+    (productName) => {
+      if (categoryMap && categoryMap[productName]) return categoryMap[productName];
+      if (categoryResolver) return categoryResolver(productName);
+      return "Uncategorized";
+    },
+    [categoryMap, categoryResolver]
+  );
+
   // Bucket to selected period and ensure x labels
   const chartData = React.useMemo(() => {
     const { from, to, mode } = getPeriodRange(period);
@@ -155,31 +164,7 @@ export default function ProductPerformance({
     return buckets.map((b) => b.row);
   }, [src, productKeys, period]);
 
-  // 🛠️ FIX 2: Case-insensitive categoryMap lookup (helps mismatched casing)
-  const normalizedCategoryMap = React.useMemo(() => {
-    if (!categoryMap) return null;
-    const m = {};
-    for (const [k, v] of Object.entries(categoryMap)) {
-      m[String(k).toLowerCase()] = v;
-    }
-    return m;
-  }, [categoryMap]);
-
-  // Helper to get a category for any product
-  const getCategoryFor = React.useCallback(
-    (productName) => {
-      const key = String(productName || "").toLowerCase();
-      if (normalizedCategoryMap && key in normalizedCategoryMap) return normalizedCategoryMap[key];
-      if (typeof categoryResolver === "function") {
-        const resolved = categoryResolver(productName);
-        if (resolved) return resolved;
-      }
-      return "Uncategorized";
-    },
-    [normalizedCategoryMap, categoryResolver]
-  );
-
-  /* ---------------- aggregate per CATEGORY (one line per category) ---------------- */
+  // 🛠️ FIX 3: Category chart data
   const categoryChartData = React.useMemo(() => {
     return chartData.map((row) => {
       const catRow = { x: row.x };
@@ -191,7 +176,6 @@ export default function ProductPerformance({
     });
   }, [chartData, productKeys, getCategoryFor]);
 
-  // Unique category names across all rows
   const categoryKeys = React.useMemo(() => {
     const set = new Set();
     categoryChartData.forEach((row) => {
@@ -202,7 +186,6 @@ export default function ProductPerformance({
     return Array.from(set);
   }, [categoryChartData]);
 
-  // Compute totals per category — supports ANY number of categories
   const { topCategoriesList } = React.useMemo(() => {
     const totals = {};
     categoryChartData.forEach((row) => {
@@ -244,7 +227,6 @@ export default function ProductPerformance({
               formatter={(v, name) => [peso(v), name]}
               contentStyle={{ borderRadius: 8, borderColor: "#e5e7eb" }}
             />
-
             {categoryKeys.map((cat, idx) => (
               <Line
                 key={cat}
@@ -265,23 +247,6 @@ export default function ProductPerformance({
         </ResponsiveContainer>
       </div>
 
-      {/* Top Categories (supports any number of categories) */}
-      {topCategoriesList.length > 0 && (
-        <div className="mt-3 text-xs text-slate-700">
-          <div className="font-medium mb-1">🏆 Top Categories</div>
-          <ul className="flex flex-wrap gap-2">
-            {topCategoriesList.map((c, i) => (
-              <li key={c.category} className="inline-flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold">
-                  {i === 0 ? "1st" : i === 1 ? "2nd" : i === 2 ? "3rd" : `${i + 1}th`}
-                </span>
-                <span className="font-medium">{c.category}</span>
-                <span className="text-red-600">{peso(c.total)}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
