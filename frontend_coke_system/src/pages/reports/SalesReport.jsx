@@ -208,7 +208,7 @@ export default function SalesReport() {
          // kath
 
         let retanddisc = { expected_sale: 0, actual_sale: 0, difference: 0, supplier_returnables: 0 };
-
+        
         try {
           const retRes = await axios.get(`${API}/reports/returns-and-discrepancies/`, {
             headers,
@@ -461,13 +461,13 @@ export default function SalesReport() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Returns & Discrepancies">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <Metric label="Expected Sales" value={peso(data.returns_block.expected_sale)} />
+            {/* <Metric label="Expected Sales" value={peso(data.returns_block.expected_sale)} /> */}
             <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
-            <Metric
+            {/* <Metric
                 label="Difference"
                 value={peso(data.returns_block.difference)}
-              />
-            <Metric label="Supplier Returnables (Bottle)" value={peso(data.returns_block.supplier_returnables_bottle)} />
+              /> */}
+            <Metric label="Supplier Returnables (Bottle)" value={(data.returns_block.supplier_returnables_bottle)} />
             <Metric label="Supplier Returnables (Shell)" value={(data.returns_block.supplier_returnables_shell)} />
           </div>
           <div className="mt-3">

@@ -21,6 +21,7 @@ from django.core.exceptions import FieldError
 from .models import Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock
 from django.db.models import Min, Max, Count
 from rest_framework import status
+from django.utils.dateparse import parse_datetime
 
 # ---------- helpers for numeric types ----------
 DECIMAL = DecimalField(max_digits=14, decimal_places=2)
@@ -496,29 +497,91 @@ class RevenueSummaryView(APIView):
         return Response(payload)
     
 class SalesAndReturnables(APIView):
-    
+    """
+    GET /api/reports/returns-and-discrepancies/?start=...&end=...&warehouse_id=&route_id=
+    Accepts:
+      - '2025-08-18 01:34:18.134988'
+      - '2025-08-18T01:34:18.134988+08:00'
+      - '2025-08-18' (date only; start=00:00, end=23:59:59.999999)
+    """
+
+    def _parse_dt(self, s: str | None, *, treat_as_end=False):
+        """Parse many datetime shapes; default to current TZ if naive."""
+        if not s:
+            return None
+        s = s.strip()
+
+        # Date only (YYYY-MM-DD)
+        if len(s) == 10 and s[4] == "-" and s[7] == "-":
+            d = datetime.date.fromisoformat(s)
+            t = datetime.time(23, 59, 59, 999999) if treat_as_end else datetime.time(0, 0, 0, 0)
+            dt = datetime.datetime.combine(d, t)
+            return timezone.make_aware(dt, timezone.get_current_timezone())
+
+        # Try Django's flexible parser (handles both ' ' and 'T', with/without microseconds)
+        dt = parse_datetime(s)
+
+        # Fallback to explicit formats with space separator
+        if dt is None:
+            for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+                try:
+                    dt = datetime.datetime.strptime(s, fmt)
+                    break
+                except ValueError:
+                    pass
+
+        if dt is None:
+            return None
+
+        if timezone.is_naive(dt):
+            dt = timezone.make_aware(dt, timezone.get_current_timezone())
+        return dt
+
     def get(self, request, *args, **kwargs):
-        # Optionally, filter the data based on some parameters, e.g., date, customer
-        # For now, let's assume you want to fetch all Merchandising data.
-        
-        # Fetch the sales and return data
-        merchandising_data = Merchandising.objects.all()
+        start_raw = request.query_params.get("start")
+        end_raw = request.query_params.get("end")
+        warehouse_id = request.query_params.get("warehouse_id")
+        route_id = request.query_params.get("route_id")
 
-        # Calculate expected sale, actual sale, difference
-        total_expected_sale = merchandising_data.aggregate(Sum('expected_sale'))['expected_sale__sum'] or 0
-        total_actual_sale = merchandising_data.aggregate(Sum('actual_sale'))['actual_sale__sum'] or 0
-        total_difference = total_actual_sale - total_expected_sale
+        # If a plain date is sent (YYYY-MM-DD), start -> 00:00, end -> 23:59:59.999999
+        start_dt = self._parse_dt(start_raw, treat_as_end=False)
+        end_dt = self._parse_dt(end_raw, treat_as_end=True)
 
-        # Fetch the total supplier returnables
-        total_supplier_returnables_bottle = ReturnableStock.objects.aggregate(Sum('empty_bottle_qty'))['empty_bottle_qty__sum'] or 0
-        total_supplier_returnables_shell = ReturnableStock.objects.aggregate(Sum('empty_shell_qty'))['empty_shell_qty__sum'] or 0
-        # Prepare the response data
-        retanddisc = {
-            "expected_sale": total_expected_sale,
-            "actual_sale": total_actual_sale,
-            "difference": total_difference,
-            "supplier_returnables_bottle": total_supplier_returnables_bottle,
-            "supplier_returnables_shell": total_supplier_returnables_shell
+        # --- Sales (Merchandising) ---
+        merch_qs = Merchandising.objects.all()
+        if start_dt:
+            merch_qs = merch_qs.filter(date_time__gte=start_dt)
+        if end_dt:
+            merch_qs = merch_qs.filter(date_time__lte=end_dt)
+        if warehouse_id:
+            merch_qs = merch_qs.filter(warehouse_id=warehouse_id)
+        if route_id:
+            merch_qs = merch_qs.filter(route_id=route_id)
+
+        sums = merch_qs.aggregate(
+            expected_sale_sum=Sum("expected_sale"),
+            actual_sale_sum=Sum("actual_sale"),
+        )
+
+        # --- Supplier returnables (ReturnableStock) ---
+        ret_qs = ReturnableStock.objects.all()
+        if start_dt:
+            ret_qs = ret_qs.filter(last_updated__gte=start_dt)
+        if end_dt:
+            ret_qs = ret_qs.filter(last_updated__lte=end_dt)
+        if warehouse_id:
+            ret_qs = ret_qs.filter(warehouse_id=warehouse_id)
+
+        ret_sums = ret_qs.aggregate(
+            bottle_sum=Sum("empty_bottle_qty"),
+            shell_sum=Sum("empty_shell_qty"),
+        )
+
+        data = {
+            "expected_sale": sums["expected_sale_sum"] or 0,
+            "actual_sale": sums["actual_sale_sum"] or 0,
+            "difference": (sums["actual_sale_sum"] or 0) - (sums["expected_sale_sum"] or 0),
+            "supplier_returnables_bottle": ret_sums["bottle_sum"] or 0,
+            "supplier_returnables_shell": ret_sums["shell_sum"] or 0,
         }
-        
-        return Response(retanddisc, status=status.HTTP_200_OK)
+        return Response(data, status=status.HTTP_200_OK)
