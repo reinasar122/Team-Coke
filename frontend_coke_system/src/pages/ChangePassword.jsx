@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 
 const isStrongPassword = (password) => {
   const regex =
-    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?#&])[A-Za-z\d@$!%*?#&]{8,}$/;
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
   return regex.test(password);
 };
 
@@ -112,8 +112,8 @@ const ChangePassword = () => {
             <li className={getValidationColor(/\d/.test(newPassword))}>
               • At least one number
             </li>
-            <li className={getValidationColor(/[@$!%*?#&]/.test(newPassword))}>
-              • At least one special character
+            <li className={getValidationColor(/[^A-Za-z0-9]/.test(newPassword))}>
+              • At least one special character (any symbol)
             </li>
           </ul>
 

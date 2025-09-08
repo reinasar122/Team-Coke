@@ -11,7 +11,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     province: "",
     city: "",
     barangay: "",
-    street_address: "",   // ✅ match model
+    street_address: "",   
     zip_code: "",
     phone_number: "",
     email: "",
@@ -84,9 +84,9 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
   return (
     <div>
       <h2 className="text-2xl font-semibold mb-4">New Warehouse</h2>
-      <form onSubmit={handleSubmit}>
-        {/* Name */}
-        <div className="mb-3">
+      <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Warehouse Name */}
+        <div className="md:col-span-2">
           <label className="block font-medium">Name of Warehouse</label>
           <input
             type="text"
@@ -98,7 +98,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
         </div>
 
         {/* Country */}
-        <div className="mb-3">
+        <div>
           <label className="block font-medium">Country</label>
           <input
             type="text"
@@ -110,7 +110,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
         </div>
 
         {/* Region */}
-        <div className="mb-3">
+        <div>
           <label className="block font-medium">Region</label>
           <select
             name="region"
@@ -119,7 +119,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
             className="w-full border p-2 rounded"
             required
           >
-            <option value="">-- Select Region --</option>
+            <option value="">Select Region</option>
             {psgcData.map((region) => (
               <option key={region.region_name} value={region.region_name}>
                 {region.region_name}
@@ -129,8 +129,8 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
         </div>
 
         {/* Province */}
-        <div className="mb-3">
-          <label className="block font-medium">Province</label>
+        <div>
+          <label className="block font-medium">Province/District</label>
           <select
             name="province"
             value={formData.province}
@@ -139,7 +139,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
             required
             disabled={!formData.region}
           >
-            <option value="">-- Select Province --</option>
+            <option value="">Select Province</option>
             {provinces.map((prov) => (
               <option key={prov.province_name} value={prov.province_name}>
                 {prov.province_name}
@@ -148,8 +148,8 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
           </select>
         </div>
 
-        {/* City */}
-        <div className="mb-3">
+        {/* Municipality/City */}
+        <div>
           <label className="block font-medium">City/Municipality</label>
           <select
             name="city"
@@ -159,7 +159,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
             required
             disabled={!formData.province}
           >
-            <option value="">-- Select City/Municipality --</option>
+            <option value="">Select City/Municipality</option>
             {cities.map((city) => (
               <option key={city.city_name} value={city.city_name}>
                 {city.city_name}
@@ -169,7 +169,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
         </div>
 
         {/* Barangay */}
-        <div className="mb-3">
+        <div>
           <label className="block font-medium">Barangay</label>
           <select
             name="barangay"
@@ -179,7 +179,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
             required
             disabled={!formData.city}
           >
-            <option value="">-- Select Barangay --</option>
+            <option value="">Select Barangay</option>
             {barangays.map((bgy, idx) => (
               <option key={idx} value={bgy}>
                 {bgy}
@@ -188,20 +188,8 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
           </select>
         </div>
 
-        {/* Street Address ✅ */}
-        <div className="mb-3">
-          <label className="block font-medium">Street Address</label>
-          <input
-            type="text"
-            name="street_address"
-            className="w-full border p-2 rounded"
-            required
-            onChange={handleChange}
-          />
-        </div>
-
-        {/* Zip */}
-        <div className="mb-3">
+        {/* Zip Code */}
+        <div>
           <label className="block font-medium">Zip Code</label>
           <input
             type="text"
@@ -212,8 +200,20 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
           />
         </div>
 
+        {/* Street Address */}
+        <div className="md:col-span-2">
+          <label className="block font-medium">Street Address</label>
+          <input
+            type="text"
+            name="street_address"
+            className="w-full border p-2 rounded"
+            required
+            onChange={handleChange}
+          />
+        </div>
+
         {/* Phone */}
-        <div className="mb-3">
+        <div>
           <label className="block font-medium">Phone No.</label>
           <input
             type="text"
@@ -225,7 +225,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
         </div>
 
         {/* Email */}
-        <div className="mb-3">
+        <div>
           <label className="block font-medium">Email</label>
           <input
             type="email"
@@ -237,17 +237,17 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
         </div>
 
         {/* Buttons */}
-        <div className="flex justify-between">
+        <div className="md:col-span-2 flex justify-between mt-4">
           <button
             type="button"
-            className="btn-cancel py-2 px-4 rounded"
+            className="btn btn-cancel py-2 px-4"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="bg-blue-500 text-white py-2 px-4 rounded"
+            className="btn btn-primary py-2 px-4"
           >
             Save
           </button>

@@ -797,12 +797,12 @@ const SupplierReturnForm = () => {
             <div className="mb-4">
               <label className="block mb-1 font-medium">Total Amount</label>
               <div className="relative">
-                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₱</span>
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 z-10">₱</span>
                 <input 
                   type="text" 
                   value={formatDecimal(form.total_amount).toFixed(2)}
                   readOnly
-                  className="w-full p-3 pl-7 bg-gray-100 border border-gray-200 rounded"
+                  className="w-full p-5 pl-6 bg-gray-100 border border-gray-200 rounded"
                 />
               </div>
             </div>

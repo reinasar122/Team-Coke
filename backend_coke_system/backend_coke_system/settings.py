@@ -96,6 +96,7 @@ DATABASES = {
 
 
 
+
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -159,8 +160,8 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
-EMAIL_HOST_USER = 'jkcuevas4@gmail.com'         # replace with your actual Gmail
-EMAIL_HOST_PASSWORD = 'xtfzuvwtrdioxtex' 
+EMAIL_HOST_USER = 'devilleresmarcjade84@gmail.com'         # replace with your actual Gmail
+EMAIL_HOST_PASSWORD = 'dswu ffeu moac couk' 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 CORS_ALLOW_HEADERS = [

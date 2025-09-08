@@ -108,7 +108,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   if (!user) return <div>Loading user data...</div>;
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+    <div className="modal-overlay bg-gray-900 bg-opacity-50">
       <div className="w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
         <h2 className="text-2xl font-semibold mb-4 text-center">Edit User</h2>
 
@@ -247,10 +247,10 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
           {/* Buttons */}
           <div className="flex justify-between">
-            <button type="button" onClick={onClose} className="bg-red-500 text-white py-2 px-4 rounded">
+            <button type="button" onClick={onClose} className="btn btn-cancel py-2 px-4">
               Cancel
             </button>
-            <button type="submit" className="bg-blue-500 text-white py-2 px-4 rounded" disabled={loading}>
+            <button type="submit" className="btn btn-primary py-2 px-4 " disabled={loading}>
               {loading ? "Saving..." : "Save Changes"}
             </button>
           </div>

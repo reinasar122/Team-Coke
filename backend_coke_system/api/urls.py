@@ -32,7 +32,7 @@ from .views import (
     SupplierReturnItemListCreateView, SupplierReturnItemDetailView, 
     NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
     CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock, LoginAPIView, RoleAccessibilityListView ,
-    RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
+    RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, BulkRoleAccessibilityUpsertView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
     CreditPaymentCreateAPIView,BulkAdjustStockView,
@@ -69,7 +69,7 @@ path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="c
     path('role-access/', RoleAccessibilityListView.as_view(), name='role-access-list'),
     path('role-access/<int:pk>/', RoleAccessibilityDetailView.as_view(), name='role-access-detail'),
     path('role-access/bulk-create/', BulkRoleAccessibilityCreateView.as_view(), name='bulk-role-access-create'),
-
+    path('role-access/bulk-upsert/', BulkRoleAccessibilityUpsertView.as_view(), name='bulk-role-access-upsert'),
 
     path('roles/', RoleListCreateView.as_view(), name='role-list-create'),
     path('roles/<int:pk>/', RoleDetailView.as_view(), name='role-detail'),

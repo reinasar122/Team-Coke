@@ -143,15 +143,15 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-                <Route
+                {/*<Route
                   path="/users"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
                       <FaUsers /> Users
                     </h1>
                   }
-                />
-                <Route
+                />*/}
+                {/*<Route
                   path="/roles"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
@@ -166,8 +166,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                       <FaWarehouse className="text-red-500" /> Warehouses
                     </h1>
                   }
-                />
-                <Route path="/trading" />
+                />*/}
                 <Route
                   path="/invoice"
                   element={
@@ -292,6 +291,20 @@ function App() {
 
   return (
     <Router>
+
+          {/* Toast container at the root */}
+      <ToastContainer 
+          position="top-center"
+          autoClose={2000}
+          hideProgressBar={true}
+          closeOnClick
+          closeButton={false}
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          style={{ top: '70px' }}
+        />
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
