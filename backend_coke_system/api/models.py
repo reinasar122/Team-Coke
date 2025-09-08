@@ -23,9 +23,16 @@ class CreditLedger(models.Model):
         (STATUS_PAID, "Fully Paid"),
     ]
 
+    # ADD WAREHOUSE FIELD
+    warehouse = models.ForeignKey(
+        "api.Warehouse",  # Assuming you have a Warehouse model
+        on_delete=models.CASCADE,
+        related_name="credit_ledgers"
+    )
+
     # Link to your real Merchandising model in the SAME app
     merchandising = models.ForeignKey(
-        "api.Merchandising",  # ✅ fixed
+        "api.Merchandising",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -36,7 +43,7 @@ class CreditLedger(models.Model):
     msp_no = models.CharField(max_length=50, db_index=True)
     customer_name = models.CharField(max_length=255, blank=True, default="Walk-in")
     handled_by = models.CharField(max_length=255, blank=True, default="")
-    transaction_type = models.CharField(max_length=50, blank=True, default="")  # "Warehouse" | "Van Load"
+    transaction_type = models.CharField(max_length=50, blank=True, default="")
     remarks = models.TextField(blank=True, default="")
     created_at = models.DateTimeField(default=timezone.now)
     due_date = models.DateTimeField(null=True, blank=True)
@@ -47,7 +54,7 @@ class CreditLedger(models.Model):
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
 
-    # optional raw rows snapshot (for the “receipt”)
+    # optional raw rows snapshot (for the "receipt")
     rows_json = models.JSONField(default=list, blank=True)
 
     class Meta:

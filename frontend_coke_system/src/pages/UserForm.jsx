@@ -248,7 +248,7 @@ const UserForm = ({ onUserAdded, onClose }) => {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-gray-900 bg-opacity-50">
+    <div className="modal-overlay bg-gray-900 bg-opacity-50">
       <div className="w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
         <h2 className="text-2xl font-semibold mb-4">New User</h2>
         <form onSubmit={handleSubmit}>
@@ -395,7 +395,7 @@ const UserForm = ({ onUserAdded, onClose }) => {
           <div className="flex justify-between">
             <button 
               type="button" 
-              className="bg-red-500 text-white py-2 px-4 rounded" 
+              className="btn btn-cancel py-2 px-4 " 
               onClick={onClose}
               disabled={isSubmitting || isVerifyingEmail}
             >
@@ -403,7 +403,7 @@ const UserForm = ({ onUserAdded, onClose }) => {
             </button>
             <button 
               type="submit" 
-              className="bg-blue-500 text-white py-2 px-4 rounded disabled:bg-blue-300"
+              className="btn btn-primary py-2 px-4 "
               disabled={isSubmitting || isVerifyingEmail}
             >
               {isSubmitting ? "Creating..." : isVerifyingEmail ? "Verifying Email..." : "Create User"}

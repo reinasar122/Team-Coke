@@ -1,20 +1,25 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
-import { errorStyle } from "../utils/toastStyles"
+import { errorStyle } from "../utils/toastStyles";
 import RoleForm from "./RoleForm";
 import EditRoleAccess from "./EditRoleAccess";
-import { FaEdit, FaTrash } from "react-icons/fa";
+import { FaEdit, FaTrash, FaUserShield } from "react-icons/fa";
+
 
 const RoleList = () => {
   const [roles, setRoles] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
+
   const [isRoleFormVisible, setIsRoleFormVisible] = useState(false);
   const [showEditAccessModal, setShowEditAccessModal] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState(null);
 
-  // New states for delete modal
+  // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState(null);
+
+  // Optional: compute summaries for badges
+  const [roleSummaries, setRoleSummaries] = useState({}); // { [id]: 'Full'|'View-only'|'Custom' }
 
   useEffect(() => {
     fetchRoles();
@@ -22,12 +27,45 @@ const RoleList = () => {
 
   const fetchRoles = async () => {
     try {
+      setLoading(true);
       const response = await fetch("http://127.0.0.1:8080/api/roles/");
       if (!response.ok) throw new Error("Failed to fetch roles");
       const data = await response.json();
       setRoles(data);
+
+      // Fetch access lists for summaries (best-effort; ignore errors)
+      try {
+        const results = await Promise.all(
+          data.map((r) =>
+            fetch(`http://127.0.0.1:8080/api/role-access/?role_id=${r.id}`)
+              .then((res) => (res.ok ? res.json() : null))
+              .catch(() => null)
+          )
+        );
+
+        const map = {};
+        data.forEach((role, idx) => {
+          const obj = results[idx]; // object or null
+          if (!obj || Object.keys(obj).length === 0) {
+            map[role.id] = role.name?.toLowerCase() === "admin" ? "Full" : "Custom";
+          } else {
+            const perms = Object.values(obj); // [{full, view, create, edit, delete}, ...]
+            const allFull = perms.every((p) => p.full === true);
+            const allViewOnly = perms.every(
+              (p) => p.view === true && !p.create && !p.edit && !p.delete && !p.full
+            );
+            map[role.id] = allFull ? "Full" : allViewOnly ? "View-only" : "Custom";
+          }
+        });
+        setRoleSummaries(map);
+      } catch {
+        // noop
+      }
     } catch (error) {
       console.error("Error fetching roles:", error);
+      toast.error("Failed to load roles.", { style: errorStyle });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -39,89 +77,109 @@ const RoleList = () => {
       setRoles((prev) => [...prev, newRole]);
     }
     setIsRoleFormVisible(false);
+    // Refresh summaries for new role
+    setTimeout(fetchRoles, 0);
   };
 
-  // Trigger delete modal instead of immediate delete
   const confirmDelete = (role) => {
     setRoleToDelete(role);
     setShowDeleteModal(true);
   };
 
-  // Actual delete function
   const handleDelete = async () => {
-  if (!roleToDelete) return;
-  try {
-    const response = await fetch(`http://127.0.0.1:8080/api/roles/${roleToDelete.id}/`, {
-      method: "DELETE",
-    });
-    if (!response.ok) throw new Error("Failed to delete role");
+    if (!roleToDelete) return;
+    try {
+      const response = await fetch(`http://127.0.0.1:8080/api/roles/${roleToDelete.id}/`, {
+        method: "DELETE",
+      });
+      if (!response.ok) throw new Error("Failed to delete role");
 
-    setRoles((prev) => prev.filter((r) => r.id !== roleToDelete.id));
-    toast.error(`Role '${roleToDelete.name}' has been deleted.`, {style: errorStyle});
-  } catch (error) {
-    console.error("Error deleting role:", error);
-    toast.error("Error deleting role.", errorStyle);
-  } finally {
-    setShowDeleteModal(false);
-    setRoleToDelete(null);
-  }
-};
-
+      setRoles((prev) => prev.filter((r) => r.id !== roleToDelete.id));
+      toast.error(`Role '${roleToDelete.name}' has been deleted.`, { style: errorStyle });
+    } catch (error) {
+      console.error("Error deleting role:", error);
+      toast.error("Error deleting role.", { style: errorStyle });
+    } finally {
+      setShowDeleteModal(false);
+      setRoleToDelete(null);
+    }
+  };
 
   const handleEditAccess = (roleId) => {
     setSelectedRoleId(roleId);
     setShowEditAccessModal(true);
   };
 
-  const filteredRoles = roles.filter((role) =>
-    role.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const isProtected = (role) => role.name?.toLowerCase() === "admin";
 
   return (
-    <div className="relative container mx-auto p-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center mb-6">
-        <input
-          type="text"
-          placeholder="Search role..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-4 pr-6 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400 w-60 mb-4 sm:mb-0"
-        />
+    <div className="page">
+      <div className="flex justify-between items-center mb-6">
+        {/* Left side: Icon + Title */}
+        <div className="flex items-center gap-6">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <FaUserShield className="color: var(--text)" /> Roles
+          </h2>
+        </div>
 
+        {/* Right side: Button */}
         <button
           onClick={() => setIsRoleFormVisible(true)}
-          className="bg-green-500 text-white px-4 py-2 rounded-lg"
+          className="btn btn-add"
         >
           + Create Role
         </button>
       </div>
 
-      <div className="overflow-x-auto w-full bg-white shadow-md rounded-lg">
-        <table className="w-full border-collapse">
-          <thead className="bg-gray-200">
+      <div className="table-wrapper bg-white shadow-md rounded-lg">
+        <table className="table table-hover">
+          <thead >
             <tr>
-              <th className="py-3 px-4 text-left">ROLE NAME</th>
-              <th className="py-3 px-7 text-right">ACTIONS</th>
+              <th className="px-4 py-3 w-1/4">ROLE NAME</th>
+              <th className="px-4 py-3 w-1/2">SUMMARY</th>
+              <th className="px-4 py-3 w-1/4">ACTIONS</th>
             </tr>
           </thead>
           <tbody>
-            {filteredRoles.length > 0 ? (
-              filteredRoles.map((role) => (
-                <tr key={role.id} className="border-t hover:bg-gray-100">
-                  <td className="py-3 px-4 text-left">{role.name}</td>
-                  <td className="py-3 px-7 text-right">
-                    <div className="flex justify-end items-center gap-3">
+            {loading ? (
+              [...Array(4)].map((_, i) => (
+                <tr key={i} className="border-t animate-pulse">
+                  <td className="text-left"><div className="h-4 w-32 bg-gray-200 rounded" /></td>
+                  <td><div className="h-4 w-24 bg-gray-200 rounded mx-auto" /></td>
+                  <td className="text-right"><div className="h-4 w-16 bg-gray-200 rounded inline-block" /></td>
+                </tr>
+              ))
+            ) : roles.length > 0 ? (
+              roles.map((role) => (
+                <tr key={role.id}>
+                  <td className="px-4 py-2">{role.name}</td>
+                  <td className="px-4 py-2">
+                    <span
+                      className={`inline-flex items-center text-xs font-medium px-2 py-1 rounded-full ${
+                        (roleSummaries[role.id] || "Custom") === "Full"
+                          ? "bg-green-100 text-green-700"
+                          : (roleSummaries[role.id] || "Custom") === "View-only"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {roleSummaries[role.id] || "Custom"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 space-x-2">
+                    <div className="inline-flex justify-end items-center gap-3">
                       <button
                         onClick={() => handleEditAccess(role.id)}
-                        className="text-blue-500"
+                        className="icon-btn-edit"
                         title="Edit Access"
                       >
                         <FaEdit size={20} />
                       </button>
                       <button
-                        onClick={() => confirmDelete(role)}
-                        className="text-red-500"
-                        title="Delete Role"
+                        onClick={() => !isProtected(role) && confirmDelete(role)}
+                        className={isProtected(role) ? "icon-btn-disabled" : "icon-btn-danger"}
+                        title={isProtected(role) ? "This role is protected" : "Delete Role"}
+                        disabled={isProtected(role)}
                       >
                         <FaTrash size={20} />
                       </button>
@@ -131,9 +189,7 @@ const RoleList = () => {
               ))
             ) : (
               <tr>
-                <td colSpan="2" className="py-6 text-center">
-                  No roles found
-                </td>
+                <td colSpan="3">No roles found</td>
               </tr>
             )}
           </tbody>
@@ -149,7 +205,7 @@ const RoleList = () => {
 
       {showEditAccessModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-lg w-[90%] md:w-[50%] max-h-[90vh] overflow-auto p-6">
+          <div className="bg-white rounded-lg shadow-lg w-[90%] md:w-[60%] max-h-[90vh] overflow-auto p-6">
             <EditRoleAccess
               roleId={selectedRoleId}
               onClose={() => setShowEditAccessModal(false)}
@@ -162,12 +218,13 @@ const RoleList = () => {
       {showDeleteModal && roleToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
           <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
-            <p className="text-lg font-semibold mb-6">
+            <p className="text-lg font-semibold mb-2">
               Are you sure you want to delete <strong>{roleToDelete.name}</strong>?
             </p>
+            <p className="text-sm text-red-600 mb-6">This action cannot be undone.</p>
             <div className="flex justify-between">
               <button
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400"
+                className="btn btn-cancel"
                 onClick={() => {
                   setShowDeleteModal(false);
                   setRoleToDelete(null);
@@ -176,7 +233,7 @@ const RoleList = () => {
                 Cancel
               </button>
               <button
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                className="btn btn-danger"
                 onClick={handleDelete}
               >
                 Delete

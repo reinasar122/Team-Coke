@@ -150,15 +150,15 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-                <Route
+                {/*<Route
                   path="/users"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
                       <FaUsers /> Users
                     </h1>
                   }
-                />
-                <Route
+                />*/}
+                {/*<Route
                   path="/roles"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
@@ -173,7 +173,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                       <FaWarehouse className="text-red-500" /> Warehouses
                     </h1>
                   }
-                />
+                />*/}
                 <Route
                   path="/trading"
                 />

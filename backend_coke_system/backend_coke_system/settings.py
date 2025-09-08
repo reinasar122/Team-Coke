@@ -86,13 +86,14 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'db_1',
+         'NAME': 'multi_db11',
          'USER': 'root',
-         'PASSWORD': 'yjh434ctuG@-@',
+         'PASSWORD': 'Ctugmarc@2003',
          'HOST': 'localhost',
          'PORT': '3306',
      }
  }
+
 
 
 
@@ -159,8 +160,8 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
-EMAIL_HOST_USER = 'jkcuevas4@gmail.com'         # replace with your actual Gmail
-EMAIL_HOST_PASSWORD = 'xtfzuvwtrdioxtex' 
+EMAIL_HOST_USER = 'devilleresmarcjade84@gmail.com'         # replace with your actual Gmail
+EMAIL_HOST_PASSWORD = 'dswu ffeu moac couk' 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 CORS_ALLOW_HEADERS = [

@@ -4,7 +4,7 @@ import { errorStyle } from "../utils/toastStyles"
 import UserForm from "./UserForm";
 import EditUser from "./EditUser";
 import { canCreate, canEdit, canDelete } from "../utils/accessControl";
-import { FaEdit, FaTrash } from "react-icons/fa";
+import { FaEdit, FaTrash, FaUsers} from "react-icons/fa";
 
 // Search Icon Component
 const SearchIcon = () => (
@@ -39,9 +39,8 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, user }) => {
         <div className="modal-body">
           <h3 className="page-title">Confirm Delete</h3>
           <p>Are you sure you want to delete user "{user?.first_name} {user?.last_name}"?</p>
-          <p className="text-muted">This action cannot be undone.</p>
-
-          <div className="modal-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+          <p className="text-sm text-red-600 mb-6">This action cannot be undone.</p>
+            <div className="flex justify-between">
             <button
               type="button"
               className="btn btn-cancel"
@@ -138,25 +137,39 @@ const UserList = () => {
 
   return (
     <div className="page">
-      {/* Header */}
-      <div className="page-header">
+      {/* Compact Header */}
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '1rem',
+        padding: '0 1rem'
+      }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {/* Role dropdown */}
+          {/* Users Icon + Role dropdown */}
           <div style={{ position: 'relative' }}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="btn btn-ghost"
               style={{ 
-                fontSize: '1rem', 
-                fontWeight: 600, 
                 display: 'flex', 
                 alignItems: 'center', 
                 gap: '8px',
-                padding: '8px 16px'
+                background: 'none',
+                border: 'none',
+                fontSize: '1.1rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                color: 'var(--text)',
+                padding: '8px 12px',
+                borderRadius: 'var(--r-sm)',
+                transition: 'background-color 0.2s'
               }}
+              onMouseEnter={(e) => e.target.style.background = 'var(--ghost-hover)'}
+              onMouseLeave={(e) => e.target.style.background = 'none'}
             >
-              👥 {selectedRole}
-              <svg xmlns="http://www.w3.org/2000/svg" style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 20 20">
+              <FaUsers style={{ fontSize: '1.2rem' }} />
+              {selectedRole}
+              <svg xmlns="http://www.w3.org/2000/svg" style={{ width: '16px', height: '16px' }} fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
@@ -202,7 +215,7 @@ const UserList = () => {
           </div>
 
           {/* Search input */}
-          <div style={{ position: 'relative', maxWidth: '300px' }}>
+          <div style={{ position: 'relative' }}>
             {!isFocused && <SearchIcon />}
             <input
               type="text"
@@ -221,35 +234,40 @@ const UserList = () => {
           </div>
         </div>
 
-        <div className="actions">
-          <button
-            className={`btn ${canCreate("User") ? "btn-add" : "btn-disabled"}`}
-            onClick={() => {
-              if (canCreate("User")) setShowForm(true);
-            }}
-            disabled={!canCreate("User")}
-          >
-            + Create User
-          </button>
-        </div>
+        <button
+          className={`btn ${canCreate("User") ? "btn-add" : "btn-disabled"}`}
+          onClick={() => {
+            if (canCreate("User")) setShowForm(true);
+          }}
+          disabled={!canCreate("User")}
+        >
+          + Create User
+        </button>
       </div>
 
-      {/* Table - Same structure as ReceivingList */}
+      {/* Table - Removed extra container, same as SupplierReturnList */}
       <div className="table-wrapper">
-        <table className="table">
+        <table className="table table-hover" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '35%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '15%' }} />
+          </colgroup>
           <thead>
             <tr>
               <th className="text-left">USER DETAILS</th>
               <th className="text-left">ROLE</th>
               <th className="text-left">WAREHOUSE</th>
-              <th>STATUS</th>
-              <th className="w-128">ACTIONS</th>
+              <th style={{ textAlign: 'center' }}>STATUS</th>
+              <th style={{ textAlign: 'center' }}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {filteredUsers.length === 0 ? (
               <tr>
-                <td colSpan="5" className="text-muted" style={{ textAlign: "center", padding: 24 }}>
+                <td colSpan="5" style={{ textAlign: "center", padding: '2rem', color: 'var(--text-muted)' }}>
                   No users found
                 </td>
               </tr>
@@ -310,14 +328,14 @@ const UserList = () => {
                     )}
                   </td>
                   <td>
-                    <div className="actions" style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                       <button
                         onClick={() => canEdit("User") && setEditingUser(user)}
                         disabled={!canEdit("User")}
-                        className={`icon-btn ${canEdit("User") ? "icon-btn-primary" : "icon-btn-disabled"}`}
+                        className={`icon-btn ${canEdit("User") ? "icon-btn-edit" : "icon-btn-disabled"}`}
                         title="Edit User"
                       >
-                        <FaEdit />
+                        <FaEdit size={16} />
                       </button>
                       <button
                         onClick={() => {
@@ -329,7 +347,7 @@ const UserList = () => {
                         className={`icon-btn ${canDelete("User") ? "icon-btn-danger" : "icon-btn-disabled"}`}
                         title="Delete User"
                       >
-                        <FaTrash />
+                        <FaTrash size={16} />
                       </button>
                     </div>
                   </td>
@@ -342,10 +360,12 @@ const UserList = () => {
 
       {/* Modals */}
       {showForm && (
-        <UserForm 
-          onUserAdded={(newUser) => setUsers([...users, newUser])} 
-          onClose={() => setShowForm(false)} 
-        />
+        <div className="modal-overlay">
+          <UserForm 
+            onUserAdded={(newUser) => setUsers([...users, newUser])} 
+            onClose={() => setShowForm(false)} 
+          />
+        </div>
       )}
 
       {editingUser && (

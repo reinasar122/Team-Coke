@@ -340,76 +340,74 @@ const SupplierReturnList = () => {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="card" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <div className="table-wrapper" style={{ flex: 1 }}>
-          <table className="table table-hover" style={{ tableLayout: 'fixed' }}>
-            <colgroup>
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '20%' }} />
-              <col style={{ width: '25%' }} />
-              <col style={{ width: '20%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '8%' }} />
-            </colgroup>
-            <thead>
-              <tr>
-                <th className="text-left">Sup No.</th>
-                <th style={{ textAlign: 'center' }}>Date</th>
-                <th style={{ textAlign: 'center' }}>Supplier</th>
-                <th style={{ textAlign: 'center' }}>Warehouse</th>
-                <th style={{ textAlign: 'center' }}>Total Amount</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredReturns.length > 0 ? (
-                filteredReturns.map((item, index) => (
-                  <tr key={index}>
-                    <td className="text-left" style={{ paddingLeft: '12px' }}>{item.sup_no}</td>
-                    <td style={{ textAlign: 'center' }}>{formatDate(item.date)}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      {item.supplier_name || item.supplier || "N/A"}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      {item.warehouse_name || "N/A"}
-                    </td>
-                    <td style={{ textAlign: 'center' }}>
-                      ₱{Number(item.total_amount || 0).toFixed(2)}
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
-                        <button
-                          onClick={() => handleView(item.id)}
-                          className="icon-btn icon-btn-view"
-                          title="View"
-                        >
-                          <FaEye size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          className="icon-btn icon-btn-danger"
-                          title="Delete"
-                        >
-                          <FaTrash size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                    {currentWarehouse ? 
-                      `No supplier returns found for ${currentWarehouse.name}.` : 
-                      'No warehouse selected.'
-                    }
+      {/* Table - Removed double container */}
+      <div className="table-wrapper">
+        <table className="table table-hover" style={{ tableLayout: 'fixed' }}>
+          <colgroup>
+            <col style={{ width: '15%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '25%' }} />
+            <col style={{ width: '20%' }} />
+            <col style={{ width: '12%' }} />
+            <col style={{ width: '8%' }} />
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="text-left">Sup No.</th>
+              <th style={{ textAlign: 'center' }}>Date</th>
+              <th style={{ textAlign: 'center' }}>Supplier</th>
+              <th style={{ textAlign: 'center' }}>Warehouse</th>
+              <th style={{ textAlign: 'center' }}>Total Amount</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filteredReturns.length > 0 ? (
+              filteredReturns.map((item, index) => (
+                <tr key={index}>
+                  <td className="text-left" style={{ paddingLeft: '12px' }}>{item.sup_no}</td>
+                  <td style={{ textAlign: 'center' }}>{formatDate(item.date)}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    {item.supplier_name || item.supplier || "N/A"}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    {item.warehouse_name || "N/A"}
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    ₱{Number(item.total_amount || 0).toFixed(2)}
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+                      <button
+                        onClick={() => handleView(item.id)}
+                        className="icon-btn icon-btn-view"
+                        title="View"
+                      >
+                        <FaEye size={16} />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="icon-btn icon-btn-danger"
+                        title="Delete"
+                      >
+                        <FaTrash size={16} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                  {currentWarehouse ? 
+                    `No supplier returns found for ${currentWarehouse.name}.` : 
+                    'No warehouse selected.'
+                  }
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
       </div>
 
       {/* Modal for displaying supplier return details */}

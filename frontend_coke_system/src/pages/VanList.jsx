@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FaSearch, FaEdit, FaTrash } from "react-icons/fa";
+import { FaSearch, FaEdit, FaTrash, FaTruck } from "react-icons/fa";
 import { toast } from "react-toastify";
 import VanForm from "./VanForm";
 import { errorStyle, successStyle } from "../utils/toastStyles";
@@ -148,18 +148,24 @@ const VanList = () => {
 
   return (
     <div className="page">
-      {/* Header with Search + Add Van */}
+
       <div className="flex justify-between items-center mb-6">
-        {/* Search Bar */}
-        <div className="relative w-72">
-          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search plate number..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
+        {/* Title + Search */}
+        <div  className="flex items-center gap-6">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <FaTruck className="color: var(--text)" /> Van Management
+          </h2>      
+          
+          <div className="relative w-72 mr-4">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search plate number..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
         </div>
 
         {/* Add Van Button */}
@@ -168,8 +174,7 @@ const VanList = () => {
             setEditingVan(null);
             setIsVanFormVisible(true);
           }}
-          className="px-4 py-2 bg-green-500 text-white rounded-lg shadow "
-        >
+          className="px-4 py-2 btn btn-add">
           + Add Van
         </button>
       </div>
@@ -181,7 +186,7 @@ const VanList = () => {
             <tr>
               <th className="px-4 py-3 w-1/4">Van ID</th>
               <th className="px-4 py-3 w-1/2">Plate Number</th>
-              <th className="px-4 py-3 w-1/4 text-right">Actions</th>
+              <th className="px-4 py-3 w-1/4">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -190,7 +195,7 @@ const VanList = () => {
                 <tr key={van.id} className="border-b">
                   <td className="px-4 py-2">{van.van_id}</td>
                   <td className="px-4 py-2">{van.plate_number}</td>
-                  <td className="px-3 py-2 text-right space-x-2">
+                  <td className="px-3 py-2 space-x-2">
                     <button
                       onClick={() => handleEdit(van)}
                       className="icon-btn-edit "
