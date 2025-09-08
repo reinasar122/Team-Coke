@@ -207,16 +207,34 @@ export default function SalesReport() {
         }
          // kath
 
-        let retanddisc = { expected_sale: 0, actual_sale: 0, difference: 0, supplier_returnables: 0 };
-        
+        // / --- Returns & Discrepancies ---
+        let retanddisc = {
+          expected_sale: 0,
+          actual_sale: 0,
+          difference: 0,
+          supplier_returnables_bottle: 0,
+          supplier_returnables_shell: 0,
+        };
+
         try {
           const retRes = await axios.get(`${API}/reports/returns-and-discrepancies/`, {
             headers,
-            params: retanddisc,
+            params: revParams, // ✅ use the same filters (start, end, warehouse_id, route_id)
             timeout: 15000,
           });
-          retanddisc = retRes.data || retanddisc;
-          console.log("[SalesReport] returns-and-discrepancies params:", retanddisc);
+
+          const data = retRes.data || {};
+          retanddisc = {
+            expected_sale: data.expected_sale ?? 0,
+            actual_sale: data.actual_sale ?? 0,
+            difference: data.difference ?? 0, // format sign in UI; no plus needed
+            // keep backward-compat if backend still returns a single "supplier_returnables"
+            supplier_returnables_bottle:
+              data.supplier_returnables_bottle ?? data.supplier_returnables ?? 0,
+            supplier_returnables_shell: data.supplier_returnables_shell ?? 0,
+          };
+
+          console.log("[SalesReport] returns-and-discrepancies params:", revParams);
         } catch (e) {
           console.warn("[SalesReport] returns-and-discrepancies failed:", e?.message);
         }

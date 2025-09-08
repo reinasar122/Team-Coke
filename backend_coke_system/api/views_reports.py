@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from datetime import date as _date, datetime, time as _time, timedelta
+import datetime as dt
 from decimal import Decimal
 import logging
 import os
@@ -506,36 +507,41 @@ class SalesAndReturnables(APIView):
     """
 
     def _parse_dt(self, s: str | None, *, treat_as_end=False):
-        """Parse many datetime shapes; default to current TZ if naive."""
+        """Parse many datetime shapes; default to current TZ if naive. Shadow-safe."""
         if not s:
             return None
         s = s.strip()
 
         # Date only (YYYY-MM-DD)
         if len(s) == 10 and s[4] == "-" and s[7] == "-":
-            d = datetime.date.fromisoformat(s)
-            t = datetime.time(23, 59, 59, 999999) if treat_as_end else datetime.time(0, 0, 0, 0)
-            dt = datetime.datetime.combine(d, t)
-            return timezone.make_aware(dt, timezone.get_current_timezone())
+            try:
+                d = dt.datetime.strptime(s, "%Y-%m-%d").date()
+            except ValueError:
+                return None
+            t = dt.time(23, 59, 59, 999999) if treat_as_end else dt.time(0, 0, 0, 0)
+            combined = dt.datetime.combine(d, t)
+            if timezone.is_naive(combined):
+                combined = timezone.make_aware(combined, timezone.get_current_timezone())
+            return combined
 
-        # Try Django's flexible parser (handles both ' ' and 'T', with/without microseconds)
-        dt = parse_datetime(s)
+        # Try Django's flexible parser (handles ' ' or 'T', with/without microseconds/tz)
+        parsed = parse_datetime(s)
 
         # Fallback to explicit formats with space separator
-        if dt is None:
+        if parsed is None:
             for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
                 try:
-                    dt = datetime.datetime.strptime(s, fmt)
+                    parsed = dt.datetime.strptime(s, fmt)
                     break
                 except ValueError:
                     pass
 
-        if dt is None:
+        if parsed is None:
             return None
 
-        if timezone.is_naive(dt):
-            dt = timezone.make_aware(dt, timezone.get_current_timezone())
-        return dt
+        if timezone.is_naive(parsed):
+            parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+        return parsed
 
     def get(self, request, *args, **kwargs):
         start_raw = request.query_params.get("start")
@@ -543,7 +549,6 @@ class SalesAndReturnables(APIView):
         warehouse_id = request.query_params.get("warehouse_id")
         route_id = request.query_params.get("route_id")
 
-        # If a plain date is sent (YYYY-MM-DD), start -> 00:00, end -> 23:59:59.999999
         start_dt = self._parse_dt(start_raw, treat_as_end=False)
         end_dt = self._parse_dt(end_raw, treat_as_end=True)
 
