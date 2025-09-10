@@ -32,7 +32,7 @@ from .views import (
     SupplierReturnItemListCreateView, SupplierReturnItemDetailView, 
     NextMspNoView, StockAvailabilityView, UpdateStockView, MerchandisingListView,
     CustomerListCreateView, CustomerRetrieveUpdateDestroyView, restore_stock, LoginAPIView, RoleAccessibilityListView ,
-    RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
+    RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, BulkRoleAccessibilityUpsertView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
     CreditPaymentCreateAPIView,BulkAdjustStockView, 
@@ -47,6 +47,9 @@ from .views import warehouse_groups_view, warehouse_details_view
 from .views import SupplierReturnFormListCreateView
 from .views import SupplierReturnFormDetailView
 from .views import ProcessEmptiesReturnView
+
+
+from .views_reports import RevenueSummaryView, SalesAndReturnables, SalesReportAPIView
 
 
 urlpatterns = [
@@ -66,7 +69,7 @@ urlpatterns = [
     path('role-access/', RoleAccessibilityListView.as_view(), name='role-access-list'),
     path('role-access/<int:pk>/', RoleAccessibilityDetailView.as_view(), name='role-access-detail'),
     path('role-access/bulk-create/', BulkRoleAccessibilityCreateView.as_view(), name='bulk-role-access-create'),
-
+    path('role-access/bulk-upsert/', BulkRoleAccessibilityUpsertView.as_view(), name='bulk-role-access-upsert'),
 
     path('roles/', RoleListCreateView.as_view(), name='role-list-create'),
     path('roles/<int:pk>/', RoleDetailView.as_view(), name='role-detail'),
@@ -151,16 +154,21 @@ urlpatterns = [
     path('login/', LoginAPIView.as_view(), name='login'),
 
     # Supplier Return Form
-      path('supplier-return-form/', SupplierReturnFormListCreateView.as_view(), name='supplier-return-form'),
-      path('supplier-return-form/<int:pk>/', SupplierReturnFormDetailView.as_view(), name='supplier-return-form-detail'),
+    path('supplier-return-form/', SupplierReturnFormListCreateView.as_view(), name='supplier-return-form'),
+    path('supplier-return-form/<int:pk>/', SupplierReturnFormDetailView.as_view(), name='supplier-return-form-detail'),
 
     # Process Empties Return
-       path('process-empties-return/', ProcessEmptiesReturnView.as_view(), name='process-empties-return'),
+    path('process-empties-return/', ProcessEmptiesReturnView.as_view(), name='process-empties-return'),
 
-     path("van-load-return/", VanLoadReturnUpdateAPIView.as_view(), name="van-load-return"),
+    path("van-load-return/", VanLoadReturnUpdateAPIView.as_view(), name="van-load-return"),
 
     path('stocks/bulk-adjust/', BulkAdjustStockView.as_view(), name='bulk-adjust-stocks'),
 
+    #Sales Report API
+    path("reports/sales/", SalesReportAPIView.as_view(), name="reports-sales"),
+    path("sales_report/", SalesReportAPIView.as_view(), name="sales-report-legacy"),
+    path("reports/revenue-summary/", RevenueSummaryView.as_view(), name="revenue-summary"), #kath
+    path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
 ]
 
 router = DefaultRouter()

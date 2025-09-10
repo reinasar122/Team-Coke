@@ -14,7 +14,6 @@ import Sidebar from "./components/Sidebar";
 import "./index.css";
 import './styles/global.scss';
 
-
 // Pages
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
@@ -46,20 +45,17 @@ import VanLoadUpdate from "./pages/VanLoadUpdate";
 import SupplierReturnForm from "./pages/SupplierReturnForm";
 import SupplierReturnList from "./pages/SupplierReturnList";
 import ReturnEmpties from "./pages/ReturnEmpties";
-// import PaymentModal from "./components/PaymentModal";
 import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 import ReceivingDetails from "./pages/ReceivingDetails";
-
 
 // Karen Changes
 import VanLoadProductDetails from "./pages/VanLoadProductDetails";
 
 // Dashboard Page
-import Dashboard from "./pages/Dashboard"; // Add this import for the Dashboard
+import Dashboard from "./pages/Dashboard";
 
-//Sales Report
+// ✅ Sales Report
 import SalesReport from "./pages/reports/SalesReport.jsx";
-
 
 // Credits
 import CreditList from "./pages/CreditList";
@@ -82,10 +78,11 @@ import {
   FaUserShield,
   FaWarehouse,
   FaUndoAlt,
+  FaChartBar,   // ✅ for Sales Report title
 } from "react-icons/fa";
 
-import { ToastContainer } from 'react-toastify'; //Jea
-import 'react-toastify/dist/ReactToastify.css'; //jea
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 // ✅ Layout wrapper for protected pages
 const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
@@ -138,12 +135,8 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   //   </h1>
                   // }
                 />
-                <Route
-                  path="/stocks"
-                />
-                <Route
-                  path="/products"
-                />
+                <Route path="/stocks" />
+                <Route path="/products" />
                 <Route
                   path="/suppliers"
                   // element={
@@ -160,7 +153,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-                <Route
+                {/*<Route
                   path="/users"
                   // element={
                   //   <h1 className="text-2xl flex items-center gap-2">
@@ -183,18 +176,15 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                       <FaWarehouse className="text-red-500" /> Warehouses
                     </h1>
                   }
-                />
+                />*/}
                 <Route
-                  path="/trading"
-                />
-                {/* <Route
                   path="/invoice"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
                       <FaFileInvoice /> Invoice
                     </h1>
                   }
-                /> */}
+                />
                 <Route
                   path="/StocksAdjustment"
                   element={
@@ -211,17 +201,23 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-                <Route
-                  path="/return-empties"
-                />
-                <Route
-                  path="/credits"
-                />
+                <Route path="/return-empties" />
+                <Route path="/credits" />
                 <Route
                   path="/credits/:id"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
                       Credit Detail
+                    </h1>
+                  }
+                />
+
+                {/* ✅ Sales Report page title */}
+                <Route
+                  path="/reports/sales"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaChartBar /> Sales Report
                     </h1>
                   }
                 />
@@ -231,8 +227,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
           {/* Page Routes */}
           <Routes>
-
-            {/* Add Dashboard Route */}
+            {/* Dashboard */}
             <Route path="/dashboard" element={<Dashboard />} />
 
             {/* Credits */}
@@ -274,7 +269,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             />
             <Route path="/merchandising-sale" element={<MerchandisingSale />} />
             <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
-            <Route path="/warehouse-details/:mspNo"element={<WarehouseProductDetails />}/>
+            <Route path="/warehouse-details/:mspNo" element={<WarehouseProductDetails />} />
 
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
             <Route path="/change-password" element={<ChangePassword />} />
@@ -282,17 +277,14 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/verify-otp" element={<VerifyOTP />} />
             <Route path="/expences" element={<Expences />} />
 
-            {/* Karen Changes */}  
+            {/* Karen Changes */}
             <Route path="/van-load-update" element={<VanLoadUpdate />} />
             <Route path="/van-load-product-details/:id" element={<VanLoadProductDetails />} />
-
-            <Route path="/van-load-update" element={<VanLoadUpdate />} />
             <Route path="/supplier-returns" element={<SupplierReturnList />} />
             <Route path="/supplier-returns/new" element={<SupplierReturnForm />} />
             <Route path="/return-empties" element={<ReturnEmpties />} />
 
-
-            {/* ✅ Sales Report page */}
+            {/* ✅ Sales Report page route */}
             <Route path="/reports/sales" element={<SalesReport />} />
             <Route path="/salesreport" element={<Navigate to="/reports/sales" replace />} />
 
@@ -314,6 +306,20 @@ function App() {
 
   return (
     <Router>
+
+          {/* Toast container at the root */}
+      <ToastContainer 
+          position="top-center"
+          autoClose={2000}
+          hideProgressBar={true}
+          closeOnClick
+          closeButton={false}
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          style={{ top: '70px' }}
+        />
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />

@@ -91,20 +91,26 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
   return (
     <div>
       <h2 className="text-2xl font-semibold mb-4">Edit Warehouse</h2>
-      <form onSubmit={handleSubmit}>
-        <div className="mb-3">
+      {/* Grid form layout */}
+      <form
+        onSubmit={handleSubmit}
+        className="grid grid-cols-1 md:grid-cols-2 gap-4"
+      >
+        {/* Warehouse Name (full width) */}
+        <div className="md:col-span-2">
           <label className="block font-medium">Name of Warehouse</label>
           <input
             type="text"
             name="name"
             className="w-full border p-2 rounded"
-            value={formData.name}
+            value={formData.name || ""}
             required
             onChange={handleChange}
           />
         </div>
 
-        <div className="mb-3">
+        {/* Country */}
+        <div>
           <label className="block font-medium">Country</label>
           <input
             type="text"
@@ -112,14 +118,16 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
             value="Philippines"
             disabled
             className="w-full border p-2 rounded bg-gray-100"
+            readOnly
           />
         </div>
 
-        <div className="mb-3">
+        {/* Region */}
+        <div>
           <label className="block font-medium">Region</label>
           <select
             name="region"
-            value={formData.region}
+            value={formData.region || ""}
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
@@ -133,11 +141,12 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
           </select>
         </div>
 
-        <div className="mb-3">
-          <label className="block font-medium">Province</label>
+        {/* Province */}
+        <div>
+          <label className="block font-medium">Province/District</label>
           <select
             name="province"
-            value={formData.province}
+            value={formData.province || ""}
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
@@ -152,11 +161,12 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
           </select>
         </div>
 
-        <div className="mb-3">
+        {/* Municipality/City */}
+        <div>
           <label className="block font-medium">City/Municipality</label>
           <select
             name="city"
-            value={formData.city}
+            value={formData.city || ""}
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
@@ -171,11 +181,12 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
           </select>
         </div>
 
-        <div className="mb-3">
+        {/* Barangay */}
+        <div>
           <label className="block font-medium">Barangay</label>
           <select
             name="barangay"
-            value={formData.barangay}
+            value={formData.barangay || ""}
             onChange={handleChange}
             className="w-full border p-2 rounded"
             required
@@ -190,66 +201,70 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
           </select>
         </div>
 
-        {/* Street Address */}
-        <div className="mb-3">
-          <label className="block font-medium">Street Address</label>
-          <input
-            type="text"
-            name="street_address"
-            value={formData.street_address}
-            className="w-full border p-2 rounded"
-            required
-            onChange={handleChange}
-          />
-        </div>
-
-        <div className="mb-3">
+        {/* Zip Code */}
+        <div>
           <label className="block font-medium">Zip Code</label>
           <input
             type="text"
             name="zip_code"
-            value={formData.zip_code}
+            value={formData.zip_code || ""}
             className="w-full border p-2 rounded"
             required
             onChange={handleChange}
           />
         </div>
 
-        <div className="mb-3">
+        {/* Street Address (full width) */}
+        <div className="md:col-span-2">
+          <label className="block font-medium">Street Address</label>
+          <input
+            type="text"
+            name="street_address"
+            value={formData.street_address || ""}
+            className="w-full border p-2 rounded"
+            required
+            onChange={handleChange}
+          />
+        </div>
+
+        {/* Phone No. */}
+        <div>
           <label className="block font-medium">Phone No.</label>
           <input
             type="text"
             name="phone_number"
-            value={formData.phone_number}
+            value={formData.phone_number || ""}
             className="w-full border p-2 rounded"
             required
             onChange={handleChange}
           />
         </div>
 
-        <div className="mb-3">
+        {/* Email */}
+        <div>
           <label className="block font-medium">Email</label>
           <input
             type="email"
             name="email"
-            value={formData.email}
+            value={formData.email || ""}
             className="w-full border p-2 rounded"
             required
             onChange={handleChange}
           />
         </div>
 
-        <div className="flex justify-between">
+        {/* Buttons (full width row) */}
+        <div className="md:col-span-2 flex justify-between mt-4">
           <button
             type="button"
-            className="bg-red-500 text-white py-2 px-4 rounded"
+            className="btn btn-cancel py-2 px-4"
             onClick={onClose}
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="bg-blue-500 text-white py-2 px-4 rounded"
+            className="btn btn-primary py-2 px-4"
           >
             Save Changes
           </button>

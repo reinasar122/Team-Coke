@@ -1,29 +1,82 @@
 // src/pages/CreditList.jsx
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { FaEye } from "react-icons/fa"; // 👈 import icon
-import "../styles/pages/credit.scss"; // custom styles
+import { FaEye } from "react-icons/fa";
 
 export default function CreditList() {
   const [rows, setRows] = useState([]);
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    (async () => {
-      const { data } = await axios.get("http://127.0.0.1:8080/api/credits/");
-      setRows(Array.isArray(data) ? data : []);
-    })();
+  // Get current warehouse information
+  const getCurrentWarehouse = useCallback(() => {
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    if (userData.role?.toLowerCase() === "admin") {
+      return selectedWarehouse || { id: userData.warehouse_id, name: userData.warehouse };
+    }
+    
+    if (userData.warehouse_id && userData.warehouse) {
+      return { id: userData.warehouse_id, name: userData.warehouse };
+    }
+    
+    return null;
   }, []);
 
+  useEffect(() => {
+    const updateWarehouse = () => {
+      const warehouse = getCurrentWarehouse();
+      setCurrentWarehouse(warehouse);
+    };
+    
+    updateWarehouse();
+    
+    const handleWarehouseChange = () => {
+      updateWarehouse();
+    };
+    
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+    
+    return () => {
+      window.removeEventListener('warehouseChanged', handleWarehouseChange);
+    };
+  }, [getCurrentWarehouse]);
+
+  useEffect(() => {
+    const loadCredits = async () => {
+      if (!currentWarehouse) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError("");
+        const { data } = await axios.get(`http://127.0.0.1:8080/api/credits/?warehouse=${currentWarehouse.id}`);
+        setRows(Array.isArray(data) ? data : []);
+      } catch (e) {
+        console.error(e);
+        setError("Failed to load credits.");
+        setRows([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCredits();
+  }, [currentWarehouse]);
+
   const fmt = (v) => Number(v || 0).toFixed(2);
-  const dt = (v) => (v ? new Date(v).toLocaleString() : "—");
+  const dt = (v) => (v ? new Date(v).toLocaleString() : "--");
 
   // --- helpers for status normalization ---
   const norm = (s) => String(s || "").trim().toUpperCase();
   const isPaid = (s) => {
     const x = norm(s);
-    // Treat these as PAID; adjust to match your backend statuses if needed
     return x === "PAID" || x === "FULLY PAID" || x === "SETTLED";
   };
   const isPending = (s) => norm(s) === "PENDING";
@@ -33,28 +86,79 @@ export default function CreditList() {
     if (isPending(s)) return "Pending";
     if (isPartial(s)) return "Partially Paid";
     if (isPaid(s)) return "Fully Paid";
-    // Fallback: show raw
     return String(s || "").toString();
   };
 
-  const statusClass = (s) => {
-    if (isPending(s)) return "status-pending";
-    if (isPartial(s)) return "status-partial";
-    if (isPaid(s)) return "status-paid";
-    return "status-pending";
+  const getStatusStyle = (s) => {
+    if (isPending(s)) {
+      return { 
+        background: '#fef3c7', 
+        color: '#d97706', 
+        padding: '4px 8px', 
+        borderRadius: '6px', 
+        fontSize: '0.875rem',
+        fontWeight: 500
+      };
+    }
+    if (isPartial(s)) {
+      return { 
+        background: '#fef3c7', 
+        color: '#d97706', 
+        padding: '4px 8px', 
+        borderRadius: '6px', 
+        fontSize: '0.875rem',
+        fontWeight: 500
+      };
+    }
+    if (isPaid(s)) {
+      return { 
+        background: '#dcfce7', 
+        color: '#16a34a', 
+        padding: '4px 8px', 
+        borderRadius: '6px', 
+        fontSize: '0.875rem',
+        fontWeight: 500
+      };
+    }
+    return { 
+      background: '#fef3c7', 
+      color: '#d97706', 
+      padding: '4px 8px', 
+      borderRadius: '6px', 
+      fontSize: '0.875rem',
+      fontWeight: 500
+    };
   };
 
   // --- sort: unpaid first (Pending/Partial), paid at bottom; each group by Date desc ---
   const sortedRows = [...rows].sort((a, b) => {
     const aPaid = isPaid(a.status) ? 1 : 0;
     const bPaid = isPaid(b.status) ? 1 : 0;
-    if (aPaid !== bPaid) return aPaid - bPaid; // unpaid(0) first, paid(1) last
+    if (aPaid !== bPaid) return aPaid - bPaid;
 
-    // within same group, sort by created_at (newest first)
     const at = a.created_at ? new Date(a.created_at).getTime() : 0;
     const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
     return bt - at;
   });
+
+  if (!currentWarehouse) {
+    return (
+      <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ textAlign: 'center', color: 'var(--danger)' }}>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>No Warehouse Selected</h2>
+          <p>Please select a warehouse to view credits.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ color: 'var(--text-muted)' }}>Loading credits...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="creditlist-container">
@@ -76,41 +180,46 @@ export default function CreditList() {
             </tr>
           </thead>
 
-          <tbody>
-            {sortedRows.map((r) => (
-              <tr key={r.id}>
-                <td>{r.msp_no}</td>
-                <td>{dt(r.created_at)}</td>
-                <td>{r.handled_by || "—"}</td>
-                <td>{r.customer_name || "—"}</td>
-                <td>₱{fmt(r.total_amount)}</td>
-                <td>₱{fmt(r.amount_paid)}</td>
-                <td>₱{fmt(r.balance)}</td>
-                <td>
-                  <span className={statusClass(r.status)}>{statusLabel(r.status)}</span>
-                </td>
-                <td className="w-128 text-center">
-                  <button
-                    className="icon-btn icon-btn-view"
-                    onClick={() => navigate(`/credits/${r.id}`)}
-                    title="View details"
-                  >
-                    <FaEye />
-                  </button>
-                </td>
-              </tr>
-            ))}
+            <tbody>
+              {sortedRows.map((r) => (
+                <tr key={r.id}>
+                  <td style={{ textAlign: 'center' }}>{r.msp_no}</td>
+                  <td style={{ textAlign: 'center' }}>{dt(r.created_at)}</td>
+                  <td style={{ textAlign: 'center' }}>{r.handled_by || "--"}</td>
+                  <td style={{ textAlign: 'center' }}>{r.customer_name || "--"}</td>
+                  <td style={{ textAlign: 'center' }}>₱{fmt(r.total_amount)}</td>
+                  <td style={{ textAlign: 'center' }}>₱{fmt(r.amount_paid)}</td>
+                  <td style={{ textAlign: 'center' }}>₱{fmt(r.balance)}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span style={getStatusStyle(r.status)}>
+                      {statusLabel(r.status)}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      className="icon-btn icon-btn-view"
+                      onClick={() => navigate(`/credits/${r.id}?warehouse=${currentWarehouse.id}`)}
+                      title="View details"
+                    >
+                      <FaEye size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
 
-            {!sortedRows.length && (
-              <tr>
-                <td colSpan={9} className="text-muted" style={{ textAlign: "center", padding: 16 }}>
-                  No credit records.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+              {!sortedRows.length && (
+                <tr>
+                  <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '2rem' }}>
+                    {currentWarehouse ? 
+                      `No credit records found for ${currentWarehouse.name}.` : 
+                      'No credit records.'
+                    }
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
   );
 }

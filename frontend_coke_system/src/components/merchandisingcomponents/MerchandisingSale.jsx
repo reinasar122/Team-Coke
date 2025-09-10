@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState, useCallback, useMemo, useRef} from "react";
 import axios from "axios";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -1376,7 +1377,7 @@ const handleSaveVanLoadEdit = async () => {
         }
       />
     )}
-
+      
       <PaymentModal
         open={isPaymentModalOpen}
         onClose={handleClosePayment}
@@ -1400,6 +1401,7 @@ const handleSaveVanLoadEdit = async () => {
         transactionTypes={transactionTypes}//kath
         expensesTotal={miscItems.reduce((s, i) => s + Number(i.amount || 0), 0)}  //karen changes
         miscItems={miscItems}
+        warehouse={currentWarehouse} // ✅ ADD WAREHOUSE PROP
       />
     </div>
   );

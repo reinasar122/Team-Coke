@@ -26,10 +26,11 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
     payment_terms_days = serializers.IntegerField(required=False, default=30)
     due_date = serializers.DateTimeField(required=False, allow_null=True)
     transactionDate = serializers.DateTimeField(source="created_at", required=False)
-    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)  # optional
+    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, write_only=True)  # ✅ Mark as write_only
     totalAmount = serializers.DecimalField(source="total_amount", max_digits=12, decimal_places=2)
     rows = serializers.ListField(child=serializers.DictField(), source="rows_json", required=False, default=list)
-    creditNotes = serializers.CharField(required=False, allow_blank=True, default="")
+    creditNotes = serializers.CharField(source="remarks", required=False, allow_blank=True, default="")  # ✅ Map to remarks
+    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all())
 
     class Meta:
         model = CreditLedger
@@ -41,49 +42,37 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
             "remarks",
             "payment_terms_days",
             "due_date",
-            "amountDue",       # optional: used only for client-side display/validation
-            "totalAmount",     # ← this populates model.total_amount
+            "amountDue",
+            "totalAmount",
             "rows",
-            "transactionDate", # ← maps to created_at
+            "transactionDate",
             "creditNotes",
+            "warehouse",
         ]
 
-    def create(self, validated):
-        # validated has model keys thanks to `source=...` mapping
-        # Pull extra fields that don't exist on the model (we just ignore them)
-        validated.pop("creditNotes", None)
-        validated.pop("amountDue", None)
-
-        # Ensure numbers default properly
-        if validated.get("total_amount") is None:
-            validated["total_amount"] = 0
-
-        # Create ledger; amount_paid defaults to 0 in model
-        ledger = CreditLedger.objects.create(**validated)
-        # Save the rows snapshot if provided
-        # (already mapped to rows_json via source)
-        # Recompute status (PENDING/PARTIAL/PAID)
-        ledger.recalc_status(save=True)
-        return ledger
-
-
+    def create(self, validated_data):
+        # ✅ Remove write_only fields that don't map to model fields
+        validated_data.pop('amountDue', None)  # amountDue is the same as totalAmount
+        return super().create(validated_data)
+    
 class CreditLedgerListSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
+    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)  # ADD WAREHOUSE NAME
 
     class Meta:
         model = CreditLedger
         fields = [
             "id", "msp_no", "created_at", "handled_by", "customer_name",
-            "total_amount", "amount_paid", "status", "balance",
+            "total_amount", "amount_paid", "status", "balance", "warehouse_name",  # ADD WAREHOUSE NAME
         ]
 
     def get_balance(self, obj):
         return obj.balance
 
-
 class CreditLedgerDetailSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
     payments = serializers.SerializerMethodField()
+    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)  # ADD WAREHOUSE NAME
 
     class Meta:
         model = CreditLedger
@@ -92,7 +81,7 @@ class CreditLedgerDetailSerializer(serializers.ModelSerializer):
             "transaction_type", "remarks",
             "payment_terms_days", "due_date",
             "total_amount", "amount_paid", "status", "balance",
-            "rows_json", "payments",
+            "rows_json", "payments", "warehouse_name",  # ADD WAREHOUSE NAME
         ]
 
     def get_balance(self, obj):
@@ -110,6 +99,7 @@ class CreditLedgerDetailSerializer(serializers.ModelSerializer):
             }
             for p in obj.payments.all().order_by("-created_at")
         ]
+
 
 
 class CreditPaymentCreateSerializer(serializers.ModelSerializer):
@@ -928,14 +918,13 @@ class ChangePasswordSerializer(serializers.Serializer):
 
     def validate_new_password(self, value):
         pattern = re.compile(
-            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?#&])[A-Za-z\d@$!%*?#&]{8,}$'
+            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$'
         )
         if not pattern.match(value):
             raise serializers.ValidationError(
                 "Password must include at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character."
             )
         return value
-
     def save(self):
         user = User.objects.get(id=self.validated_data['user_id'])
         user.set_password(self.validated_data['new_password'])

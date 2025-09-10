@@ -105,17 +105,51 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
   );
 };
 
+const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, receivingId }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-body">
+          <h3 className="page-title">Confirm Delete</h3>
+          <p>Are you sure you want to delete this receiving record?</p>
+          <p className="text-muted">This action cannot be undone.</p>
+
+          <div className="modal-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <button
+              type="button"
+              className="btn btn-cancel"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={onConfirm}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ReceivingList = () => {
   const [receivings, setReceivings] = useState([]);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [users, setUsers] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [isLoadingWarehouse, setIsLoadingWarehouse] = useState(true);
 
   // Track localStorage-driven changes
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+
+  const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
 
   // Detect user/warehouse switch via localStorage
   useEffect(() => {
@@ -129,7 +163,6 @@ const ReceivingList = () => {
         setCurrentUserId(newUserId);
         setSelectedWarehouseId(null);
         setReceivings([]);
-        setUsers([]);
         setSelectedReceipt(null);
         setIsModalOpen(false);
         return;
@@ -215,43 +248,26 @@ const ReceivingList = () => {
       .catch((err) => console.error("[ReceivingList] Error fetching receivings:", err));
   }, [currentWarehouse?.id, getAxiosConfig]);
 
-  const fetchUsers = useCallback(() => {
-    if (!currentWarehouse?.id) return;
-    const cfg = getAxiosConfig();
-    axios
-      .get("http://localhost:8080/api/users/", cfg)
-      .then((res) => setUsers(res.data))
-      .catch((err) => console.error("[ReceivingList] Error fetching users:", err));
-  }, [currentWarehouse?.id, getAxiosConfig]);
-
   useEffect(() => {
     if (currentWarehouse?.id && !isLoadingWarehouse) {
       fetchReceivings();
-      fetchUsers();
     }
-  }, [currentWarehouse?.id, isLoadingWarehouse, fetchReceivings, fetchUsers]);
+  }, [currentWarehouse?.id, isLoadingWarehouse, fetchReceivings]);
 
- const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
-
-
-  // const handleViewReceipt = async (id) => {
-  //   try {
-  //     const cfg = getAxiosConfig();
-  //     const res = await axios.get(`http://localhost:8080/api/receiving/${id}/`, cfg);
-  //     const receiptData = res.data;
-
-  //     if (users.length > 0 && receiptData.received_by) {
-  //       const u = users.find((x) => x.id === Number(receiptData.received_by));
-  //       if (u) receiptData.received_by_name = `${u.first_name} ${u.last_name}`;
-  //     }
-
-  //     setSelectedReceipt(receiptData);
-  //     setIsModalOpen(true);
-  //   } catch (e) {
-  //     console.error("[ReceivingList] Error fetching receipt details:", e);
-  //     alert("Error loading receipt details. Please try again.");
-  //   }
-  // };
+  const handleDeleteReceiving = async () => {
+    try {
+      const cfg = getAxiosConfig();
+      await axios.delete(
+        `http://localhost:8080/api/receiving/${deleteModal.id}/`,
+        cfg
+      );
+      fetchReceivings();
+      setDeleteModal({ open: false, id: null });
+    } catch (e) {
+      console.error("[ReceivingList] Error deleting receiving:", e);
+      // You could add a toast notification here
+    }
+  };
 
   if (!currentWarehouse || isLoadingWarehouse) {
     return (
@@ -375,10 +391,18 @@ const ReceivingList = () => {
         </table>
         </div>  
 
+      {/* Modals */}
       <ReceiptModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         receipt={selectedReceipt}
+      />
+
+      <DeleteConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, id: null })}
+        onConfirm={handleDeleteReceiving}
+        receivingId={deleteModal.id}
       />
     </div>
   );

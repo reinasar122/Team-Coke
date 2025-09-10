@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { errorStyle } from "../utils/toastStyles"
-import { FaWarehouse, FaEdit, FaTrash } from "react-icons/fa";
+import { FaWarehouse, FaEdit, FaTrash, FaEnvelope, FaPhone, FaMapMarkerAlt } from "react-icons/fa";
 import { canCreate, canEdit, canDelete, canView } from "../utils/accessControl";
 import WarehouseForm from "./WarehouseForm";
 import EditWarehouse from "./EditWarehouse";
@@ -58,14 +58,15 @@ const Warehouses = () => {
   }
 
   return (
-    <div className="relative p-6">
-      <div className="flex justify-end mb-4">
+    <div className="page++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++">
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <FaWarehouse className="color: var(--text)" /> Warehouses
+          </h2>
+        </div>
         <button
-          className={`px-5 py-2 rounded-lg shadow-md transition ${
-            canCreate("Warehouse")
-              ? "bg-green-500 hover:bg-green-600 text-white"
-              : "bg-gray-300 text-gray-500 cursor-not-allowed"
-          }`}
+          className={`px-5 py-2 btn btn-add`}
           onClick={() => canCreate("Warehouse") && setShowCreateModal(true)}
           disabled={!canCreate("Warehouse")}
         >
@@ -102,15 +103,19 @@ const Warehouses = () => {
               </div>
 
             {/* Address */}
-            <p className="text-sm text-gray-600">{warehouse.street_address},{warehouse.barangay}, {warehouse.city}, {warehouse.province}, </p>
-
-            <p className="text-sm text-gray-600">
-              {warehouse.region}, {warehouse.country} {warehouse.zip_code}
+            <p className="text-sm text-gray-600 mb-1">
+              <FaMapMarkerAlt className="inline mr-1 text-red-500" />
+              {warehouse.street_address}, {warehouse.barangay}, {warehouse.city}, {warehouse.province}, {warehouse.region}, {warehouse.country} {warehouse.zip_code}
             </p>
-
             {/* Contact */}
-            <p className="text-sm text-gray-700">📞 {warehouse.phone_number}</p>
-            <p className="text-sm text-gray-700">✉️ {warehouse.email}</p>
+            <p className="text-sm text-gray-700 mb-1">
+              <FaPhone className="inline mr-1 text-green-500" />
+              {warehouse.phone_number}
+            </p>
+            <p className="text-sm text-gray-700 mb-1">
+              <FaEnvelope className="inline mr-1 text-blue-500" />
+              {warehouse.email}
+            </p>
 
             {/*Edit Warehouse*/}
             <div className="flex justify-end gap-3 mt-4">
@@ -184,7 +189,7 @@ const Warehouses = () => {
             <div className="flex justify-between">
               <div>
                 <button
-                  className="btn-cancel py-2 px-4 rounded"
+                  className="btn btn-cancel py-2 px-4"
                   onClick={() => setShowDeleteModal(false)}
                 >
                   Cancel
@@ -192,7 +197,7 @@ const Warehouses = () => {
               </div>
               <div>
                 <button
-                  className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                  className="px-4 py-2 btn btn-danger"
                   onClick={handleDelete}
                 >
                   Delete
