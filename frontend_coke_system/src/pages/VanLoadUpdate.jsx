@@ -295,7 +295,8 @@ const VanLoadUpdate = () => {
 
     // SOLD sync
     if (field === 'sold_shell') row.sold_pcs = Math.round(v * contentNo);
-    else if (field === 'sold_pcs') row.sold_shell = parseFloat((v / contentNo).toFixed(2));
+    else if (field === 'sold_pcs')
+      row.sold_shell = parseFloat((v / contentNo).toFixed(2));
 
     // EMPTY returns sync
     if (field === 'empty_return_shell') row.empty_return_pcs = Math.round(v * contentNo);
@@ -416,7 +417,7 @@ const VanLoadUpdate = () => {
   );
 
   const totalExpectedSale = useMemo(
-    () => rows.reduce((s, r) => s + (parseFloat(r.expected_sale || 0)), 0),
+    () => rows.reduce((s, r) => s + parseFloat(r.expected_sale || 0), 0),
     [rows]
   );
   const totalActualSale = useMemo(
@@ -449,7 +450,8 @@ const VanLoadUpdate = () => {
   }, [rows, unitTypeMap]);
 
   useEffect(() => {
-    const isVanLoad = (sale?.transaction_type_name || '').toLowerCase() === 'van load';
+    const isVanLoad =
+      (sale?.transaction_type_name || '').toLowerCase() === 'van load';
     const next = isVanLoad
       ? (totalActualSale - totalExpenses + overallDiscrepancy)
       : (emptiesPriceTotal - refundablesTotal + totalActualSale);
@@ -519,7 +521,9 @@ const VanLoadUpdate = () => {
   };
 
   if (!sale) {
-    return <div className="p-6 text-center text-gray-500">Loading sale data...</div>;
+    return (
+      <div className="p-6 text-center text-gray-500">Loading sale data...</div>
+    );
   }
 
   // Called only when PaymentModal reports a successful payment for Van Load
@@ -682,13 +686,17 @@ const VanLoadUpdate = () => {
                 <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
                   <td className="border border-gray-200 py-1 px-1 ">
                     <div className="p-2 border rounded text-sm text-center">
-                      {row.productName || row.product_detail?.product_name || `#${row.productId}`}
+                      {row.productName ||
+                        row.product_detail?.product_name ||
+                        `#${row.productId}`}
                     </div>
                   </td>
 
                   {/* DISPATCHED (read-only) */}
                   <td className="border border-gray-200 py-1 px-1 ">
-                    <div className="p-2 border rounded">{z(row.dispatched_shell)}</div>
+                    <div className="p-2 border rounded">
+                      {z(row.dispatched_shell)}
+                    </div>
                   </td>
                   <td className="border border-gray-200 py-1 px-1 ">
                     <div className="p-2 border rounded">{z(row.dispatched_pcs)}</div>
@@ -748,7 +756,9 @@ const VanLoadUpdate = () => {
                     ['discrepancy_full_shell', false],
                     ['discrepancy_full_pcs', false],
                   ].map(([field, editable], i) => {
-                    const disableInput = editable ? shouldDisableEditableField(row, field) : true;
+                    const disableInput = editable
+                      ? shouldDisableEditableField(row, field)
+                      : true;
                     const value = z(row[field]);
 
                     return (
@@ -761,7 +771,8 @@ const VanLoadUpdate = () => {
                             disabled={disableInput}
                             className={`input-always-spinner w-full p-1 text-sm text-center rounded
                               ${
-                                isReturnedWithContentsField(field) || isReturnedEmptyField(field)
+                                isReturnedWithContentsField(field) ||
+                                isReturnedEmptyField(field)
                                   ? 'bg-yellow-50'
                                   : 'bg-gray-100'
                               }
@@ -775,7 +786,8 @@ const VanLoadUpdate = () => {
                             disabled
                             className={`w-full p-1 text-sm text-center rounded
                               ${
-                                field.includes('discrepancy') && parseFloat(value || 0) !== 0
+                                field.includes('discrepancy') &&
+                                parseFloat(value || 0) !== 0
                                   ? 'bg-red-100 text-red-700 font-semibold'
                                   : 'bg-gray-100'
                               }

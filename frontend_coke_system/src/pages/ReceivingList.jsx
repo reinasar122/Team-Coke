@@ -105,17 +105,51 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
   );
 };
 
+const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, receivingId }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-body">
+          <h3 className="page-title">Confirm Delete</h3>
+          <p>Are you sure you want to delete this receiving record?</p>
+          <p className="text-muted">This action cannot be undone.</p>
+
+          <div className="modal-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
+            <button
+              type="button"
+              className="btn btn-cancel"
+              onClick={onClose}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger"
+              onClick={onConfirm}
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ReceivingList = () => {
   const [receivings, setReceivings] = useState([]);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [users, setUsers] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [isLoadingWarehouse, setIsLoadingWarehouse] = useState(true);
 
   // Track localStorage-driven changes
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
+
+  const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
 
   // Detect user/warehouse switch via localStorage
   useEffect(() => {
@@ -129,7 +163,6 @@ const ReceivingList = () => {
         setCurrentUserId(newUserId);
         setSelectedWarehouseId(null);
         setReceivings([]);
-        setUsers([]);
         setSelectedReceipt(null);
         setIsModalOpen(false);
         return;
@@ -215,43 +248,26 @@ const ReceivingList = () => {
       .catch((err) => console.error("[ReceivingList] Error fetching receivings:", err));
   }, [currentWarehouse?.id, getAxiosConfig]);
 
-  const fetchUsers = useCallback(() => {
-    if (!currentWarehouse?.id) return;
-    const cfg = getAxiosConfig();
-    axios
-      .get("http://localhost:8080/api/users/", cfg)
-      .then((res) => setUsers(res.data))
-      .catch((err) => console.error("[ReceivingList] Error fetching users:", err));
-  }, [currentWarehouse?.id, getAxiosConfig]);
-
   useEffect(() => {
     if (currentWarehouse?.id && !isLoadingWarehouse) {
       fetchReceivings();
-      fetchUsers();
     }
-  }, [currentWarehouse?.id, isLoadingWarehouse, fetchReceivings, fetchUsers]);
+  }, [currentWarehouse?.id, isLoadingWarehouse, fetchReceivings]);
 
- const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
-
-
-  // const handleViewReceipt = async (id) => {
-  //   try {
-  //     const cfg = getAxiosConfig();
-  //     const res = await axios.get(`http://localhost:8080/api/receiving/${id}/`, cfg);
-  //     const receiptData = res.data;
-
-  //     if (users.length > 0 && receiptData.received_by) {
-  //       const u = users.find((x) => x.id === Number(receiptData.received_by));
-  //       if (u) receiptData.received_by_name = `${u.first_name} ${u.last_name}`;
-  //     }
-
-  //     setSelectedReceipt(receiptData);
-  //     setIsModalOpen(true);
-  //   } catch (e) {
-  //     console.error("[ReceivingList] Error fetching receipt details:", e);
-  //     alert("Error loading receipt details. Please try again.");
-  //   }
-  // };
+  const handleDeleteReceiving = async () => {
+    try {
+      const cfg = getAxiosConfig();
+      await axios.delete(
+        `http://localhost:8080/api/receiving/${deleteModal.id}/`,
+        cfg
+      );
+      fetchReceivings();
+      setDeleteModal({ open: false, id: null });
+    } catch (e) {
+      console.error("[ReceivingList] Error deleting receiving:", e);
+      // You could add a toast notification here
+    }
+  };
 
   if (!currentWarehouse || isLoadingWarehouse) {
     return (
@@ -278,100 +294,70 @@ const ReceivingList = () => {
       </div>
 
       {/* Table Card */}
-        <div className="table-wrapper">
-          <table className="table receiving-list-table">
-          <thead>
+      <div className="table-wrapper">
+        <table className="table receiving-list-table">
+        <thead>
+          <tr>
+            <th>Receive No</th>
+            <th>Date</th>
+            <th>Supplier</th>
+            <th>Invoice</th>
+            <th>Net Amount</th>
+            <th className="w-128">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {receivings.length === 0 ? (
             <tr>
-              <th>Receive No</th>
-              <th>Date</th>
-              <th>Supplier</th>
-              <th>Invoice</th>
-              <th>Net Amount</th>
-              <th className="w-128">Actions</th>
+              <td colSpan="6" className="text-muted" style={{ textAlign: "center", padding: 24 }}>
+                No receiving records found for {currentWarehouse.name}
+              </td>
             </tr>
-          </thead>
-          <tbody>
-            {receivings.length === 0 ? (
-              <tr>
-                <td colSpan="6" className="text-muted" style={{ textAlign: "center", padding: 24 }}>
-                  No receiving records found for {currentWarehouse.name}
+          ) : (
+            receivings.map((item) => (
+              <tr key={item.id}>
+                <td>{item.receive_no}</td>
+                <td>{new Date(item.date_time).toLocaleString()}</td>
+                <td>{item.supplier_name}</td>
+                <td>{item.invoice_no}</td>
+                <td>₱{parseFloat(item.net_amount).toFixed(2)}</td>
+                <td>
+                  <div className="actions" style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                   <Link
+                      className="icon-btn icon-btn-view"
+                      title="View Details"
+                      to={`/receiving/${item.id}`}
+                    >
+                      <FaEye />
+                    </Link>
+                    <button
+                      className="icon-btn icon-btn-danger"
+                      title="Delete"
+                      onClick={() => setDeleteModal({ open: true, id: item.id })}
+                    >
+                      <FaTrashAlt />
+                    </button>
+                  </div>
                 </td>
               </tr>
-            ) : (
-              receivings.map((item) => (
-                <tr key={item.id}>
-                  <td>{item.receive_no}</td>
-                  <td>{new Date(item.date_time).toLocaleString()}</td>
-                  <td>{item.supplier_name}</td>
-                  <td>{item.invoice_no}</td>
-                  <td>₱{parseFloat(item.net_amount).toFixed(2)}</td>
-                  <td>
-                    <div className="actions">
-                     <Link
-                        className="icon-btn icon-btn-view"
-                        title="View Details"
-                        to={`/receiving/${item.id}`}
-                      >
-                        <FaEye />
-                      </Link>
-                      <button
-                        className="icon-btn-danger"
-                        title="Delete"
-                        onClick={() => setDeleteModal({ open: true, id: item.id })}
-                      >
-                        <FaTrashAlt />
-                      </button>
-                      {deleteModal.open && (
-                        <div className="modal-overlay">
-                          <div className="modal">
-                            <h3 className="pf-modal-title">Confirm Delete</h3>
-                            <p>Are you sure you want to delete this receiving?</p>
+            ))
+          )}
+        </tbody>
+      </table>
+      </div>  
 
-                            <div className="pf-actions">
-                              <button
-                                type="button"
-                                className="btn btn-cancel"
-                                onClick={() => setDeleteModal({ open: false, id: null })}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-danger"
-                                onClick={async () => {
-                                  try {
-                                    const cfg = getAxiosConfig();
-                                    await axios.delete(
-                                      `http://localhost:8080/api/receiving/${deleteModal.id}/`,
-                                      cfg
-                                    );
-                                    fetchReceivings();
-                                  } catch (e) {
-                                    console.error("[ReceivingList] Error deleting receiving:", e);
-                                  }
-                                  setDeleteModal({ open: false, id: null });
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-        </div>  
-
+      {/* Modals */}
       <ReceiptModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         receipt={selectedReceipt}
+      />
+
+      <DeleteConfirmModal
+        isOpen={deleteModal.open}
+        onClose={() => setDeleteModal({ open: false, id: null })}
+        onConfirm={handleDeleteReceiving}
+        receivingId={deleteModal.id}
       />
     </div>
   );

@@ -51,6 +51,8 @@ const ProductList = () => {
       productsCount = 6; // Normal zoom
     } else if (zoomPercentage >= 90) {
       productsCount = 8; // Slightly zoomed out
+    } else if (zoomPercentage >= 80) {
+      productsCount = 12; // Slightly zoomed out
     } else if (zoomPercentage >= 75) {
       productsCount = 10; // More zoomed out
     } else if (zoomPercentage >= 50) {

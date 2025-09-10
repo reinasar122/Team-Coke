@@ -26,10 +26,11 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
     payment_terms_days = serializers.IntegerField(required=False, default=30)
     due_date = serializers.DateTimeField(required=False, allow_null=True)
     transactionDate = serializers.DateTimeField(source="created_at", required=False)
-    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)  # optional
+    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
     totalAmount = serializers.DecimalField(source="total_amount", max_digits=12, decimal_places=2)
     rows = serializers.ListField(child=serializers.DictField(), source="rows_json", required=False, default=list)
     creditNotes = serializers.CharField(required=False, allow_blank=True, default="")
+    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all())  # ADD WAREHOUSE
 
     class Meta:
         model = CreditLedger
@@ -41,49 +42,32 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
             "remarks",
             "payment_terms_days",
             "due_date",
-            "amountDue",       # optional: used only for client-side display/validation
-            "totalAmount",     # ← this populates model.total_amount
+            "amountDue",
+            "totalAmount",
             "rows",
-            "transactionDate", # ← maps to created_at
+            "transactionDate",
             "creditNotes",
+            "warehouse",  # ADD WAREHOUSE
         ]
-
-    def create(self, validated):
-        # validated has model keys thanks to `source=...` mapping
-        # Pull extra fields that don't exist on the model (we just ignore them)
-        validated.pop("creditNotes", None)
-        validated.pop("amountDue", None)
-
-        # Ensure numbers default properly
-        if validated.get("total_amount") is None:
-            validated["total_amount"] = 0
-
-        # Create ledger; amount_paid defaults to 0 in model
-        ledger = CreditLedger.objects.create(**validated)
-        # Save the rows snapshot if provided
-        # (already mapped to rows_json via source)
-        # Recompute status (PENDING/PARTIAL/PAID)
-        ledger.recalc_status(save=True)
-        return ledger
-
 
 class CreditLedgerListSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
+    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)  # ADD WAREHOUSE NAME
 
     class Meta:
         model = CreditLedger
         fields = [
             "id", "msp_no", "created_at", "handled_by", "customer_name",
-            "total_amount", "amount_paid", "status", "balance",
+            "total_amount", "amount_paid", "status", "balance", "warehouse_name",  # ADD WAREHOUSE NAME
         ]
 
     def get_balance(self, obj):
         return obj.balance
 
-
 class CreditLedgerDetailSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
     payments = serializers.SerializerMethodField()
+    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)  # ADD WAREHOUSE NAME
 
     class Meta:
         model = CreditLedger
@@ -92,7 +76,7 @@ class CreditLedgerDetailSerializer(serializers.ModelSerializer):
             "transaction_type", "remarks",
             "payment_terms_days", "due_date",
             "total_amount", "amount_paid", "status", "balance",
-            "rows_json", "payments",
+            "rows_json", "payments", "warehouse_name",  # ADD WAREHOUSE NAME
         ]
 
     def get_balance(self, obj):
@@ -581,21 +565,19 @@ class PaymentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MerchandisingSerializer(serializers.ModelSerializer):
-    # Read-only derived fields
-    msp_no = serializers.CharField(read_only=True)  # server owns MSP
+    # Store text in DB, but still accept numbers from the client
+    handled_by = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    handled_by_name = serializers.SerializerMethodField()
+
+    # ---- existing fields you already have ----
+    msp_no = serializers.CharField(read_only=True)
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
     date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
-
-    # 🔁 CHANGED: make nested arrays optional for PATCH; keep payments read-only on update
     items = MerchandisingItemSerializer(many=True, required=False)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False, read_only=True)
-
-    # FK inputs
     route = serializers.PrimaryKeyRelatedField(queryset=Route.objects.all(), allow_null=True, required=False)
     customer = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), allow_null=True, required=False)
-
-    # Computed aggregates for response
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
 
@@ -603,6 +585,42 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         model = Merchandising
         fields = '__all__'
         read_only_fields = ['msp_no', 'transaction_type_name', 'total_trading_amount', 'total_expenses_amount']
+
+
+    # ACCEPT id OR name; if id, convert to "First Last" (or username) before saving
+    def validate_handled_by(self, value):
+        if value in (None, ""):
+            return value
+        # DRF CharField will give us a string; try to coerce to int
+        try:
+            uid = int(value)
+        except (TypeError, ValueError):
+            # Not numeric → assume it's already a name/username
+            return str(value)
+
+        user = User.objects.filter(pk=uid).first()
+        if not user:
+            # If the id doesn't exist, keep what came in (or you can raise a ValidationError)
+            return str(value)
+        full_name = f"{user.first_name} {user.last_name}".strip()
+        return full_name or user.username
+
+    # Always provide a readable name in responses
+    def get_handled_by_name(self, obj):
+        hb = getattr(obj, "handled_by", None)
+        if hb in (None, ""):
+            return None
+        # If DB contains an id-like string (legacy rows), resolve to a name
+        try:
+            uid = int(hb)
+        except (TypeError, ValueError):
+            return str(hb)  # already a name
+        user = User.objects.filter(pk=uid).first()
+        if not user:
+            return str(hb)
+        full_name = f"{user.first_name} {user.last_name}".strip()
+        return full_name or user.username
+
 
     def validate(self, data):
         """
@@ -894,14 +912,13 @@ class ChangePasswordSerializer(serializers.Serializer):
 
     def validate_new_password(self, value):
         pattern = re.compile(
-            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?#&])[A-Za-z\d@$!%*?#&]{8,}$'
+            r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$'
         )
         if not pattern.match(value):
             raise serializers.ValidationError(
                 "Password must include at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character."
             )
         return value
-
     def save(self):
         user = User.objects.get(id=self.validated_data['user_id'])
         user.set_password(self.validated_data['new_password'])

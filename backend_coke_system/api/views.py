@@ -77,15 +77,25 @@ from .serializers import (
 )
 
 class CreditLedgerListCreateAPIView(generics.ListCreateAPIView):
-    queryset = CreditLedger.objects.all()
+    def get_queryset(self):
+        queryset = CreditLedger.objects.all()
+        warehouse_id = self.request.query_params.get('warehouse')
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        return queryset
 
     def get_serializer_class(self):
         return CreditLedgerCreateSerializer if self.request.method == "POST" else CreditLedgerListSerializer
 
 class CreditLedgerDetailAPIView(generics.RetrieveAPIView):
-    queryset = CreditLedger.objects.all()
+    def get_queryset(self):
+        queryset = CreditLedger.objects.all()
+        warehouse_id = self.request.query_params.get('warehouse')
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        return queryset
+    
     serializer_class = CreditLedgerDetailSerializer
-
 class CreditPaymentCreateAPIView(APIView):
     def post(self, request, pk):
         credit = get_object_or_404(CreditLedger, pk=pk)
@@ -240,6 +250,48 @@ class BulkRoleAccessibilityCreateView(APIView):
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+class BulkRoleAccessibilityUpsertView(APIView):
+    """
+    Upsert a list of role access rows by (role, submenu).
+    Body: [{role, submenu, full, view, create, edit, delete}, ...]
+    """
+    def put(self, request):
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"error": "Expected a list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        updated = []
+        for item in data:
+            role_id = item.get("role")
+            submenu = item.get("submenu")
+            if not role_id or not submenu:
+                return Response({"error": "Each item must include role and submenu."},
+                                status=status.HTTP_400_BAD_REQUEST)
+
+            obj, _created = RoleAccessibility.objects.update_or_create(
+                role_id=role_id,
+                submenu=submenu,
+                defaults={
+                    "full": bool(item.get("full", False)),
+                    "view": bool(item.get("view", False)),
+                    "create": bool(item.get("create", False)),
+                    "edit": bool(item.get("edit", False)),
+                    "delete": bool(item.get("delete", False)),
+                },
+            )
+            updated.append({
+                "id": obj.id,
+                "role": obj.role_id,
+                "submenu": obj.submenu,
+                "full": obj.full,
+                "view": obj.view,
+                "create": obj.create,
+                "edit": obj.edit,
+                "delete": obj.delete,
+            })
+
+        return Response(updated, status=status.HTTP_200_OK)
     
 class UserListCreateView(generics.ListCreateAPIView):
     """View to list all users or create a new one"""
