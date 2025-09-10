@@ -1348,8 +1348,8 @@ class VanLoadReturnAPIView(APIView):
             pk=sale_id
         )
 
-        # Optional: only allow Van Load transactions
-        if (merch.transaction_type and merch.transaction_type.name.lower() != 'van load'):
+        # Only allow Van Load transactions
+        if merch.transaction_type and merch.transaction_type.name.lower() != 'van load':
             return Response({'detail': 'Only Van Load transactions can be updated here.'},
                             status=status.HTTP_400_BAD_REQUEST)
 
@@ -1357,8 +1357,22 @@ class VanLoadReturnAPIView(APIView):
         if not isinstance(products, list):
             return Response({'detail': 'products must be a list.'}, status=status.HTTP_400_BAD_REQUEST)
 
+        # -------- helpers --------
+        def iz(v):
+            try:
+                return int(v or 0)
+            except Exception:
+                return 0
+
+        def dz(v):
+            try:
+                return Decimal(str(v if v is not None else 0))
+            except Exception:
+                return Decimal('0')
+
         updated_ids = []
 
+        # ---- per-item updates (unchanged logic, trust FE numbers) ----
         for p in products:
             product_id = p.get('productId')
             if not product_id:
@@ -1372,70 +1386,91 @@ class VanLoadReturnAPIView(APIView):
                 product_id=product_id
             )
 
-            # Read incoming numbers safely
-            def iz(v): 
-                try: return int(v or 0)
-                except: return 0
-            def dz(v):
-                try: return Decimal(str(v or 0))
-                except: return Decimal('0')
-
-            # ---- Save empties (EMPTY returns)
+            # EMPTY returns
             item.empty_return_shell = iz(p.get('empty_return_shell'))
             item.empty_return_pcs   = iz(p.get('empty_return_pcs'))
 
-            # ---- Save with-contents (ACTUAL returns)
+            # WITH-CONTENTS returns
             item.actual_return_shell = iz(p.get('actual_return_shell'))
             item.actual_return_pcs   = iz(p.get('actual_return_pcs'))
 
-            # ---- Optionally trust the client’s discrepancy calcs (already done in FE)
+            # DISCREPANCIES (trust FE)
             item.discrepancy_full_shell = iz(p.get('discrepancy_full_shell'))
             item.discrepancy_full_pcs   = iz(p.get('discrepancy_full_pcs'))
 
-            # ---- (Optional) You can recompute discrepancy here instead, server-side:
-            # expected_shell = iz(p.get('expected_return_shell_nonempty'))
-            # expected_pcs   = iz(p.get('expected_return_pcs_nonempty'))
-            # item.discrepancy_full_shell = expected_shell - item.actual_return_shell
-            # item.discrepancy_full_pcs   = expected_pcs   - item.actual_return_pcs
-
-            # (Optional) update item.actual_sale/discount if you accept those from FE
+            # (Optional) accept FE actual_sale if you send it
             # item.actual_sale = dz(p.get('actual_sale'))
 
             item.save(update_fields=[
                 'empty_return_shell', 'empty_return_pcs',
                 'actual_return_shell', 'actual_return_pcs',
                 'discrepancy_full_shell', 'discrepancy_full_pcs',
-                # 'actual_sale',  # <- if you choose to update it here
+                # 'actual_sale',
             ])
             updated_ids.append(item.id)
 
-        # (Optional) update merchandising totals/remarks/status
+        # ---- header-level updates (expected/actual/remarks) ----
+        fields_to_update = []
         total_expected_sale = request.data.get('total_expected_sale')
         actual_sale_total   = request.data.get('actual_sale')
         remarks             = request.data.get('remarks')
 
-        fields_to_update = []
         if total_expected_sale is not None:
-            try:
-                merch.expected_sale = Decimal(str(total_expected_sale))
-                fields_to_update.append('expected_sale')
-            except: pass
+            merch.expected_sale = dz(total_expected_sale)
+            fields_to_update.append('expected_sale')
 
         if actual_sale_total is not None:
-            try:
-                merch.actual_sale = Decimal(str(actual_sale_total))
-                fields_to_update.append('actual_sale')
-            except: pass
+            merch.actual_sale = dz(actual_sale_total)
+            fields_to_update.append('actual_sale')
 
         if remarks is not None:
             merch.remarks = remarks
             fields_to_update.append('remarks')
 
+        # ---- NEW: save FE-computed discrepancy totals on the header ----
+        # Expect these keys in the payload (sent from VanLoadUpdate.jsx):
+        #   discrepancy_empty_total
+        #   discrepancy_non_empty_total
+        de  = request.data.get('discrepancy_empty_total', None)
+        dne = request.data.get('discrepancy_non_empty_total', None)
+        print(">>> DEBUG de/dne from FE:", de, dne)
+
+        # also log the route view is really used:
+        print(">>> DEBUG using VanLoadReturnAPIView for sale_id:", sale_id)
+
+        # and log the update_fields about to be saved:
+        print(">>> DEBUG will update:", fields_to_update)
+
+
+        if de is not None:
+            merch.discrepancy_empty = dz(de)
+            fields_to_update.append('discrepancy_empty')
+            print(f"Updating discrepancy_empty: {de}")
+
+        if dne is not None:
+            merch.discrepancy_non_empty = dz(dne)
+            fields_to_update.append('discrepancy_non_empty')
+            print(f"Updating discrepancy_non_empty: {dne}")
+
+
+        # Log the fields to update
+        print(">>> Fields to update:", fields_to_update)
+
+        # (Optional) mark that the return math has been applied once
+        if not merch.full_returns_applied:
+            merch.full_returns_applied = True
+            fields_to_update.append('full_returns_applied')
+
         if fields_to_update:
             merch.save(update_fields=fields_to_update)
 
-        return Response({'detail': 'Van load returns saved.', 'updated_item_ids': updated_ids},
-                        status=status.HTTP_200_OK)
+        return Response({
+            'detail': 'Van load returns saved.',
+            'updated_item_ids': updated_ids,
+            # return the stored totals for confirmation
+            'discrepancy_empty': str(merch.discrepancy_empty),
+            'discrepancy_non_empty': str(merch.discrepancy_non_empty),
+        }, status=status.HTTP_200_OK)
 
 
     
@@ -1577,9 +1612,32 @@ class VanLoadReturnUpdateAPIView(APIView):
                 if "remarks" in request.data:
                     sale.remarks = request.data.get("remarks") or sale.remarks
 
+                # 2.1) Accept FE-computed discrepancy totals on the header
+                de  = request.data.get('discrepancy_empty_total', None)
+                dne = request.data.get('discrepancy_non_empty_total', None)
+
+                from decimal import Decimal
+                def dz(v):
+                    try:
+                        return Decimal(str(v if v is not None else 0))
+                    except Exception:
+                        return Decimal('0')
+
+                fields_to_update = ["remarks", "status"]
+
+                if de is not None:
+                    sale.discrepancy_empty = dz(de)
+                    fields_to_update.append("discrepancy_empty")
+
+                if dne is not None:
+                    sale.discrepancy_non_empty = dz(dne)
+                    fields_to_update.append("discrepancy_non_empty")
+
                 # 3) Mark COMPLETE
                 sale.status = "COMPLETE"
-                sale.save(update_fields=["remarks", "status"])
+
+                # 👇 Use the list you built (this was the bug)
+                sale.save(update_fields=fields_to_update)
 
                 # 4) ✅ CORRECTED Stock movements for Van Load completion
                 for data in items:
@@ -1647,6 +1705,8 @@ class VanLoadReturnUpdateAPIView(APIView):
                     "sale_id": sale.id,
                     "updated_items": updated_items,
                     "status": sale.status,
+                    "discrepancy_empty": str(sale.discrepancy_empty),
+                    "discrepancy_non_empty": str(sale.discrepancy_non_empty),
                 },
                 status=status.HTTP_200_OK,
             )

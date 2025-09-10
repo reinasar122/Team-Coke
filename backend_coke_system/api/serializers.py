@@ -590,7 +590,15 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Merchandising
         fields = '__all__'
-        read_only_fields = ['msp_no', 'transaction_type_name', 'total_trading_amount', 'total_expenses_amount']
+        # REMOVE the two discrepancy fields from read_only_fields
+        read_only_fields = [
+            'msp_no',
+            'transaction_type_name',
+            'total_trading_amount',
+            'total_expenses_amount',
+            # 'discrepancy_non_empty',  # ← remove these two
+            # 'discrepancy_empty',
+        ]
 
 
     # ACCEPT id OR name; if id, convert to "First Last" (or username) before saving

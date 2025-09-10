@@ -501,6 +501,10 @@ class Merchandising(models.Model):
 
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     actual_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    
+    discrepancy_non_empty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    discrepancy_empty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+
     miscellaneous = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     payment_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     payment_method = models.CharField(max_length=50, blank=True, null=True)
@@ -581,7 +585,6 @@ class Merchandising(models.Model):
                 self.msp_no = f'{prefix}-0001'
 
         super().save(*args, **kwargs)
-
 
 # ------------------------------------------------------------
 # MerchandisingItem
