@@ -1082,7 +1082,7 @@ const Dashboard = () => {
 
             <button
               onClick={() => setPickerOpen(true)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white text-xs shadow-sm hover:shadow"
+              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-black text-xs shadow-sm hover:shadow"
             >
               ➕ Add Widgets
             </button>
