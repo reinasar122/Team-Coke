@@ -88,6 +88,20 @@ const MerchandisingSale = () => {
     document.body.appendChild(alertDiv);
   };
 
+
+  useEffect(() => {
+  // Fetch the logged-in user from localStorage
+  const userData = JSON.parse(localStorage.getItem("user") || "{}");
+
+  // Check if the user data exists, and set the selected user automatically
+  if (userData && userData.id) {
+    setSelectedUser(userData.id); // Automatically select the logged-in user
+  }
+}, []);
+
+
+
+
   // ✅ IMPROVED: Complete form reset when reset state is passed
   useEffect(() => {
     if (location.state?.reset === true) {
@@ -705,6 +719,8 @@ const mapped = items.map((it, idx) => {
       return false; 
     }
     
+
+    
     if (isVanLoad) {
       if (!route) { 
         showAlert("Route is required for Van Load."); 
@@ -1112,19 +1128,14 @@ const handleSaveVanLoadEdit = async () => {
 
             <div>
               <label className="text-sm">Handled By</label>
-              <select
-                value={selectedUser || ""}
-                onChange={(e) => setSelectedUser(e.target.value)}
-                className="border w-full rounded-md px-2 py-1 text-sm"
-              >
-                <option value="">-- Select Handler --</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>
-                    {user.first_name} {user.last_name}
-                  </option>
-                ))}
-              </select>
+              <input
+                type="text"
+                value={handledBy || ""}
+                readOnly
+                className="border w-full rounded-md px-2 py-1 text-sm bg-gray-100"
+              />
             </div>
+
           </div>
 
           {/* RIGHT */}
@@ -1376,7 +1387,7 @@ const handleSaveVanLoadEdit = async () => {
         }
       />
     )}
-      
+
       <PaymentModal
         open={isPaymentModalOpen}
         onClose={handleClosePayment}
@@ -1400,7 +1411,6 @@ const handleSaveVanLoadEdit = async () => {
         transactionTypes={transactionTypes}//kath
         expensesTotal={miscItems.reduce((s, i) => s + Number(i.amount || 0), 0)}  //karen changes
         miscItems={miscItems}
-        warehouse={currentWarehouse} // ✅ ADD WAREHOUSE PROP
       />
     </div>
   );
