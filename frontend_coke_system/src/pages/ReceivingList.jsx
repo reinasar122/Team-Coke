@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaTrashAlt, FaEye } from "react-icons/fa";
+import { FaTrashAlt, FaEye,FaClipboardCheck } from "react-icons/fa";
 import "../styles/pages/receivinglist.scss"; // page-specific extras only
 
 const ReceiptModal = ({ isOpen, onClose, receipt }) => {
@@ -266,11 +266,18 @@ const ReceivingList = () => {
     <div className="receiving-container">
       {/* Header */}
       <div className="page-header">
-        <div className="warehouse-chip">
+        <div>
+            <h1 className="text-2xl flex items-center">
+              <FaClipboardCheck /> Receiving
+            </h1>
+        </div>
+                  
+             
+        {/* <div className="warehouse-chip">
           <span className="chip-title">📦 Current Warehouse</span>
           <span className="chip-value">{currentWarehouse.name}</span>
           <span className="chip-sub">ID: {currentWarehouse.id}</span>
-        </div>
+        </div> */}
 
         <div className="actions">
           <Link to="/receiving/new" className="btn btn-add">+ New Receiving</Link>
@@ -308,7 +315,7 @@ const ReceivingList = () => {
                   <td>
                     <div className="actions">
                      <Link
-                        className="icon-btn icon-btn-view"
+                        className="icon-btn icon-btn-view m-2"
                         title="View Details"
                         to={`/receiving/${item.id}`}
                       >

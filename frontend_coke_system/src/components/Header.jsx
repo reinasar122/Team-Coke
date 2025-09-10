@@ -140,27 +140,9 @@ const Header = ({ toggleSidebar }) => {
 
         {/* Right - Profile Dropdown */}
         <div className="relative">
-          <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="focus:outline-none">
-            <FontAwesomeIcon icon={faUser} />
-          </button>
-
-          {isProfileOpen && (
-            <div className="absolute right-0 mt-2 bg-gray-800 shadow-lg rounded w-40">
-              <ul className="text-sm">
-                <li>
-                  <Link to="/profile" className="block px-4 py-2 hover:bg-gray-700">Profile</Link>
-                </li>
-                <li>
-                  <button 
-                    onClick={handleLogout}
-                    className="block w-full text-left px-4 py-2 hover:bg-gray-700 text-red-400"
-                  >
-                    <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" /> Logout
-                  </button>
-                </li>
-              </ul>
-            </div>
-          )}
+          <Link to="/user-profile" className="focus:outline-none">
+            <FontAwesomeIcon icon={faUser} className="cursor-pointer" />
+          </Link>
         </div>
       </header>
 

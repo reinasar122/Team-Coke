@@ -581,21 +581,19 @@ class PaymentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MerchandisingSerializer(serializers.ModelSerializer):
-    # Read-only derived fields
-    msp_no = serializers.CharField(read_only=True)  # server owns MSP
+    # Store text in DB, but still accept numbers from the client
+    handled_by = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    handled_by_name = serializers.SerializerMethodField()
+
+    # ---- existing fields you already have ----
+    msp_no = serializers.CharField(read_only=True)
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
     date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
-
-    # 🔁 CHANGED: make nested arrays optional for PATCH; keep payments read-only on update
     items = MerchandisingItemSerializer(many=True, required=False)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False, read_only=True)
-
-    # FK inputs
     route = serializers.PrimaryKeyRelatedField(queryset=Route.objects.all(), allow_null=True, required=False)
     customer = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), allow_null=True, required=False)
-
-    # Computed aggregates for response
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
 
@@ -603,6 +601,42 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         model = Merchandising
         fields = '__all__'
         read_only_fields = ['msp_no', 'transaction_type_name', 'total_trading_amount', 'total_expenses_amount']
+
+
+    # ACCEPT id OR name; if id, convert to "First Last" (or username) before saving
+    def validate_handled_by(self, value):
+        if value in (None, ""):
+            return value
+        # DRF CharField will give us a string; try to coerce to int
+        try:
+            uid = int(value)
+        except (TypeError, ValueError):
+            # Not numeric → assume it's already a name/username
+            return str(value)
+
+        user = User.objects.filter(pk=uid).first()
+        if not user:
+            # If the id doesn't exist, keep what came in (or you can raise a ValidationError)
+            return str(value)
+        full_name = f"{user.first_name} {user.last_name}".strip()
+        return full_name or user.username
+
+    # Always provide a readable name in responses
+    def get_handled_by_name(self, obj):
+        hb = getattr(obj, "handled_by", None)
+        if hb in (None, ""):
+            return None
+        # If DB contains an id-like string (legacy rows), resolve to a name
+        try:
+            uid = int(hb)
+        except (TypeError, ValueError):
+            return str(hb)  # already a name
+        user = User.objects.filter(pk=uid).first()
+        if not user:
+            return str(hb)
+        full_name = f"{user.first_name} {user.last_name}".strip()
+        return full_name or user.username
+
 
     def validate(self, data):
         """
@@ -968,3 +1002,25 @@ class ProcessEmptiesReturnSerializer(serializers.Serializer):
                     raise serializers.ValidationError(f"Missing required field: {field}")
         
         return value
+
+    # --- PROFILE (safe, minimal fields) ---
+  # api/serializers.py
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    role_name = serializers.CharField(source='role.name', read_only=True)
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'email', 'first_name', 'last_name',
+            'phone_number', 'gender',
+            'role_name', 'warehouse_name',
+            'avatar', 'avatar_url',
+            'created_at', 'last_login',
+        ]
+        read_only_fields = [
+            'username', 'role_name', 'warehouse_name',
+            'created_at', 'last_login',
+        ]
+

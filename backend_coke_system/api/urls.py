@@ -35,7 +35,7 @@ from .views import (
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
-    CreditPaymentCreateAPIView,BulkAdjustStockView,
+    CreditPaymentCreateAPIView,BulkAdjustStockView, UserProfileAPIView,
 
 
 
@@ -57,9 +57,9 @@ urlpatterns = [
     path('forgot-password/send-otp/', SendOTPAPIView.as_view(), name='send-otp'),
     path('forgot-password/verify-otp/', VerifyOTPAPIView.as_view(), name='verify-otp'),
     # --- CREDIT LEDGER ---
-path("credits/", CreditLedgerListCreateAPIView.as_view(), name="credit-list-create"),  # GET list, POST create
-path("credits/<int:pk>/", CreditLedgerDetailAPIView.as_view(), name="credit-detail"),  # GET detail/receipt
-path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="credit-add-payment"),  # POST payment
+    path("credits/", CreditLedgerListCreateAPIView.as_view(), name="credit-list-create"),  # GET list, POST create
+    path("credits/<int:pk>/", CreditLedgerDetailAPIView.as_view(), name="credit-detail"),  # GET detail/receipt
+    path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="credit-add-payment"),  # POST payment
 
 
     # ✅ New Role URLs
@@ -159,7 +159,9 @@ path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="c
 
      path("van-load-return/", VanLoadReturnUpdateAPIView.as_view(), name="van-load-return"),
 
-       path('stocks/bulk-adjust/', BulkAdjustStockView.as_view(), name='bulk-adjust-stocks'),
+    path('stocks/bulk-adjust/', BulkAdjustStockView.as_view(), name='bulk-adjust-stocks'),
+
+    path('user-profile/', UserProfileAPIView.as_view(), name='user-profile'),
 ]
 
 router = DefaultRouter()

@@ -120,7 +120,10 @@ const Stocks = () => {
           </div>
         )}
       </div> */}
-      <h2 className="page-title mb-5" style={{ marginRight: 'auto' }}>🧾 Stocks Table</h2>
+      <div>
+        <h2 className="page-title mb-5" style={{ marginRight: 'auto' }}>🧾 Stocks Table</h2>
+      </div>
+    
 
      
         <div className="table-wrapper">

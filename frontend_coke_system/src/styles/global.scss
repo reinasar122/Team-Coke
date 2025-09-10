@@ -96,18 +96,25 @@ body {
 .app-content.allow-page-scroll { overflow: auto; } /* default */
 
 .receiving-container,
+.warehousedetails-container,
 .vanlist-container,
 .suppliers-container,
-.trading-container {
+.stocks-container,
+.creditlist-container,
+.tradinglist-container {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;     /* lock this page */
 }
-.receiving-wrapper,
+
+.stocks-table-wrapper,
+.creditlist-container,
+.warehousedetails-table-wrapper,
+.receiving-table-wrapper,
 .van-table-wrapper,
 .suppliers-table-wrapper,
-.trading-table-wrapper {
+.tradinglist-table-wrapper {
   flex: 1;
   min-height: 0;        /* 🔑 prevent flex from pushing */
   overflow: auto;       /* ✅ only this scrolls */
@@ -335,6 +342,7 @@ body {
   justify-content: center;
   color: var(--text);
   transition: transform 80ms ease, background 120ms ease, color 120ms ease;
+  gap: 2px;
 
   &:hover { transform: translateY(-1px); }
 }

@@ -83,7 +83,7 @@ export default function WarehouseProductDetails() {
   const handleNewSale = () => navigate("/merchandising-sale");
 
   return (
-    <div className="card">
+    <div className="warehousedetails-container">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold">
           Warehouse Product Details — {mspNo}{data?.date ? ` (${data.date})` : ""}

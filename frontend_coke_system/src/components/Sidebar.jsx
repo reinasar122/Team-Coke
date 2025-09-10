@@ -98,6 +98,15 @@ const Sidebar = ({ isSidebarOpen }) => {
               ) : (
                 <DisabledSubItem text="Credit" />
               )}
+              {canView("Expenses") ? (
+                <li>
+                  <Link to="/expenses" className="block p-2 text-sm hover:bg-gray-600 rounded">
+                    Expenses
+                  </Link>
+                </li>
+              ) : (
+                <DisabledSubItem text="Expenses" />
+              )}
             </ul>
           )}
 

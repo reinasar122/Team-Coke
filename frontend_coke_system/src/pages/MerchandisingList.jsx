@@ -248,10 +248,7 @@ const MerchandisingList = () => {
   };
 
   return (
-    <div className="trading-container">
-
-
-      <div className="w-full">
+      <div className="tradinglist-container">
        
           
          <div className="flex items-center justify-between m-4">
@@ -272,7 +269,7 @@ const MerchandisingList = () => {
             <thead>
               <tr>
                 <th className="p-2">MSP No.</th>
-                <th className="p-2">Date & Time</th>
+                <th className="p-2">Date & Time</th>  
                 <th className="p-2">Transaction Type</th>
                 <th className="p-2">Handled By</th>
                 <th className="p-2">Status</th>
@@ -344,7 +341,7 @@ const MerchandisingList = () => {
           </table>
         </div>
       </div>
-    </div>
+   
   );
 };
 

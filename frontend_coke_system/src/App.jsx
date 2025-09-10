@@ -65,6 +65,9 @@ import SalesReport from "./pages/reports/SalesReport.jsx";
 import CreditList from "./pages/CreditList";
 import CreditDetail from "./pages/CreditDetail";
 
+import Profile from "./pages/Profile";
+
+
 // Icons
 import {
   FaHome,
@@ -129,11 +132,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 />
                 <Route
                   path="/receiving"
-                  element={
-                    <h1 className="text-2xl flex items-center">
-                      <FaClipboardCheck /> Receiving
-                    </h1>
-                  }
+                  // element={
+                  //   <h1 className="text-2xl flex items-center">
+                  //     <FaClipboardCheck /> Receiving
+                  //   </h1>
+                  // }
                 />
                 <Route
                   path="/stocks"
@@ -159,11 +162,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 />
                 <Route
                   path="/users"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaUsers /> Users
-                    </h1>
-                  }
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaUsers /> Users
+                  //   </h1>
+                  // }
                 />
                 <Route
                   path="/roles"
@@ -292,6 +295,10 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             {/* ✅ Sales Report page */}
             <Route path="/reports/sales" element={<SalesReport />} />
             <Route path="/salesreport" element={<Navigate to="/reports/sales" replace />} />
+
+            <Route path="/user-profile" element={<Profile />} />
+
+
 
           </Routes>
         </div>

@@ -57,22 +57,22 @@ export default function CreditList() {
   });
 
   return (
-    <div className="p-4">
+    <div className="creditlist-container">
       <h1 className="text-xl font-bold mb-4">Credit List</h1>
 
       <div className="table-wrapper">
         <table className="table">
           <thead>
             <tr>
-              <th className="text-left">MSP No.</th>
-              <th className="text-left">Date &amp; Time</th>
-              <th className="text-left">Handled By</th>
-              <th className="text-left">Customer</th>
-              <th className="text-left">Total</th>
-              <th className="text-left">Paid</th>
-              <th className="text-left">Balance</th>
-              <th className="text-left">Status</th>
-              <th className="text-left">Action</th>
+              <th className="text-center">MSP No.</th>
+              <th className="text-center">Date &amp; Time</th>
+              <th className="text-center">Handled By</th>
+              <th className="text-center">Customer</th>
+              <th className="text-center">Total</th>
+              <th className="text-center">Paid</th>
+              <th className="text-center">Balance</th>
+              <th className="text-center">Status</th>
+              <th className="text-center">Action</th>
             </tr>
           </thead>
 
