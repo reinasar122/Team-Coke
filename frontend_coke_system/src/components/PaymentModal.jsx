@@ -7,9 +7,29 @@ import axios from "axios";
 async function createCreditLedgerFromModalPayload(payload) {
   if (payload.paymentMethod !== "credit") return null;
 
-  // ✅ GET WAREHOUSE ID FROM PAYLOAD
-  const warehouseId = payload.warehouse?.id || payload.warehouseId;
+  console.log("🔍 Full credit payload:", payload);
+  console.log("🔍 Available keys:", Object.keys(payload));
+
+  // ✅ Try multiple warehouse ID extraction methods
+  const warehouseId = 
+    payload.warehouseId ||
+    payload.warehouse_id ||
+    payload.warehouse?.id ||
+    payload.warehouse?.warehouse_id ||
+    (typeof payload.warehouse === 'number' ? payload.warehouse : null) ||
+    null;
+
+  console.log("🏪 Extracted warehouse ID:", warehouseId);
+  console.log("🏪 Warehouse ID type:", typeof warehouseId);
+
   if (!warehouseId) {
+    console.error("❌ No warehouse ID found:", {
+      warehouseId: payload.warehouseId,
+      warehouse_id: payload.warehouse_id,
+      warehouse: payload.warehouse,
+      warehouseType: typeof payload.warehouse,
+      allPayloadKeys: Object.keys(payload)
+    });
     throw new Error("Warehouse ID is required for credit transactions");
   }
 
@@ -18,21 +38,23 @@ async function createCreditLedgerFromModalPayload(payload) {
     customerName: payload.customerName,
     handledBy: payload.handledBy,
     transactionTypeName: payload.transactionTypeName,
-    remarks: payload.remarks || "",
-    payment_terms_days: payload.paymentTermsDays, // 7/15/30
-    due_date: payload.dueDate, // ISO string
-    amountDue: payload.amountDue,
+    remarks: payload.creditNotes || "",
+    payment_terms_days: payload.paymentTermsDays,
+    due_date: payload.dueDate,
     totalAmount: payload.totalAmount,
     rows: payload.rows || [],
     transactionDate: payload.transactionDate || new Date().toISOString(),
-    creditNotes: payload.creditNotes || "",
-    warehouse: warehouseId, // ✅ ADD WAREHOUSE FIELD
+    warehouse: Number(warehouseId), // ✅ Ensure it's a number
   };
+
+  console.log("📋 Credit request body:", body);
 
   try {
     const res = await axios.post("http://127.0.0.1:8080/api/credits/", body);
+    console.log("✅ Credit created successfully:", res.data);
     return res.data;
   } catch (err) {
+    console.error("❌ Credit creation failed:", err.response?.data || err.message);
     throw err;
   }
 }
@@ -80,6 +102,11 @@ const PaymentModal = ({
   miscItems = [],
   warehouse, // ✅ ADD WAREHOUSE PROP
 }) => {
+  // ✅ DEBUG: Log warehouse prop when component renders
+  console.log("🏪 PaymentModal received warehouse prop:", warehouse);
+  console.log("🏪 Warehouse type:", typeof warehouse);
+  console.log("🏪 Warehouse keys:", warehouse ? Object.keys(warehouse) : "null/undefined");
+
   // ------------ hooks ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
@@ -135,6 +162,21 @@ const PaymentModal = ({
       minute: "2-digit",
       hour12: true,
     }).format(d);
+  };
+
+  // ✅ Custom alert function
+  const showAlert = (message) => {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    alertDiv.innerHTML = `
+      <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+        <p class="text-gray-700 mb-4">${message}</p>
+        <div class="flex justify-end">
+          <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(alertDiv);
   };
 
   // ---- robust accessors ----
@@ -871,6 +913,40 @@ const PaymentModal = ({
             className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60"
             disabled={submitting || (paymentMethod === "cash" && n(cashReceived) < amountDueFinal)}
             onClick={async () => {
+              // ✅ More robust warehouse extraction
+              console.log("🏪 Button clicked - warehouse:", warehouse);
+              
+              // Try to get warehouse ID from multiple sources
+              let warehouseId = null;
+              let warehouseName = null;
+              
+              if (warehouse) {
+                warehouseId = warehouse.id || warehouse.warehouse_id;
+                warehouseName = warehouse.name || warehouse.warehouse_name || warehouse.warehouse;
+              }
+              
+              // Fallback: try to get from localStorage
+              if (!warehouseId) {
+                const user = JSON.parse(localStorage.getItem("user") || "{}");
+                const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+                
+                if (selectedWarehouse?.id) {
+                  warehouseId = selectedWarehouse.id;
+                  warehouseName = selectedWarehouse.name;
+                } else if (user.warehouse_id) {
+                  warehouseId = user.warehouse_id;
+                  warehouseName = user.warehouse;
+                }
+              }
+              
+              console.log("🏪 Final warehouse ID:", warehouseId);
+              console.log("🏪 Final warehouse name:", warehouseName);
+              
+              if (!warehouseId && paymentMethod === "credit") {
+                showAlert("Warehouse is required for credit transactions. Please refresh the page and try again.");
+                return;
+              }
+
               const data = {
                 // payment
                 paymentMethod,
@@ -897,7 +973,6 @@ const PaymentModal = ({
                 // van load extras
                 transactionTypeName,
                 remarks,
-
                 miscItems,
 
                 // credit extras
@@ -909,7 +984,6 @@ const PaymentModal = ({
                 expectedSale: n(expectedSale),
                 totalReturnedWithContent: n(totalReturnedWithContent),
                 totalDiscrepancyNonEmpty: n(totalDiscrepancyNonEmpty),
-
                 totalActualRetrievedVL: n(totalActualRetrievedVL),
                 overallTotalVL: n(overallTotalVL),
                 grandTotalVL: n(grandTotalVL),
@@ -917,10 +991,14 @@ const PaymentModal = ({
                 // final due used in the modal
                 amountDue: amountDueFinal,
                 
-                // ✅ ADD WAREHOUSE FOR CREDIT TRANSACTIONS
+                // ✅ MULTIPLE WAREHOUSE FORMATS FOR COMPATIBILITY
                 warehouse: warehouse,
-                warehouseId: warehouse?.id,
+                warehouseId: warehouseId,
+                warehouse_id: warehouseId, // alternative format
+                warehouseName: warehouseName,
               };
+
+              console.log("💳 Complete payment data:", data);
 
               const isCredit = data.paymentMethod === "credit";
               const paymentOk =
@@ -981,17 +1059,7 @@ const PaymentModal = ({
                 console.error(e);
                 
                 // ✅ Use custom alert instead of browser alert
-                const alertDiv = document.createElement('div');
-                alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-                alertDiv.innerHTML = `
-                  <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
-                    <p class="text-gray-700 mb-4">Payment save failed. Please try again.</p>
-                    <div class="flex justify-end">
-                      <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
-                    </div>
-                  </div>
-                `;
-                document.body.appendChild(alertDiv);
+                showAlert("Payment save failed. Please try again.");
               } finally {
                 setSubmitting(false);
               }
