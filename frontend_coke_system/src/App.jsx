@@ -65,7 +65,7 @@ import SalesReport from "./pages/reports/SalesReport.jsx";
 import CreditList from "./pages/CreditList";
 import CreditDetail from "./pages/CreditDetail";
 
-import Profile from "./pages/Profile";
+
 
 
 // Icons
@@ -296,7 +296,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/reports/sales" element={<SalesReport />} />
             <Route path="/salesreport" element={<Navigate to="/reports/sales" replace />} />
 
-            <Route path="/user-profile" element={<Profile />} />
+           
 
 
 

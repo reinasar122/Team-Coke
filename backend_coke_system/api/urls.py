@@ -35,7 +35,7 @@ from .views import (
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
-    CreditPaymentCreateAPIView,BulkAdjustStockView, UserProfileAPIView,
+    CreditPaymentCreateAPIView,BulkAdjustStockView, 
 
 
 
@@ -161,7 +161,6 @@ urlpatterns = [
 
     path('stocks/bulk-adjust/', BulkAdjustStockView.as_view(), name='bulk-adjust-stocks'),
 
-    path('user-profile/', UserProfileAPIView.as_view(), name='user-profile'),
 ]
 
 router = DefaultRouter()

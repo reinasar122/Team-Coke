@@ -67,8 +67,6 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from rest_framework import status, permissions
 
-from .serializers import UserProfileSerializer
-
 from .models import CreditLedger
 from .serializers import (
     CreditLedgerCreateSerializer,
@@ -1605,22 +1603,3 @@ class VanLoadReturnUpdateAPIView(APIView):
             import traceback; traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-class UserProfileAPIView(APIView):
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        user = request.user  # Get the currently authenticated user
-        data = {
-            "id": user.id,
-            "username": user.username,
-            "email": user.email,
-            "first_name": user.first_name,
-            "last_name": user.last_name,
-            "phone_number": user.phone_number,
-            "gender": user.gender,
-            "role_name": user.role.name if user.role else None,
-            "warehouse_name": user.warehouse.name if user.warehouse else None,
-            "created_at": user.created_at,
-            "last_login": user.last_login,
-        }
-        return Response(data)

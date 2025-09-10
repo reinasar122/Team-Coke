@@ -1003,24 +1003,4 @@ class ProcessEmptiesReturnSerializer(serializers.Serializer):
         
         return value
 
-    # --- PROFILE (safe, minimal fields) ---
-  # api/serializers.py
-
-class UserProfileSerializer(serializers.ModelSerializer):
-    role_name = serializers.CharField(source='role.name', read_only=True)
-    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
-
-    class Meta:
-        model = User
-        fields = [
-            'id', 'username', 'email', 'first_name', 'last_name',
-            'phone_number', 'gender',
-            'role_name', 'warehouse_name',
-            'avatar', 'avatar_url',
-            'created_at', 'last_login',
-        ]
-        read_only_fields = [
-            'username', 'role_name', 'warehouse_name',
-            'created_at', 'last_login',
-        ]
-
+ 
