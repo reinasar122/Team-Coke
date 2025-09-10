@@ -26,11 +26,11 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
     payment_terms_days = serializers.IntegerField(required=False, default=30)
     due_date = serializers.DateTimeField(required=False, allow_null=True)
     transactionDate = serializers.DateTimeField(source="created_at", required=False)
-    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False)
+    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, write_only=True)  # ✅ Mark as write_only
     totalAmount = serializers.DecimalField(source="total_amount", max_digits=12, decimal_places=2)
     rows = serializers.ListField(child=serializers.DictField(), source="rows_json", required=False, default=list)
-    creditNotes = serializers.CharField(required=False, allow_blank=True, default="")
-    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all())  # ADD WAREHOUSE
+    creditNotes = serializers.CharField(source="remarks", required=False, allow_blank=True, default="")  # ✅ Map to remarks
+    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all())
 
     class Meta:
         model = CreditLedger
@@ -47,9 +47,14 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
             "rows",
             "transactionDate",
             "creditNotes",
-            "warehouse",  # ADD WAREHOUSE
+            "warehouse",
         ]
 
+    def create(self, validated_data):
+        # ✅ Remove write_only fields that don't map to model fields
+        validated_data.pop('amountDue', None)  # amountDue is the same as totalAmount
+        return super().create(validated_data)
+    
 class CreditLedgerListSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
     warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)  # ADD WAREHOUSE NAME
