@@ -1,0 +1,8 @@
+/* Table footer actions */
+.pf-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 16px;
+  background: var(--surface);
+}

@@ -1,0 +1,49 @@
+/* =========================
+   Credit List Specific Styles
+   ========================= */
+
+// .credit-list-table {
+//   /* inherits .table from global.scss */
+//   width: 100%;
+//   font-size: 14px;
+
+  td {
+    text-align: center;
+  }
+
+  /* Status badges */
+  .status-pending {
+    background: #fef3c7;   /* amber-100 */
+    color: #b45309;        /* amber-700 */
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+  }
+
+  .status-paid {
+    background: #dcfce7;   /* green-100 */
+    color: #15803d;        /* green-700 */
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 9999px;
+    font-size: 12px;
+  }
+
+  /* Action button */
+  .action-btn {
+    background: var(--primary);
+    color: #fff;
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s;
+
+    &:hover {
+      background: var(--primary-600);
+    }
+  }
+// }

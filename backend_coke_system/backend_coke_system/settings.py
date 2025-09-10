@@ -56,6 +56,7 @@ MIDDLEWARE = [
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React frontend URL
+     "http://127.0.0.1:3000",
 ]
 
 ROOT_URLCONF = 'backend_coke_system.urls'
@@ -84,10 +85,14 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-}
+         'ENGINE': 'django.db.backends.mysql',
+         'NAME': 'jelyn06_db',
+         'USER': 'root',
+         'PASSWORD': 'yjh434ctuG@-@',
+         'HOST': 'localhost',
+         'PORT': '3306',
+     }
+ }
 
 
 # Password validation
@@ -114,7 +119,18 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# settings.py
+TIME_ZONE = "Asia/Manila"   # local timezone
+USE_TZ = True               # store UTC in DB, convert on input/output
+
+# DRF: return proper ISO 8601 with timezone (e.g., "...Z")
+REST_FRAMEWORK = {
+    # Other settings...
+    "DATETIME_FORMAT": None,  # ISO-8601 with TZ (default, but set explicitly)
+    # Optional: accept naive inputs as Manila time (safety net)
+    # "DATETIME_INPUT_FORMATS": ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"]
+}
+
 
 USE_I18N = True
 
@@ -130,3 +146,49 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+
+import os
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+
+EMAIL_HOST_USER = 'devilleresmarcjade84@gmail.com'         # replace with your actual Gmail
+EMAIL_HOST_PASSWORD = 'dswu ffeu moac couk' 
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-warehouse-id',  # Add this custom header
+]
+
+# Or if you want to allow all origins during development (not recommended for production):
+CORS_ALLOW_ALL_ORIGINS = True
+
+# Make sure CORS is enabled
+CORS_ALLOW_CREDENTIALS = True
+
+
+MEDIA_URL = '/media/'
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+
+
+#To automatically install dependencies for backend from requirements.txt, run:
+#"pip install -r backend_coke_system/requirements.txt" inside coke-POS-system/backend_coke_system
+
+#To automatically install dependencies for frontend from package.json, run:
+#"yarn install or npm install" inside coke-POS-system/frontend_coke_system

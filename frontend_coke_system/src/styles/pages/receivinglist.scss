@@ -1,0 +1,80 @@
+/* =========================
+   Receiving List (page-specific)
+   ========================= */
+/* Header chip (warehouse info) */
+.warehouse-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow);
+
+  .chip-title {
+    font-weight: 600;
+    color: var(--text);
+  }
+  .chip-value {
+    padding: 2px 8px;
+    border-radius: 9999px;
+    background: var(--table-head);
+    border: 1px solid var(--border);
+  }
+  .chip-sub {
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+}
+
+/* Modal bits */
+.receiving-receipt-header {
+  text-align: center;
+  margin-bottom: 12px;
+
+  .receipt-no {
+    color: var(--primary);
+    font-weight: 700;
+    margin-top: 2px;
+  }
+}
+
+.receipt-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 16px;
+
+  .meta-col.right {
+    text-align: right;
+  }
+}
+
+.remarks {
+  margin-top: 12px;
+
+  .remarks-box {
+    margin-top: 6px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--r-sm);
+    background: #f9fafb;
+  }
+}
+
+.totals {
+  margin-top: 10px;
+  display: flex;
+  justify-content: space-between;
+
+  .net {
+    font-size: 15px;
+  }
+}
+
+/* Action icons already styled by global:
+   - .icon-btn (base)
+   - .icon-btn-view  👁️ (FaEye / View)
+   - .icon-btn-danger 🗑️ (FaTrashAlt / Delete)
+*/

@@ -1,0 +1,391 @@
+import React, { useState, useEffect } from "react";
+import axios from "axios";
+import psgcData from "../data/psgc_output.json";
+import { toast } from "react-toastify";
+import { successStyle, errorStyle } from "../utils/toastStyles"; // Import custom styles
+
+const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
+  const [formData, setFormData] = useState({
+    company_name: "",
+    bir_no: "",
+    contact_person: "",
+    email: "",
+    phone_number: "",
+    country: "Philippines",
+    region: "",
+    province: "",
+    city: "",
+    barangay: "",
+    street_address: "",  // Ensure street_address is used
+    zip_code: "",
+    contacts: [],
+  });
+
+  const [provinces, setProvinces] = useState([]);
+  const [cities, setCities] = useState([]);
+  const [barangays, setBarangays] = useState([]);
+
+  const [newContact, setNewContact] = useState({
+    contact_person: "",
+    email: "",
+    phone_number: "",
+  });
+
+  useEffect(() => {
+    const loadSupplier = async () => {
+      try {
+        const { data } = await axios.get(
+          `http://localhost:8080/api/suppliers/${supplierId}/`
+        );
+        const mapped = {
+          ...data,
+          street_address: data.street_address ?? data.street ?? "", // Ensure street_address is consistent
+          country: data.country ?? "Philippines",
+        };
+        setFormData(mapped);
+      } catch (error) {
+        console.error("Error fetching supplier:", error);
+      }
+    };
+    if (supplierId) loadSupplier();
+  }, [supplierId]);
+
+  useEffect(() => {
+    const selectedRegion = psgcData.find(
+      (r) => r.region_name === formData.region
+    );
+    setProvinces(selectedRegion ? selectedRegion.provinces : []);
+
+    const selectedProvince = selectedRegion?.provinces.find(
+      (p) => p.province_name === formData.province
+    );
+    setCities(selectedProvince ? selectedProvince.cities : []);
+
+    const selectedCity = selectedProvince?.cities.find(
+      (c) => c.city_name === formData.city
+    );
+    setBarangays(selectedCity ? selectedCity.barangays : []);
+  }, [formData.region, formData.province, formData.city]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => {
+      if (name === "region") {
+        return { ...prev, region: value, province: "", city: "", barangay: "" };
+      }
+      if (name === "province") {
+        return { ...prev, province: value, city: "", barangay: "" };
+      }
+      if (name === "city") {
+        return { ...prev, city: value, barangay: "" };
+      }
+      return { ...prev, [name]: value };
+    });
+  };
+
+  const handleNewContactChange = (e) => {
+    const { name, value } = e.target;
+    setNewContact((c) => ({ ...c, [name]: value }));
+  };
+
+  const addContact = () => {
+    const { contact_person, email, phone_number } = newContact;
+    if (!contact_person || !email || !phone_number) return;
+    setFormData((prev) => ({
+      ...prev,
+      contacts: [...prev.contacts, newContact],
+    }));
+    setNewContact({ contact_person: "", email: "", phone_number: "" });
+  };
+
+  const removeContact = (index) => {
+    setFormData((prev) => ({
+      ...prev,
+      contacts: prev.contacts.filter((_, i) => i !== index),
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const payload = { ...formData };
+
+      await axios.put(
+        `http://localhost:8080/api/suppliers/${supplierId}/`,
+        payload
+      );
+      toast.success(
+        `Supplier '${formData.company_name || "Updated Supplier"}' has been successfully updated!`,
+        { style: successStyle }
+      );
+      onSuccess?.();
+      onClose?.();
+    } catch (error) {
+      console.error("Error updating supplier:", error);
+      toast.error("Failed to update supplier. Please check the fields and try again.", {
+        style: errorStyle,
+      });
+    }
+  };
+
+  return (
+    <div className="container p-4">
+      <h2 className="text-2xl font-bold border-l-4 border-blue-500 pl-2 mb-4">
+        Edit Supplier
+      </h2>
+
+      <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Company */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block font-medium">Company Name</label>
+            <input
+              type="text"
+              name="company_name"
+              value={formData.company_name}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium">BIR No.</label>
+            <input
+              type="text"
+              name="bir_no"
+              value={formData.bir_no}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+            />
+          </div>
+        </div>
+
+        {/* Primary Contact */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
+            <label className="block font-medium">Contact Person</label>
+            <input
+              type="text"
+              name="contact_person"
+              value={formData.contact_person}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Email</label>
+            <input
+              type="email"
+              name="email"
+              value={formData.email}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+          <div>
+            <label className="block font-medium">Phone Number</label>
+            <input
+              type="text"
+              name="phone_number"
+              value={formData.phone_number}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+        </div>
+
+        {/* Address (same pattern as EditWarehouse) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="block font-medium">Country</label>
+            <input
+              type="text"
+              name="country"
+              value={formData.country}
+              disabled
+              className="w-full border p-2 rounded bg-gray-100"
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium">Region</label>
+            <select
+              name="region"
+              value={formData.region}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            >
+              <option value="">-- Select Region --</option>
+              {psgcData.map((region) => (
+                <option key={region.region_name} value={region.region_name}>
+                  {region.region_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-medium">Province</label>
+            <select
+              name="province"
+              value={formData.province}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+              disabled={!formData.region}
+            >
+              <option value="">-- Select Province --</option>
+              {provinces.map((prov) => (
+                <option key={prov.province_name} value={prov.province_name}>
+                  {prov.province_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-medium">City/Municipality</label>
+            <select
+              name="city"
+              value={formData.city}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+              disabled={!formData.province}
+            >
+              <option value="">-- Select City/Municipality --</option>
+              {cities.map((c) => (
+                <option key={c.city_name} value={c.city_name}>
+                  {c.city_name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-medium">Barangay</label>
+            <select
+              name="barangay"
+              value={formData.barangay}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+              disabled={!formData.city}
+            >
+              <option value="">-- Select Barangay --</option>
+              {barangays.map((bgy, idx) => (
+                <option key={idx} value={bgy}>
+                  {bgy}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block font-medium">Street Address</label>
+            <input
+              type="text"
+              name="street_address"
+              value={formData.street_address}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block font-medium">Zip Code</label>
+            <input
+              type="text"
+              name="zip_code"
+              value={formData.zip_code}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+        </div>
+
+        {/* Extra Contacts */}
+        <div className="mt-4">
+          <h3 className="font-semibold mb-2">Additional Contacts</h3>
+
+          {formData.contacts.map((c, idx) => (
+            <div
+              key={`${c.email}-${idx}`}
+              className="border p-2 mb-2 flex justify-between items-center rounded"
+            >
+              <span className="text-sm">
+                {c.contact_person} — {c.email} — {c.phone_number}
+              </span>
+              <button
+                type="button"
+                onClick={() => removeContact(idx)}
+                className="bg-red-500 text-white px-2 py-1 rounded"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-2">
+            <input
+              type="text"
+              name="contact_person"
+              placeholder="Contact Person"
+              value={newContact.contact_person}
+              onChange={handleNewContactChange}
+              className="w-full border p-2 rounded"
+            />
+            <input
+              type="email"
+              name="email"
+              placeholder="Email"
+              value={newContact.email}
+              onChange={handleNewContactChange}
+              className="w-full border p-2 rounded"
+            />
+            <input
+              type="text"
+              name="phone_number"
+              placeholder="Phone Number"
+              value={newContact.phone_number}
+              onChange={handleNewContactChange}
+              className="w-full border p-2 rounded"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={addContact}
+            className="px-4 py-2 btn btn-add"
+          >
+            Add Contact
+          </button>
+        </div>
+
+        {/* Actions */}
+        <div className="flex justify-between mt-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 btn btn-cancel"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            className="px-4 py-2 btn btn-primary"
+          >
+            Update Supplier
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+};
+
+export default SupplierEditForm;
