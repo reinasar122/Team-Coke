@@ -161,6 +161,7 @@ path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="c
     path('process-empties-return/', ProcessEmptiesReturnView.as_view(), name='process-empties-return'),
 
     path("van-load-return/", VanLoadReturnUpdateAPIView.as_view(), name="van-load-return"),
+    path('api/van-load-return/update/', VanLoadReturnUpdateAPIView.as_view(), name='van-load-return-update'),
 
     path('stocks/bulk-adjust/', BulkAdjustStockView.as_view(), name='bulk-adjust-stocks'),
 
