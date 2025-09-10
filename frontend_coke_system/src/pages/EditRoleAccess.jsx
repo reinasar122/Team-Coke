@@ -9,6 +9,7 @@ const EditRoleAccess = ({ roleId, onClose }) => {
   const [permissions, setPermissions] = useState({});
   const [loading, setLoading] = useState(true);
 
+  // Fetch role and permissions when the component mounts
   useEffect(() => {
     const fetchRoleAndPermissions = async () => {
       try {
@@ -21,12 +22,13 @@ const EditRoleAccess = ({ roleId, onClose }) => {
         if (!accessRes.ok) throw new Error("Failed to load access");
 
         const roleData = await roleRes.json();
-        const accessData = await accessRes.json(); // <-- object keyed by submenu
+        const accessData = await accessRes.json(); // Object keyed by submenu
+
         setRoleName(roleData.name);
 
         const permMap = {};
         Object.values(MODULES).flat().forEach((submenu) => {
-          const found = accessData[submenu]; // <-- read directly by key
+          const found = accessData[submenu]; // Read directly by key
           permMap[submenu] = found
             ? {
                 full_access: !!found.full,
@@ -55,6 +57,7 @@ const EditRoleAccess = ({ roleId, onClose }) => {
     fetchRoleAndPermissions();
   }, [roleId]);
 
+  // Toggle individual permission (view, create, edit, delete)
   const handleToggle = (submenu, type) => {
     setPermissions((prev) => ({
       ...prev,
@@ -65,6 +68,7 @@ const EditRoleAccess = ({ roleId, onClose }) => {
     }));
   };
 
+  // Toggle all permissions (full access)
   const handleFullToggle = (submenu) => {
     setPermissions((prev) => {
       const full = !prev[submenu].full_access;
@@ -81,6 +85,7 @@ const EditRoleAccess = ({ roleId, onClose }) => {
     });
   };
 
+  // Save the updated permissions to the backend
   const handleSave = async () => {
     const payload = Object.entries(permissions).map(([submenu, perms]) => ({
       role: roleId,
@@ -98,6 +103,7 @@ const EditRoleAccess = ({ roleId, onClose }) => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+
       if (!res.ok) throw new Error("Bulk upsert failed");
 
       toast.success(`✅ Permissions for role '${roleName}' updated successfully!`, { style: successStyle });
@@ -108,6 +114,7 @@ const EditRoleAccess = ({ roleId, onClose }) => {
     }
   };
 
+  // Loading state while data is being fetched
   if (loading) {
     return (
       <div className="text-center p-6 bg-white rounded shadow">
@@ -133,16 +140,10 @@ const EditRoleAccess = ({ roleId, onClose }) => {
       </div>
 
       <div className="flex justify-end mt-6 gap-3">
-        <button
-          className="px-4 py-2 btn btn-cancel"
-          onClick={onClose}
-        >
+        <button className="px-4 py-2 btn btn-cancel" onClick={onClose}>
           Cancel
         </button>
-        <button
-          className="px-6 py-2 btn btn-primary"
-          onClick={handleSave}
-        >
+        <button className="px-6 py-2 btn btn-primary" onClick={handleSave}>
           Save Changes
         </button>
       </div>

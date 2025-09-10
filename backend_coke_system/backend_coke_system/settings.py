@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'api',
     'rest_framework',
+    'rest_framework_simplejwt',
     'corsheaders',
 
 ]
@@ -96,7 +97,6 @@ DATABASES = {
 
 
 
-
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
 
@@ -131,6 +131,10 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": None,  # ISO-8601 with TZ (default, but set explicitly)
     # Optional: accept naive inputs as Manila time (safety net)
     # "DATETIME_INPUT_FORMATS": ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"]
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+    
 }
 
 
@@ -160,8 +164,8 @@ EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 
-EMAIL_HOST_USER = 'devilleresmarcjade84@gmail.com'         # replace with your actual Gmail
-EMAIL_HOST_PASSWORD = 'dswu ffeu moac couk' 
+EMAIL_HOST_USER = 'teamners74@gmail.com'         # replace with your actual Gmail
+EMAIL_HOST_PASSWORD = 'vresgmfjzgqdrjla' 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
 
 CORS_ALLOW_HEADERS = [

@@ -47,13 +47,13 @@ import SupplierReturnList from "./pages/SupplierReturnList";
 import ReturnEmpties from "./pages/ReturnEmpties";
 import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 import ReceivingDetails from "./pages/ReceivingDetails";
-
+import { FaUser } from "react-icons/fa";
 // Karen Changes
 import VanLoadProductDetails from "./pages/VanLoadProductDetails";
 
 // Dashboard Page
 import Dashboard from "./pages/Dashboard";
-
+import Profile from "./pages/Profile";
 // ✅ Sales Report
 import SalesReport from "./pages/reports/SalesReport.jsx";
 
@@ -168,6 +168,14 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   }
                 />*/}
                 <Route
+                    path="/profile"
+                    element={
+                      <h1 className="text-2xl flex items-center gap-2">
+                        <FaUser /> Profile
+                      </h1>
+                    }
+                  />
+                <Route
                   path="/invoice"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
@@ -211,6 +219,15 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
+
+                 <Route
+                  path="/profile"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaUser /> Profile
+                    </h1>
+                  }
+                />
               </Routes>
             </div>
           )}
@@ -246,6 +263,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/receiving/:id" element={<ReceivingDetails />} />
             <Route path="/receiving/new" element={<ReceivingForm />} />
             <Route path="/trading" element={<MerchandisingList />} />
+            <Route path="/profile" element={<Profile />} />
             <Route
               path="/merchandising"
               element={
