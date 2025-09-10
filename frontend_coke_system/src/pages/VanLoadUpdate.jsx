@@ -25,7 +25,6 @@ const ZeroInput = ({
   className = '',
   placeholder = '0',
 }) => {
-  // what the user *sees* in the box
   const display =
     value === 0 || value === '0' || value === null || value === undefined
       ? ''
@@ -39,14 +38,12 @@ const ZeroInput = ({
       disabled={disabled}
       className={className}
       onFocus={(e) => {
-        // if somehow "0" is in the box, clear it for clean typing
         if (e.target.value === '0') e.target.value = '';
       }}
       onChange={(e) => {
-        onValue?.(e.target.value); // you still parse in handleRowChange
+        onValue?.(e.target.value);
       }}
       onBlur={(e) => {
-        // if user leaves blank, put zero back and push it to state
         if (e.target.value === '') {
           e.target.value = 0;
           onValue?.(0);
@@ -66,26 +63,15 @@ const isSoldEqualDispatched = (row) =>
 const hasEmptyPrice = (row) =>
   Number(row.empty_price_shell || 0) > 0 || Number(row.empty_price_pc || 0) > 0;
 
-// Which fields are considered "returned with contents"
 const isReturnedWithContentsField = (field) =>
   field === 'expected_return_shell_nonempty' ||
   field === 'expected_return_pcs_nonempty' ||
   field === 'actual_return_shell' ||
   field === 'actual_return_pcs';
 
-// Which fields are considered "returned empty"
 const isReturnedEmptyField = (field) =>
   field === 'empty_return_shell' || field === 'empty_return_pcs';
 
-/**
- * Disable logic per your requirements:
- * - No empty price:
- *    - if Sold == Dispatched → disable ALL editable fields
- *    - else → disable returned-empty only
- * - Has empty price:
- *    - if Sold == Dispatched → disable Returned-with-contents only
- *    - else → enable all editable
- */
 const shouldDisableEditableField = (row, field) => {
   const soldEq = isSoldEqualDispatched(row);
   const hasEmpty = hasEmptyPrice(row);
@@ -95,10 +81,19 @@ const shouldDisableEditableField = (row, field) => {
     return isReturnedEmptyField(field); // disable returned-empty only
   }
 
-  // has empty price
   if (soldEq && isReturnedWithContentsField(field)) return true;
   return false; // enable
 };
+
+/* ---------------------- NEW: dashboard refresh helper ---------------------- */
+const refreshDashboardNow = () => {
+  try {
+    localStorage.removeItem('dashboard:data'); // bust Dashboard cache
+  } catch {}
+  // Your Dashboard listens for this and calls loadData(true)
+  window.dispatchEvent(new Event('warehouseChanged'));
+};
+/* --------------------------------------------------------------------------- */
 
 const VanLoadUpdate = () => {
   const location = useLocation();
@@ -168,7 +163,6 @@ const VanLoadUpdate = () => {
           product.unit_type?.id ?? product.unit_type_id ?? product.unit_type ?? null;
         const contentNo = unitTypeMap[unitTypeId] ?? 1;
 
-        // --- robust fallbacks: accept either *_shell or *_pcs from API ---
         const rawDispShell = nullIfBlank(item.dispatched_shell ?? item.dispatchedShell);
         const rawDispPcs = nullIfBlank(item.dispatched_pcs ?? item.dispatchedPcs);
 
@@ -188,31 +182,25 @@ const VanLoadUpdate = () => {
         const sold_shell =
           rawSoldShell != null
             ? parseFloat(rawSoldShell)
-            : parseFloat(rawSoldPcs || 0) / (contentNo || 1);
+            : (parseFloat(rawSoldPcs || 0) / (contentNo || 1));
 
         const sold_pcs =
           rawSoldPcs != null
             ? Math.round(parseFloat(rawSoldPcs))
             : Math.round((sold_shell || 0) * (contentNo || 1));
 
-        // prices/discounts (accept either snake_case or legacy camelCase)
         const selling_price = parseFloat(item.selling_price ?? item.sellingPrice ?? 0);
         const empty_price_shell = parseFloat(item.empty_price_shell ?? item.emptyPriceShell ?? 0);
         const empty_price_pc = parseFloat(item.empty_price_pc ?? item.emptyPricePc ?? 0);
-        const discount = parseFloat(item.discount_percent ?? item.discount ?? 0); // percent
+        const discount = parseFloat(item.discount_percent ?? item.discount ?? 0);
 
-        // Expected/actual (EXPECTED is now NET of discount)
-        const expected_sale = Number(
-          (selling_price * dispatched_pcs * (1 - (discount || 0) / 100)).toFixed(2)
-        );
+        const expected_sale = Number((selling_price * dispatched_pcs).toFixed(2));
         const discountAmt = (selling_price * sold_pcs * (discount || 0)) / 100;
         const actual_sale = Number(((selling_price * sold_pcs) - discountAmt).toFixed(2));
 
-        // expected empty return defaults to SOLD
         const expected_return_shell_empty = sold_shell;
         const expected_return_pcs_empty = sold_pcs;
 
-        // "with contents" (non-empty) expected defaults to dispatched - sold
         const autoNonEmptyShell = dispatched_shell - sold_shell;
         const autoNonEmptyPcs = dispatched_pcs - sold_pcs;
 
@@ -226,7 +214,6 @@ const VanLoadUpdate = () => {
             ? parseFloat(item.expected_return_pcs_nonempty)
             : autoNonEmptyPcs;
 
-        // actual with-contents defaults to expected (if backend didn’t set)
         const actual_return_shell =
           item.actual_return_shell != null
             ? parseFloat(item.actual_return_shell)
@@ -237,19 +224,16 @@ const VanLoadUpdate = () => {
             ? parseFloat(item.actual_return_pcs)
             : expected_return_pcs_nonempty;
 
-        // returned empty (fall back from shell → pcs if needed)
         const empty_return_shell = parseFloat(item.empty_return_shell ?? 0);
         const empty_return_pcs =
           item.empty_return_pcs != null
             ? Math.round(parseFloat(item.empty_return_pcs))
             : Math.round(empty_return_shell * (contentNo || 1));
 
-        // empties discrepancy (respect non-returnable)
         const isNonReturnable = empty_price_shell === 0 && empty_price_pc === 0;
-        const discrepancy_empties_shell = isNonReturnable ? 0 : sold_shell - empty_return_shell;
-        const discrepancy_empties_pc = isNonReturnable ? 0 : sold_pcs - empty_return_pcs;
+        const discrepancy_empties_shell = isNonReturnable ? 0 : (sold_shell - empty_return_shell);
+        const discrepancy_empties_pc = isNonReturnable ? 0 : (sold_pcs - empty_return_pcs);
 
-        // non-empty discrepancy = expected − actual
         const discrepancy_full_shell = expected_return_shell_nonempty - actual_return_shell;
         const discrepancy_full_pcs = expected_return_pcs_nonempty - actual_return_pcs;
 
@@ -260,41 +244,32 @@ const VanLoadUpdate = () => {
           unitTypeId,
           contentNo,
 
-          // dispatched (read-only)
           dispatched_shell,
           dispatched_pcs,
 
-          // sold (editable)
           sold_shell,
           sold_pcs,
 
-          // prices / discount
           selling_price,
           empty_price_shell,
           empty_price_pc,
           discount,
 
-          // expected/actual pesos
           expected_sale,
           actual_sale,
 
-          // expected empty returns (defaults to sold)
           expected_return_shell_empty,
           expected_return_pcs_empty,
 
-          // expected non-empty
           expected_return_shell_nonempty,
           expected_return_pcs_nonempty,
 
-          // actual returns (with contents)
           actual_return_shell,
           actual_return_pcs,
 
-          // returned empty (editable)
           empty_return_shell: isNonReturnable ? 0 : empty_return_shell,
           empty_return_pcs: isNonReturnable ? 0 : empty_return_pcs,
 
-          // discrepancies
           discrepancy_empties_shell,
           discrepancy_empties_pc,
           discrepancy_full_shell,
@@ -320,15 +295,13 @@ const VanLoadUpdate = () => {
 
     // SOLD sync
     if (field === 'sold_shell') row.sold_pcs = Math.round(v * contentNo);
-    else if (field === 'sold_pcs')
-      row.sold_shell = parseFloat((v / contentNo).toFixed(2));
+    else if (field === 'sold_pcs') row.sold_shell = parseFloat((v / contentNo).toFixed(2));
 
     // EMPTY returns sync
     if (field === 'empty_return_shell') row.empty_return_pcs = Math.round(v * contentNo);
-    else if (field === 'empty_return_pcs')
-      row.empty_return_shell = parseFloat((v / contentNo).toFixed(2));
+    else if (field === 'empty_return_pcs') row.empty_return_shell = parseFloat((v / contentNo).toFixed(2));
 
-    // ✅ ACTUAL with-contents returns sync (NEW)
+    // ACTUAL with-contents returns sync
     if (field === 'actual_return_shell') {
       row.actual_return_pcs = Math.round(v * contentNo);
     } else if (field === 'actual_return_pcs') {
@@ -336,12 +309,9 @@ const VanLoadUpdate = () => {
     }
 
     // EXPECTED NON-EMPTY sync (editable)
-    if (field === 'expected_return_shell_nonempty')
-      row.expected_return_pcs_nonempty = Math.round(v * contentNo);
-    else if (field === 'expected_return_pcs_nonempty')
-      row.expected_return_shell_nonempty = parseFloat((v / contentNo).toFixed(2));
+    if (field === 'expected_return_shell_nonempty') row.expected_return_pcs_nonempty = Math.round(v * contentNo);
+    else if (field === 'expected_return_pcs_nonempty') row.expected_return_shell_nonempty = parseFloat((v / contentNo).toFixed(2));
 
-    // Pricing / discount
     const price = parseFloat(row.selling_price || 0);
     const shellEmptyPrice = parseFloat(row.empty_price_shell || 0);
     const pcEmptyPrice = parseFloat(row.empty_price_pc || 0);
@@ -352,15 +322,10 @@ const VanLoadUpdate = () => {
     const soldPcs = parseFloat(row.sold_pcs || 0);
     const soldShell = parseFloat(row.sold_shell || 0);
 
-    // ProductTable-style expected/actual
-    // ✅ EXPECTED SALE is now NET of discount: price * dispatched * (1 - dPct/100)
-    row.expected_sale = Number(
-      (price * dispatchedPcs * (1 - dPct / 100)).toFixed(2)
-    );
+    row.expected_sale = Number((price * dispatchedPcs).toFixed(2));
     const discountAmt = (price * soldPcs * dPct) / 100;
     row.actual_sale = Number(((price * soldPcs) - discountAmt).toFixed(2));
 
-    // Auto expected non-empty = dispatched - sold (unless user is editing that field)
     if (field !== 'expected_return_pcs_nonempty') {
       row.expected_return_pcs_nonempty = dispatchedPcs - soldPcs;
     }
@@ -368,7 +333,6 @@ const VanLoadUpdate = () => {
       row.expected_return_shell_nonempty = dispatchedShell - soldShell;
     }
 
-    // Empties discrepancy (respect non-returnable)
     const returnedEmptyPcs = parseFloat(row.empty_return_pcs || 0);
     const returnedEmptyShell = parseFloat(row.empty_return_shell || 0);
     const isNonReturnable = shellEmptyPrice === 0 && pcEmptyPrice === 0;
@@ -383,7 +347,6 @@ const VanLoadUpdate = () => {
       row.discrepancy_empties_shell = soldShell - returnedEmptyShell;
     }
 
-    // ✅ Non-empty discrepancy (FIXED): expected − actual (not dispatched−sold − expected)
     const expectedPcs = parseFloat(row.expected_return_pcs_nonempty || 0);
     const expectedShell = parseFloat(row.expected_return_shell_nonempty || 0);
     const actualPcs = parseFloat(row.actual_return_pcs || 0);
@@ -395,9 +358,9 @@ const VanLoadUpdate = () => {
     updated[index] = row;
     setRows(updated);
   };
+
   // -------------------- Totals (single source of truth) --------------------
 
-  // Empties revenue on SOLD (shell+pcs)
   const emptiesPriceTotal = useMemo(() => {
     return rows.reduce((sum, r) => {
       const shells = parseFloat(r.sold_shell || 0);
@@ -408,7 +371,6 @@ const VanLoadUpdate = () => {
     }, 0);
   }, [rows]);
 
-  // Refundables = money returned for empties
   useEffect(() => {
     const totalRefunds = rows.reduce((sum, r) => {
       const shellQty = parseFloat(r.empty_return_shell || 0);
@@ -420,7 +382,6 @@ const VanLoadUpdate = () => {
     setRefundablesTotal(Number(totalRefunds.toFixed(2)));
   }, [rows]);
 
-  // Discrepancy (Empty)
   const totalDiscrepancyEmpty = useMemo(() => {
     return rows.reduce((sum, r) => {
       const pcsDisc = parseFloat(r.discrepancy_empties_pc || 0);
@@ -431,20 +392,12 @@ const VanLoadUpdate = () => {
     }, 0);
   }, [rows]);
 
-  // Discrepancy (Non-Empty) — PCS-only × unit price
   const totalDiscrepancyNonEmpty = useMemo(() => {
     return (rows || []).reduce((sum, r) => {
-      // robust unit price fallback
       const unitPrice = Number(r?.unitPrice ?? r?.selling_price ?? r?.price ?? 0);
-
-      // content per shell (for fallback conversion)
       const contentNo =
-        Number(
-          r?.contentNo ??
-            (r?.unitTypeId != null ? unitTypeMap?.[r.unitTypeId] : undefined)
-        ) || 1;
+        Number(r?.contentNo ?? (r?.unitTypeId != null ? unitTypeMap?.[r.unitTypeId] : undefined)) || 1;
 
-      // prefer PCS discrepancy; if missing, convert from shell
       const hasPcs =
         r?.discrepancy_full_pcs !== undefined &&
         r.discrepancy_full_pcs !== null &&
@@ -462,13 +415,12 @@ const VanLoadUpdate = () => {
     [totalDiscrepancyEmpty, totalDiscrepancyNonEmpty]
   );
 
-  // Page totals (single declarations)
   const totalExpectedSale = useMemo(
-    () => rows.reduce((s, r) => s + parseFloat(r.expected_sale || 0), 0),
+    () => rows.reduce((s, r) => s + (parseFloat(r.expected_sale || 0)), 0),
     [rows]
   );
   const totalActualSale = useMemo(
-    () => rows.reduce((s, r) => s + parseFloat(r.actual_sale || 0), 0),
+    () => rows.reduce((s, r) => s + (parseFloat(r.actual_sale || 0)), 0),
     [rows]
   );
   const totalExpenses = useMemo(
@@ -476,21 +428,14 @@ const VanLoadUpdate = () => {
     [miscItems]
   );
 
-  // ✅ replace your totalReturnedWithContent with this
   const totalReturnedWithContent = useMemo(() => {
     return (rows || []).reduce((sum, row) => {
-      // match the price logic used elsewhere: unitPrice → selling_price → price
       const price = parseFloat(row.unitPrice ?? row.selling_price ?? row.price ?? 0);
-
-      // content per shell (fallback to map, then 1)
       const contentNo =
         parseFloat(row.contentNo ?? '') ||
-        parseFloat(
-          row.unitTypeId != null ? unitTypeMap?.[row.unitTypeId] ?? '' : ''
-        ) ||
+        parseFloat(row.unitTypeId != null ? (unitTypeMap?.[row.unitTypeId] ?? '') : '') ||
         1;
 
-      // PCS is canonical; only convert from shell if PCS isn’t present
       const hasPcs =
         row.actual_return_pcs !== undefined &&
         row.actual_return_pcs !== null &&
@@ -503,14 +448,11 @@ const VanLoadUpdate = () => {
     }, 0);
   }, [rows, unitTypeMap]);
 
-  // ✅ Van Load overall total identical to ProductTable:
-  // Van Load total = totalActualSale - misc + overallDiscrepancy
   useEffect(() => {
-    const isVanLoad =
-      (sale?.transaction_type_name || '').toLowerCase() === 'van load';
+    const isVanLoad = (sale?.transaction_type_name || '').toLowerCase() === 'van load';
     const next = isVanLoad
-      ? totalActualSale - totalExpenses + overallDiscrepancy
-      : emptiesPriceTotal - refundablesTotal + totalActualSale; // Warehouse style if ever reused
+      ? (totalActualSale - totalExpenses + overallDiscrepancy)
+      : (emptiesPriceTotal - refundablesTotal + totalActualSale);
     setOverallTotal(Number(next.toFixed(2)));
   }, [
     sale?.transaction_type_name,
@@ -521,15 +463,15 @@ const VanLoadUpdate = () => {
     refundablesTotal,
   ]);
 
-  // (Optional) Submit to backend to finalize van-load returns
+  // Submit to backend to finalize van-load returns (simple path)
   const handleSubmit = () => {
     if ((sale?.transaction_type_name || '').toLowerCase() !== 'van load') {
       alert('This update is only applicable to Van Load transactions.');
       return;
     }
 
-    const nz = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0); // numeric safe
-    const iz = (v) => (Number.isFinite(Number(v)) ? parseInt(v, 10) : 0); // integer safe
+    const nz = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+    const iz = (v) => (Number.isFinite(Number(v)) ? parseInt(v, 10) : 0);
 
     const payload = {
       sale_id: saleId,
@@ -537,32 +479,18 @@ const VanLoadUpdate = () => {
       actual_sale: nz(totalActualSale), // page total
       products: rows.map((row) => ({
         productId: row.productId,
-
-        // sold
         sold_shell: iz(row.sold_shell),
         sold_pcs: iz(row.sold_pcs),
-
-        // pricing
         discount: nz(row.discount),
         actual_sale: nz(row.actual_sale),
-
-        // RETURNED (Empty)
         empty_return_shell: iz(row.empty_return_shell),
         empty_return_pcs: iz(row.empty_return_pcs),
-
-        // DISCREPANCY (Empty)
         discrepancy_empties_shell: iz(row.discrepancy_empties_shell),
         discrepancy_empties_pc: iz(row.discrepancy_empties_pc),
-
-        // EXPECTED (With Contents) — keep if you still show these on screen
         expected_return_shell_nonempty: nz(row.expected_return_shell_nonempty),
         expected_return_pcs_nonempty: nz(row.expected_return_pcs_nonempty),
-
-        // ✅ ACTUAL (With Contents) — the fields you want to store
         actual_return_shell: iz(row.actual_return_shell),
         actual_return_pcs: iz(row.actual_return_pcs),
-
-        // ✅ DISCREPANCY (Non-empty) — expected − actual (you computed in state)
         discrepancy_full_shell: iz(row.discrepancy_full_shell),
         discrepancy_full_pcs: iz(row.discrepancy_full_pcs),
       })),
@@ -571,7 +499,16 @@ const VanLoadUpdate = () => {
 
     axios
       .post('http://localhost:8080/api/van-load-return/', payload)
-      .then(() => {
+      .then(async () => {
+        // ensure merchandising header tracks actual_sale when marking complete
+        await axios.patch(`http://localhost:8080/api/merchandising-set/${saleId}/`, {
+          status: 'Complete',
+          actual_sale: Number(totalActualSale) || 0,
+        });
+
+        // 🔄 refresh Dashboard immediately
+        refreshDashboardNow();
+
         alert('Van Load return successfully submitted.');
         navigate('/merchandising-sale');
       })
@@ -582,12 +519,10 @@ const VanLoadUpdate = () => {
   };
 
   if (!sale) {
-    return (
-      <div className="p-6 text-center text-gray-500">Loading sale data...</div>
-    );
+    return <div className="p-6 text-center text-gray-500">Loading sale data...</div>;
   }
 
-  // ✅ Called only when PaymentModal reports a successful payment for Van Load
+  // Called only when PaymentModal reports a successful payment for Van Load
   const handleVanLoadPaymentSuccess = async (paymentData) => {
     try {
       // 1) Build a clean misc_items array and total
@@ -599,21 +534,11 @@ const VanLoadUpdate = () => {
         }));
       const miscTotal = misc.reduce((s, i) => s + i.amount, 0);
 
-      // keep this just above the PATCH
-      const totalActualSale = rows.reduce(
-        (s, r) => s + (parseFloat(r.actual_sale || 0)),
-        0
-      );
-
-
       const payload = {
         sale_id: saleId,
         total_expected_sale: totalExpectedSale,
-        actual_sale: rows.reduce(
-          (s, r) => s + (parseFloat(r.actual_sale || 0)),
-          0
-        ),
-        expenses_total: miscTotal, // still send to van-load-return if it uses it
+        actual_sale: rows.reduce((s, r) => s + (parseFloat(r.actual_sale || 0)), 0),
+        expenses_total: miscTotal,
         remarks,
         payment: {
           method: paymentData.paymentMethod,
@@ -635,21 +560,21 @@ const VanLoadUpdate = () => {
           expected_return_pcs_nonempty: row.expected_return_pcs_nonempty,
           discrepancy_full_shell: row.discrepancy_full_shell,
           discrepancy_full_pcs: row.discrepancy_full_pcs,
-          // keep actual_* if stored
           actual_return_shell: row.actual_return_shell,
           actual_return_pcs: row.actual_return_pcs,
         })),
         misc_items: misc,
       };
 
-      // ✅ add these debug prints right before the requests
-      console.log('🧾 Will save misc_items:', misc);
-      console.log('🧮 miscTotal:', miscTotal);
-      console.log('📦 van-load-return payload:', payload);
+      // Debug (optional)
+      // console.log('🧾 Will save misc_items:', misc);
+      // console.log('🧮 miscTotal:', miscTotal);
+      // console.log('📦 van-load-return payload:', payload);
 
+      // 2) Save the van load return (and items)
       await axios.post('http://localhost:8080/api/van-load-return/', payload);
 
-      // create each misc item row
+      // 2.1) Persist misc items as rows
       await Promise.all(
         misc.map((item) =>
           axios.post('http://localhost:8080/api/miscellaneous-items/', {
@@ -660,15 +585,23 @@ const VanLoadUpdate = () => {
         )
       );
 
-      // 3) Persist misc on the merchandising record itself
-      await axios.patch(
-        `http://localhost:8080/api/merchandising-set/${saleId}/`,
-        {
-          status: 'Complete',
-          miscellaneous: miscTotal, // numeric only is safe
-          actual_sale: Number(totalActualSale.toFixed(2)),
-        }
-      );
+      // 3) Persist status, actual_sale, misc, and payment on the merchandising header
+      await axios.patch(`http://localhost:8080/api/merchandising-set/${saleId}/`, {
+        status: 'Complete',
+        actual_sale: Number(totalActualSale) || 0,      // <-- critical for Dashboard revenue
+        miscellaneous: Number(miscTotal) || 0,
+        // optional if serializer supports:
+        payment_amount: Number(paymentData.amount) || 0,
+        cash_received: Number(paymentData.cashReceived) || 0,
+        change: Number(paymentData.change) || 0,
+      });
+
+      // 🔄 refresh Dashboard immediately
+      refreshDashboardNow();
+
+      // Close modal + go back
+      setShowPaymentModal(false);
+      navigate('/merchandising-sale');
     } catch (err) {
       console.error('Failed to save Van Load payment:', err);
       alert('Saving payment failed. Please try again.');
@@ -702,70 +635,40 @@ const VanLoadUpdate = () => {
       </div>
 
       <h3 className="text-lg font-semibold mt-6 mb-2">Product Details</h3>
-      {/* jelyn changes starts here */}
+
       <div className="table-wrapper">
         <table className="table">
           <thead className="bg-gray-100 text-sm text-gray-800">
             <tr className="text-xs font-semibold">
               <th className="border border-gray-300 py-2 px-1 text-sm">Product</th>
-              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>
-                Dispatched
-              </th>
-              <th className="border border-gray-300 py-2 px-1 text-sm">
-                Selling Price
-              </th>
-              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>
-                Sold
-              </th>
-              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>
-                Empty Price
-              </th>
-              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>
-                Returned (Empty)
-              </th>
-              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>
-                Discrepancy (Empty)
-              </th>
-              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>
-                Returned (With Content/s)
-              </th>
-              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>
-                Discrepancy (Non-empty)
-              </th>
+              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Dispatched</th>
+              <th className="border border-gray-300 py-2 px-1 text-sm">Selling Price</th>
+              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Sold</th>
+              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Empty Price</th>
+              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Returned (Empty)</th>
+              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Discrepancy (Empty)</th>
+              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Returned (With Content/s)</th>
+              <th className="border border-gray-300 py-2 px-1 text-sm" colSpan={2}>Discrepancy (Non-empty)</th>
               <th className="border border-gray-300 py-2 px-1 text-sm">Discount (%)</th>
               <th className="border border-gray-300 py-2 px-1 text-sm">Expected Sale</th>
               <th className="border border-gray-300 py-2 px-1 text-sm">Actual Sale</th>
             </tr>
             <tr className="bg-slate-100">
               <td className="border border-gray-300 py-1"></td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">
-                Shell
-              </td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
               <td className="border border-gray-300 py-1"></td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">
-                Shell
-              </td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">
-                Shell
-              </td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">
-                Shell
-              </td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">
-                Shell
-              </td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">
-                Shell
-              </td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">
-                Shell
-              </td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
               <td className="border border-gray-300 py-1"></td>
               <td className="border border-gray-300 py-1"></td>
@@ -776,23 +679,16 @@ const VanLoadUpdate = () => {
           <tbody>
             {Array.isArray(rows) &&
               rows.map((row, index) => (
-                <tr
-                  key={row.id ?? index}
-                  className="bg-white hover:bg-gray-50 transition duration-150"
-                >
+                <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
                   <td className="border border-gray-200 py-1 px-1 ">
                     <div className="p-2 border rounded text-sm text-center">
-                      {row.productName ||
-                        row.product_detail?.product_name ||
-                        `#${row.productId}`}
+                      {row.productName || row.product_detail?.product_name || `#${row.productId}`}
                     </div>
                   </td>
 
                   {/* DISPATCHED (read-only) */}
                   <td className="border border-gray-200 py-1 px-1 ">
-                    <div className="p-2 border rounded">
-                      {z(row.dispatched_shell)}
-                    </div>
+                    <div className="p-2 border rounded">{z(row.dispatched_shell)}</div>
                   </td>
                   <td className="border border-gray-200 py-1 px-1 ">
                     <div className="p-2 border rounded">{z(row.dispatched_pcs)}</div>
@@ -808,7 +704,7 @@ const VanLoadUpdate = () => {
                   {/* SOLD (editable) */}
                   <td className="border border-gray-200 py-1 px-1 ">
                     <ZeroInput
-                      type="number" // ensure browser recognizes number input
+                      type="number"
                       value={row.sold_shell}
                       onValue={(v) => handleRowChange(index, 'sold_shell', v)}
                       className="input-always-spinner w-full p-1 text-sm text-center rounded bg-yellow-50"
@@ -852,9 +748,7 @@ const VanLoadUpdate = () => {
                     ['discrepancy_full_shell', false],
                     ['discrepancy_full_pcs', false],
                   ].map(([field, editable], i) => {
-                    const disableInput = editable
-                      ? shouldDisableEditableField(row, field)
-                      : true;
+                    const disableInput = editable ? shouldDisableEditableField(row, field) : true;
                     const value = z(row[field]);
 
                     return (
@@ -867,8 +761,7 @@ const VanLoadUpdate = () => {
                             disabled={disableInput}
                             className={`input-always-spinner w-full p-1 text-sm text-center rounded
                               ${
-                                isReturnedWithContentsField(field) ||
-                                isReturnedEmptyField(field)
+                                isReturnedWithContentsField(field) || isReturnedEmptyField(field)
                                   ? 'bg-yellow-50'
                                   : 'bg-gray-100'
                               }
@@ -882,8 +775,7 @@ const VanLoadUpdate = () => {
                             disabled
                             className={`w-full p-1 text-sm text-center rounded
                               ${
-                                field.includes('discrepancy') &&
-                                parseFloat(value || 0) !== 0
+                                field.includes('discrepancy') && parseFloat(value || 0) !== 0
                                   ? 'bg-red-100 text-red-700 font-semibold'
                                   : 'bg-gray-100'
                               }
@@ -942,42 +834,27 @@ const VanLoadUpdate = () => {
               <td className="border-none py-2 px-1 bg-slate-100"></td>
 
               {/* EMPTY PRICE (Shell + Bottle) */}
-              <td
-                colSpan={2}
-                className="py-2 px-1 bg-slate-100 text-black text-center font-semibold"
-              >
+              <td colSpan={2} className="py-2 px-1 bg-slate-100 text-black text-center font-semibold">
                 {peso(emptiesPriceTotal)}
               </td>
 
               {/* RETURNED (Empty) */}
-              <td
-                colSpan={2}
-                className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold"
-              >
+              <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
                 {peso(refundablesTotal)}
               </td>
 
               {/* DISCREPANCY (Empty) */}
-              <td
-                colSpan={2}
-                className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold"
-              >
+              <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
                 {peso(totalDiscrepancyEmpty)}
               </td>
 
               {/* RETURNED (With Content/s) — peso total */}
-              <td
-                className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold"
-                colSpan={2}
-              >
+              <td className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold" colSpan={2}>
                 {peso(totalReturnedWithContent)}
               </td>
 
               {/* DISCREPANCY (Non-Empty) */}
-              <td
-                colSpan={2}
-                className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold"
-              >
+              <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
                 {peso(totalDiscrepancyNonEmpty)}
               </td>
 
@@ -1030,6 +907,13 @@ const VanLoadUpdate = () => {
         >
           Remittance
         </button>
+        {/* (Optional fall-back finalize button) */}
+        <button
+          className="bg-slate-100 text-slate-700 px-6 py-2 rounded hover:bg-slate-200 transition"
+          onClick={handleSubmit}
+        >
+          Finalize (No Payment Modal)
+        </button>
       </div>
 
       {showPaymentModal && (
@@ -1051,7 +935,7 @@ const VanLoadUpdate = () => {
           customerName={sale.customer?.name || 'Walk-in'}
           handledBy={sale.handled_by}
           transactionTypeName={sale.transaction_type_name}
-          // 🔽 pass these: Kath
+          // pass misc
           miscItems={miscItems}
           expensesTotal={calculateTotalExpenses()}
           remarks={remarks}
