@@ -100,7 +100,7 @@ const Sidebar = ({ isSidebarOpen }) => {
               )}
               {canView("Expenses") ? (
                 <li>
-                  <Link to="/expenses" className="block p-2 text-sm hover:bg-gray-600 rounded">
+                  <Link to="/expenses_list" className="block p-2 text-sm hover:bg-gray-600 rounded">
                     Expenses
                   </Link>
                 </li>

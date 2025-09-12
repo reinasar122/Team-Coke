@@ -1,6 +1,7 @@
 from decimal import Decimal, InvalidOperation          # 👈 for to_decimal()
 from django.db import transaction
 from django.shortcuts import get_object_or_404  
+from django.db.models.functions import Coalesce
 from django.db.models import F, Case, When, Value, IntegerField, Sum, Count
 from rest_framework import viewsets
 from rest_framework import generics
@@ -1715,3 +1716,30 @@ class VanLoadReturnUpdateAPIView(APIView):
             import traceback; traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+
+
+@api_view(['GET'])
+# @permission_classes([IsAuthenticated])  # drop if you don't use auth
+def expenses_summary(request):
+    wid = request.query_params.get("warehouse_id")
+    qs = Merchandising.objects.filter(
+        Q(transaction_type__name__iexact="warehouse"),
+        Q(msp_no__startswith="WA"),
+    )
+    if wid:
+        qs = qs.filter(warehouse_id=wid)
+
+    qs = (qs
+          .annotate(total=Coalesce(Sum("misc_items__amount"), Value(0)))
+          .order_by("-date_time")
+          .values("id", "msp_no", "date_time", "handled_by", "customer", "total"))
+
+    rows = [{
+        "id": r["id"],
+        "msp_no": r["msp_no"],
+        "date_time": r["date_time"],
+        "handled_by": r["handled_by"] or "",
+        "customer": str(r["customer"] or "Walk-in Customer"),
+        "total": r["total"] or 0,
+    } for r in qs]
+    return Response(rows)
