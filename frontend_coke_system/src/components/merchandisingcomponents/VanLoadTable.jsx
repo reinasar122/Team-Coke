@@ -5,8 +5,6 @@ import { FaTrash } from 'react-icons/fa';
 import '../../styles/global.scss';
 import ProductSearchSelect from "../common/ProductSearchSelect"; // adjust path
 
-
-
 /**
  * Props:
  * - rows, setRows
@@ -14,6 +12,7 @@ import ProductSearchSelect from "../common/ProductSearchSelect"; // adjust path
  * - warehouseId (number OR object with {id})
  * - setTotalExpectedSale
  * - onAdjustmentsChange?: function([{ product_id, delta }])   // negative delta to deduct
+ * - defaultDiscount?: number|string  // optional global default (%) to seed new rows
  */
 const VanLoadTable = ({
   rows,
@@ -22,6 +21,7 @@ const VanLoadTable = ({
   warehouseId,
   setTotalExpectedSale,
   onAdjustmentsChange,
+  defaultDiscount, // ✅ optional
 }) => {
   const [availableStock, setAvailableStock] = useState({});
   const [pricingData, setPricingData] = useState([]);
@@ -116,7 +116,6 @@ const VanLoadTable = ({
     return s;
   }, [rows]);
 
-  // Per-row sorter: unpicked products (for other rows) first, picked-elsewhere to bottom
   const getSortedProductsForRow = useCallback(
     (currentId) => {
       const sorted = [...(products || [])];
@@ -125,11 +124,7 @@ const VanLoadTable = ({
         const bId = Number(b.id);
         const aPickedElse = pickedIds.has(aId) && aId !== Number(currentId);
         const bPickedElse = pickedIds.has(bId) && bId !== Number(currentId);
-
-        // Unpicked first, picked-elsewhere last
         if (aPickedElse !== bPickedElse) return aPickedElse ? 1 : -1;
-
-        // Secondary: alphabetical by name
         return (a.product_name || "").localeCompare(b.product_name || "");
       });
       return sorted;
@@ -185,7 +180,7 @@ const VanLoadTable = ({
       const priceId = selectedProduct.price?.id || null;
       const fullPrice = pricingData.find((price) => price.id === priceId);
 
-      updated[index] = {
+      const nextRow = {
         ...(updated[index] || {}),
         productId,
         productName: selectedProduct.product_name,
@@ -194,7 +189,20 @@ const VanLoadTable = ({
         shellPrice: fullPrice?.shell_price ?? "",
         bottlePrice: fullPrice?.bottle_price ?? "",
         sellingPrice: fullPrice?.selling_price ?? "",
+        // Seed discount
+        discount:
+          (updated[index]?.discount !== undefined && updated[index]?.discount !== null)
+            ? updated[index].discount
+            : (defaultDiscount ?? ""),
       };
+
+      // compute expectedSale right away (uses current dispatchedPcs & discount)
+      const price = n(nextRow.sellingPrice);
+      const dPct = n(nextRow.discount);
+      const dispatchedPcs = n(nextRow.dispatchedPcs);
+      nextRow.expectedSale = Number((price * dispatchedPcs * (1 - dPct / 100)).toFixed(2));
+
+      updated[index] = nextRow;
     } else {
       updated[index] = {
         ...(updated[index] || {}),
@@ -208,6 +216,7 @@ const VanLoadTable = ({
         dispatchedShell: "",
         dispatchedPcs: "",
         expectedSale: "",
+        discount: updated[index]?.discount ?? (defaultDiscount ?? ""),
       };
     }
 
@@ -229,6 +238,7 @@ const VanLoadTable = ({
           sellingPrice: "",
           shellPrice: "",
           bottlePrice: "",
+          discount: defaultDiscount ?? "",
         },
       ]);
     }
@@ -238,9 +248,16 @@ const VanLoadTable = ({
     const updated = [...rows];
     const row = { ...updated[index] };
 
-    row[field] = value;
+    // ✅ clamp discount and keep as number or ""
+    if (field === "discount") {
+      const vNum = value === "" ? "" : Math.max(0, Math.min(100, parseFloat(value) || 0));
+      row.discount = vNum;
+    } else {
+      row[field] = value;
+    }
 
     const product = products.find((p) => p.id === parseInt(row.productId, 10));
+
     const conversion = n(product?.unit_type?.content_no || row.contentNo || 1);
     row.contentNo = conversion;
 
@@ -272,8 +289,11 @@ const VanLoadTable = ({
       }
     }
 
+    // ✅ Expected Sale (NET of discount)
     const dispatchedPcs = n(row.dispatchedPcs);
-    row.expectedSale = Number((n(row.sellingPrice) * dispatchedPcs).toFixed(2));
+    const price = n(row.sellingPrice);
+    const dPct = n(row.discount); // "" -> 0
+    row.expectedSale = Number((price * dispatchedPcs * (1 - dPct / 100)).toFixed(2));
 
     updated[index] = row;
     setRows(updated);
@@ -301,17 +321,19 @@ const VanLoadTable = ({
             <th className="border" colSpan={2}>Dispatched</th>
             <th className="border">Selling Price</th>
             <th colSpan={2}>Empty Price</th>
+            <th className="border">Discount (%)</th>
             <th className="border">Expected Sale</th>
             <th className="border p-2">Available</th>
             <th className="border p-2">Actions</th>
           </tr>
           <tr className="bg-slate-100">
-            <td className="border" ></td>
+            <td className="border"></td>
             <td className="border">Shell</td>
             <td className="border">PCS</td>
             <td className="border"></td>
             <td className="border">Shell</td>
             <td className="border">PCS</td>
+            <td className="border"></td>
             <td className="border"></td>
             <td className="border">PCS</td>
             <td className="border"></td>
@@ -323,14 +345,13 @@ const VanLoadTable = ({
             const productId = Number(row.productId);
             const avail = availableStock[productId];
             const showAvail = (avail === 0 || typeof avail === "number") ? avail : "--";
-            const sortedOptions = getSortedProductsForRow(productId);
 
             return (
               <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
-                {/* PRODUCT SELECT with duplicate prevention & bottom-sorted disabled options */}
+                {/* PRODUCT SELECT */}
                 <td className="border border-gray-200 py-1 px-1 w-[200px]">
                   <ProductSearchSelect
-                    products={getSortedProductsForRow(row.productId)} // products list is sorted and excludes already selected products
+                    products={getSortedProductsForRow(row.productId)}
                     value={row.productName ?? ""}
                     onChange={(id) => handleProductChange(index, String(id))}
                     excludeIds={Array.from(pickedIds).filter(id => id !== Number(row.productId))}
@@ -338,32 +359,31 @@ const VanLoadTable = ({
                   />
                 </td>
 
-
-              {/* DISPATCHED Shell */}
+                {/* DISPATCHED Shell */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
                     min="0"
                     step="0.01"
                     placeholder="0"
-                    className="input-always-spinner input text-center bg-yellow-50" // always-visible spinner
+                    className="input-always-spinner input text-center bg-yellow-50"
                     value={row.dispatchedShell ?? ""}
                     onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
                   />
                 </td>
 
+                {/* DISPATCHED PCS */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
                     min="0"
                     step="1"
                     placeholder="0"
-                    className="input-always-spinner input text-center bg-yellow-50" // always-visible spinner
+                    className="input-always-spinner input text-center bg-yellow-50"
                     value={row.dispatchedPcs ?? ""}
                     onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
                   />
                 </td>
-
 
                 {/* SELLING PRICE */}
                 <td className="border border-gray-200 py-1 px-1">
@@ -395,7 +415,21 @@ const VanLoadTable = ({
                   />
                 </td>
 
-                {/* EXPECTED SALE */}
+                {/* DISCOUNT (%) — editable */}
+                <td className="border border-gray-200 py-1 px-1">
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="0.01"
+                    placeholder="0"
+                    className="input-always-spinner input text-center bg-yellow-50"
+                    value={row.discount ?? ""}
+                    onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+                  />
+                </td>
+
+                {/* EXPECTED SALE (net of discount) */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
@@ -417,9 +451,8 @@ const VanLoadTable = ({
                 </td>
 
                 {/* ACTIONS */}
-
-                  <td className="icon-btn-danger">
-                   {row.productId && (
+                <td className="icon-btn-danger">
+                  {row.productId && (
                     <button
                       type="button"
                       onClick={() => removeRow(index)}
@@ -428,8 +461,7 @@ const VanLoadTable = ({
                       <FaTrash />
                     </button>
                   )}
-                  </td>
-
+                </td>
               </tr>
             );
           })}

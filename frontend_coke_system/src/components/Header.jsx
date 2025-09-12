@@ -58,9 +58,13 @@ const Header = ({ toggleSidebar }) => {
     localStorage.setItem("selectedWarehouse", JSON.stringify(warehouse));
     setShowWarehouseModal(false);
     
-    // NEW: Dispatch custom event to notify other components of warehouse change
+    // Enhanced: Dispatch custom event with more details
     window.dispatchEvent(new CustomEvent('warehouseChanged', { 
-      detail: { warehouse } 
+      detail: { 
+        warehouse,
+        action: 'select',
+        source: 'header'
+      } 
     }));
   };
 
@@ -140,7 +144,7 @@ const Header = ({ toggleSidebar }) => {
 
         {/* Right - Profile Dropdown */}
         <div className="relative">
-          <Link to="/profile" className="focus:outline-none">
+          <Link to="/user-profile" className="focus:outline-none">
             <FontAwesomeIcon icon={faUser} className="cursor-pointer" />
           </Link>
         </div>
@@ -219,9 +223,13 @@ const Header = ({ toggleSidebar }) => {
                       localStorage.removeItem("selectedWarehouse");
                       closeModal();
                       
-                      // NEW: Dispatch event for warehouse reset
+                      // Enhanced: Dispatch event for warehouse reset
                       window.dispatchEvent(new CustomEvent('warehouseChanged', { 
-                        detail: { warehouse: null } 
+                        detail: { 
+                          warehouse: null, 
+                          action: 'reset',
+                          source: 'header'
+                        } 
                       }));
                     }}
                     className="px-4 py-2 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded transition-all"

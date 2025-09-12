@@ -40,7 +40,9 @@ import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
-import Expences from "./pages/Expences";
+import Expenses from "./pages/Expenses";
+  
+
 import VanLoadUpdate from "./pages/VanLoadUpdate";
 import SupplierReturnForm from "./pages/SupplierReturnForm";
 import SupplierReturnList from "./pages/SupplierReturnList";
@@ -79,6 +81,7 @@ import {
   FaWarehouse,
   FaUndoAlt,
   FaChartBar,   // ✅ for Sales Report title
+  FaMoneyBillWave,
 } from "react-icons/fa";
 
 import { ToastContainer } from 'react-toastify';
@@ -238,6 +241,15 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
+
+                <Route
+                  path="/expenses"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaMoneyBillWave /> Expenses
+                    </h1>
+                  }
+                />
               </Routes>
             </div>
           )}
@@ -274,6 +286,9 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/receiving/new" element={<ReceivingForm />} />
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/expenses" element={<Expenses />} />
+            <Route path="/expences" element={<Navigate to="/expenses" replace />} />  
+
             <Route
               path="/merchandising"
               element={
@@ -293,7 +308,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-otp" element={<VerifyOTP />} />
-            <Route path="/expences" element={<Expences />} />
+            <Route path="/expences" element={<Navigate to="/expenses" replace />} />
 
             {/* Karen Changes */}
             <Route path="/van-load-update" element={<VanLoadUpdate />} />

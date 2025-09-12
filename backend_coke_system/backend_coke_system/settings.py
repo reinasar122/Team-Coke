@@ -130,9 +130,6 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": None,  # ISO-8601 with TZ (default, but set explicitly)
     # Optional: accept naive inputs as Manila time (safety net)
     # "DATETIME_INPUT_FORMATS": ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"]
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
     
 }
 
