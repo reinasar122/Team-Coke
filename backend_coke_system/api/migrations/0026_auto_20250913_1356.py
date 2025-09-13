@@ -28,7 +28,7 @@ def create_default_admin(apps, schema_editor):
     submenus = [
         "Dashboard", "Stocks", "Product", "Returned Empties", "Sales Report",
         "Inventory Report", "User", "Roles", "Supplier", "Warehouse",
-        "Van", "Receiving", "Trading", "Supplier Return", "Credit", "Expenses"
+        "Van", "Receiving", "Trading", "Supplier Return", "Credit", "Expenses","Settings",
     ]
 
     for submenu in submenus:

@@ -72,7 +72,7 @@ const initializePermissions = (role) => {
         delete: false,
       };
     });
-    ["Receiving", "Trading", "Supplier Return", "Credit", "Expenses"].forEach((submenu) => {
+    ["Receiving", "Trading", "Supplier Return", "Credit", "Expenses", "Settings"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: true,
         view: true,
@@ -82,7 +82,7 @@ const initializePermissions = (role) => {
       };
     });
   } else if (role === "Cashier") {
-    ["Stocks", "Product", "Returned Empties"].forEach((submenu) => {
+    ["Stocks", "Product", "Returned Empties", "Settings"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: false,
         view: true,
