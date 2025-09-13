@@ -61,6 +61,8 @@ const MerchandisingSale = () => {
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
+  const [vanLoadDiscount, setVanLoadDiscount] = useState("");
+  
 
   // at top of component
   const editingExistingRef = useRef(false);
@@ -1127,14 +1129,23 @@ const handleSaveVanLoadEdit = async () => {
             </div>
 
             <div>
-              <label className="text-sm">Handled By</label>
-              <input
-                type="text"
-                value={handledBy || ""}
-                readOnly
-                className="border w-full rounded-md px-2 py-1 text-sm bg-gray-100"
-              />
+              <label className="text-sm mb-1 block">Handled By</label>
+              <select
+                value={selectedUser || ""}   // default: ""
+                onChange={(e) => setSelectedUser(e.target.value)}
+                className="border w-full rounded-md px-2 py-1 text-black text-base"
+              >
+            
+
+                {/* Map users into dropdown options */}
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {`${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username || `User #${u.id}`}
+                  </option>
+                ))}
+              </select>
             </div>
+
 
           </div>
 
@@ -1332,6 +1343,7 @@ const handleSaveVanLoadEdit = async () => {
           warehouseId={currentWarehouse}
           setTotalExpectedSale={setTotalExpectedSale}
           onAdjustmentsChange={setDispatchAdjustments}
+          defaultDiscount={vanLoadDiscount}
           
         />
       ) : (
