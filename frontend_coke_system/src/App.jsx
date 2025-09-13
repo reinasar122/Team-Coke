@@ -40,8 +40,6 @@ import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
-import Expenses from "./pages/Expenses";
-import ExpensesList from "./pages/ExpensesList.jsx";
 import VanLoadUpdate from "./pages/VanLoadUpdate";
 import SupplierReturnForm from "./pages/SupplierReturnForm";
 import SupplierReturnList from "./pages/SupplierReturnList";
@@ -276,8 +274,6 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/change-password" element={<ChangePassword />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-otp" element={<VerifyOTP />} />
-            <Route path="/expenses" element={<Expenses />} />
-            <Route path="/expenses_list" element={<ExpensesList />} />
 
             {/* Karen Changes */}
             <Route path="/van-load-update" element={<VanLoadUpdate />} />

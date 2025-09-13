@@ -35,7 +35,7 @@ from .views import (
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, BulkRoleAccessibilityUpsertView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
-    CreditPaymentCreateAPIView,BulkAdjustStockView, expenses_summary,
+    CreditPaymentCreateAPIView,BulkAdjustStockView,
 
 
 
@@ -173,7 +173,6 @@ urlpatterns = [
     path("reports/revenue-summary/", RevenueSummaryView.as_view(), name="revenue-summary"), #kath
     path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
 
-    path("expenses/summary/",expenses_summary, name="expenses-summary"),
 ]
 
 router = DefaultRouter()
