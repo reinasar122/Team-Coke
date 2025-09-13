@@ -4,7 +4,7 @@ import { errorStyle } from "../utils/toastStyles";
 import RoleForm from "./RoleForm";
 import EditRoleAccess from "./EditRoleAccess";
 import { FaEdit, FaTrash, FaUserShield } from "react-icons/fa";
-
+import { canCreate, canEdit, canDelete } from "../utils/accessControl";
 
 const RoleList = () => {
   const [roles, setRoles] = useState([]);
@@ -14,12 +14,10 @@ const RoleList = () => {
   const [showEditAccessModal, setShowEditAccessModal] = useState(false);
   const [selectedRoleId, setSelectedRoleId] = useState(null);
 
-  // Delete modal state
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState(null);
 
-  // Optional: compute summaries for badges
-  const [roleSummaries, setRoleSummaries] = useState({}); // { [id]: 'Full'|'View-only'|'Custom' }
+  const [roleSummaries, setRoleSummaries] = useState({}); // summary badges
 
   useEffect(() => {
     fetchRoles();
@@ -33,7 +31,7 @@ const RoleList = () => {
       const data = await response.json();
       setRoles(data);
 
-      // Fetch access lists for summaries (best-effort; ignore errors)
+      // Optional: fetch summaries for badges
       try {
         const results = await Promise.all(
           data.map((r) =>
@@ -45,11 +43,11 @@ const RoleList = () => {
 
         const map = {};
         data.forEach((role, idx) => {
-          const obj = results[idx]; // object or null
+          const obj = results[idx]; 
           if (!obj || Object.keys(obj).length === 0) {
             map[role.id] = role.name?.toLowerCase() === "admin" ? "Full" : "Custom";
           } else {
-            const perms = Object.values(obj); // [{full, view, create, edit, delete}, ...]
+            const perms = Object.values(obj);
             const allFull = perms.every((p) => p.full === true);
             const allViewOnly = perms.every(
               (p) => p.view === true && !p.create && !p.edit && !p.delete && !p.full
@@ -77,7 +75,6 @@ const RoleList = () => {
       setRoles((prev) => [...prev, newRole]);
     }
     setIsRoleFormVisible(false);
-    // Refresh summaries for new role
     setTimeout(fetchRoles, 0);
   };
 
@@ -115,20 +112,21 @@ const RoleList = () => {
   return (
     <div className="page">
       <div className="flex justify-between items-center mb-6">
-        {/* Left side: Icon + Title */}
         <div className="flex items-center gap-6">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <FaUserShield className="color: var(--text)" /> Roles
           </h2>
         </div>
 
-        {/* Right side: Button */}
-        <button
-          onClick={() => setIsRoleFormVisible(true)}
-          className="btn btn-add"
-        >
-          + Create Role
-        </button>
+        {/* Create Role Button */}
+        {canCreate("role") && (
+          <button
+            onClick={() => setIsRoleFormVisible(true)}
+            className="btn btn-add"
+          >
+            + Create Role
+          </button>
+        )}
       </div>
 
       <div className="table-wrapper bg-white shadow-md rounded-lg">
@@ -168,21 +166,25 @@ const RoleList = () => {
                   </td>
                   <td className="px-3 py-2 space-x-2">
                     <div className="inline-flex justify-end items-center gap-3">
-                      <button
-                        onClick={() => handleEditAccess(role.id)}
-                        className="icon-btn-edit"
-                        title="Edit Access"
-                      >
-                        <FaEdit size={20} />
-                      </button>
-                      <button
-                        onClick={() => !isProtected(role) && confirmDelete(role)}
-                        className={isProtected(role) ? "icon-btn-disabled" : "icon-btn-danger"}
-                        title={isProtected(role) ? "This role is protected" : "Delete Role"}
-                        disabled={isProtected(role)}
-                      >
-                        <FaTrash size={20} />
-                      </button>
+                      {canEdit("role") && (
+                        <button
+                          onClick={() => handleEditAccess(role.id)}
+                          className="icon-btn-edit"
+                          title="Edit Access"
+                        >
+                          <FaEdit size={20} />
+                        </button>
+                      )}
+                      {canDelete("role") && (
+                        <button
+                          onClick={() => !isProtected(role) && confirmDelete(role)}
+                          className={isProtected(role) ? "icon-btn-disabled" : "icon-btn-danger"}
+                          title={isProtected(role) ? "This role is protected" : "Delete Role"}
+                          disabled={isProtected(role)}
+                        >
+                          <FaTrash size={20} />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -214,7 +216,6 @@ const RoleList = () => {
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && roleToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
           <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">

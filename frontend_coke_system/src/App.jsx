@@ -175,11 +175,6 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
-  // ✅ Clear any stored user on app start (forces login)
-  useState(() => {
-    localStorage.removeItem("user"); // remove any previous login
-  });
-
   return (
     <Router>
       <ToastContainer 
@@ -218,6 +213,7 @@ function App() {
     </Router>
   );
 }
+
 
 
 export default App;
