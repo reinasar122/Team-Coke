@@ -899,12 +899,12 @@ const VanLoadUpdate = () => {
           Remittance
         </button>
         {/* Optional fallback submit without modal */}
-        <button
+        {/* <button
           className="bg-slate-100 text-slate-700 px-6 py-2 rounded hover:bg-slate-200 transition"
           onClick={handleSubmit}
         >
           Finalize (No Payment Modal)
-        </button>
+        </button> */}
       </div>
 
       {showPaymentModal && (
