@@ -291,6 +291,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
 
           </Routes>
+          
         </div>
       </div>
     </div>
