@@ -35,7 +35,7 @@ from .views import (
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, BulkRoleAccessibilityUpsertView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
-    CreditPaymentCreateAPIView,BulkAdjustStockView, 
+    CreditPaymentCreateAPIView,BulkAdjustStockView,
 
 
 
@@ -78,6 +78,8 @@ urlpatterns = [
     # === WAREHOUSE MODULE ===
     path('warehouses/', WarehouseListCreateView.as_view(), name='warehouse-list-create'),
     path('warehouses/<int:pk>/', WarehouseDetailView.as_view(), name='warehouse-detail'),
+
+    
 
 
     # === SUPPLIER MODULE ===
@@ -170,6 +172,7 @@ urlpatterns = [
     path("sales_report/", SalesReportAPIView.as_view(), name="sales-report-legacy"),
     path("reports/revenue-summary/", RevenueSummaryView.as_view(), name="revenue-summary"), #kath
     path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
+
 ]
 
 router = DefaultRouter()

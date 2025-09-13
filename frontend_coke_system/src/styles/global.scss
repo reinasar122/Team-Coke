@@ -101,7 +101,7 @@ body {
 .suppliers-container,
 .stocks-container,
 .creditlist-container,
-.tradinglist-container {
+.tradinglist-container,.expenseslist-container {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -109,7 +109,7 @@ body {
 }
 
 .stocks-table-wrapper,
-.creditlist-container,
+.creditlist-container-wrapper,.expenseslist-container-wrapper,
 .warehousedetails-table-wrapper,
 .receiving-table-wrapper,
 .van-table-wrapper,

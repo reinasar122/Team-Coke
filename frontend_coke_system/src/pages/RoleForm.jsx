@@ -72,7 +72,7 @@ const initializePermissions = (role) => {
         delete: false,
       };
     });
-    ["Receiving", "Trading", "Supplier Return"].forEach((submenu) => {
+    ["Receiving", "Trading", "Supplier Return", "Credit", "Expenses"].forEach((submenu) => {
       permissions[submenu] = {
         full_access: true,
         view: true,

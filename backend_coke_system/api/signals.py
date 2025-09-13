@@ -1,7 +1,8 @@
 # api/signals.py
-from django.db.models.signals import post_save
+from django.db.models.signals import post_save,post_delete
 from django.dispatch import receiver
-from .models import Product, Stock
+from django.db.models import Sum
+from .models import Product, Stock,MiscellaneousItem, Merchandising
 
 @receiver(post_save, sender=Product)
 def create_stock_for_product(sender, instance, created, **kwargs):

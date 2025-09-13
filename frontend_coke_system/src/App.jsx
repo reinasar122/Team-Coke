@@ -244,11 +244,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
                 <Route
                   path="/expenses"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaMoneyBillWave /> Expenses
-                    </h1>
-                  }
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaMoneyBillWave /> Expenses
+                  //   </h1>
+                  // }
                 />
               </Routes>
             </div>

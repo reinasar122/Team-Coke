@@ -1,6 +1,7 @@
 from decimal import Decimal, InvalidOperation          # 👈 for to_decimal()
 from django.db import transaction
 from django.shortcuts import get_object_or_404  
+from django.db.models.functions import Coalesce
 from django.db.models import F, Case, When, Value, IntegerField, Sum, Count
 from rest_framework import viewsets
 from rest_framework import generics
@@ -1715,3 +1716,5 @@ class VanLoadReturnUpdateAPIView(APIView):
             import traceback; traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+
+
