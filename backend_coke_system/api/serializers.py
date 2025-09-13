@@ -560,11 +560,12 @@ class MerchandisingSaleSerializer(serializers.ModelSerializer):
 class MiscellaneousItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MiscellaneousItem
-        fields = '__all__'
+        fields = "__all__"
         extra_kwargs = {
-            'merchandising': {'required': False}  # ✅ make it optional
+            "merchandising": {"required": False},   # still optional
+            "created_at": {"read_only": True},      # 🔒 prevent client override
+            "updated_at": {"read_only": True},      # 🔒 prevent client override
         }
-
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
