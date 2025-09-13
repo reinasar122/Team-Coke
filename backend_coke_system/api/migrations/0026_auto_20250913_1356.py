@@ -5,6 +5,7 @@ def create_default_admin(apps, schema_editor):
     User = apps.get_model('api', 'User')
     Role = apps.get_model('api', 'Role')
     Warehouse = apps.get_model('api', 'Warehouse')
+    SubMenu = apps.get_model('api', 'SubMenu')
     RoleAccessibility = apps.get_model('api', 'RoleAccessibility')
 
     # Create Admin role if it doesn't exist
@@ -19,20 +20,12 @@ def create_default_admin(apps, schema_editor):
             username="admin",
             role=admin_role,
             warehouse=default_warehouse,
-            password=make_password("admin123")  # hashed password
+            password=make_password("admin123")
         )
         admin_user.save()
 
-    # Give full permissions for all submenus for Admin role
-    # Assuming your MODULES are stored in SubMenu table or predefined
-    submenus = [
-        "Dashboard", "Stocks", "Product", "Returned Empties", "Sales Report",
-        "Inventory Report", "User", "Roles", "Supplier", "Warehouse",
-        "Van", "Receiving", "Trading", "Supplier Return", "Credit", "Expenses"
-    ]
-
-    for submenu in submenus:
-        # create or update access
+    # Give full access for **all existing submenus**
+    for submenu in SubMenu.objects.all():
         RoleAccessibility.objects.update_or_create(
             role=admin_role,
             submenu=submenu,
