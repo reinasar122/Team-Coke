@@ -87,9 +87,9 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'jelyn06_db',
+         'NAME': 'new_schema',
          'USER': 'root',
-         'PASSWORD': 'yjh434ctuG@-@',
+         'PASSWORD': '@ctu7220957',
          'HOST': 'localhost',
          'PORT': '3306',
      }
