@@ -632,10 +632,19 @@ class MerchandisingItem(models.Model):
 
 
 class MiscellaneousItem(models.Model):
-    merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
+    merchandising = models.ForeignKey(
+        Merchandising, related_name='misc_items', on_delete=models.CASCADE
+    )
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     receipt_file = models.FileField(upload_to='misc_receipts/', blank=True, null=True)
+
+    # timestamps
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+
+    def __str__(self):
+        return f"{self.description} - ₱{self.amount}"
 
     def __str__(self):
         return f"{self.description} - ₱{self.amount}"

@@ -87,9 +87,9 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'jelyn06_db',
+         'NAME': 'new_schema',
          'USER': 'root',
-         'PASSWORD': 'yjh434ctuG@-@',
+         'PASSWORD': '@ctu7220957',
          'HOST': 'localhost',
          'PORT': '3306',
      }
@@ -130,7 +130,7 @@ REST_FRAMEWORK = {
     "DATETIME_FORMAT": None,  # ISO-8601 with TZ (default, but set explicitly)
     # Optional: accept naive inputs as Manila time (safety net)
     # "DATETIME_INPUT_FORMATS": ["%Y-%m-%dT%H:%M:%S.%fZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M"]
-    
+
 }
 
 

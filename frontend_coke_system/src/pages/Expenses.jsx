@@ -142,13 +142,13 @@ export default function Expenses() {
   };
 
   return (
-    <div className="expenseslist-container">
+    <div className="p-4">
       {/* Header + Button */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">All Expenses</h1>
         <button
           onClick={() => { setOpen(true); setFormErr(""); }}
-          className="btn btn-add"
+          className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm"
         >
           + Add Expense
         </button>
@@ -158,35 +158,34 @@ export default function Expenses() {
       {err && <div className="text-red-500">{err}</div>}
 
       {!loading && !err && (
-        <div className="table-wrapper">
-          <table className="table">
-            <thead className="bg-gray-100 text-left">
+        <table className="w-full border border-gray-300 rounded-md overflow-hidden">
+          <thead className="bg-gray-100 text-left">
+            <tr>
+              <th className="p-2 border-b">Date &amp; Time</th>
+              <th className="p-2 border-b">MSP No</th>
+              <th className="p-2 border-b">Description</th>
+              <th className="p-2 border-b text-right">Amount</th>
+            </tr>
+          </thead>
+          <tbody>
+            {items.length === 0 && (
               <tr>
-                <th className="p-2 border-b">Date &amp; Time</th>
-                <th className="p-2 border-b">MSP No</th>
-                <th className="p-2 border-b">Description</th>
-                <th className="p-2 border-b text-right">Amount</th>
+                <td colSpan="4" className="p-4 text-center text-gray-500">
+                  No expenses found
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {items.length === 0 && (
-                <tr>
-                  <td colSpan="4" className="p-4 text-center text-gray-500">
-                    No expenses found
-                  </td>
-                </tr>
-              )}
-              {items.map((exp) => (
-                <tr key={exp.id} className="hover:bg-gray-50">
-                  <td className="p-2 border-b">
-                    {dayjs(exp.created_at || exp.updated_at || exp.date).format("MMM DD, YYYY hh:mm A")}
-                  </td>
-                  <td className="p-2 border-b">{merchMap[exp.merchandising] || "—"}</td>
-                  <td className="p-2 border-b">{exp.description || "—"}</td>
-                  <td className="p-2 border-b text-right">{peso(exp.amount)}</td>
-                </tr>
-              ))}
-            </tbody>
+            )}
+            {items.map((exp) => (
+              <tr key={exp.id} className="hover:bg-gray-50">
+                <td className="p-2 border-b">
+                  {dayjs(exp.created_at || exp.updated_at || exp.date).format("MMM DD, YYYY hh:mm A")}
+                </td>
+                <td className="p-2 border-b">{merchMap[exp.merchandising] || "—"}</td>
+                <td className="p-2 border-b">{exp.description || "—"}</td>
+                <td className="p-2 border-b text-right">{peso(exp.amount)}</td>
+              </tr>
+            ))}
+          </tbody>
           {items.length > 0 && (
             <tfoot>
               <tr className="bg-gray-50 font-semibold">
@@ -198,8 +197,6 @@ export default function Expenses() {
             </tfoot>
           )}
         </table>
-        </div>
-      
       )}
 
       {/* -------- Modal -------- */}
