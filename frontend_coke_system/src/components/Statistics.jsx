@@ -1,4 +1,4 @@
-// src/components/Statistics.jsx
+// src/components/Statistics.jsx - FIXED VERSION WITH CUSTOM DATE SUPPORT
 import React from "react";
 import {
   AreaChart,
@@ -130,9 +130,39 @@ export function getPeriodRange(period, now = new Date()) {
   }
 }
 
-/** Build canonical buckets for the selected period */
-function buildEmptyBuckets(period = "this-week") {
-  const { from, to, mode } = getPeriodRange(period);
+// 🔧 NEW: Enhanced function to handle custom date ranges
+export function getCustomPeriodRange(period, customStartDate = '', customEndDate = '', now = new Date()) {
+  if (period === "custom" && customStartDate && customEndDate) {
+    const from = new Date(customStartDate + "T00:00:00");
+    const to = new Date(customEndDate + "T23:59:59");
+    
+    // Determine mode based on date range duration
+    const diffDays = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
+    const mode = diffDays > 60 ? "month" : "day";
+    
+    return { from, to, mode };
+  }
+  return getPeriodRange(period, now);
+}
+
+/** 🔧 FIXED: Build canonical buckets for the selected period with custom date support */
+function buildEmptyBuckets(period = "this-week", customStartDate = '', customEndDate = '') {
+  // Use custom date range if period is "custom"
+  let from, to, mode;
+  
+  if (period === "custom" && customStartDate && customEndDate) {
+    from = new Date(customStartDate + "T00:00:00");
+    to = new Date(customEndDate + "T23:59:59");
+    // Determine mode based on date range duration
+    const diffDays = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
+    mode = diffDays > 60 ? "month" : "day";
+  } else {
+    const range = getPeriodRange(period);
+    from = range.from;
+    to = range.to;
+    mode = range.mode;
+  }
+  
   const map = new Map();
 
   if (mode === "day") {
@@ -149,8 +179,8 @@ function buildEmptyBuckets(period = "this-week") {
   return { map, mode, from, to };
 }
 
-function bucketize(points = [], period = "this-week", field = "revenue") {
-  const { map, mode, from, to } = buildEmptyBuckets(period);
+function bucketize(points = [], period = "this-week", field = "revenue", customStartDate = '', customEndDate = '') {
+  const { map, mode, from, to } = buildEmptyBuckets(period, customStartDate, customEndDate);
 
   for (const p of points) {
     const d = new Date(p.date);
@@ -171,9 +201,9 @@ function bucketize(points = [], period = "this-week", field = "revenue") {
   }));
 }
 
-function mergeRevenueProfit(revenuePoints = [], profitPoints = [], period = "this-week") {
-  const base = bucketize(revenuePoints, period, "revenue");
-  const profitBuckets = bucketize(profitPoints, period, "profit");
+function mergeRevenueProfit(revenuePoints = [], profitPoints = [], period = "this-week", customStartDate = '', customEndDate = '') {
+  const base = bucketize(revenuePoints, period, "revenue", customStartDate, customEndDate);
+  const profitBuckets = bucketize(profitPoints, period, "profit", customStartDate, customEndDate);
 
   return base.map((row, i) => {
     const profit = profitBuckets[i]?.profit ?? 0;
@@ -204,11 +234,13 @@ export default function Statistics({
   lastUpdated,
   className = "col-span-1 lg:col-span-3",
   period = "this-week", // comes from Dashboard
+  customStartDate = '', // 🔧 NEW: Add custom date support
+  customEndDate = '', // 🔧 NEW: Add custom date support
   revenue = 0, // Pass the revenue here
 }) {
   const data = React.useMemo(
-    () => mergeRevenueProfit(salesPoints, profitPoints, period),
-    [salesPoints, profitPoints, period]
+    () => mergeRevenueProfit(salesPoints, profitPoints, period, customStartDate, customEndDate),
+    [salesPoints, profitPoints, period, customStartDate, customEndDate]
   );
 
   const maxY = React.useMemo(() => {
@@ -350,7 +382,7 @@ export default function Statistics({
                   activeDot={{ r: 5 }}
                 />
 
-                {/* POSITIVE PROFIT – halo */}
+                {/* POSITIVE PROFIT -- halo */}
                 <Line
                   yAxisId="left"
                   type="monotone"
@@ -362,7 +394,7 @@ export default function Statistics({
                   activeDot={false}
                   connectNulls
                 />
-                {/* POSITIVE PROFIT – main stroke */}
+                {/* POSITIVE PROFIT -- main stroke */}
                 <Line
                   yAxisId="left"
                   type="monotone"
@@ -379,7 +411,7 @@ export default function Statistics({
                   <LabelList dataKey="profit" content={ProfitEndLabel} />
                 </Line>
 
-                {/* NEGATIVE PROFIT – halo */}
+                {/* NEGATIVE PROFIT -- halo */}
                 <Line
                   yAxisId="left"
                   type="monotone"
@@ -392,7 +424,7 @@ export default function Statistics({
                   activeDot={false}
                   connectNulls
                 />
-                {/* NEGATIVE PROFIT – dashed */}
+                {/* NEGATIVE PROFIT -- dashed */}
                 <Line
                   yAxisId="left"
                   type="monotone"
@@ -418,7 +450,7 @@ export default function Statistics({
             <span className="inline-flex items-center gap-1">
               <Icon.Warehouse /> Last updated:
             </span>
-            <time>{lastUpdated ? new Date(lastUpdated).toLocaleString() : "—"}</time>
+            <time>{lastUpdated ? new Date(lastUpdated).toLocaleString() : "--"}</time>
           </div>
         </div>
       )}

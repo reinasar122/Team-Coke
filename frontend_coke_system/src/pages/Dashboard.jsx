@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx
+// src/pages/Dashboard.jsx - COMPLETE FIXED VERSION WITH DATE FILTERING
 import React, {
   useEffect,
   useMemo,
@@ -6,6 +6,7 @@ import React, {
   useCallback,
   useTransition,
   memo,
+  useRef,
 } from "react";
 import { useLocation } from "react-router-dom";
 import axios from "axios";
@@ -32,6 +33,21 @@ const IconWarehouse = (props) => (
 const IconSales = (props) => (
   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
     <path d="M4 20V8m6 12V4m6 16v-8" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  </svg>
+);
+
+const IconCalendar = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <rect x="3" y="4" width="18" height="18" rx="2" ry="2" fill="none" stroke="currentColor" strokeWidth="1.6"/>
+    <line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" strokeWidth="1.6"/>
+    <line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" strokeWidth="1.6"/>
+    <line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" strokeWidth="1.6"/>
+  </svg>
+);
+
+const IconBuilding = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
+    <path d="M3 21h18M5 21V7l8-4v18M19 21V11l-6-4M9 9h.01M9 12h.01M9 15h.01" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
   </svg>
 );
 
@@ -66,6 +82,221 @@ const isSameDayManila = (isoString) => {
   const todayStr = manila.format(new Date());
   const dateStr = manila.format(new Date(isoString));
   return todayStr === dateStr;
+};
+
+/* -------------------- Custom Period Options -------------------- */
+const extendedPeriodOptions = [
+  ...periodOptions,
+  { value: "custom", label: "Custom" }
+];
+
+/* -------------------- Custom getPeriodRange function -------------------- */
+const getCustomPeriodRange = (period, customStartDate, customEndDate) => {
+  if (period === "custom" && customStartDate && customEndDate) {
+    return {
+      from: new Date(customStartDate + "T00:00:00"),
+      to: new Date(customEndDate + "T23:59:59")
+    };
+  }
+  return getPeriodRange(period);
+};
+
+/* -------------------- Warehouse Selection Dropdown -------------------- */
+const WarehouseDropdown = ({ selectedWarehouseIds, onWarehouseChange, warehouses }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleWarehouseSelect = (warehouseId) => {
+    if (selectedWarehouseIds.includes(warehouseId)) {
+      onWarehouseChange(selectedWarehouseIds.filter(id => id !== warehouseId));
+    } else {
+      onWarehouseChange([...selectedWarehouseIds, warehouseId]);
+    }
+  };
+
+  const getDisplayText = () => {
+    if (!selectedWarehouseIds.length) return "Select Warehouses";
+    
+    if (selectedWarehouseIds.length === warehouses.length) {
+      if (warehouses.length === 2) {
+        return "Both Warehouses";
+      }
+      return "All Warehouses Selected";
+    }
+    
+    if (selectedWarehouseIds.length === 1) {
+      const warehouse = warehouses.find(w => w.id === selectedWarehouseIds[0]);
+      return warehouse ? warehouse.name : "Unknown Warehouse";
+    }
+    
+    if (selectedWarehouseIds.length === 2) {
+      return "Both Warehouses";
+    }
+    
+    if (selectedWarehouseIds.length >= 3) {
+      return `${selectedWarehouseIds.length} or More Warehouses Selected`;
+    }
+    
+    return `${selectedWarehouseIds.length} Warehouses Selected`;
+  };
+
+  const isSelected = (warehouseId) => selectedWarehouseIds.includes(warehouseId);
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center gap-2 text-xs border rounded-md px-3 py-2 bg-white hover:bg-gray-50 transition-colors min-w-[160px]"
+      >
+        <IconBuilding />
+        <span className="truncate">{getDisplayText()}</span>
+        <svg 
+          className={`w-3 h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+          fill="none" 
+          stroke="currentColor" 
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[240px]">
+          <div className="py-2">
+            {warehouses.map((warehouse, index) => (
+              <label
+                key={`warehouse-option-${warehouse.id}-${index}`}
+                className="flex items-center gap-3 px-3 py-2 text-xs hover:bg-gray-100 cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected(warehouse.id)}
+                  onChange={() => handleWarehouseSelect(warehouse.id)}
+                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <span className="truncate">
+                  {warehouse.name}
+                  {warehouse.city && (
+                    <span className="text-gray-500 ml-1">({warehouse.city})</span>
+                  )}
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* -------------------- Period Dropdown -------------------- */
+const PeriodDropdown = ({ period, onPeriodChange, customStartDate, customEndDate, onCustomDatesChange }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const handleOptionSelect = (value) => {
+    onPeriodChange(value);
+    setIsOpen(false);
+  };
+
+  const getPeriodDisplayText = () => {
+    if (period === "custom" && customStartDate && customEndDate) {
+      return `${customStartDate} to ${customEndDate}`;
+    }
+    const option = extendedPeriodOptions.find(o => o.value === period);
+    return option ? option.label : 'Custom';
+  };
+
+  return (
+    <div className="flex items-center gap-3">
+      <div className="relative" ref={dropdownRef}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-2 text-xs border rounded-md px-3 py-2 bg-white hover:bg-gray-50 transition-colors min-w-[120px]"
+        >
+          <IconCalendar />
+          <span className="truncate">{getPeriodDisplayText()}</span>
+          <svg 
+            className={`w-3 h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {isOpen && (
+          <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px]">
+            <div className="py-1">
+              {extendedPeriodOptions.map((option, index) => (
+                <button
+                  key={`period-option-${option.value}-${index}`}
+                  onClick={() => handleOptionSelect(option.value)}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 ${
+                    period === option.value ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {period === 'custom' && (
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={customStartDate}
+            onChange={(e) => onCustomDatesChange(e.target.value, customEndDate)}
+            className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-white"
+            placeholder="Start Date"
+          />
+          <span className="text-xs text-gray-500">to</span>
+          <input
+            type="date"
+            value={customEndDate}
+            onChange={(e) => onCustomDatesChange(customStartDate, e.target.value)}
+            min={customStartDate}
+            className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-white"
+            placeholder="End Date"
+          />
+          {customStartDate && customEndDate && (
+            <button
+              onClick={() => {/* Optional: Add apply action if needed */}}
+              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              ✓
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
 };
 
 /* -------------------- mini cards + accents -------------------- */
@@ -152,7 +383,7 @@ const TableShell = ({ headers, rows, emptyText }) => {
           <tr className="text-left text-slate-500">
             {headers.map((h, i) => (
               <th
-                key={i}
+                key={`header-${h.key || h.label}-${i}`}
                 className={`py-1 ${i === headers.length - 1 ? "pr-0" : "pr-2"} ${
                   h.right ? "text-right" : ""
                 }`}
@@ -164,10 +395,10 @@ const TableShell = ({ headers, rows, emptyText }) => {
         </thead>
         <tbody>
           {rows.map((r, idx) => (
-            <tr key={r.id ?? idx} className="border-t">
+            <tr key={`row-${r.id ?? `idx-${idx}`}`} className="border-t">
               {headers.map((h, i) => (
                 <td
-                  key={h.key}
+                  key={`cell-${r.id ?? `idx-${idx}`}-${h.key}-${i}`}
                   className={`py-1 ${i === headers.length - 1 ? "pr-0" : "pr-2"} ${
                     h.right ? "text-right" : ""
                   } ${h.truncate ? "truncate" : ""}`}
@@ -198,6 +429,7 @@ const LowStockWidget = memo(function LowStockWidget({ items }) {
     />
   );
 });
+
 const ProductsWidget = memo(function ProductsWidget({ rows }) {
   return (
     <TableShell
@@ -211,6 +443,7 @@ const ProductsWidget = memo(function ProductsWidget({ rows }) {
     />
   );
 });
+
 const ReceivingWidget = memo(function ReceivingWidget({ rows }) {
   return (
     <TableShell
@@ -224,6 +457,7 @@ const ReceivingWidget = memo(function ReceivingWidget({ rows }) {
     />
   );
 });
+
 const SupplierReturnsWidget = memo(function SupplierReturnsWidget({ rows }) {
   return (
     <TableShell
@@ -231,13 +465,14 @@ const SupplierReturnsWidget = memo(function SupplierReturnsWidget({ rows }) {
         { key: "sup_no", label: "Sup No." },
         { key: "supplier", label: "Supplier", truncate: true },
         { key: "total_amount", label: "Total", right: true, render: (v) => peso(v) },
-        { key: "date", label: "Date", right: true, render: (v) => (v ? formatToManila(v) : "—") },
+        { key: "date", label: "Date", right: true, render: (v) => (v ? formatToManila(v) : "--") },
       ]}
       rows={rows}
       emptyText="No recent supplier returns"
     />
   );
 });
+
 const ReturnEmptiesWidget = memo(function ReturnEmptiesWidget({ rows }) {
   return (
     <TableShell
@@ -247,13 +482,14 @@ const ReturnEmptiesWidget = memo(function ReturnEmptiesWidget({ rows }) {
         { key: "empty_return_shell", label: "Shells", right: true },
         { key: "empty_return_pcs", label: "PCs", right: true },
         { key: "transaction_count", label: "Txns", right: true },
-        { key: "latest_date", label: "Latest", right: true, render: (v) => (v ? formatToManila(v) : "—") },
+        { key: "latest_date", label: "Latest", right: true, render: (v) => (v ? formatToManila(v) : "--") },
       ]}
       rows={rows}
       emptyText="No return empties found"
     />
   );
 });
+
 const UsersWidget = memo(function UsersWidget({ rows }) {
   return (
     <TableShell
@@ -267,6 +503,7 @@ const UsersWidget = memo(function UsersWidget({ rows }) {
     />
   );
 });
+
 const RolesWidget = memo(function RolesWidget({ rows }) {
   return (
     <TableShell
@@ -279,6 +516,7 @@ const RolesWidget = memo(function RolesWidget({ rows }) {
     />
   );
 });
+
 const VansWidget = memo(function VansWidget({ rows }) {
   return (
     <TableShell
@@ -291,6 +529,7 @@ const VansWidget = memo(function VansWidget({ rows }) {
     />
   );
 });
+
 const WarehousesWidget = memo(function WarehousesWidget({ rows }) {
   return (
     <TableShell
@@ -305,6 +544,7 @@ const WarehousesWidget = memo(function WarehousesWidget({ rows }) {
     />
   );
 });
+
 const SuppliersWidget = memo(function SuppliersWidget({ rows }) {
   return (
     <TableShell
@@ -320,6 +560,43 @@ const SuppliersWidget = memo(function SuppliersWidget({ rows }) {
   );
 });
 
+// Credit Widget components
+const CreditStatusPill = ({ status }) => {
+  const st = String(status || "").toUpperCase();
+  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
+  if (st === "PENDING") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
+  if (st === "PARTIAL") return <span className={`${base} bg-amber-100 text-amber-800`}>Partial</span>;
+  if (st === "PAID") return <span className={`${base} bg-green-100 text-green-800`}>Paid</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "--"}</span>;
+};
+
+const CreditWidget = memo(function CreditWidget({ rows, summary }) {
+  return (
+    <div className="grid gap-2">
+      <div className="flex items-center justify-between text-[11px] text-slate-600">
+        <div>
+          <span className="font-medium">Outstanding:</span>{" "}
+          <span>{summary?.countOutstanding ?? 0}</span>
+        </div>
+        <div>
+          <span className="font-medium">Total Balance:</span>{" "}
+          <span className="font-semibold">{peso(summary?.totalOutstandingBalance ?? 0)}</span>
+        </div>
+      </div>
+
+      <TableShell
+        headers={[
+          { key: "msp_no", label: "MSP" },
+          { key: "customer", label: "Customer", truncate: true },
+          { key: "balance", label: "Balance", right: true, render: (v) => peso(v) },
+          { key: "status", label: "Status", right: true, render: (v) => <CreditStatusPill status={v} /> },
+        ]}
+        rows={rows}
+        emptyText="No credit records found"
+      />
+    </div>
+  );
+});
 
 /* -------------------- generic sidebar widget -------------------- */
 const GenericSidebarWidget = memo(function GenericSidebarWidget({
@@ -339,8 +616,6 @@ const GenericSidebarWidget = memo(function GenericSidebarWidget({
 
 /* -------------------- localStorage selections + cache -------------------- */
 const LS_KEY = "dashboard:selectedWidgets";
-const DATA_KEY = "dashboard:data";
-const DATA_TTL_MS = 5 * 60 * 1000;
 
 const loadSelection = () => {
   try {
@@ -356,27 +631,6 @@ const saveSelection = (ids) => {
   } catch {}
 };
 
-const readCachedData = (wid) => {
-  try {
-    const raw = localStorage.getItem(DATA_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    if (!parsed?.__ts || parsed.warehouseId !== wid) return null;
-    if (Date.now() - parsed.__ts > DATA_TTL_MS) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-};
-const writeCachedData = (wid, payload) => {
-  try {
-    localStorage.setItem(
-      DATA_KEY,
-      JSON.stringify({ __ts: Date.now(), warehouseId: wid, ...payload })
-    );
-  } catch {}
-};
-
 /* -------------------- API helpers -------------------- */
 const getCurrentWarehouseId = () => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -388,76 +642,210 @@ const getCurrentWarehouseId = () => {
 };
 const axiosCfgForWarehouse = (wid) => (wid ? { headers: { "X-Warehouse-ID": wid } } : {});
 
-/* -------------------- fetch everything the dashboard needs -------------------- */
-async function fetchDashboard(wid) {
-  const qsWid = wid ? `?warehouse=${wid}` : "";
-  const qsWidId = wid ? `?warehouse_id=${wid}` : "";
+/* -------------------- Helper function to check data availability -------------------- */
+const getDataAvailability = (lists) => {
+  const hasData = (data) => {
+    if (!data) return false;
+    if (Array.isArray(data)) return data.length > 0;
+    if (typeof data === 'object') return Object.keys(data).length > 0;
+    return Boolean(data);
+  };
 
-  const [
-    stocksRes,
-    productsRes,
-    receivingsRes,
-    merchSetRes,
-    creditsRes,
-    supplierReturnsRes,
-    merchRes,
-    suppliersRes,
-    usersRes,
-    rolesRes,
-    vansRes,
-    warehousesRes,
-  ] = await Promise.all([
-    axios.get(`http://localhost:8080/api/stocks/${qsWid}`),
-    axios.get(`http://localhost:8080/api/products/${qsWidId}`),
-    axios.get(`http://localhost:8080/api/receiving/`, axiosCfgForWarehouse(wid)),
-    axios.get(`http://localhost:8080/api/merchandising-set/`, { params: { warehouse: wid } }),
-    axios.get(`http://localhost:8080/api/credits/`, axiosCfgForWarehouse(wid)),
-    axios.get(`http://localhost:8080/api/supplier-return-form/${qsWidId}`),
-    axios.get(`http://localhost:8080/api/merchandisings/${qsWid}`),
-    axios.get(`http://localhost:8080/api/suppliers/${qsWid}`),
-    axios.get(`http://localhost:8080/api/users/`, axiosCfgForWarehouse(wid)),
-    axios.get(`http://localhost:8080/api/roles/`),
-    axios.get(`http://localhost:8080/api/vans/${qsWid}`),
-    axios.get(`http://127.0.0.1:8080/api/warehouses/${qsWid}`),
-  ]);
+  return {
+    stocks: hasData(lists.lowStockList),
+    products: hasData(lists.productsList),
+    receiving: hasData(lists.receivingsList),
+    trading: hasData(lists.recentTransactions),
+    'supplier-returns': hasData(lists.supplierReturnsList),
+    'return-empties': hasData(lists.returnEmptiesList),
+    credit: hasData(lists.creditList),
+    users: hasData(lists.usersList),
+    roles: hasData(lists.rolesList),
+    vans: hasData(lists.vansList),
+    suppliers: hasData(lists.suppliersList),
+    warehouses: hasData(lists.warehousesList),
+    invoice: false,
+    salesreport: hasData(lists.salesPoints),
+    inventoryreport: hasData(lists.productsList),
+    settings: true,
+  };
+};
 
-  const parseList = (res) =>
-    Array.isArray(res.data) ? res.data : res.data?.results || res.data?.data || [];
+/* -------------------- 🔧 COMPLETELY FIXED: Enhanced fetchDashboard with DATE FILTERING -------------------- */
+async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", customStartDate = '', customEndDate = '') {
+  console.log('🏢 Fetching dashboard for warehouses:', selectedWarehouseIds);
+  console.log('📅 Filtering data for period:', period, customStartDate, customEndDate);
+  
+  // Get the date range for filtering
+  const dateRange = getCustomPeriodRange(period, customStartDate, customEndDate);
+  const { from: startDate, to: endDate } = dateRange;
+  
+  // Helper function to check if a date is within range
+  const isWithinDateRange = (dateString) => {
+    if (!dateString) return false;
+    const date = new Date(dateString);
+    return date >= startDate && date <= endDate;
+  };
+  
+  console.log('📊 Date range for filtering:', { startDate, endDate });
+  
+  const warehouseIds = selectedWarehouseIds.length > 0 ? selectedWarehouseIds : [getCurrentWarehouseId()];
+  
+  // Create parallel requests for each warehouse
+  const warehouseRequests = warehouseIds.map(async (wid) => {
+    if (!wid) return null;
+    
+    const qsWid = `?warehouse=${wid}`;
+    const qsWidId = `?warehouse_id=${wid}`;
 
-  const stocks = parseList(stocksRes);
-  const products = parseList(productsRes);
-  const receivings = parseList(receivingsRes);
-  const transactions = parseList(merchSetRes);
-  const credits = parseList(creditsRes);
-  const supplierReturns = parseList(supplierReturnsRes);
-  const merch = parseList(merchRes);
-  const warehouses = parseList(warehousesRes);
+    const [
+      stocksRes,
+      productsRes,
+      receivingsRes,
+      merchSetRes,
+      creditsRes,
+      supplierReturnsRes,
+      merchRes,
+      suppliersRes,
+      usersRes,
+      rolesRes,
+      vansRes,
+    ] = await Promise.all([
+      axios.get(`http://localhost:8080/api/stocks/${qsWid}`),
+      axios.get(`http://localhost:8080/api/products/${qsWidId}`),
+      axios.get(`http://localhost:8080/api/receiving/`, axiosCfgForWarehouse(wid)),
+      axios.get(`http://localhost:8080/api/merchandising-set/`, { params: { warehouse: wid } }),
+      axios.get(`http://localhost:8080/api/credits/`, axiosCfgForWarehouse(wid)),
+      axios.get(`http://localhost:8080/api/supplier-return-form/${qsWidId}`),
+      axios.get(`http://localhost:8080/api/merchandisings/${qsWid}`),
+      axios.get(`http://localhost:8080/api/suppliers/${qsWid}`),
+      axios.get(`http://localhost:8080/api/users/`, axiosCfgForWarehouse(wid)),
+      axios.get(`http://localhost:8080/api/roles/`),
+      axios.get(`http://localhost:8080/api/vans/${qsWid}`),
+    ]);
 
+    return {
+      warehouseId: wid,
+      stocks: stocksRes.data,
+      products: productsRes.data,
+      receivings: receivingsRes.data,
+      transactions: merchSetRes.data,
+      credits: creditsRes.data,
+      supplierReturns: supplierReturnsRes.data,
+      merch: merchRes.data,
+      suppliers: suppliersRes.data,
+      users: usersRes.data,
+      roles: rolesRes.data,
+      vans: vansRes.data,
+    };
+  });
+
+  // Get warehouses list
+  const warehousesRes = await axios.get(`http://127.0.0.1:8080/api/warehouses/`);
+  const warehousesData = warehousesRes.data;
+
+  // Wait for all warehouse requests
+  const warehouseResults = await Promise.all(warehouseRequests);
+
+  // Combine data with proper warehouse tracking
+  const combinedData = warehouseResults.reduce((acc, result) => {
+    if (!result) return acc;
+
+    const parseList = (data) =>
+      Array.isArray(data) ? data : data?.results || data?.data || [];
+
+    // Add warehouse_id to each record for filtering
+    const addWarehouseId = (items, warehouseId) => 
+      items.map(item => ({ ...item, source_warehouse_id: warehouseId }));
+
+    acc.stocks = acc.stocks.concat(addWarehouseId(parseList(result.stocks), result.warehouseId));
+    acc.products = acc.products.concat(addWarehouseId(parseList(result.products), result.warehouseId));
+    acc.receivings = acc.receivings.concat(addWarehouseId(parseList(result.receivings), result.warehouseId));
+    acc.transactions = acc.transactions.concat(addWarehouseId(parseList(result.transactions), result.warehouseId));
+    acc.credits = acc.credits.concat(addWarehouseId(parseList(result.credits), result.warehouseId));
+    acc.supplierReturns = acc.supplierReturns.concat(addWarehouseId(parseList(result.supplierReturns), result.warehouseId));
+    acc.merch = acc.merch.concat(addWarehouseId(parseList(result.merch), result.warehouseId));
+    acc.suppliers = acc.suppliers.concat(addWarehouseId(parseList(result.suppliers), result.warehouseId));
+    acc.users = acc.users.concat(addWarehouseId(parseList(result.users), result.warehouseId));
+    acc.roles = acc.roles.concat(addWarehouseId(parseList(result.roles), result.warehouseId));
+    acc.vans = acc.vans.concat(addWarehouseId(parseList(result.vans), result.warehouseId));
+
+    return acc;
+  }, {
+    stocks: [],
+    products: [],
+    receivings: [],
+    transactions: [],
+    credits: [],
+    supplierReturns: [],
+    merch: [],
+    suppliers: [],
+    users: [],
+    roles: [],
+    vans: [],
+  });
+
+  // 🔧 CRITICAL FIX: Apply warehouse filtering to ALL data types
+  console.log('🏗️ Applying warehouse filtering for IDs:', warehouseIds);
+  console.log('📊 Raw data counts before filtering:', {
+    stocks: combinedData.stocks.length,
+    products: combinedData.products.length,
+    receivings: combinedData.receivings.length,
+    transactions: combinedData.transactions.length,
+    credits: combinedData.credits.length,
+    supplierReturns: combinedData.supplierReturns.length,
+    merch: combinedData.merch.length
+  });
+  
+  const stocks = combinedData.stocks.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const products = combinedData.products.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const receivings = combinedData.receivings.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const transactions = combinedData.transactions.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const credits = combinedData.credits.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const supplierReturns = combinedData.supplierReturns.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const merch = combinedData.merch.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const suppliers = combinedData.suppliers.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const users = combinedData.users.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  const roles = combinedData.roles; // Roles are global, don't filter
+  const vans = combinedData.vans.filter(item => warehouseIds.includes(item.source_warehouse_id));
+  
+  console.log('✅ Filtered data counts after warehouse filtering:', {
+    stocks: stocks.length,
+    products: products.length,
+    receivings: receivings.length,
+    transactions: transactions.length,
+    credits: credits.length,
+    supplierReturns: supplierReturns.length,
+    merch: merch.length,
+    suppliers: suppliers.length,
+    users: users.length,
+    vans: vans.length
+  });
+
+  const warehouses = Array.isArray(warehousesData) ? warehousesData : warehousesData?.results || warehousesData?.data || [];
+
+  // Process other data...
   const warehousesList = [...warehouses]
     .sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")))
     .slice(0, 5)
     .map((w) => ({
       id: w.id,
-      name: w.name || "—",
-      city: w.city || "—",
-      province: w.province || "—",
-      phone_number: w.phone_number || "—",
+      name: w.name || "--",
+      city: w.city || "--",
+      province: w.province || "--",
+      phone_number: w.phone_number || "--",
     }));
 
-  const suppliers = parseList(suppliersRes);
   const suppliersList = [...suppliers]
     .sort((a, b) => String(a.company_name || "").localeCompare(String(b.company_name || "")))
     .slice(0, 5)
     .map((s) => ({
       id: s.id,
-      registration_number: s.registration_number || "—",
-      company_name: s.company_name || "—",
-      contact_person: s.contact_person || "—",
-      phone_number: s.phone_number || "—",
+      registration_number: s.registration_number || "--",
+      company_name: s.company_name || "--",
+      contact_person: s.contact_person || "--",
+      phone_number: s.phone_number || "--",
     }));
-  const users = parseList(usersRes);
-  const roles = parseList(rolesRes);
-  const vans = parseList(vansRes);
 
   const supplierNameById = new Map(
     suppliers.map((s) => [s.id, s.company_name || s.name || `Supplier #${s.id}`])
@@ -472,7 +860,7 @@ async function fetchDashboard(wid) {
     return sum + (status.includes("low") || status.includes("out") ? 1 : 0);
   }, 0);
 
-  /* -------- lists -------- */
+  /* -------- lists with DATE FILTERING -------- */
   const lowStockList = stocks
     .filter((s) => {
       const st = (s.stock_status || "").toLowerCase();
@@ -488,52 +876,63 @@ async function fetchDashboard(wid) {
 
   const productsList = products.slice(0, 5).map((p) => ({
     id: p.id,
-    system_code: p.system_code || "—",
+    system_code: p.system_code || "--",
     name: p.product_name || p.name || "Untitled",
     category: p.product_category?.name || "N/A",
   }));
 
+  // 🔧 DATE FILTERING: Apply to receivings
   const receivingsList = [...receivings]
+    .filter((r) => !r.date_time || isWithinDateRange(r.date_time))
     .sort((a, b) => new Date(b.date_time || 0) - new Date(a.date_time || 0))
     .slice(0, 5)
     .map((r) => ({
       id: r.id,
       receive_no: r.receive_no || r.receiveNo || `#${r.id}`,
-      supplier: r.supplier_name || r.supplier?.name || "—",
+      supplier: r.supplier_name || r.supplier?.name || "--",
       date: r.date_time ? new Date(r.date_time) : null,
       net_amount: n(r.net_amount),
     }));
 
+  // 🔧 DATE FILTERING: Apply to transactions
   const recentTransactions = [...transactions]
+    .filter((t) => !t.date_time || isWithinDateRange(t.date_time))
     .sort((a, b) => new Date(b.date_time || 0) - new Date(a.date_time || 0))
     .slice(0, 5)
     .map((t) => ({
       id: t.id,
       msp_no: t.msp_no || `#${t.id}`,
       date_time: t.date_time || null,
-      transaction_type_name: t.transaction_type_name || t.transaction_type || "—",
-      handled_by: t.handled_by_name || t.handled_by_username || t.handled_by || "—",
-      status: t.status || "—",
+      transaction_type_name: t.transaction_type_name || t.transaction_type || "--",
+      handled_by: t.handled_by_name || t.handled_by_username || t.handled_by || "--",
+      status: t.status || "--",
+      source_warehouse_id: t.source_warehouse_id,
     }));
 
+  // 🔧 DATE FILTERING: Apply to supplier returns
   const supplierReturnsList = [...supplierReturns]
+    .filter((sr) => !sr.date || isWithinDateRange(sr.date))
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
     .slice(0, 5)
     .map((sr) => ({
       id: sr.id,
       sup_no: sr.sup_no || `#${sr.id}`,
-      supplier: sr.supplier_name || sr.supplier || "—",
+      supplier: sr.supplier_name || sr.supplier || "--",
       total_amount: n(sr.total_amount),
       date: sr.date || null,
     }));
 
-  const todaysReturnsArray = supplierReturns.filter((sr) => isSameDayManila(sr.date));
+  // 🔧 DATE FILTERING: Apply to supplier returns for today's calculation
+  const todaysReturnsArray = supplierReturns.filter((sr) => sr.date && isWithinDateRange(sr.date) && isSameDayManila(sr.date));
   const todaysReturns = todaysReturnsArray.reduce((sum, sr) => sum + n(sr.total_amount), 0);
   const todaysReturnsCount = todaysReturnsArray.length;
 
-  /* -------- Return Empties aggregation -------- */
+  /* -------- Return Empties aggregation with DATE FILTERING -------- */
   const emptiesRaw = [];
   for (const m of merch) {
+    // 🔧 DATE FILTERING: Check if transaction is within date range
+    if (!isWithinDateRange(m.date_time || m.created_at || m.updated_at)) continue;
+    
     const type = m.transaction_type_name;
     if (!m.items || !["Warehouse", "Van Load"].includes(type)) continue;
 
@@ -598,7 +997,7 @@ async function fetchDashboard(wid) {
     .sort((a, b) => b.empty_return_shell + b.empty_return_pcs - (a.empty_return_shell + a.empty_return_pcs))
     .slice(0, 5);
 
-  /* -------- Users / Roles / Credit -------- */
+  /* -------- Users / Roles -------- */
   const usersList = users.slice(0, 5).map((u) => ({
     id: u.id,
     name:
@@ -606,19 +1005,23 @@ async function fetchDashboard(wid) {
       u.name ||
       `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() ||
       u.username ||
-      "—",
-    username: u.username || "—",
-    role: u.role?.name || u.role || u.role_name || "—",
+      "--",
+    username: u.username || "--",
+    role: u.role?.name || u.role || u.role_name || "--",
   }));
 
   const rolesList = roles.slice(0, 5).map((r) => ({
     id: r.id,
-    name: r.name || r.role || "—",
+    name: r.name || r.role || "--",
     users_count: Number(r.users_count ?? r.user_count ?? 0),
   }));
 
+  // 🔧 DATE FILTERING: Apply to credit processing
   const creditSummary = (() => {
-    const outstanding = credits.filter(
+    const filteredCredits = credits.filter((c) => 
+      !c.created_at || isWithinDateRange(c.created_at)
+    );
+    const outstanding = filteredCredits.filter(
       (c) => String(c.status || "").toUpperCase() !== "PAID" && Number(c.balance || 0) > 0
     );
     const totalOutstandingBalance = outstanding.reduce((s, c) => s + Number(c.balance || 0), 0);
@@ -628,16 +1031,19 @@ async function fetchDashboard(wid) {
     };
   })();
 
+  // 🔧 DATE FILTERING: Apply to credit list
   const creditList = [...credits]
+    .filter((c) => !c.created_at || isWithinDateRange(c.created_at))
     .sort((a, b) => Number(b.balance || 0) - Number(a.balance || 0))
     .slice(0, 5)
     .map((c) => ({
       id: c.id,
       msp_no: c.msp_no || `#${c.id}`,
-      customer: c.customer_name || "—",
+      customer: c.customer_name || "--",
       balance: Number(c.balance || 0),
       status: String(c.status || "").toUpperCase(),
       date_time: c.created_at || null,
+      source_warehouse_id: c.source_warehouse_id,
     }));
 
   /* -------- Vans list -------- */
@@ -647,18 +1053,19 @@ async function fetchDashboard(wid) {
     .map((v) => ({
       id: v.id,
       van_id: v.van_id || `#${v.id}`,
-      plate_number: v.plate_number || "—",
+      plate_number: v.plate_number || "--",
     }));
 
-  /* -------- Sales points for money chart (used by <Statistics/>) -------- */
+  /* -------- Sales points for money chart with DATE FILTERING -------- */
   const salesPoints = merch
+    .filter((m) => isWithinDateRange(m.date_time || m.created_at || m.updated_at))
     .map((m) => ({
       date: m.date_time || m.created_at || m.updated_at,
       amount: n(m.actual_sale || m.total_amount || m.payment_amount || m.cash_received || 0),
     }))
     .filter((p) => p.date && p.amount >= 0);
 
-  /* -------- Profit + Misc (frontend-only; no double-counting) -------- */
+  /* -------- Profit + Misc calculations with DATE FILTERING -------- */
   const contentNoOf = (it, prod) =>
     Number(prod?.unit_type?.content_no ?? it.content_no ?? 1) || 1;
 
@@ -699,7 +1106,8 @@ async function fetchDashboard(wid) {
 
   for (const m of merch) {
     const txDate = m?.date_time || m?.created_at || m?.updated_at;
-    if (!txDate || !Array.isArray(m.items)) continue;
+    // 🔧 DATE FILTERING: Apply to profit calculations
+    if (!txDate || !Array.isArray(m.items) || !isWithinDateRange(txDate)) continue;
     let rev = 0, cogs = 0, disc = 0;
 
     for (const it of m.items) {
@@ -729,13 +1137,14 @@ async function fetchDashboard(wid) {
     if (misc) miscPoints.push({ date: txDate, amount: misc });
   }
 
-  /* -------- Product Performance TIME SERIES -------- */
+  /* -------- Product Performance TIME SERIES with DATE FILTERING -------- */
   const ppSeriesByDate = new Map();
   const categoryMapObj = {};
 
   for (const m of merch) {
     const txDate = m?.date_time || m?.created_at || m?.updated_at;
-    if (!txDate || !Array.isArray(m.items)) continue;
+    // 🔧 DATE FILTERING: Apply to product performance
+    if (!txDate || !Array.isArray(m.items) || !isWithinDateRange(txDate)) continue;
     const dateKey = new Date(txDate).toISOString().slice(0, 10);
     if (!ppSeriesByDate.has(dateKey)) ppSeriesByDate.set(dateKey, { date: dateKey });
 
@@ -779,6 +1188,17 @@ async function fetchDashboard(wid) {
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
 
+  console.log('📈 DATE FILTERED Results:', {
+    period,
+    dateRange: { startDate, endDate },
+    receivings: receivingsList.length,
+    transactions: recentTransactions.length,
+    supplierReturns: supplierReturnsList.length,
+    credits: creditList.length,
+    salesPoints: salesPoints.length,
+    profitPoints: profitPoints.length
+  });
+
   return {
     metrics: {
       totalProducts,
@@ -812,10 +1232,16 @@ async function fetchDashboard(wid) {
       miscPoints,
       totals,
     },
+    availableWarehouses: warehouses.map(w => ({
+      id: w.id,
+      name: w.name || `Warehouse #${w.id}`,
+      city: w.city,
+      province: w.province,
+    })),
   };
 }
 
-/* -------------------- page -------------------- */
+/* -------------------- 🔧 FIXED: Dashboard Component with DATE FILTERING -------------------- */
 const Dashboard = () => {
   const location = useLocation();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -848,6 +1274,7 @@ const Dashboard = () => {
     totals: { revenue: 0, cogs: 0, discounts: 0, misc: 0, profit: 0 },
   });
   const [lastUpdated, setLastUpdated] = useState(null);
+  const [availableWarehouses, setAvailableWarehouses] = useState([]);
 
   // Add this updateRevenueAndProfit function here
   const updateRevenueAndProfit = (totalRevenue, profit) => {
@@ -870,14 +1297,17 @@ const Dashboard = () => {
     updateRevenueAndProfit(totalSaleAmount, profit);
   };
 
-  // 🔗 Shared period between dropdown, Statistics, ProductPerformance, TopSellingProductsWidget
+  // Period states
   const [period, setPeriod] = useState("this-week");
+  const [customStartDate, setCustomStartDate] = useState('');
+  const [customEndDate, setCustomEndDate] = useState('');
+
+  // Warehouse selection state
+  const [selectedWarehouseIds, setSelectedWarehouseIds] = useState([]);
 
   const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
   const userLS = JSON.parse(localStorage.getItem("user") || "{}");
   const warehouseMeta = selectedWarehouse || (userLS?.warehouse ? userLS.warehouse : null);
-
-  
 
   useEffect(() => {
     if (location.state?.openWidgetsModal) {
@@ -902,12 +1332,27 @@ const Dashboard = () => {
     [selectedIds]
   );
 
+  // 🔧 FIXED: loadData function with date filtering support
   const loadData = useCallback(
-    async (force = false) => {
+    async (warehouseIds, periodParam = period, customStart = customStartDate, customEnd = customEndDate) => {
       try {
         setLoading(true);
-        const wid = getCurrentWarehouseId();
-        if (!wid) {
+        
+        console.log('🔄 Loading dashboard data for warehouses:', warehouseIds);
+        console.log('📅 Using period:', periodParam, customStart, customEnd);
+        
+        const fresh = await fetchDashboard(warehouseIds, periodParam, customStart, customEnd);
+        
+        startTransition(() => {
+          setMetrics(fresh.metrics);
+          setLists(fresh.lists);
+          setAvailableWarehouses(fresh.availableWarehouses || []);
+          setLastUpdated(new Date());
+        });
+        
+      } catch (e) {
+        console.error("Dashboard load error:", e);
+        startTransition(() => {
           setMetrics({
             totalProducts: 0,
             totalStockPcs: 0,
@@ -941,111 +1386,157 @@ const Dashboard = () => {
             totals: { revenue: 0, cogs: 0, discounts: 0, misc: 0, profit: 0 },
           });
           setLastUpdated(new Date());
-          return;
-        }
-
-        if (!force) {
-          const cached = readCachedData(wid);
-          if (cached?.metrics && cached?.lists) {
-            setMetrics(cached.metrics);
-            setLists(cached.lists);
-            setLastUpdated(new Date(cached.__ts));
-            setLoading(false);
-            startTransition(() => {
-              fetchDashboard(wid)
-                .then((fresh) => {
-                  setMetrics(fresh.metrics);
-                  setLists(fresh.lists);
-                  writeCachedData(wid, fresh);
-                  setLastUpdated(new Date());
-                })
-                .catch(() => {});
-            });
-            return;
-          }
-        }
-
-        const fresh = await fetchDashboard(wid);
-        setMetrics(fresh.metrics);
-        setLists(fresh.lists);
-        writeCachedData(wid, fresh);
-        setLastUpdated(new Date());
-      } catch (e) {
-        console.error("Dashboard load error:", e);
-        setMetrics({
-          totalProducts: 0,
-          totalStockPcs: 0,
-          lowOrOutCount: 0,
-          stockValueEstimate: 0,
-          todaysSales: 0,
-          todaysReturns: 0,
-          todaysReturnsCount: 0,
         });
-        setLists({
-          lowStockList: [],
-          productsList: [],
-          receivingsList: [],
-          recentSales: [],
-          recentTransactions: [],
-          supplierReturnsList: [],
-          returnEmptiesList: [],
-          creditList: [],
-          creditSummary: { countOutstanding: 0, totalOutstandingBalance: 0 },
-          usersList: [],
-          rolesList: [],
-          vansList: [],
-          suppliersList: [],
-          warehousesList: [],
-          salesPoints: [],
-          productPerformance: [],
-          productPerformanceSeries: [],
-          categoryMap: {},
-          profitPoints: [],
-          miscPoints: [],
-          totals: { revenue: 0, cogs: 0, discounts: 0, misc: 0, profit: 0 },
-        });
-        setLastUpdated(new Date());
       } finally {
         setLoading(false);
       }
     },
-    [startTransition]
+    [period, customStartDate, customEndDate] // Include period dependencies
   );
 
+  // 🔧 FIXED: Initial data load - only once
   useEffect(() => {
-    loadData(false);
-    const handleWarehouseChange = () => loadData(true);
+    const userData = JSON.parse(localStorage.getItem("user") || "{}");
+    const headerSelectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    
+    let initialWarehouseIds = [];
+    
+    if (userData.role?.toLowerCase() === "admin" && headerSelectedWarehouse) {
+      initialWarehouseIds = [headerSelectedWarehouse.id];
+    } else if (userData.warehouse_id) {
+      initialWarehouseIds = [userData.warehouse_id];
+    }
+    
+    if (initialWarehouseIds.length > 0) {
+      setSelectedWarehouseIds(initialWarehouseIds);
+      loadData(initialWarehouseIds);
+    }
+  }, []); // Only run once on mount
+
+  // 🔧 FIXED: Warehouse change event listener - separated from loadData
+  useEffect(() => {
+    const handleWarehouseChange = (event) => {
+      const { warehouse, action, source } = event.detail || {};
+      
+      console.log('🏭 Warehouse change detected:', { warehouse, action, source });
+      
+      if (source === 'header') {
+        if (action === 'select' && warehouse) {
+          console.log('📍 Syncing dashboard to warehouse:', warehouse.name);
+          const newIds = [warehouse.id];
+          setSelectedWarehouseIds(newIds);
+          loadData(newIds, period, customStartDate, customEndDate);
+        } else if (action === 'reset') {
+          console.log('🔄 Resetting to enrolled warehouse');
+          const userData = JSON.parse(localStorage.getItem("user") || "{}");
+          const userWarehouseId = userData.warehouse_id;
+          if (userWarehouseId) {
+            const newIds = [userWarehouseId];
+            setSelectedWarehouseIds(newIds);
+            loadData(newIds, period, customStartDate, customEndDate);
+          }
+        }
+      }
+    };
+    
     window.addEventListener("warehouseChanged", handleWarehouseChange);
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
-  }, [loadData]);
+  }, [loadData, period, customStartDate, customEndDate]);
+
+  // 🔧 FIXED: Auto-populate available warehouses (only when needed)
+  useEffect(() => {
+    if (availableWarehouses.length > 0 && selectedWarehouseIds.length === 0) {
+      const userData = JSON.parse(localStorage.getItem("user") || "{}");
+      if (userData.warehouse_id) {
+        const newIds = [userData.warehouse_id];
+        setSelectedWarehouseIds(newIds);
+        loadData(newIds, period, customStartDate, customEndDate);
+      } else {
+        const allIds = availableWarehouses.map(w => w.id);
+        setSelectedWarehouseIds(allIds);
+        loadData(allIds, period, customStartDate, customEndDate);
+      }
+    }
+  }, [availableWarehouses, loadData, period, customStartDate, customEndDate]);
 
   const removeWidget = useCallback((id) => setSelectedIds((prev) => prev.filter((x) => x !== id)), []);
 
-  /* ---------- PERIOD-SYNCED SUMS FOR CARDS ---------- */
-  const periodSums = useMemo(() => {
-  const { from, to } = getPeriodRange(period);
-  const inRange = (iso) => {
-    const d = new Date(iso);
-    return d >= from && d <= to;
+  // 🔧 FIXED: Period change handler with data reload
+  const handlePeriodChange = (newPeriod) => {
+    setPeriod(newPeriod);
+    if (newPeriod !== "custom") {
+      setCustomStartDate('');
+      setCustomEndDate('');
+      // Reload data immediately for non-custom periods
+      if (selectedWarehouseIds.length > 0) {
+        loadData(selectedWarehouseIds, newPeriod, '', '');
+      }
+    }
   };
 
-  const revenue = (lists?.salesPoints || [])
-    .filter((p) => p?.date && inRange(p.date))
-    .reduce((s, p) => s + Number(p.amount || 0), 0); // This calculates the revenue.
+  // 🔧 FIXED: Custom dates change handler with data reload
+  const handleCustomDatesChange = (startDate, endDate) => {
+    setCustomStartDate(startDate);
+    setCustomEndDate(endDate);
+    
+    // Reload data when custom dates change (if both dates are set)
+    if (period === 'custom' && startDate && endDate && selectedWarehouseIds.length > 0) {
+      loadData(selectedWarehouseIds, period, startDate, endDate);
+    }
+  };
 
-  const profit = (lists?.profitPoints || [])
-    .filter((p) => p?.date && inRange(p.date))
-    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  // 🔧 FIXED: Manual warehouse change handler
+  const handleWarehouseChange = (warehouseIds) => {
+    setSelectedWarehouseIds(warehouseIds);
+    loadData(warehouseIds, period, customStartDate, customEndDate);
+  };
 
-  const misc = (lists?.miscPoints || [])
-    .filter((p) => p?.date && inRange(p.date))
-    .reduce((s, p) => s + Number(p.amount || 0), lists?.miscPoints ? 0 : Number(lists?.totals?.misc || 0));
+  /* ---------- PERIOD-SYNCED SUMS FOR CARDS ---------- */
+  const periodSums = useMemo(() => {
+    const { from, to } = getCustomPeriodRange(period, customStartDate, customEndDate);
+    const inRange = (iso) => {
+      const d = new Date(iso);
+      return d >= from && d <= to;
+    };
 
-  return { revenue, profit, misc };
-}, [lists, period])
+    const revenue = (lists?.salesPoints || [])
+      .filter((p) => p?.date && inRange(p.date))
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
+
+    const profit = (lists?.profitPoints || [])
+      .filter((p) => p?.date && inRange(p.date))
+      .reduce((s, p) => s + Number(p.amount || 0), 0);
+
+    const misc = (lists?.miscPoints || [])
+      .filter((p) => p?.date && inRange(p.date))
+      .reduce((s, p) => s + Number(p.amount || 0), lists?.miscPoints ? 0 : Number(lists?.totals?.misc || 0));
+
+    return { revenue, profit, misc };
+  }, [lists, period, customStartDate, customEndDate]);
+
+  // Debug logging
+  console.log('📊 Dashboard Debug:', {
+    totalProducts: metrics?.totalProducts,
+    creditList: lists.creditList,
+    selectedWarehouses: selectedWarehouseIds,
+    period,
+    customStartDate,
+    customEndDate,
+    loading
+  });
 
   return (
     <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-100px,rgba(99,102,241,0.10),transparent)]">
+      {/* Loading overlay */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/10 backdrop-blur-sm z-40 flex items-center justify-center">
+          <div className="bg-white rounded-lg shadow-lg p-6 flex items-center gap-3">
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-600"></div>
+            <span className="text-sm text-gray-600">Loading dashboard...</span>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="px-4 pt-4">
         <div className="flex items-center justify-between">
@@ -1057,28 +1548,38 @@ const Dashboard = () => {
               <h1 className="text-[15px] font-semibold text-slate-900">Dashboard</h1>
               <div className="flex items-center gap-2 text-[11px] text-slate-600">
                 <span className="inline-flex items-center gap-1">
-                  <IconWarehouse /> Warehouse:
+                  <IconWarehouse /> Viewing:
                 </span>
                 <span className="font-medium">
-                  {warehouseMeta?.warehouse || warehouseMeta?.name || "No Warehouse Assigned"}
+                  {selectedWarehouseIds.length === 0 
+                    ? (warehouseMeta?.warehouse || warehouseMeta?.name || "Default Warehouse")
+                    : selectedWarehouseIds.length === availableWarehouses.length
+                    ? availableWarehouses.length === 2 ? "Both Warehouses" : "All Warehouses"
+                    : selectedWarehouseIds.length === 1
+                    ? availableWarehouses.find(w => w.id === selectedWarehouseIds[0])?.name || "Unknown"
+                    : selectedWarehouseIds.length === 2
+                    ? "Both Warehouses"
+                    : `${selectedWarehouseIds.length} Warehouses`
+                  }
                 </span>
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            {/* 🔽 Period Dropdown (moved here) */}
-            <select
-              className="text-xs border rounded-md px-2 py-1 bg-white"
-              value={period}
-              onChange={(e) => setPeriod(e.target.value)}
-            >
-              {periodOptions.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <WarehouseDropdown
+              selectedWarehouseIds={selectedWarehouseIds}
+              onWarehouseChange={handleWarehouseChange}
+              warehouses={availableWarehouses}
+            />
+
+            <PeriodDropdown
+              period={period}
+              onPeriodChange={handlePeriodChange}
+              customStartDate={customStartDate}
+              customEndDate={customEndDate}
+              onCustomDatesChange={handleCustomDatesChange}
+            />
 
             <button
               onClick={() => setPickerOpen(true)}
@@ -1096,7 +1597,7 @@ const Dashboard = () => {
         <div className="col-span-1 md:col-span-2 lg:col-span-3">
           <MetricsCards
             data={{
-              totalRevenue: periodSums.revenue ?? 0, // Ensure this value is being updated
+              totalRevenue: periodSums.revenue ?? 0,
               productsSold: metrics?.totalProducts ?? 0,
               supplierReturnables: lists?.supplierReturnsList?.length ?? 0,
               miscCharges: periodSums.misc ?? 0,
@@ -1105,36 +1606,42 @@ const Dashboard = () => {
           />
         </div>
 
-       {/* STATISTICS CHART */}
+        {/* STATISTICS CHART */}
         <Statistics
           metrics={metrics}
-          onRefresh={() => loadData(true)}
+          onRefresh={() => loadData(selectedWarehouseIds, period, customStartDate, customEndDate)}
           loading={loading || isPending}
           lastUpdated={lastUpdated}
           salesPoints={lists.salesPoints}
           profitPoints={lists.profitPoints}
           profitTotal={lists?.totals?.profit}
-          revenue={periodSums.revenue} // Pass revenue here
+          revenue={periodSums.revenue}
           miscTotal={periodSums.misc}
           period={period}
+          customStartDate={customStartDate}
+          customEndDate={customEndDate}
         />
 
-        {/* PRODUCT PERFORMANCE (category lines over time) */}
+        {/* PRODUCT PERFORMANCE */}
         <div className="col-span-1 md:col-span-1 lg:col-span-2">
           <ProductPerformance
             title="Product Performance"
             data={lists.productPerformanceSeries}
             categoryMap={lists.categoryMap}
             period={period}
+            customStartDate={customStartDate}
+            customEndDate={customEndDate}
             height={300}
           />
         </div>
 
-        {/* TOP SELLING PRODUCTS (product-level, period-synced) */}
+        {/* TOP SELLING PRODUCTS */}
         <div className="col-span-1 md:col-span-1 lg:col-span-1">
           <TopSellingProductsWidget
             series={lists.productPerformanceSeries}
             period={period}
+            customStartDate={customStartDate}
+            customEndDate={customEndDate}
             topN={10}
           />
         </div>
@@ -1142,13 +1649,14 @@ const Dashboard = () => {
         {/* Widgets */}
         {useMemo(
           () =>
-            visibleSelectedItems.map((item) => {
+            visibleSelectedItems.map((item, widgetIndex) => {
               const id = item.id;
               const route = item.route;
+              const uniqueKey = `widget-${id}-${widgetIndex}`;
 
               if (id === "stocks") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <LowStockWidget items={lists.lowStockList} />
                   </GenericSidebarWidget>
                 );
@@ -1156,7 +1664,7 @@ const Dashboard = () => {
 
               if (id === "products") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <ProductsWidget rows={lists.productsList} />
                   </GenericSidebarWidget>
                 );
@@ -1164,7 +1672,7 @@ const Dashboard = () => {
 
               if (id === "receiving") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <ReceivingWidget rows={lists.receivingsList} />
                   </GenericSidebarWidget>
                 );
@@ -1172,7 +1680,7 @@ const Dashboard = () => {
 
               if (id === "trading") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <TradingPreview rows={lists.recentTransactions} />
                   </GenericSidebarWidget>
                 );
@@ -1180,7 +1688,7 @@ const Dashboard = () => {
 
               if (id === "supplier-returns") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <SupplierReturnsWidget rows={lists.supplierReturnsList} />
                   </GenericSidebarWidget>
                 );
@@ -1188,7 +1696,7 @@ const Dashboard = () => {
 
               if (id === "return-empties") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <ReturnEmptiesWidget rows={lists.returnEmptiesList} />
                   </GenericSidebarWidget>
                 );
@@ -1196,7 +1704,7 @@ const Dashboard = () => {
 
               if (id === "credit") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <CreditWidget rows={lists.creditList} summary={lists.creditSummary} />
                   </GenericSidebarWidget>
                 );
@@ -1204,7 +1712,7 @@ const Dashboard = () => {
 
               if (id === "users") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <UsersWidget rows={lists.usersList} />
                   </GenericSidebarWidget>
                 );
@@ -1212,7 +1720,7 @@ const Dashboard = () => {
 
               if (id === "roles") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <RolesWidget rows={lists.rolesList} />
                   </GenericSidebarWidget>
                 );
@@ -1220,7 +1728,7 @@ const Dashboard = () => {
 
               if (id === "vans") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <VansWidget rows={lists.vansList} />
                   </GenericSidebarWidget>
                 );
@@ -1228,7 +1736,7 @@ const Dashboard = () => {
 
               if (id === "suppliers") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <SuppliersWidget rows={lists.suppliersList} />
                   </GenericSidebarWidget>
                 );
@@ -1236,14 +1744,14 @@ const Dashboard = () => {
 
               if (id === "warehouses") {
                 return (
-                  <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget}>
+                  <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
                     <WarehousesWidget rows={lists.warehousesList} />
                   </GenericSidebarWidget>
                 );
               }
 
               return (
-                <GenericSidebarWidget key={id} id={id} title={item.name} route={route} onRemove={removeWidget} />
+                <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget} />
               );
             }),
           [visibleSelectedItems, removeWidget, lists]
@@ -1262,7 +1770,7 @@ const Dashboard = () => {
         )}
       </div>
 
-      {/* Modal */}
+      {/* Widget Picker Modal */}
       <WidgetPickerModal
         open={pickerOpen}
         selectedIds={selectedIds}
@@ -1271,18 +1779,22 @@ const Dashboard = () => {
           setSelectedIds(ids);
           setPickerOpen(false);
         }}
+        dataAvailability={getDataAvailability(lists)}
+        selectedWarehouses={selectedWarehouseIds.map(id => 
+          availableWarehouses.find(w => w.id === id)?.name || 'Unknown'
+        )}
       />
     </div>
   );
 };
 
-/* ---- tiny status components used above ---- */
+/* ---- Status components ---- */
 const StatusPill = ({ status }) => {
   const st = (status || "").toLowerCase();
   const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
   if (st === "pending") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
   if (st === "complete" || st === "completed") return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
+  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "--"}</span>;
 };
 
 const TradingPreview = memo(function TradingPreview({ rows }) {
@@ -1292,50 +1804,13 @@ const TradingPreview = memo(function TradingPreview({ rows }) {
   return (
     <div className="text-sm text-slate-700">
       <div className="font-medium">
-        Latest: {latest.msp_no} — {latest.transaction_type_name || "—"}{" "}
+        Latest: {latest.msp_no} -- {latest.transaction_type_name || "--"}{" "}
         <span className="ml-1 align-middle"><StatusPill status={latest.status} /></span>
       </div>
       <div className="text-xs text-slate-500 mt-1">
         {rows.length} recent {rows.length === 1 ? "transaction" : "transactions"} ·{" "}
-        {latest.date_time ? formatToManila(latest.date_time) : "—"}
+        {latest.date_time ? formatToManila(latest.date_time) : "--"}
       </div>
-    </div>
-  );
-});
-
-/* ---- Credit widget (compact) ---- */
-const CreditStatusPill = ({ status }) => {
-  const st = String(status || "").toUpperCase();
-  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
-  if (st === "PENDING") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
-  if (st === "PARTIAL") return <span className={`${base} bg-amber-100 text-amber-800`}>Partial</span>;
-  if (st === "PAID") return <span className={`${base} bg-green-100 text-green-800`}>Paid</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "—"}</span>;
-};
-const CreditWidget = memo(function CreditWidget({ rows, summary }) {
-  return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between text-[11px] text-slate-600">
-        <div>
-          <span className="font-medium">Outstanding:</span>{" "}
-          <span>{summary?.countOutstanding ?? 0}</span>
-        </div>
-        <div>
-          <span className="font-medium">Total Balance:</span>{" "}
-          <span className="font-semibold">{peso(summary?.totalOutstandingBalance ?? 0)}</span>
-        </div>
-      </div>
-
-      <TableShell
-        headers={[
-          { key: "msp_no", label: "MSP" },
-          { key: "customer", label: "Customer", truncate: true },
-          { key: "balance", label: "Balance", right: true, render: (v) => peso(v) },
-          { key: "status", label: "Status", right: true, render: (v) => <CreditStatusPill status={v} /> },
-        ]}
-        rows={rows}
-        emptyText="No credit records"
-      />
     </div>
   );
 });

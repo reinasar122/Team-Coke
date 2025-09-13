@@ -1,3 +1,4 @@
+// Updated ProductPerformance component with custom date support
 import React from "react";
 import {
   ResponsiveContainer,
@@ -69,6 +70,21 @@ function getPeriodRange(period, now = new Date()) {
   }
 }
 
+// 🔧 NEW: Enhanced function to handle custom date ranges
+function getCustomPeriodRange(period, customStartDate = '', customEndDate = '', now = new Date()) {
+  if (period === "custom" && customStartDate && customEndDate) {
+    const from = new Date(customStartDate + "T00:00:00");
+    const to = new Date(customEndDate + "T23:59:59");
+    
+    // Determine mode based on date range duration
+    const diffDays = Math.ceil((to - from) / (1000 * 60 * 60 * 24));
+    const mode = diffDays > 60 ? "month" : "day";
+    
+    return { from, to, mode };
+  }
+  return getPeriodRange(period, now);
+}
+
 /* ---- colors ---- */
 const COLORS = [
   "#ef4444",
@@ -95,6 +111,8 @@ export default function ProductPerformance({
   height = 300,
   smooth = false,
   period = "this-week", // controlled by parent (shared with <Statistics/>)
+  customStartDate = '', // 🔧 NEW: Add custom date support
+  customEndDate = '', // 🔧 NEW: Add custom date support
   categoryMap = undefined,
   categoryResolver = undefined,
   topK = 3,
@@ -122,9 +140,9 @@ export default function ProductPerformance({
     [categoryMap, categoryResolver]
   );
 
-  // Bucket to selected period and ensure x labels
+  // 🔧 FIXED: Bucket to selected period and ensure x labels with custom date support
   const chartData = React.useMemo(() => {
-    const { from, to, mode } = getPeriodRange(period);
+    const { from, to, mode } = getCustomPeriodRange(period, customStartDate, customEndDate);
     const buckets = [];
 
     if (mode === "day") {
@@ -162,7 +180,7 @@ export default function ProductPerformance({
     });
 
     return buckets.map((b) => b.row);
-  }, [src, productKeys, period]);
+  }, [src, productKeys, period, customStartDate, customEndDate]);
 
   // 🛠️ FIX 3: Category chart data
   const categoryChartData = React.useMemo(() => {
