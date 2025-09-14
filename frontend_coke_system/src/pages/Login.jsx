@@ -111,7 +111,7 @@ const Login = () => {
               <img src={logoSrc} alt="Wilfie's Logo" className="w-80 h-80 rounded-full object-cover mb-1" />
             </div>
             <h1 className="text-3xl font-bold text-white mb-1">Welcome back</h1>
-            <p className="text-sm text-gray-200 text-center">Sign in to your dashboard</p>
+            <p className="text-sm text-gray-200 text-center">Sign in to Continue</p>
           </div>
 
           {error && (
