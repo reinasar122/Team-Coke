@@ -91,7 +91,7 @@ const Sidebar = ({ isSidebarOpen }) => {
               )} */}
               {canView("Credit") ? (
                 <li>
-                  <Link to="/credit" className="block p-2 text-sm hover:bg-gray-600 rounded">
+                  <Link to="/credits" className="block p-2 text-sm hover:bg-gray-600 rounded">
                     Credit
                   </Link>
                 </li>
@@ -156,19 +156,18 @@ const Sidebar = ({ isSidebarOpen }) => {
             <FontAwesomeIcon icon={openDropdown === "report" ? faChevronUp : faChevronDown} />
           </button>
           {openDropdown === "report" && (
-            <ul className="ml-4 mt-2 space-y-2">
-              {canView("Sales Report") ? (
-                <li><Link to="/salesreport" className="block p-2 text-sm hover:bg-gray-600 rounded">Sales Report</Link></li>
-              ) : (
-                <DisabledSubItem text="Sales Report" />
-              )}
-              {/* {canView("Inventory Report") ? (
-                <li><Link to="/inventoryreport" className="block p-2 text-sm hover:bg-gray-600 rounded">Inventory Report</Link></li>
-              ) : (
-                <DisabledSubItem text="Inventory Report" />
-              )} */}
-            </ul>
-          )}
+              <ul className="ml-4 mt-2 space-y-2">
+                {canView("Sales Report") ? (
+                  <li>
+                    <Link to="/reports/sales" className="block p-2 text-sm hover:bg-gray-600 rounded">
+                      Sales Report
+                    </Link>
+                  </li>
+                ) : (
+                  <DisabledSubItem text="Sales Report" />
+                )}
+              </ul>
+            )}
         </li>
 
         {/* Manage */}
