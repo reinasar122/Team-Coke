@@ -179,20 +179,40 @@ const RoleList = () => {
                         >
                           <FaEdit size={20} />
                         </button>
-                        <button
-                          onClick={() => !isProtected(role) && confirmDelete(role)}
-                          className={`icon-btn ${
-                            isProtected(role)
-                              ? "icon-btn-disabled"
-                              : canDelete("User")
-                              ? "icon-btn-danger"
-                              : "icon-btn-disabled"
-                          }`}
-                          title={isProtected(role) ? "This role is protected" : "Delete Role"}
-                          disabled={isProtected(role)}
-                        >
-                          <FaTrash size={20} />
-                        </button>
+                          <button
+                            onClick={() => {
+                              // find the Roles access entry in localStorage access array
+                              const access = JSON.parse(localStorage.getItem("access") || "[]");
+                              const rolesAccess = access.find(a => String(a.submenu).toLowerCase() === "roles");
+                              const canDeleteRoles = !!(rolesAccess && (rolesAccess.delete === true || rolesAccess.full === true));
+
+                              if (!isProtected(role) && canDeleteRoles) {
+                                confirmDelete(role);
+                              } else {
+                                console.warn("Delete blocked. protected:", isProtected(role), "canDeleteRoles:", canDeleteRoles);
+                              }
+                            }}
+                            className={
+                              isProtected(role)
+                                ? "icon-btn-disabled"
+                                : (JSON.parse(localStorage.getItem("access") || "[]").some(a => String(a.submenu).toLowerCase() === "roles" && (a.delete === true || a.full === true))
+                                  ? "icon-btn-danger"
+                                  : "icon-btn-disabled")
+                            }
+                            title={
+                              isProtected(role)
+                                ? "This role is protected"
+                                : (JSON.parse(localStorage.getItem("access") || "[]").some(a => String(a.submenu).toLowerCase() === "roles" && (a.delete === true || a.full === true))
+                                  ? "Delete Role"
+                                  : "You don't have permission to delete")
+                            }
+                            disabled={isProtected(role) || !JSON.parse(localStorage.getItem("access") || "[]").some(a => String(a.submenu).toLowerCase() === "roles" && (a.delete === true || a.full === true))}
+                          >
+                            <FaTrash size={20} />
+                          </button>
+
+
+
                       </div>
                     </td>
                   </tr>

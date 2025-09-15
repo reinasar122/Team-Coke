@@ -144,7 +144,7 @@ const Header = ({ toggleSidebar }) => {
 
         {/* Right - Profile Dropdown */}
         <div className="relative">
-          <Link to="/user-profile" className="focus:outline-none">
+          <Link to="/profile" className="focus:outline-none">
             <FontAwesomeIcon icon={faUser} className="cursor-pointer" />
           </Link>
         </div>

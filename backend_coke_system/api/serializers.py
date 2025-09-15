@@ -896,12 +896,17 @@ class LoginSerializer(serializers.Serializer):
     password = serializers.CharField()
 
     def validate(self, data):
-        username = data.get('username')
+        username_or_email = data.get('username')  # same frontend field
         password = data.get('password')
 
-        try:
-            user = User.objects.get(username=username)
-        except User.DoesNotExist:
+        # Try fetching user by username first
+        user = User.objects.filter(username=username_or_email).first()
+
+        # If not found, try email
+        if not user:
+            user = User.objects.filter(email=username_or_email).first()
+
+        if not user:
             raise serializers.ValidationError("User not found.")
 
         if not user.check_password(password):
@@ -911,7 +916,6 @@ class LoginSerializer(serializers.Serializer):
             'submenu', 'full', 'view', 'create', 'edit', 'delete'
         )
 
-        # ✅ Return must_change_password in login response
         return {
             "id": user.id,
             "username": user.username,
