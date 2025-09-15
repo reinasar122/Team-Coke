@@ -581,9 +581,27 @@ class TransactionTypeListCreateView(generics.ListCreateAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
 
+    def create(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types are managed by the system."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
 class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
+
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be updated."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be deleted."},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
 class CustomerListCreateView(generics.ListCreateAPIView):
     serializer_class = CustomerSerializer

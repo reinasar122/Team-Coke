@@ -13,6 +13,9 @@ from django.utils import timezone
 from django.core.validators import MinValueValidator
 from django.db.models import Q
 
+from django.db.models.signals import post_migrate
+from django.dispatch import receiver
+
 class CreditLedger(models.Model):
     STATUS_PENDING = "PENDING"
     STATUS_PARTIAL = "PARTIAL"
@@ -392,17 +395,25 @@ class Route(models.Model):
         return self.route_name
 
 class TransactionType(models.Model):
+    VAN_LOAD = "Van Load"
+    WAREHOUSE = "Warehouse"
+    ALLOWED_TYPES = [VAN_LOAD, WAREHOUSE]
+
     name = models.CharField(max_length=100, unique=True)
 
     def clean(self):
-        allowed = ["Van Load", "Warehouse"]
-        if self.name not in allowed:
-            raise ValidationError(f"Invalid transaction type name: '{self.name}'")
+        if self.name not in self.ALLOWED_TYPES:
+            raise ValidationError(f"Invalid transaction type: '{self.name}'")
 
     def save(self, *args, **kwargs):
-        self.full_clean()  # ✅ calls clean() before saving
+        self.full_clean()
         super().save(*args, **kwargs)
-    
+
+@receiver(post_migrate)
+def create_default_transaction_types(sender, **kwargs):
+    for t_name in TransactionType.ALLOWED_TYPES:
+        TransactionType.objects.get_or_create(name=t_name)
+
 class Customer(models.Model):
     name = models.CharField(max_length=255)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
