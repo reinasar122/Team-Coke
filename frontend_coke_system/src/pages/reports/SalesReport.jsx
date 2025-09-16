@@ -1,39 +1,18 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 
-// ✅ FIXED PATHS (go up two levels)
 import Card from "../../components/common/Card";
 import Metric from "../../components/common/Metric";
-import ProductBreakdownTable from "../../components/tables/ProductBreakdownTable";
 import SalesByRoutePie from "../../components/charts/SalesByRoutePie";
 import SalesByWarehouseBar from "../../components/charts/SalesByWarehouseBar";
 import Empty from "../../components/common/Empty";
 import { n, peso, pct } from "../../utils/formatters";
 
-// CRA/Webpack safe: use REACT_APP_ prefix
+import ProductBreakdownContainer from "../../containers/ProductBreakdownContainer";
+
+import { FaChartBar } from "react-icons/fa";
+
 const API = process.env.REACT_APP_API_URL || "http://localhost:8080/api";
-
-const toCSV = (rows, headers) => {
-  const head = headers.map((h) => `"${h.label}"`).join(",");
-  const body = rows
-    .map((r) =>
-      headers
-        .map((h) => `"${(r[h.key] ?? "").toString().replaceAll('"', '""')}"`)
-        .join(",")
-    )
-    .join("\n");
-  return `${head}\n${body}`;
-};
-
-const saveFile = (filename, content, mime = "text/csv;charset=utf-8;") => {
-  const blob = new Blob([content], { type: mime });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-};
 
 export default function SalesReport() {
   const [warehouses, setWarehouses] = useState([]);
@@ -49,46 +28,19 @@ export default function SalesReport() {
 
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
+
   const [data, setData] = useState({
     summary: { total_revenue: 0, net_profit: 0, discounts: 0, return_rate: 0 },
-    product_breakdown: [],
     sales_by_route: [],
     sales_by_warehouse: [],
     returns_block: { expected_sale: 0, actual_sale: 0, difference: 0, supplier_returnables: 0 },
     misc_expenses: [],
   });
 
-  const [q, setQ] = useState("");
-  const [sortKey, setSortKey] = useState("revenue");
   const printRef = useRef(null);
+  const [unitsSold, setUnitsSold] = useState(0);
 
-  // --- helpers for date params (Manila-friendly YYYY-MM-DD) --- Kath
-  // Convert Date to ISO string (YYYY-MM-DD) in local timezone
-  // https://stackoverflow.com/a/23593052
-  const toISO = (d) => {
-    const dt = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
-    return dt.toISOString().slice(0, 10);
-  };
-
-  const resolveRange = ({ period, start, end }) => {
-    if (period === "custom" && start && end) return { startISO: start, endISO: end };
-
-    const now = new Date();
-    if (period === "this_week") {
-      // Monday as start of week
-      const dow = (now.getDay() + 6) % 7; // 0=Mon ... 6=Sun
-      const monday = new Date(now);
-      monday.setDate(now.getDate() - dow);
-      return { startISO: toISO(monday), endISO: toISO(now) };
-    }
-
-    // default: this_month
-    const first = new Date(now.getFullYear(), now.getMonth(), 1);
-    return { startISO: toISO(first), endISO: toISO(now) };
-  };
-  // --- end helpers ---: Kath
-
-  /* Filters bootstrap */
+  // Load select options
   useEffect(() => {
     let ok = true;
     (async () => {
@@ -100,205 +52,65 @@ export default function SalesReport() {
         if (!ok) return;
         setWarehouses(wh.status === "fulfilled" ? wh.value.data : []);
         setRoutes(rt.status === "fulfilled" ? rt.value.data : []);
-      } catch {}
+      } catch {
+        /* ignore */
+      }
     })();
     return () => (ok = false);
   }, []);
 
-  /* Fetch report */
+  // Fetch main sales report (ProductBreakdown is fetched inside its container)
   useEffect(() => {
-    let ok = true;
+    let alive = true;
+
     (async () => {
       setLoading(true);
       setErr("");
+
       try {
+        // Build querystring once from filters
         const params = new URLSearchParams();
-        if (filters.warehouse !== "all") params.set("warehouse_id", filters.warehouse);
-        if (filters.route !== "all") params.set("route_id", filters.route);
+        params.set("warehouse_id", String(filters.warehouse ?? "all"));
+        params.set("route_id", String(filters.route ?? "all"));
         params.set("period", filters.period);
         if (filters.period === "custom") {
           if (filters.start) params.set("start", filters.start);
           if (filters.end) params.set("end", filters.end);
         }
+        const qs = params.toString();
 
-        // 🔐 headers (only add Authorization if token exists)
+        // Auth headers once
         const token = localStorage.getItem("token");
         const headers = {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         };
 
-        // 🌐 Try common endpoints (first one that succeeds wins)
-        const endpoints = [
-          `${API}/reports/sales/?${params.toString()}`,  // recommended new endpoint
-          `${API}/sales_report/?${params.toString()}`,   // legacy alias, if added
-        ];
+        // Try new endpoint, then fallback
+        const [rpt1, rpt2] = await Promise.allSettled([
+          axios.get(`${API}/sales_report/?${qs}`, { headers, timeout: 15000 }),
+          axios.get(`${API}/reports/sales/?${qs}`, { headers, timeout: 15000 }),
+        ]);
+        if (!alive) return;
 
-        // let res;
-        // let lastErr;
-        // for (const url of endpoints) {
-        //   try {
-        //     console.log("[SalesReport] GET:", url);
-        //     res = await axios.get(url, { headers, timeout: 15000 });
-        //     break; // success
-        //   } catch (e) {
-        //     lastErr = e;
-        //     console.warn("[SalesReport] failed:", url, e?.message);
-        //   }
-        // }
-        // if (!res) {
-        //   const status = lastErr?.response?.status;
-        //   const detail =
-        //     lastErr?.response?.data?.detail ||
-        //     lastErr?.response?.data?.message ||
-        //     lastErr?.message ||
-        //     "Network error";
-        //   throw new Error(status ? `HTTP ${status}: ${detail}` : `Network/CORS: ${detail}`);
-        // }
-        // 1) Fetch your existing (full) sales report first (as you already do)
-        let res; //Kath
-        let lastErr;
-        for (const url of endpoints) {
-          try {
-            console.log("[SalesReport] GET:", url);
-            res = await axios.get(url, { headers, timeout: 15000 });
-            break; // success
-          } catch (e) {
-            lastErr = e;
-            console.warn("[SalesReport] failed:", url, e?.message);
-          }
-        }
-        if (!res) {
-          const status = lastErr?.response?.status;
-          const detail =
-            lastErr?.response?.data?.detail ||
-            lastErr?.response?.data?.message ||
-            lastErr?.message ||
-            "Network error";
-          throw new Error(status ? `HTTP ${status}: ${detail}` : `Network/CORS: ${detail}`);
+        let reportRes = null;
+        if (rpt1.status === "fulfilled") reportRes = rpt1.value;
+        else if (rpt2.status === "fulfilled") reportRes = rpt2.value;
+
+        if (!reportRes) {
+          const e1 = rpt1.status === "rejected" ? rpt1.reason?.message : "";
+          const e2 = rpt2.status === "rejected" ? rpt2.reason?.message : "";
+          throw new Error(`All report endpoints failed. ${e1 || ""} ${e2 || ""}`.trim());
         }
 
-        // 2) Compute date range for revenue-summary
-        // after: const { startISO, endISO } = resolveRange(filters);
-        const { startISO, endISO } = resolveRange(filters);
-
-        // ✅ build params for revenue-summary (include filters)
-        const revParams = {
-          start: startISO,
-          end: endISO,
-        };
-        if (filters.warehouse !== "all") revParams.warehouse_id = filters.warehouse;
-        if (filters.route !== "all") revParams.route_id = filters.route;
-
-        // (optional) quick debug in Django console
-        // revParams.debug = 1;
-
-        let rev = { gross_revenue: 0, discounts: 0, net_revenue: 0 };
-        try {
-          const revRes = await axios.get(`${API}/reports/revenue-summary/`, {
-            headers,
-            params: revParams,            // 👈 send the params
-            timeout: 15000,
-          });
-          rev = revRes.data || rev;
-          console.log("[SalesReport] revenue-summary params:", revParams);
-        } catch (e) {
-          console.warn("[SalesReport] revenue-summary failed:", e?.message);
-        }
-         // kath
-
-        // / --- Returns & Discrepancies ---
-        let retanddisc = {
-          expected_sale: 0,
-          actual_sale: 0,
-          difference: 0,
-          supplier_returnables_bottle: 0,
-          supplier_returnables_shell: 0,
-        };
-
-        try {
-          const retRes = await axios.get(`${API}/reports/returns-and-discrepancies/`, {
-            headers,
-            params: revParams, // ✅ use the same filters (start, end, warehouse_id, route_id)
-            timeout: 15000,
-          });
-
-          const data = retRes.data || {};
-          retanddisc = {
-            expected_sale: data.expected_sale ?? 0,
-            actual_sale: data.actual_sale ?? 0,
-            difference: data.difference ?? 0, // format sign in UI; no plus needed
-            // keep backward-compat if backend still returns a single "supplier_returnables"
-            supplier_returnables_bottle:
-              data.supplier_returnables_bottle ?? data.supplier_returnables ?? 0,
-            supplier_returnables_shell: data.supplier_returnables_shell ?? 0,
-          };
-
-          console.log("[SalesReport] returns-and-discrepancies params:", revParams);
-        } catch (e) {
-          console.warn("[SalesReport] returns-and-discrepancies failed:", e?.message);
-        }
-
-        // if (!ok) return;
-        // const r = res.data || {};
-        // setData({
-        //   summary: {
-        //     total_revenue: n(r?.summary?.total_revenue),
-        //     net_profit: n(r?.summary?.net_profit),
-        //     discounts: n(r?.summary?.discounts),
-        //     return_rate: n(r?.summary?.return_rate),
-        //   },
-        //   product_breakdown: Array.isArray(r?.products)
-        //     ? r.products.map((p) => ({
-        //         product: p.product_name ?? p.product ?? "—",
-        //         qty: n(p.qty_sold),
-        //         revenue: n(p.revenue),
-        //         profit: n(p.profit),
-        //         discount_rate: n(p.discount_rate),
-        //         return_rate: n(p.return_rate),
-        //       }))
-        //     : [],
-        //   sales_by_route: Array.isArray(r?.by_route)
-        //     ? r.by_route.map((x) => ({ name: x.route ?? x.name, revenue: n(x.revenue) }))
-        //     : [],
-        //   sales_by_warehouse: Array.isArray(r?.by_warehouse)
-        //     ? r.by_warehouse.map((x) => ({ name: x.warehouse ?? x.name, revenue: n(x.revenue) }))
-        //     : [],
-        //   returns_block: {
-        //     expected_sale: n(r?.returns?.expected_sale),
-        //     actual_sale: n(r?.returns?.actual_sale),
-        //     difference: n(r?.returns?.difference),
-        //     supplier_returnables: n(r?.returns?.supplier_returnables),
-        //   },
-        //   misc_expenses: Array.isArray(r?.misc_expenses)
-        //     ? r.misc_expenses.map((m) => ({
-        //         description: m.description ?? "—",
-        //         notes: m.notes ?? "",
-        //         amount: n(m.amount),
-        //         date: m.date ?? "",
-        //       }))
-        //     : [],
-        // });
-        const r = res.data || {};
+        const r = reportRes.data || {};
         setData({
           summary: {
-            // 👇 We show Net Revenue in "Total Revenue" tile to reflect actual earned after discounts.
-            // If you want Gross here instead, swap rev.net_revenue -> rev.gross_revenue.
-            total_revenue: n(rev?.net_revenue ?? r?.summary?.total_revenue),
-            net_profit: n(rev?.net_profit ?? r?.summary?.net_profit),
-            discounts: n(rev?.discounts ?? r?.summary?.discounts),
-            return_rate:   n(rev?.return_rate ?? r?.summary?.return_rate),
+            total_revenue: n(r?.summary?.total_revenue),
+            net_profit: n(r?.summary?.net_profit),
+            discounts: n(r?.summary?.discounts),
+            return_rate: n(r?.summary?.return_rate),
           },
-          product_breakdown: Array.isArray(r?.products)
-            ? r.products.map((p) => ({
-                product: p.product_name ?? p.product ?? "—",
-                qty: n(p.qty_sold),
-                revenue: n(p.revenue),
-                profit: n(p.profit),
-                discount_rate: n(p.discount_rate),
-                return_rate: n(p.return_rate),
-              }))
-            : [],
           sales_by_route: Array.isArray(r?.by_route)
             ? r.by_route.map((x) => ({ name: x.route ?? x.name, revenue: n(x.revenue) }))
             : [],
@@ -306,11 +118,10 @@ export default function SalesReport() {
             ? r.by_warehouse.map((x) => ({ name: x.warehouse ?? x.name, revenue: n(x.revenue) }))
             : [],
           returns_block: {
-            expected_sale: n(retanddisc?.expected_sale),
-            actual_sale: n(retanddisc?.actual_sale),
-            difference: n(retanddisc?.difference),
-            supplier_returnables_bottle: n(retanddisc?.supplier_returnables_bottle),
-            supplier_returnables_shell: n(retanddisc?.supplier_returnables_shell),
+            expected_sale: n(r?.returns?.expected_sale),
+            actual_sale: n(r?.returns?.actual_sale),
+            difference: n(r?.returns?.difference),
+            supplier_returnables: n(r?.returns?.supplier_returnables),
           },
           misc_expenses: Array.isArray(r?.misc_expenses)
             ? r.misc_expenses.map((m) => ({
@@ -318,60 +129,87 @@ export default function SalesReport() {
                 notes: m.notes ?? "",
                 amount: n(m.amount),
                 date: m.date ?? "",
+                receipt_url: m.receipt_url ?? null,
               }))
             : [],
-        }); //kath
+        });
       } catch (e) {
-        setErr(`Request failed: ${e.message}`);
+        setErr(`Request failed: ${e?.message || e}`);
+        // keep summary but clear lists to avoid stale visuals
         setData((d) => ({
           ...d,
-          product_breakdown: [],
           sales_by_route: [],
           sales_by_warehouse: [],
           misc_expenses: [],
         }));
       } finally {
-        ok && setLoading(false);
+        if (alive) setLoading(false);
       }
     })();
-    return () => (ok = false);
+
+    return () => {
+      alive = false;
+    };
   }, [filters]);
 
-  /* Derived rows */
-  const filteredRows = useMemo(() => {
-    const s = (q || "").toLowerCase().trim();
-    const rows = data.product_breakdown.filter((r) =>
-      s ? (r.product || "").toLowerCase().includes(s) : true
-    );
-    return [...rows].sort((a, b) => n(b[sortKey]) - n(a[sortKey]));
-  }, [q, data.product_breakdown, sortKey]);
-
-  const productHeaders = [
-    { key: "product", label: "Product" },
-    { key: "qty", label: "Qty Sold" },
-    { key: "revenue", label: "Revenue" },
-    { key: "profit", label: "Profit" },
-    { key: "discount_rate", label: "Discount %" },
-    { key: "return_rate", label: "Return Rate" },
-  ];
-
-  const exportCSV = () => {
-    const csv = toCSV(filteredRows, productHeaders);
-    saveFile("sales_report_products.csv", csv);
-  };
-  const exportExcel = () => {
-    const csv = toCSV(filteredRows, productHeaders);
-    saveFile("sales_report.xls", csv, "application/vnd.ms-excel");
-  };
   const exportPDF = () => window.print();
+
+  const allWarehouseNames = warehouses.map((w) => w?.name || w?.warehouse_name).filter(Boolean);
+  const chartWarehouses = filters.warehouse === "all" ? allWarehouseNames : [];
+
+  const selectedWarehouseName =
+    filters.warehouse === "all"
+      ? null
+      : warehouses.find((w) => String(w.id) === String(filters.warehouse))?.name ||
+        warehouses.find((w) => String(w.id) === String(filters.warehouse))?.warehouse_name ||
+        null;
+
+  // Single-line, plain-text renderer for Transaction Info (used in misc table)
+  /* function TxnInfo({ notes }) {
+    const raw = String(notes || "")
+      .split("•")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .filter((s) => s.toLowerCase() !== "receipt attached");
+
+    const seen = new Set();
+    const uniq = [];
+    for (const p of raw) {
+      const k = p.toLowerCase();
+      if (!seen.has(k)) {
+        seen.add(k);
+        uniq.push(p);
+      }
+    }
+
+    uniq.sort((a, b) => {
+      const aMSP = /^msp\s/i.test(a) ? 0 : 1;
+      const bMSP = /^msp\s/i.test(b) ? 0 : 1;
+      return aMSP - bMSP || a.localeCompare(b);
+    });
+
+    const text = (uniq.join(", ") || "—").trim();
+    return (
+      <div
+        className="w-full whitespace-nowrap overflow-hidden text-ellipsis text-left"
+        title={text}
+      >
+        {text}
+      </div>
+    );
+  } */
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6" ref={printRef}>
       {/* Header + filters */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <h1 className="text-xl font-semibold text-slate-800">Sales Report</h1>
-          <p className="text-xs text-slate-500">Data-driven deep dive • avoids duplication with Dashboard</p>
+          <h1 className="text-2xl flex items-center gap-2 font-bold">
+            <FaChartBar /> Sales Report
+          </h1>
+          <p className="text-xs text-slate-500">
+            Data-driven deep dive • avoids duplication with Dashboard
+          </p>
         </div>
 
         <div className="flex items-center gap-2 print:hidden">
@@ -431,9 +269,6 @@ export default function SalesReport() {
           <button onClick={exportPDF} className="btn btn-primary text-sm px-3 py-2">
             Export PDF
           </button>
-          <button onClick={exportExcel} className="btn btn-back text-sm px-3 py-2">
-            Export Excel
-          </button>
         </div>
       </div>
 
@@ -443,50 +278,76 @@ export default function SalesReport() {
         </div>
       )}
 
-      {/* Metrics */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-        <Metric label="Total Revenue" value={peso(data.summary.total_revenue)} />
-        <Metric label="Net Profit" value={peso(data.summary.net_profit)} />
-        <Metric label="Discounts" value={peso(data.summary.discounts)} />
-        <Metric label="Return Rate" value={pct(data.summary.return_rate)} />
+      {/* Top metrics */}
+      <div className="grid gap-4 mb-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+        <div className="p-4 border rounded bg-white">
+          <p className="text-sm text-gray-500">Gross Revenue</p>
+          <h3 className="text-xl font-bold">
+            {peso((data.summary.total_revenue ?? 0) + (data.summary.discounts ?? 0))}
+          </h3>
+        </div>
+        <div className="p-4 border rounded bg-white">
+          <p className="text-sm text-gray-500">Net Revenue</p>
+          <h3 className="text-xl font-bold">{peso(data.summary.total_revenue ?? 0)}</h3>
+        </div>
+        <div className="p-4 border rounded bg-white">
+          <p className="text-sm text-gray-500">Net Profit</p>
+          <h3 className="text-xl font-bold">{peso(data.summary.net_profit ?? 0)}</h3>
+        </div>
+        <div className="p-4 border rounded bg-white">
+          <p className="text-sm text-gray-500">Discounts</p>
+          <h3 className="text-xl font-bold">{peso(data.summary.discounts ?? 0)}</h3>
+        </div>
+        <div className="p-4 border rounded bg-white">
+          <p className="text-sm text-gray-500">Return Rate</p>
+          <h3 className="text-xl font-bold">{pct(data.summary.return_rate ?? 0)}</h3>
+        </div>
       </div>
 
       {/* Product + charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <Card title="Product Breakdown" className="lg:col-span-1">
-          <ProductBreakdownTable
-            loading={loading}
-            rows={filteredRows}
-            query={q}
-            sortKey={sortKey}
-            onQuery={setQ}
-            onSort={setSortKey}
-            onExportCSV={exportCSV}
+          {/* show units sold (from ProductBreakdownContainer callback) */}
+          <div className="text-sm text-slate-500 mb-2">Units sold: <strong>{n(unitsSold)}</strong></div>
+
+          <ProductBreakdownContainer
+            key={`${filters.warehouse}-${filters.route}-${filters.period}-${filters.start}-${filters.end}`}
+            apiBase={API.replace("/api", "")}
+            warehouseId={filters.warehouse ?? "all"}
+            routeId={filters.route ?? "all"}
+            period={filters.period}
+            start={filters.start}
+            end={filters.end}
+            onTotalsChange={(t) => setUnitsSold(t.units)}
           />
         </Card>
 
         <div className="grid grid-rows-2 gap-4">
           <Card title="Sales by Route">
-            <SalesByRoutePie data={data.sales_by_route} />
+            {loading ? <Empty text="Loading…" /> : <SalesByRoutePie data={data.sales_by_route} />}
           </Card>
           <Card title="Sales by Warehouse">
-            <SalesByWarehouseBar data={data.sales_by_warehouse} />
+            {loading ? (
+              <Empty text="Loading…" />
+            ) : (
+              <SalesByWarehouseBar
+                data={data.sales_by_warehouse}
+                warehouses={chartWarehouses}
+                focus={selectedWarehouseName}
+              />
+            )}
           </Card>
         </div>
       </div>
 
-      {/* Bottom */}
+      {/* Bottom blocks */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Returns & Discrepancies">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {/* <Metric label="Expected Sales" value={peso(data.returns_block.expected_sale)} /> */}
+            <Metric label="Expected Sales" value={peso(data.returns_block.expected_sale)} />
             <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
-            {/* <Metric
-                label="Difference"
-                value={peso(data.returns_block.difference)}
-              /> */}
-            <Metric label="Supplier Returnables (Bottle)" value={(data.returns_block.supplier_returnables_bottle)} />
-            <Metric label="Supplier Returnables (Shell)" value={(data.returns_block.supplier_returnables_shell)} />
+            <Metric label="Difference" value={peso(data.returns_block.difference)} />
+            <Metric label="Supplier Returnables" value={peso(data.returns_block.supplier_returnables)} />
           </div>
           <div className="mt-3">
             <button className="btn btn-back text-xs px-3 py-2">View items</button>
@@ -495,13 +356,19 @@ export default function SalesReport() {
 
         <Card title="Miscellaneous & Expenses">
           <div className="overflow-auto rounded-lg border border-slate-200">
-            <table className="min-w-full text-sm">
+            <table className="min-w-full text-sm table-fixed">
+              <colgroup>
+                <col className="w-[25%]" />
+                <col className="w-[30%]" />
+                <col className="w-[20%]" />
+                <col className="w-[25%]" />
+              </colgroup>
               <thead className="bg-slate-50 text-slate-600">
                 <tr>
-                  <th className="text-left font-semibold px-3 py-2 border-b">Description</th>
-                  <th className="text-left font-semibold px-3 py-2 border-b">Notes</th>
-                  <th className="text-left font-semibold px-3 py-2 border-b">Amount</th>
-                  <th className="text-left font-semibold px-3 py-2 border-b">Date</th>
+                  <th className="text-center font-semibold px-3 py-2 border-b">Description</th>
+                  <th className="text-center font-semibold px-3 py-2 border-b">Transaction Info</th>
+                  <th className="text-center font-semibold px-3 py-2 border-b">Amount</th>
+                  <th className="text-center font-semibold px-3 py-2 border-b">Date</th>
                 </tr>
               </thead>
               <tbody>
@@ -520,10 +387,10 @@ export default function SalesReport() {
                 ) : (
                   data.misc_expenses.map((m, i) => (
                     <tr key={i} className="odd:bg-white even:bg-slate-50/50">
-                      <td className="px-3 py-2 border-b">{m.description}</td>
-                      <td className="px-3 py-2 border-b">{m.notes}</td>
-                      <td className="px-3 py-2 border-b">{peso(m.amount)}</td>
-                      <td className="px-3 py-2 border-b">{m.date}</td>
+                      <td className="text-center px-3 py-2 border-b">{m.description}</td>
+                      <td className="text-center px-3 py-2 border-b">{m.notes}</td>
+                      <td className="text-center px-3 py-2 border-b whitespace-nowrap">{peso(m.amount)}</td>
+                      <td className="text-center px-3 py-2 border-b whitespace-nowrap">{m.date}</td>
                     </tr>
                   ))
                 )}

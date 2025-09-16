@@ -4,11 +4,17 @@ import { useNavigate } from "react-router-dom";
 import { downloadInvoicePDF } from "./PDFInvoice"; // ⬅️ new import
 // In src/components/InvoiceModal.jsx (same folder as receiptPrint.jsx)
 import { printReceipt } from "./receiptPrint.jsx"; // Make sure the file name is exactly 'receiptPrint.jsx'
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css"
 
 
 
 const InvoiceModal = ({ onClose, invoiceData = {} }) => {
   const navigate = useNavigate();
+  const saleId = invoiceData?.id;                      // id of Merchandising record
+
+  // small helper using your showCustomAlert (you already have this function)
+  const showAlert = (msg) => showCustomAlert ? showCustomAlert(msg) : alert(msg);
 
   // Get warehouse info from localStorage as fallback if not in props
   const getCurrentWarehouse = () => {
@@ -116,7 +122,7 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
     return `INV-${year}${month}${day}-${time}`;
   };
 
-  const invoiceNumber = generateInvoiceNumber();
+const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoiceNumber());
 
   // ---------- helpers ----------
   const n = (v) => Number(v || 0);
@@ -349,11 +355,66 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
       hour12: true,
     }).format(d);
   };
+const handleClose = async () => {
+    try {
+      // if there's no saleId we can't update existing merchandising row
+      if (!saleId) {
+        showAlert("Cannot save invoice: missing sale id.");
+        return;
+      }
 
-  const handleClose = () => {
-    onClose?.();
-    navigate("/trading", { replace: true, state: { reset: true } });
+      if (!invoiceNumber) {
+        showAlert("Cannot save invoice: invoice number is empty.");
+        return;
+      }
+
+      // Build fetch options. If you use token auth, include Authorization header:
+      const token = localStorage.getItem("authToken"); // adapt if you store it elsewhere
+      const headers = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Token ${token}` } : {})
+      };
+
+      const res = await fetch(
+        `http://localhost:8080/api/merchandising/${saleId}/set_invoice_no/`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ invoice_no: invoiceNumber }),
+        }
+      );
+
+      const responseBody = await res.json().catch(() => ({}));
+      if (!res.ok) {
+
+        console.log("📤 Sending request:", {
+          url: `http://localhost:8080/api/merchandising/${saleId}/set_invoice_no/`,
+          invoice_no: invoiceNumber
+        });
+
+        console.error("Save invoice failed:", res.status, responseBody);
+        showAlert(
+          responseBody?.detail ||
+            (responseBody && JSON.stringify(responseBody)) ||
+            "Failed to save invoice number. See console."
+        );
+        return; // keep modal open so user can retry
+      }
+
+      // success
+      console.log("Invoice saved:", responseBody);
+      showAlert(`Invoice ${responseBody.invoice_no || invoiceNumber} saved.`);
+    } catch (err) {
+      console.error("Error saving invoice:", err);
+      showAlert("Network error while saving invoice. Check console.");
+      return; // keep modal open
+    } finally {
+      // only close & navigate after success (we returned earlier on failure)
+      onClose?.();
+      navigate("/trading", { replace: true, state: { reset: true } });
+    }
   };
+
 
   // ✅ Navigate to fresh sale
   // const handleNewSale = () => {
@@ -481,116 +542,24 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
     printReceipt(payload, { width: "58mm" });   // or { width: "80mm", cols: 48 }
   };
 
+  // const handleSaveInvoice = async () => {
+  //   const invoiceData = {
+  //     invoice_no: invoiceNumber,
+  //     customer_name: customerName,
+  //     total_amount: totalAmount,
+  //     status: "Pending"
+  //   };
 
-  // const generatePrintHTML = () => {
-  //   return `
-  //     <!DOCTYPE html>
-  //     <html>
-  //     <head>
-  //       <title>Invoice ${invoiceNumber}</title>
-  //       <style>
-  //         body { font-family: Arial, sans-serif; margin: 20px; color: black; }
-  //         .header { background-color: #3b82f6; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; position: relative; }
-  //         .header h1 { margin: 0; font-size: 24px; }
-  //         .header p { margin: 5px 0; }
-  //         .status-badge { position: absolute; top: 20px; right: 20px; padding: 8px 12px; border-radius: 4px; font-size: 12px; font-weight: bold; }
-  //         .section { margin-bottom: 20px; }
-  //         .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-  //         .info-box { background-color: #f3f4f6; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6; }
-  //         .customer-box { border-left-color: #059669; }
-  //         table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-  //         th, td { border: 1px solid #d1d5db; padding: 8px; text-align: left; font-size: 10px; }
-  //         th { background-color: #f3f4f6; font-weight: bold; }
-  //         .totals { background-color: #f9fafb; padding: 15px; border-radius: 8px; }
-  //         .total-amount { font-size: 18px; font-weight: bold; color: #059669; }
-  //         @media print { body { margin: 0; } .no-print { display: none; } }
-  //       </style>
-  //     </head>
-  //     <body>
-
-      
-  //       <div class="header">
-  //         <h1>INVOICE</h1>
-  //         <p>Invoice No: ${invoiceNumber}</p>
-  //         <span class="status-badge" style="background: ${
-  //           paymentMethod === "credit" ? "#eab308" : "#10b981"
-  //         };">${paymentMethod === "credit" ? "CREDIT" : "PAID"}</span>
-  //       </div>
-
-  //       <div class="grid">
-  //         <div class="info-box">
-  //           <h3 style="color: #3b82f6; margin-top: 0;">From (Source Warehouse):</h3>
-  //           <h2 style="color: #1e40af; margin: 10px 0;">${getWarehouseName()}</h2>
-  //           ${getWarehouseFullAddress() ? `<p>📍 ${getWarehouseFullAddress()}</p>` : ""}
-  //           ${getWarehousePhone() ? `<p>📞 ${getWarehousePhone()}</p>` : ""}
-  //           ${getWarehouseEmail() ? `<p>✉️ ${getWarehouseEmail()}</p>` : ""}
-  //         </div>
-  //         <div class="info-box customer-box">
-  //           <h3 style="color: #059669; margin-top: 0;">To (Customer):</h3>
-  //           <h2 style="color: #047857; margin: 10px 0;">${customerName || "Walk-in"}</h2>
-  //           ${customerAddress ? `<p>📍 ${customerAddress}</p>` : ""}
-  //           ${customerPhone ? `<p>📞 ${customerPhone}</p>` : ""}
-  //         </div>
-  //       </div>
-
-  //       <div class="section">
-  //         <p><strong>Invoice No:</strong> ${invoiceNumber} | <strong>Date:</strong> ${
-  //     formatLocalToManila(transactionDate) || "--"
-  //   } | <strong>Handled By:</strong> ${handledBy || "--"}</p>
-  //         ${
-  //           mspNo
-  //             ? `<p style="background: #fef3c7; padding: 10px; border-left: 4px solid #f59e0b; border-radius: 4px;"><strong>MSP Reference No:</strong> ${mspNo}</p>`
-  //             : ""
-  //         }
-  //       </div>
-
-  //       <div class="section">
-  //         <h3>SOLD PRODUCTS</h3>
-  //         <table>
-  //           <thead>
-  //             <tr>
-  //               <th>Product</th>
-  //               <th>Dispatched</th>
-  //               <th>Sold</th>
-  //               <th>Unit Price</th>
-  //               <th>Discount (%)</th>
-  //               <th>Amount</th>
-  //             </tr>
-  //           </thead>
-  //           <tbody>
-  //             ${tableRows
-  //               .map(
-  //                 (row) => `
-  //               <tr>
-  //                 <td>${getProdName(row)}</td>
-  //                 <td>${getDispatchedShell(row)} shells (${getDispatchedPcs(row)} pcs)</td>
-  //                 <td>${getSoldShell(row)} shells (${getSoldPcs(row)} pcs)</td>
-  //                 <td>₱${fmt(getUnitPrice(row))}</td>
-  //                 <td>${fmt(getDiscountPercent(row))}</td>
-  //                 <td>₱${fmt(getRowActual(row))}</td>
-  //               </tr>`
-  //               )
-  //               .join("")}
-  //           </tbody>
-  //         </table>
-  //         <p style="text-align: right; font-weight: bold;">SUBTOTAL: ₱${fmt(actualSales)}</p>
-  //       </div>
-
-  //       <div class="totals">
-  //         <div><strong>Actual Sales:</strong> ₱${fmt(actualSales)}</div>
-  //         <div>- Empties Price Total: ₱${fmt(emptiesPriceTotal)}</div>
-  //         <div>- Empty Returns: ₱-${fmt(emptyReturns)}</div>
-  //         <div>- Empty Discrepancies: ₱${fmt(emptyDiscrepancies)}</div>
-  //         ${isVanLoad ? `<div>- Expenses: ₱${fmt(expensesTotal)}</div>` : ""}
-  //         <div class="total-amount">Total Amount Due: ₱${fmt(totalAmount)}</div>
-  //         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px;">
-  //           <div><strong>Cash Received:</strong> ₱${fmt(cashReceived)}</div>
-  //           <div><strong>Change:</strong> ₱${fmt(change)}</div>
-  //         </div>
-  //       </div>
-  //     </body>
-  //     </html>
-  //   `;
+  //   try {
+  //     await fetch("http://localhost:8080/api/invoices/", {
+  //       method: "POST",
+  //       headers: { "Content-Type": "application/json" },
+  //       body: JSON.stringify(invoiceData),
+  //     });
+  //     alert("Invoice saved!");
+  //   } catch (err) {
+  //     console.error("Error saving invoice:", err);
+  //   }
   // };
 
   const showCustomAlert = (message) => {
@@ -662,55 +631,11 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
           </div>
         </div>
 
-        {/* Header */}
-        {/* <div className="bg-blue-500 text-white p-4 rounded-md flex justify-between items-center relative">
-          <div>
-            <h2 className="text-lg font-bold">INVOICE</h2>
-            <p className="text-sm">Invoice No: {invoiceNumber}</p>
-          </div>
-          <span
-            className={`text-xs font-bold px-3 py-1 rounded absolute top-4 right-4 ${
-              paymentMethod === "credit" ? "bg-yellow-500" : "bg-green-500"
-            }`}
-          >
-            {paymentMethod === "credit" ? "CREDIT" : "PAID"}
-          </span>
-        </div> */}
 
         {/* From / To / Meta */}
         <div className="mt-4 text-sm">
           <div className="grid grid-cols-2 gap-6">
-            {/* <div>
-              <h4 className="font-semibold text-gray-600 mb-2">From (Source Warehouse):</h4>
-              <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
-                <p className="font-bold text-xl text-blue-700 mb-1">{getWarehouseName()}</p>
-                {getWarehouseFullAddress() && (
-                  <p className="text-gray-600 mb-1">📍 {getWarehouseFullAddress()}</p>
-                )}
-                {getWarehousePhone() && (
-                  <p className="text-gray-600 mb-1">📞 {getWarehousePhone()}</p>
-                )}
-                {getWarehouseEmail() && (
-                  <p className="text-gray-600">✉️ {getWarehouseEmail()}</p>
-                )}
-                {getWarehouseName() === "Warehouse" &&
-                  !getWarehouseFullAddress() &&
-                  !getWarehousePhone() && (
-                    <p className="text-gray-500 italic">Warehouse details not available</p>
-                  )}
-              </div>
-            </div> */}
-            {/* <div>
-              <h4 className="font-semibold text-gray-600 mb-2">To (Customer):</h4>
-              <div className="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
-                <p className="font-bold text-xl text-green-700 mb-1">{customerName || "Walk-in"}</p>
-                {customerAddress && <p className="text-gray-600 mb-1">📍 {customerAddress}</p>}
-                {customerPhone && <p className="text-gray-600">📞 {customerPhone}</p>}
-                {!customerAddress && !customerPhone && (
-                  <p className="text-gray-500 italic"></p>
-                )}
-              </div>
-            </div> */}
+  
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-6 p-4 bg-gray-50 rounded-lg">

@@ -49,7 +49,8 @@ from .views import SupplierReturnFormDetailView
 from .views import ProcessEmptiesReturnView
 
 
-from .views_reports import RevenueSummaryView, SalesAndReturnables, SalesReportAPIView
+#from .views_reports import RevenueSummaryView, SalesAndReturnables, SalesReportAPIView
+from .views_reports import SalesReportAPIView, ProductBreakdownReport
 
 
 urlpatterns = [
@@ -170,8 +171,10 @@ urlpatterns = [
     #Sales Report API
     path("reports/sales/", SalesReportAPIView.as_view(), name="reports-sales"),
     path("sales_report/", SalesReportAPIView.as_view(), name="sales-report-legacy"),
-    path("reports/revenue-summary/", RevenueSummaryView.as_view(), name="revenue-summary"), #kath
-    path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
+    #path("reports/revenue-summary/", RevenueSummaryView.as_view(), name="revenue-summary"), #kath
+    path("reports/product_breakdown/", ProductBreakdownReport.as_view()),
+    #path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
+
 
 ]
 
