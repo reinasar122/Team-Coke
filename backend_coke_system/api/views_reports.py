@@ -6,13 +6,16 @@ from decimal import Decimal
 
 from django.db.models import (
     Sum, F, Q, Value, ExpressionWrapper,
-    DecimalField, IntegerField, OuterRef, Subquery
+    DecimalField, IntegerField, OuterRef, Subquery, Case, When
 )
+from django.db.models.functions import Cast
+
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from django.core.exceptions import FieldError
 
 from .models import (
     Merchandising,
@@ -80,6 +83,7 @@ class SalesReportAPIView(APIView):
 
         sales_hdr = Merchandising.objects.filter(hdr_q)
 
+      
         # ------------------------------------
         # Product breakdown (list ALL products)
         # ------------------------------------
@@ -189,10 +193,153 @@ class SalesReportAPIView(APIView):
             total_qty += qty_sold
             total_return_qty += returned_qty
 
-        overall_return_rate = float(
-            (Decimal(total_return_qty) / Decimal(total_qty + total_return_qty))
-            if (total_qty + total_return_qty) else Decimal("0")
+        # ---------- Return Rate (macro-average per product) ----------
+        items_base_q = Q(
+            merchandising__date_time__gte=start_dt,
+            merchandising__date_time__lt=end_dt,
         )
+
+        base_qs = MerchandisingItem.objects.filter(items_base_q)
+
+        if warehouse_id and warehouse_id != "all":
+            items_base_q &= Q(merchandising__warehouse_id=warehouse_id)
+        if route_id and route_id != "all":
+            items_base_q &= Q(merchandising__route_id=route_id)
+        
+        DEC_RATE = DecimalField(max_digits=10, decimal_places=4)
+        ZRATE = Decimal("0.0")
+
+        shell_qs = base_qs.filter(dispatched_shell__gt=0)
+        shell_avg = shell_qs.aggregate(
+            avg=Coalesce(
+                Avg(
+                    ExpressionWrapper(
+                        Cast(F("empty_return_shell"), DEC_RATE) / Cast(F("dispatched_shell"), DEC_RATE),
+                        output_field=DEC_RATE,
+                    )
+                ),
+                ZRATE,
+            )
+        )["avg"] or Decimal("0.0")
+
+        pcs_qs = base_qs.filter(dispatched_pcs__gt=0)
+        pcs_avg = pcs_qs.aggregate(
+            avg=Coalesce(
+                Avg(
+                    ExpressionWrapper(
+                        Cast(F("empty_return_pcs"), DEC_RATE) / Cast(F("dispatched_pcs"), DEC_RATE),
+                        output_field=DEC_RATE,
+                    )
+                ),
+                ZRATE,
+            )
+        )["avg"] or Decimal("0.0")
+
+# Optional combined average
+combined_avg = (shell_avg + pcs_avg) / Decimal("2") if (shell_qs.exists() and pcs_qs.exists()) else shell_avg
+
+# Use shell macro-average as returned_rate
+returned_rate = float(shell_avg)
+
+        # -------------------------------
+        # Header-level discounts (transaction)
+        # -------------------------------
+        statuses = [s.strip() for s in request.GET.getlist("status") if s.strip()]
+        use_status_filter = True
+        if statuses:
+            if statuses[0].lower() in {"any", "all"}:
+                use_status_filter = False
+        else:
+            statuses = ["Complete"]
+
+        # ---------- extra filters ----------
+        wid = (request.GET.get("warehouse_id") or "").strip()
+        rid = (request.GET.get("route_id") or "").strip()
+
+        m_fields = {f.name for f in Merchandising._meta.get_fields()}
+
+        hdr_qs = Merchandising.objects.filter(
+            date_time__gte=start_dt,
+            date_time__lt=end_dt,
+        )
+
+        if wid and wid.lower() != "all":
+            if "warehouse" in m_fields:
+                hdr_qs = hdr_qs.filter(warehouse_id=wid)
+            elif "van" in m_fields:
+                hdr_qs = hdr_qs.filter(van__warehouse_id=wid)
+
+        if rid and rid.lower() != "all":
+            if "route" in m_fields:
+                hdr_qs = hdr_qs.filter(route_id=rid)
+
+        discount_data = MerchandisingItem.objects.filter(
+            merchandising__in=hdr_qs
+        ).annotate(
+            line_gross=F("sold_pcs") * Coalesce(F("selling_price"), Value(0, output_field=DecimalField())),
+            pct_discount=Coalesce(F("discount_percent"), Value(0, output_field=DecimalField()))
+        ).aggregate(
+            total_gross=Coalesce(Sum("line_gross"), Value(0, output_field=DecimalField())),
+            weighted_discount=Coalesce(
+                Sum(F("line_gross") * F("pct_discount"), output_field=DecimalField()),
+                Value(0, output_field=DecimalField())
+            ),
+        )
+
+        if discount_data["total_gross"] > 0:
+            avg_discount_percent = discount_data["weighted_discount"] / discount_data["total_gross"]
+        else:
+            avg_discount_percent = 0
+
+        discount_summary = {
+            "total": float(avg_discount_percent / 100),  # as fraction, e.g., 0.10 for 10%
+            "field": "discount_percent",
+        }
+
+        # ------------------------------------
+        # Revenue summary (from RevenueSummaryView logic)
+        # ------------------------------------
+        qs = (
+            MerchandisingItem.objects
+            .filter(items_base_q)
+            .annotate(
+                price=Cast(Coalesce(F("selling_price"), Value(0.0)), DECIMAL),
+                sold=Cast(Coalesce(F("sold_pcs"), Value(0)), DECIMAL),
+                line_gross=ExpressionWrapper(F("sold") * F("price"), output_field=DECIMAL),
+
+                pct_raw=Coalesce(Cast(F("discount_percent"), DECIMAL), DEC0),
+                pct_norm=Case(
+                    When(pct_raw__gt=Value(1, output_field=DECIMAL),
+                        then=ExpressionWrapper(F("pct_raw") / Value(100, output_field=DECIMAL),
+                                                output_field=DECIMAL)),
+                    default=F("pct_raw"),
+                    output_field=DECIMAL,
+                ),
+
+                line_net_calc=ExpressionWrapper(F("line_gross") * (Value(1, output_field=DECIMAL) - F("pct_norm")),
+                                                output_field=DECIMAL),
+                line_net_safe=Coalesce(F("actual_sale"), F("line_net_calc")),
+
+                unit_cost=Cast(Coalesce(F("product__price__purchase_price"), Value(0.0)), DECIMAL),
+                line_cogs=ExpressionWrapper(F("sold") * F("unit_cost"), output_field=DECIMAL),
+            )
+        )
+
+        sums = qs.aggregate(
+            gross=Coalesce(Sum("line_gross"), DEC0),
+            net_from_lines=Coalesce(Sum("line_net_safe"), DEC0),
+            cogs=Coalesce(Sum("line_cogs"), DEC0),
+        )
+
+        
+
+        revenue_summary = {
+            "gross_revenue": float(sums["gross"]),
+            "net_revenue": float(sums["net_from_lines"]),
+            "cogs": float(sums["cogs"]),
+            "net_profit": float(sums["net_from_lines"] - sums["cogs"]),
+        }
+
 
         # ------------------------------------
         # Sales by Route / Warehouse (from items filtered by headers)
@@ -311,30 +458,31 @@ class SalesReportAPIView(APIView):
             })
 
 
-            # ------------------------------------
-            # Summary  ✅ unchanged logic, but uses misc_total from above
-            # ------------------------------------
-            net_profit = total_revenue - misc_total
+        #     # ------------------------------------
+        #     # Summary  ✅ unchanged logic, but uses misc_total from above
+        #     # ------------------------------------
+        #     net_profit = total_revenue - misc_total
 
-            summary = {
-                "total_revenue": float(total_revenue),
-                "net_profit": float(net_profit),
-                "discounts": float(total_discount),
-                "return_rate": overall_return_rate,
-            }
+        #     summary = {
+        #         "total_revenue": float(total_revenue),
+        #         "net_profit": float(net_profit),
+        #         "discounts": float(total_discount),
+        #         "return_rate": overall_return_rate,
+        #     }
 
 
-        # ------------------------------------
-        # Summary (unchanged for now)
-        # ------------------------------------
-        net_profit = total_revenue - misc_total
+        # # ------------------------------------
+        # # Summary (unchanged for now)
+        # # ------------------------------------
+        # net_profit = total_revenue - misc_total
 
         summary = {
-            "total_revenue": float(total_revenue),
-            "net_profit": float(net_profit),
-            "discounts": float(total_discount),
-            "return_rate": overall_return_rate,
+            "revenue": revenue_summary,
+            "discount": discount_summary,
         }
+
+
+
 
         payload = {
             "summary": summary,
@@ -349,6 +497,7 @@ class SalesReportAPIView(APIView):
             },
             "misc_expenses": misc_expenses_list,
         }
+
 
         # -----------------------------
         # Debug output if ?debug=1

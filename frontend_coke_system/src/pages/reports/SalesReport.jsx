@@ -30,7 +30,7 @@ export default function SalesReport() {
   const [err, setErr] = useState("");
 
   const [data, setData] = useState({
-    summary: { total_revenue: 0, net_profit: 0, discounts: 0, return_rate: 0 },
+    summary: { gross_revenue: 0, net_profit: 0, discounts: 0, return_rate: 0 },
     sales_by_route: [],
     sales_by_warehouse: [],
     returns_block: { expected_sale: 0, actual_sale: 0, difference: 0, supplier_returnables: 0 },
@@ -106,11 +106,12 @@ export default function SalesReport() {
         const r = reportRes.data || {};
         setData({
           summary: {
-            total_revenue: n(r?.summary?.total_revenue),
-            net_profit: n(r?.summary?.net_profit),
-            discounts: n(r?.summary?.discounts),
-            return_rate: n(r?.summary?.return_rate),
-          },
+              gross_revenue: n(r?.summary?.revenue?.gross_revenue),
+              net_revenue: n(r?.summary?.revenue?.net_revenue),
+              net_profit: n(r?.summary?.revenue?.net_profit),
+              discounts: n(r?.summary?.discount?.total), // pick total discount
+              return_rate: n(r?.summary?.return_rate),
+            },
           sales_by_route: Array.isArray(r?.by_route)
             ? r.by_route.map((x) => ({ name: x.route ?? x.name, revenue: n(x.revenue) }))
             : [],
@@ -283,12 +284,12 @@ export default function SalesReport() {
         <div className="p-4 border rounded bg-white">
           <p className="text-sm text-gray-500">Gross Revenue</p>
           <h3 className="text-xl font-bold">
-            {peso((data.summary.total_revenue ?? 0) + (data.summary.discounts ?? 0))}
+            {peso((data.summary.gross_revenue ?? 0) + (data.summary.discounts ?? 0))}
           </h3>
         </div>
         <div className="p-4 border rounded bg-white">
           <p className="text-sm text-gray-500">Net Revenue</p>
-          <h3 className="text-xl font-bold">{peso(data.summary.total_revenue ?? 0)}</h3>
+          <h3 className="text-xl font-bold">{peso(data.summary.net_revenue ?? 0)}</h3>
         </div>
         <div className="p-4 border rounded bg-white">
           <p className="text-sm text-gray-500">Net Profit</p>
@@ -296,7 +297,9 @@ export default function SalesReport() {
         </div>
         <div className="p-4 border rounded bg-white">
           <p className="text-sm text-gray-500">Discounts</p>
-          <h3 className="text-xl font-bold">{peso(data.summary.discounts ?? 0)}</h3>
+          <h3 className="text-xl font-bold">
+            {((data.summary.discounts ?? 0) * 100).toFixed(2)}%
+          </h3>
         </div>
         <div className="p-4 border rounded bg-white">
           <p className="text-sm text-gray-500">Return Rate</p>
