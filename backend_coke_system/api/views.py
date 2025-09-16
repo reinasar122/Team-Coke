@@ -1108,16 +1108,39 @@ class LoginAPIView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_decode
+from .models import User
+
 class ChangePasswordAPIView(APIView):
     def post(self, request):
-        print("Request Data:", request.data)  # ✅ Add this
+        uidb64 = request.data.get("uid")
+        token = request.data.get("token")
+        new_password = request.data.get("new_password")
 
-        serializer = ChangePasswordSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response({'message': 'Password updated successfully'}, status=status.HTTP_200_OK)
-        print("Serializer errors:", serializer.errors)  # ✅ Add this
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        if not uidb64 or not token or not new_password:
+            return Response({"error": "Missing data"}, status=400)
+
+        try:
+            uid = urlsafe_base64_decode(uidb64).decode()
+            user = User.objects.get(pk=int(uid))  # ensure integer
+        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            return Response({"error": "Invalid UID"}, status=400)
+
+        # Check token validity
+        if not default_token_generator.check_token(user, token):
+            return Response({"error": "Invalid or expired token"}, status=400)
+
+        # Set new password
+        user.set_password(new_password)
+        user.must_change_password = False
+        user.save()
+
+        return Response({"success": "Password changed successfully"})
+
+
 
 class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
     serializer_class = SupplierReturnFormSerializer

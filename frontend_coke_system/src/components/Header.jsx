@@ -143,11 +143,9 @@ const Header = ({ toggleSidebar }) => {
         </div>
 
         {/* Right - Profile Dropdown */}
-        <div className="relative">
-          <Link to="/user-profile" className="focus:outline-none">
-            <FontAwesomeIcon icon={faUser} className="cursor-pointer" />
-          </Link>
-        </div>
+        <Link to="/profile" className="focus:outline-none">
+          <FontAwesomeIcon icon={faUser} className="cursor-pointer" />
+        </Link>
       </header>
 
       {/* Warehouse Selection Modal (Only for Admin) */}

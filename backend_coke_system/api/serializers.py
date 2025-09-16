@@ -15,6 +15,14 @@ from django.db.models import F
 from rest_framework import serializers
 from .models import CreditLedger, CreditPayment
 from decimal import Decimal
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.core.mail import send_mail
+from django.urls import reverse  # If you want to generate relative URL
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_decode
+from .models import User
 
 
 
@@ -118,6 +126,12 @@ class CreditPaymentCreateSerializer(serializers.ModelSerializer):
 
 
 
+class RoleSerializer(serializers.ModelSerializer):
+    """Serializer for Role model"""
+    class Meta:
+        model = Role
+        fields = '__all__'
+
 class RoleAccessibilitySerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
 
@@ -125,23 +139,13 @@ class RoleAccessibilitySerializer(serializers.ModelSerializer):
         model = RoleAccessibility
         fields = '__all__'
 
-class RoleSerializer(serializers.ModelSerializer):
-    """Serializer for Role model"""
-    class Meta:
-        model = Role
-        fields = '__all__'
 
 
 class UserSerializer(serializers.ModelSerializer):
     role_name = serializers.CharField(source='role.name', read_only=True)
     warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
-
-    role_id = serializers.PrimaryKeyRelatedField(
-        queryset=Role.objects.all(), source='role', write_only=True
-    )
-    warehouse_id = serializers.PrimaryKeyRelatedField(
-        queryset=Warehouse.objects.all(), source='warehouse', write_only=True
-    )
+    role_id = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(), source='role', write_only=True)
+    warehouse_id = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all(), source='warehouse', write_only=True)
 
     class Meta:
         model = User
@@ -154,33 +158,18 @@ class UserSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         password = validated_data.pop('password', None)
-        if password:
-            validated_data['password'] = make_password(password)
-
         user = super().create(validated_data)
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
 
-        # ✅ Send email with username and password
-        from django.core.mail import send_mail
+        reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
         send_mail(
-            subject='Your Account Credentials',
-            message=f"""
-Hello {user.first_name},
-
-Your account has been created.
-
-Username: {user.username}
-Password: {self.initial_data.get('password')}F
-
-Please log in and change your password as soon as possible.
-
-Best regards,
-Admin Team
-""",
-            from_email='your_email@gmail.com',  # Replace with your Gmail
+            subject='Set Your Account Password',
+            message=f"Hello {user.first_name},\n\nPlease set your password: {reset_link}",
+            from_email='your_email@gmail.com',
             recipient_list=[user.email],
             fail_silently=False,
         )
-
         return user
 
     def update(self, instance, validated_data):
@@ -197,7 +186,6 @@ Admin Team
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
-
         instance.save()
         return instance
 
@@ -489,20 +477,6 @@ class StockSerializer(serializers.ModelSerializer):
         return obj.stock_status()
 
 
-
-
-
-class RoleSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Role
-        fields = '__all__'
-
-class RoleAccessibilitySerializer(serializers.ModelSerializer):
-    role_name = serializers.CharField(source='role.name', read_only=True)
-
-    class Meta:
-        model = RoleAccessibility
-        fields = '__all__'
 
 class RouteSerializer(serializers.ModelSerializer):
     class Meta:
@@ -926,7 +900,8 @@ class LoginSerializer(serializers.Serializer):
         }
 
 class ChangePasswordSerializer(serializers.Serializer):
-    user_id = serializers.IntegerField()
+    uid = serializers.CharField()
+    token = serializers.CharField()
     new_password = serializers.CharField(write_only=True, min_length=8)
 
     def validate_new_password(self, value):
@@ -938,8 +913,26 @@ class ChangePasswordSerializer(serializers.Serializer):
                 "Password must include at least 1 uppercase letter, 1 lowercase letter, 1 number, and 1 special character."
             )
         return value
+
+    def validate(self, attrs):
+        uid = attrs.get('uid')
+        token = attrs.get('token')
+
+        try:
+            # Decode UID and cast to int
+            user_id = int(urlsafe_base64_decode(uid).decode())
+            user = User.objects.get(pk=user_id)
+        except (User.DoesNotExist, ValueError, TypeError, OverflowError):
+            raise serializers.ValidationError("Invalid UID")
+
+        if not default_token_generator.check_token(user, token):
+            raise serializers.ValidationError("Invalid or expired token")
+
+        attrs['user'] = user
+        return attrs
+
     def save(self):
-        user = User.objects.get(id=self.validated_data['user_id'])
+        user = self.validated_data['user']
         user.set_password(self.validated_data['new_password'])
         user.must_change_password = False
         user.save()

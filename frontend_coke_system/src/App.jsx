@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -12,7 +12,7 @@ import MerchandisingSale from "./components/merchandisingcomponents/Merchandisin
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import "./index.css";
-import './styles/global.scss';
+import "./styles/global.scss";
 
 // Pages
 import Login from "./pages/Login";
@@ -48,6 +48,7 @@ import ReturnEmpties from "./pages/ReturnEmpties";
 import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 import ReceivingDetails from "./pages/ReceivingDetails";
 import VanLoadProductDetails from "./pages/VanLoadProductDetails";
+import Settings from "./pages/Settings";
 
 // Dashboard Page
 import Dashboard from "./pages/Dashboard";
@@ -58,29 +59,44 @@ import SalesReport from "./pages/reports/SalesReport.jsx";
 import CreditList from "./pages/CreditList";
 import CreditDetail from "./pages/CreditDetail";
 
-// Icons
-import { FaUser } from "react-icons/fa";
-
-import { ToastContainer } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
+import { ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
 // ✅ Check if user is logged in
 const isAuthenticated = () => {
-  return localStorage.getItem("user") !== null; // adjust based on your login storage
+  return localStorage.getItem("user") !== null;
 };
 
-// ✅ ProtectedRoute wrapper
+
 const ProtectedRoute = ({ children }) => {
-  if (!isAuthenticated()) {
-    return <Navigate to="/login" replace />;
+  const location = useLocation();
+  const user = JSON.parse(localStorage.getItem("user"));
+
+  // Not logged in
+  if (!user) return <Navigate to="/login" replace />;
+
+  // Force password change
+  const requiresPasswordChange = user?.requires_password_change;
+  const isOnChangePasswordPage = location.pathname.startsWith("/change-password");
+
+
+  if (requiresPasswordChange && !isOnChangePasswordPage) {
+    return <Navigate to="/change-password" replace />;
   }
+
   return children;
 };
+
 
 // ✅ Layout wrapper for protected pages
 const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
   const location = useLocation();
-  const hiddenRoutes = ["/change-password", "/forgot-password", "/verify-otp", "/login"];
+  const hiddenRoutes = [
+    "/change-password",
+    "/forgot-password",
+    "/verify-otp",
+    "/login",
+  ];
   const hideLayout = hiddenRoutes.includes(location.pathname);
 
   return (
@@ -94,7 +110,6 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
           }`}
         >
-          {/* Page Routes */}
           <Routes>
             {/* Dashboard */}
             <Route path="/dashboard" element={<Dashboard />} />
@@ -110,7 +125,10 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
             {/* Suppliers */}
             <Route path="/suppliers" element={<Suppliers />} />
-            <Route path="/register-supplier" element={<SupplierRegistrationForm />} />
+            <Route
+              path="/register-supplier"
+              element={<SupplierRegistrationForm />}
+            />
             <Route path="/edit-supplier/:id" element={<SupplierEditForm />} />
 
             {/* Stocks */}
@@ -137,10 +155,14 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/merchandising" element={<Merchandising />} />
             <Route path="/merchandising-sale" element={<MerchandisingSale />} />
-            <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
+            <Route
+              path="/merchandising-sale/:id"
+              element={<MerchandisingSaleDetailPage />}
+            />
 
             {/* Profile & Expenses */}
             <Route path="/profile" element={<Profile />} />
+            <Route path="/settings" element={<Settings />} />
             <Route path="/expenses" element={<Expenses />} />
 
             {/* Supplier Returns */}
@@ -152,16 +174,22 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/reports/sales" element={<SalesReport />} />
 
             {/* Warehouse Details */}
-            <Route path="/warehouse-details/:mspNo" element={<WarehouseProductDetails />} />
+            <Route
+              path="/warehouse-details/:mspNo"
+              element={<WarehouseProductDetails />}
+            />
 
             {/* Van Load */}
             <Route path="/van-load-update" element={<VanLoadUpdate />} />
-            <Route path="/van-load-product-details/:id" element={<VanLoadProductDetails />} />
+            <Route
+              path="/van-load-product-details/:id"
+              element={<VanLoadProductDetails />}
+            />
 
             {/* Edit Role Access */}
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
 
-            {/* Redirect unknown routes */}
+            {/* Fallback for authenticated routes */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
@@ -177,7 +205,7 @@ function App() {
 
   return (
     <Router>
-      <ToastContainer 
+      <ToastContainer
         position="top-center"
         autoClose={2000}
         hideProgressBar={true}
@@ -187,17 +215,20 @@ function App() {
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        style={{ top: '70px' }}
+        style={{ top: "70px" }}
       />
 
-      <Routes>
+     <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
-        <Route path="/change-password" element={<ChangePassword />} />
+        <Route
+          path="/change-password/:uid/:token"
+          element={<ChangePassword />}
+        />
 
-        {/* Protected Layout */}
+        {/* Protected Routes */}
         <Route
           path="/*"
           element={
@@ -213,7 +244,5 @@ function App() {
     </Router>
   );
 }
-
-
 
 export default App;
