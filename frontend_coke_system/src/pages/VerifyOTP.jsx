@@ -5,12 +5,12 @@ import { useNavigate } from "react-router-dom";
 const VerifyOTP = () => {
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState("");
-  const email = localStorage.getItem("resetEmail");
+  const email = localStorage.getItem("resetEmail"); // Getting email from localStorage
   const navigate = useNavigate();
   const inputsRef = useRef([]);
 
   const handleChange = (index, value) => {
-    if (!/^[0-9]?$/.test(value)) return; // Only allow digit or empty
+    if (!/^[0-9]?$/.test(value)) return;
 
     const newOtp = [...otpDigits];
     newOtp[index] = value;
@@ -43,40 +43,51 @@ const VerifyOTP = () => {
   };
 
   const handleVerify = async (e) => {
-      e.preventDefault();
-      setError("");
+    e.preventDefault();
+    setError("");
 
-      if (!email) {
-        setError("Email not found. Please restart the process.");
+    if (!email) {
+      setError("Email not found. Please restart the process.");
+      return;
+    }
+
+    const otp = otpDigits.join("");
+    if (otp.length !== 6) {
+      setError("Please enter a valid 6-digit OTP.");
+      return;
+    }
+
+    try {
+      const response = await axios.post("http://localhost:8080/api/forgot-password/verify-otp/", {
+        email,
+        otp,
+      });
+
+      // Log the response for debugging
+      console.log("Full Response Data:", response);
+
+      const user = response.data?.user;
+      console.log("User Data from response:", user);  // This should log the user object
+
+      if (!user || !user.id || !user.token) {
+        setError("User data missing. Please restart.");
         return;
       }
 
-      const otp = otpDigits.join("");
-      if (otp.length !== 6) {
-        setError("Please enter a valid 6-digit OTP.");
-        return;
-      }
+      // Base64 encode the user ID here
+      const encodedUid = btoa(user.id);  // This is where the error occurred
 
-      try {
-        const response = await axios.post("http://localhost:8080/api/forgot-password/verify-otp/", {
-          email,
-          otp,
-        });
+      // Save user data in localStorage
+      localStorage.setItem("user", JSON.stringify(user));
 
-        const user = response.data?.user;
-        if (!user || !user.id) {
-          setError("User data missing. Please restart.");
-          return;
-        }
+      // Navigate to the ChangePassword page with encoded UID and token
+      navigate(`/change-password/${encodedUid}/${user.token}`);
 
-        // ✅ Save user object for ChangePassword.jsx
-        localStorage.setItem("user", JSON.stringify(user));
+    } catch (err) {
+      setError(err.response?.data?.error || "Invalid OTP. Try again.");
+    }
+  };
 
-        navigate("/change-password");
-      } catch (err) {
-        setError(err.response?.data?.error || "Invalid OTP. Try again.");
-      }
-    };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 font-sans px-4">

@@ -108,8 +108,9 @@ class CreditPaymentCreateAPIView(APIView):
 
 
 
-# Temporary OTP store (for demo; use cache or DB for production)
+# kerkmodify this part  otp
 # Temporary OTP storage (in production use cache like Redis or DB)
+# Temporary OTP store (for demo; use cache or DB for production)
 otp_storage = {}
 
 class SendOTPAPIView(APIView):
@@ -159,7 +160,8 @@ class VerifyOTPAPIView(APIView):
                     "user": {
                         "id": user.id,
                         "email": user.email,
-                        "username": user.username  # optional
+                        "username": user.username,  # optional
+                        "token": default_token_generator.make_token(user)  # Generate token here
                     }
                 }, status=status.HTTP_200_OK)
             except User.DoesNotExist:

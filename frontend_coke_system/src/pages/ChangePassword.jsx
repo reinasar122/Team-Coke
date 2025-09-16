@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
 
+// Strong password check
 const isStrongPassword = (password) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
 
@@ -16,6 +17,7 @@ const ChangePassword = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // Check if UID and token are present in the URL
   useEffect(() => {
     if (!uid || !token) navigate("/login");
   }, [uid, token, navigate]);
@@ -25,6 +27,7 @@ const ChangePassword = () => {
     setError("");
     setSuccess("");
 
+    // Validate form input
     if (!newPassword || !confirmPassword) {
       setError("Please fill in all fields.");
       return;
@@ -42,14 +45,16 @@ const ChangePassword = () => {
 
     setLoading(true);
     try {
+      // Send request to backend to update password
       const payload = {
         uid: decodeURIComponent(uid),
         token: decodeURIComponent(token),
         new_password: newPassword,
       };
 
-      await axios.post("http://localhost:8080/api/change-password/", payload);
+      const response = await axios.post("http://localhost:8080/api/change-password/", payload);
 
+      // Show success message and redirect to login
       setSuccess("Password changed successfully! Redirecting...");
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
@@ -64,6 +69,7 @@ const ChangePassword = () => {
     }
   };
 
+  // Helper to determine the color of validation messages
   const getValidationColor = (condition) =>
     condition ? "text-green-600 font-semibold" : "text-gray-500";
 
