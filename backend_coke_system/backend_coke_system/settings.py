@@ -27,6 +27,10 @@ DEBUG = True
 
 ALLOWED_HOSTS = []
 
+# settings.py
+PASSWORD_RESET_TIMEOUT = 60 * 60 
+
+
 
 # Application definition
 
