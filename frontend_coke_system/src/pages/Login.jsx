@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import ForgotPasswordModal from "./ForgotPassword";
+import VerifyOTPModal from "./VerifyOTP";
 
 // Spinner component
 const Spinner = ({ size = 5 }) => (
@@ -18,6 +20,8 @@ const Spinner = ({ size = 5 }) => (
 );
 
 const Login = () => {
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [showVerifyOTPModal, setShowVerifyOTPModal] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -30,6 +34,12 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
+
+  // ✅ Handle success after OTP verification
+  const handleOtpVerified = (encodedUid, token) => {
+    setShowVerifyOTPModal(false); // close modal
+    navigate(`/change-password/${encodedUid}/${token}`); // go to Change Password
+  };
 
   const fetchWarehouses = async () => {
     setLoadingWarehouses(true);
@@ -81,6 +91,7 @@ const Login = () => {
       setLoading(false);
     }
   };
+
 
   const handleWarehouseSelection = () => {
     if (!selectedWarehouse) {
@@ -174,7 +185,7 @@ const Login = () => {
 
               <p
                 className="text-sm text-red-400 hover:underline cursor-pointer"
-                onClick={() => navigate("/forgot-password")}
+                onClick={() => setShowForgotModal(true)}
               >
                 Forgot password?
               </p>
@@ -210,7 +221,7 @@ const Login = () => {
 
       {/* Warehouse Modal */}
       {showWarehouseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold text-gray-800">Select Warehouse</h3>
@@ -258,6 +269,29 @@ const Login = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Forgot Password Modal Overlay */}
+      {showForgotModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <ForgotPasswordModal
+            onClose={() => setShowForgotModal(false)}
+            onOtpSent={() => {
+              setShowForgotModal(false);
+              setShowVerifyOTPModal(true);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Verify OTP Modal Overlay */}
+      {showVerifyOTPModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <VerifyOTPModal
+            onClose={() => setShowVerifyOTPModal(false)}
+            onVerified={handleOtpVerified} // ✅ function is now defined
+          />
         </div>
       )}
     </div>
