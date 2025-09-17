@@ -90,6 +90,7 @@ body {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  // margin-top: 40px;
 }
 
 .app-content.lock-scroll { overflow: hidden; }   /* hide universal scrollbar */

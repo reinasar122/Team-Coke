@@ -7,7 +7,7 @@ from .models import Van
 from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
 from .models import User, RoleAccessibility
 import re
-from .models import SupplierReturnForm, SupplierReturnFormItem, Product
+from .models import SupplierReturnForm, SupplierReturnFormItem, Product, Invoice
 from .models import *
 from django.db import transaction
 from django.db.models import F
@@ -565,6 +565,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     customer = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), allow_null=True, required=False)
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
+    invoice_no = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Merchandising
@@ -1012,5 +1013,3 @@ class ProcessEmptiesReturnSerializer(serializers.Serializer):
                     raise serializers.ValidationError(f"Missing required field: {field}")
         
         return value
-
- 

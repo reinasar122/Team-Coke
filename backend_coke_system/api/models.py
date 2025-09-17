@@ -13,6 +13,11 @@ from django.utils import timezone
 from django.core.validators import MinValueValidator
 from django.db.models import Q
 
+
+from django.db.models.signals import post_migrate
+from django.dispatch import receiver
+
+
 class CreditLedger(models.Model):
     STATUS_PENDING = "PENDING"
     STATUS_PARTIAL = "PARTIAL"
@@ -400,17 +405,26 @@ class Route(models.Model):
         return self.route_name
 
 class TransactionType(models.Model):
+    VAN_LOAD = "Van Load"
+    WAREHOUSE = "Warehouse"
+    ALLOWED_TYPES = [VAN_LOAD, WAREHOUSE]
+
     name = models.CharField(max_length=100, unique=True)
 
     def clean(self):
-        allowed = ["Van Load", "Warehouse"]
-        if self.name not in allowed:
-            raise ValidationError(f"Invalid transaction type name: '{self.name}'")
+        if self.name not in self.ALLOWED_TYPES:
+            raise ValidationError(f"Invalid transaction type: '{self.name}'")
 
     def save(self, *args, **kwargs):
-        self.full_clean()  # ✅ calls clean() before saving
+        self.full_clean()
         super().save(*args, **kwargs)
-    
+
+@receiver(post_migrate)
+def create_default_transaction_types(sender, **kwargs):
+    for t_name in TransactionType.ALLOWED_TYPES:
+        TransactionType.objects.get_or_create(name=t_name)
+
+
 class Customer(models.Model):
     name = models.CharField(max_length=255)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
@@ -526,6 +540,8 @@ class Merchandising(models.Model):
 
     # ✅ NEW: used by the /api/van-load-return/ endpoint so stocks aren’t added twice
     full_returns_applied = models.BooleanField(default=False)
+
+    
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
@@ -730,3 +746,18 @@ class SupplierReturnFormItem(models.Model):
 
     def __str__(self):
         return f"{self.product.product_name} ({self.qty_shell} shell)"
+    
+
+class Invoice(models.Model):
+    invoice_no = models.CharField(max_length=50, unique=True)
+    customer_name = models.CharField(max_length=255)
+    date = models.DateTimeField(auto_now_add=True)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    status = models.CharField(
+        max_length=20,
+        choices=[("Pending", "Pending"), ("Paid", "Paid"), ("Cancelled", "Cancelled")],
+        default="Pending"
+    )
+
+    def __str__(self):
+     return f"Invoice {self.invoice_no} - {self.customer_name}"

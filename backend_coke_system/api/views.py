@@ -20,10 +20,10 @@ from .models import (
     Stock, ReturnableStock, Product
 )
 
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer, ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 
 from django.db import connection
@@ -175,6 +175,19 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
+    @action(detail=True, methods=["post"])
+    def set_invoice_no(self, request, pk=None):
+        merchandising = self.get_object()
+        invoice_no = request.data.get("invoice_no", None)
+        # quick debug log (will appear in runserver console)
+        print("DEBUG set_invoice_no called. id=", merchandising.id, "invoice_no=", invoice_no)
+
+        # Use your main serializer so response contains full object
+        serializer = self.get_serializer(merchandising, data={"invoice_no": invoice_no}, partial=True)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        print("DEBUG saved invoice_no:", instance.invoice_no)
+        return Response(self.get_serializer(instance).data, status=status.HTTP_200_OK)
 
 
 class HasAccessPermission(BasePermission):
@@ -583,9 +596,28 @@ class TransactionTypeListCreateView(generics.ListCreateAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
 
+    def create(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types are managed by the system."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
 class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
+
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be updated."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be deleted."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
 
 class CustomerListCreateView(generics.ListCreateAPIView):
     serializer_class = CustomerSerializer

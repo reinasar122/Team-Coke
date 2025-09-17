@@ -1,13 +1,49 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import axios from "axios";
-import { FaTrash, FaEdit } from "react-icons/fa";
+import {
+  FaTrash,
+  FaEdit,
+  FaPhoneAlt,
+  FaEnvelope,
+  FaIdCard,
+  FaTimes,
+  FaSearch,
+  FaBuilding,
+} from "react-icons/fa";
 import { toast } from "react-toastify";
-import {errorStyle } from "../utils/toastStyles";
+import { errorStyle } from "../utils/toastStyles";
 import SupplierRegistrationForm from "./SupplierRegistrationForm";
 import SupplierEditForm from "./SupplierEditForm";
 
+const API = "http://localhost:8080/api";
+
+/* tiny helper for key:value rows */
+function Detail({ label, value, className = "" }) {
+  return (
+    <div className={className}>
+      <span className="text-gray-500">{label}</span>{" "}
+      <span className="text-gray-800 font-medium break-words">{value}</span>
+    </div>
+  );
+}
+
 const Suppliers = () => {
   const [suppliers, setSuppliers] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  // View mode: 'grid' | 'list'
+  const [viewMode, setViewMode] = useState(
+    () => localStorage.getItem("supplier_view_mode") || "list"
+  );
+
+  // Company name search
+  const [searchTerm, setSearchTerm] = useState("");
+
+  // Sort by date added
+  const [sortOrder, setSortOrder] = useState(
+    () => localStorage.getItem("supplier_sort_order") || "desc" // desc = newest first
+  );
+
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [editSupplierId, setEditSupplierId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -17,120 +53,347 @@ const Suppliers = () => {
     fetchSuppliers();
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem("supplier_view_mode", viewMode);
+  }, [viewMode]);
+
+  useEffect(() => {
+    localStorage.setItem("supplier_sort_order", sortOrder);
+  }, [sortOrder]);
+
   const fetchSuppliers = async () => {
     try {
-      const response = await axios.get("http://localhost:8080/api/suppliers/");
-      setSuppliers(response.data);
+      setLoading(true);
+      const { data } = await axios.get(`${API}/suppliers/`);
+      setSuppliers(data || []);
     } catch (error) {
       console.error("Error fetching suppliers:", error);
+      toast.error("Failed to load suppliers.", { style: errorStyle });
+    } finally {
+      setLoading(false);
     }
   };
 
   const formatAddress = (s) => {
-    const hasPSGC =
-      s.street || s.barangay || s.city || s.province;
-
-    if (!hasPSGC && s.street_address) {
-      const parts = [
-        s.street_address,
-        s.barangay,
-        s.city,
-        s.province,
-      ].filter(Boolean);
-      return parts.join(", ");
-    }
-
-    const street = s.street ?? s.street_address; 
-
-    const parts = [
-      street,
-      s.barangay,
-      s.city,
-      s.province,
-    ].filter(Boolean);
-
-    return parts.join(", ");
+    const street = s.street ?? s.street_address;
+    const parts = [street, s.barangay, s.city, s.province, s.zip_code]
+      .filter(Boolean)
+      .join(", ");
+    return parts;
   };
 
   const handleDelete = async () => {
-  try {
-    await axios.delete(`http://localhost:8080/api/suppliers/${supplierToDelete.id}/`);
-    setSuppliers((prev) => prev.filter((s) => s.id !== supplierToDelete.id));
-
-    toast.error(`Supplier ${supplierToDelete.company_name} has been deleted.`, {
-      style: errorStyle,
-    });
-  } catch (error) {
-    console.error("Error deleting supplier:", error);
-    toast.error("Failed to delete supplier.", {
-      style: errorStyle,
-    });
-  } finally {
-    setShowDeleteModal(false);
-    setSupplierToDelete(null);
-  }
+    try {
+      await axios.delete(`${API}/suppliers/${supplierToDelete.id}/`);
+      setSuppliers((prev) => prev.filter((x) => x.id !== supplierToDelete.id));
+      toast.error(`Supplier ${supplierToDelete.company_name} has been deleted.`, {
+        style: errorStyle,
+      });
+    } catch (error) {
+      console.error("Error deleting supplier:", error);
+      toast.error("Failed to delete supplier.", { style: errorStyle });
+    } finally {
+      setShowDeleteModal(false);
+      setSupplierToDelete(null);
+    }
   };
 
+  const EmptyState = ({ message = "No suppliers yet. Click + New to add one." }) => (
+    <div className="w-full text-center py-16 border border-dashed rounded-xl text-gray-500">
+      {message}
+    </div>
+  );
+
+  // normalize any supported "date added" field to a numeric timestamp
+  const getDateValue = (s) => {
+    const raw =
+      s?.date_added ||
+      s?.created_at ||
+      s?.created ||
+      s?.added_at ||
+      null;
+    if (!raw) {
+      // fallback: use id as a weak proxy so sorting is stable
+      return Number(s?.id) || 0;
+    }
+    // accept ISO string or epoch
+    if (typeof raw === "number") return raw;
+    const t = Date.parse(raw);
+    return Number.isNaN(t) ? 0 : t;
+  };
+
+  // Filter by company name (case-insensitive)
+  const filteredSuppliers = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return suppliers;
+    return suppliers.filter((s) => (s.company_name || "").toLowerCase().includes(q));
+  }, [suppliers, searchTerm]);
+
+  // Sort by date added
+  const sortedSuppliers = useMemo(() => {
+    const arr = [...filteredSuppliers];
+    arr.sort((a, b) => {
+      const da = getDateValue(a);
+      const db = getDateValue(b);
+      return sortOrder === "asc" ? da - db : db - da; // asc = oldest first, desc = newest first
+    });
+    return arr;
+  }, [filteredSuppliers, sortOrder]);
+
+  /* ----------------------------- GRID (cards - FULL) ----------------------------- */
+  const CardFull = ({ s }) => {
+    return (
+      <div className="rounded-2xl border bg-white shadow-sm hover:shadow-md transition-shadow overflow-hidden">
+        {/* Header (summary) */}
+        <div className="p-4">
+          {/* Company name — allow 2 lines, show ellipsis */}
+          <h3
+            className="text-lg font-semibold leading-tight break-words"
+            title={s.company_name}
+            style={{
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {s.company_name}
+          </h3>
+
+          <div className="mt-1 text-sm text-gray-500 flex flex-wrap gap-x-4 gap-y-1">
+            <span className="inline-flex items-center gap-2">
+              <FaIdCard className="opacity-70" />
+              {s.registration_number || "—"}
+            </span>
+            {s.phone_number && (
+              <span className="inline-flex items-center gap-2">
+                <FaPhoneAlt className="opacity-70" />
+                {s.phone_number}
+              </span>
+            )}
+            {s.email && (
+              <span className="inline-flex items-center gap-2">
+                <FaEnvelope className="opacity-70" />
+                {s.email}
+              </span>
+            )}
+          </div>
+
+          {s.contact_person && (
+            <div className="mt-2 text-sm">
+              <span className="font-medium">Contact Person:</span>{" "}
+              <span className="text-gray-700 break-words">{s.contact_person}</span>
+            </div>
+          )}
+        </div>
+
+        {/* Body (full details always visible) */}
+        <div className="px-4 pt-0 pb-2 text-sm">
+          <Detail label="BIR No.:" value={s.bir_no || "—"} />
+          <Detail className="mt-1.5" label="Full Address:" value={formatAddress(s) || "—"} />
+
+          {/* Additional Contacts */}
+          {Array.isArray(s.contacts) && s.contacts.length > 0 && (
+            <div className="mt-3">
+              <p className="font-semibold mb-1.5">Additional Contacts</p>
+              <ul className="space-y-1.5">
+                {s.contacts.map((c, idx) => (
+                  <li
+                    key={`${c.email || "contact"}-${idx}`}
+                    className="rounded-lg border p-2 flex flex-wrap gap-x-3 gap-y-1 text-sm"
+                  >
+                    <span className="font-medium break-words">
+                      {c.contact_person || "—"}
+                    </span>
+                    {c.email && <span className="text-gray-600 break-words">{c.email}</span>}
+                    {c.phone_number && (
+                      <span className="text-gray-600 break-words">{c.phone_number}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+
+        {/* Footer actions (bottom-right, compact padding) */}
+        <div className="px-4 pb-3 pt-2 flex justify-end gap-2">
+          <button
+            type="button"
+            title="Edit"
+            className="icon-btn-edit hover:bg-gray-100 rounded-md p-2"
+            onClick={() => setEditSupplierId(s.id)}
+          >
+            <FaEdit />
+          </button>
+          <button
+            type="button"
+            title="Delete"
+            className="icon-btn-danger hover:bg-red-50 rounded-md p-2"
+            onClick={() => {
+              setSupplierToDelete(s);
+              setShowDeleteModal(true);
+            }}
+          >
+            <FaTrash />
+          </button>
+        </div>
+      </div>
+    );
+  };
+
+  /* ------------------------------ LIST (table) ----------------------------- */
+  const ListView = () => (
+    <div className="table-wrapper">
+      <table className="table">
+        <thead>
+          <tr>
+            <th className="border p-2 text-left">Registration #</th>
+            <th className="border p-2 text-left">Company</th>
+            <th className="border p-2 text-left">Contact Person</th>
+            <th className="border p-2 text-left">Phone</th>
+            <th className="border p-2 text-left">Email</th>
+            <th className="border p-2 text-left">Full Address</th>
+            <th className="border p-2 text-center">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sortedSuppliers.map((s) => (
+            <tr key={s.id} className="border align-top">
+              <td className="border p-2">{s.registration_number}</td>
+              <td className="border p-2 break-words">{s.company_name}</td>
+              <td className="border p-2 break-words">{s.contact_person}</td>
+              <td className="border p-2 break-words">{s.phone_number}</td>
+              <td className="border p-2 break-words">{s.email}</td>
+              <td className="border p-2 break-words">{formatAddress(s)}</td>
+              <td className="border p-2">
+                <div className="flex justify-center gap-2">
+                  <button
+                    className="icon-btn-edit hover:bg-gray-100 rounded-md p-2"
+                    onClick={() => setEditSupplierId(s.id)}
+                    title="Edit"
+                    type="button"
+                  >
+                    <FaEdit />
+                  </button>
+                  <button
+                    className="icon-btn-danger hover:bg-red-50 rounded-md p-2"
+                    onClick={() => {
+                      setSupplierToDelete(s);
+                      setShowDeleteModal(true);
+                    }}
+                    title="Delete"
+                    type="button"
+                  >
+                    <FaTrash />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+
+          {sortedSuppliers.length === 0 && (
+            <tr>
+              <td colSpan={7} className="p-6">
+                <EmptyState message="No suppliers match your search." />
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const GridView = () => (
+    <div
+      className="grid auto-rows-auto grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4"
+      style={{ gridAutoFlow: "row dense" }}
+    >
+      {loading ? (
+        Array.from({ length: 6 }).map((_, i) => (
+          <div
+            key={i}
+            className="rounded-2xl border bg-white shadow-sm p-4 animate-pulse h-40"
+          >
+            <div className="h-5 w-1/2 bg-gray-200 rounded mb-3" />
+            <div className="h-4 w-1/3 bg-gray-200 rounded mb-2" />
+            <div className="h-4 w-1/4 bg-gray-200 rounded" />
+          </div>
+        ))
+      ) : sortedSuppliers.length === 0 ? (
+        <div className="md:col-span-2 xl:col-span-3">
+          <EmptyState message="No suppliers match your search." />
+        </div>
+      ) : (
+        sortedSuppliers.map((s) => <CardFull key={s.id} s={s} />)
+      )}
+    </div>
+  );
+
   return (
-    <div className="container mx-auto p-6 relative">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Supplier Registration Details</h2>
-        <button
-          onClick={() => setShowRegisterModal(true)}
-          className="btn btn-add"
-        >
+    <div className="page">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-bold flex items-center gap-2">
+            <FaBuilding className="text-gray-700" /> Suppliers
+          </h2>
+
+          {/* Company Name Search with icon */}
+          <div className="relative">
+            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search company name…"
+              className="border rounded-lg pl-9 pr-8 py-2 w-64"
+            />
+            {searchTerm && (
+              <button
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                onClick={() => setSearchTerm("")}
+                title="Clear"
+              >
+                <FaTimes />
+              </button>
+            )}
+          </div>
+
+          {/* View dropdown */}
+          <select
+            value={viewMode}
+            onChange={(e) => setViewMode(e.target.value)}
+            className="border rounded-lg px-3 py-2"
+          >
+            <option value="grid">Grid View</option>
+            <option value="list">List View</option>
+          </select>
+
+          {/* Sort by date added */}
+          <select
+            value={sortOrder}
+            onChange={(e) => setSortOrder(e.target.value)}
+            className="border rounded-lg px-3 py-2"
+            title="Sort by date added"
+          >
+            <option value="desc">Sort: Newest</option>
+            <option value="asc">Sort: Oldest</option>
+          </select>
+        </div>
+
+        <button onClick={() => setShowRegisterModal(true)} className="btn btn-add">
           + New
         </button>
       </div>
-      <div className="table-wrapper">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Registration Number</th>
-                  <th>Company</th>
-                  <th>Contact Person</th>
-                  <th>Contact Number</th>
-                  <th>Address</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody className="text-center">
-                {suppliers.map((supplier) => (
-                  <tr key={supplier.id} className="border">
-                    <td>{supplier.registration_number}</td>
-                    <td>{supplier.company_name}</td>
-                    <td>{supplier.contact_person}</td>
-                    <td>{supplier.phone_number}</td>
-                    <td>
-                      {/* Full formatted address */}
-                      {formatAddress(supplier)}
-                    </td>
-                    <td >
-                      <div className="flex justify-center gap-3">
-                        <FaEdit
-                          className="icon-btn-edit"
-                          onClick={() => setEditSupplierId(supplier.id)}
-                        />
-                        <FaTrash
-                          className="icon-btn-danger"
-                          onClick={() => {
-                            setSupplierToDelete(supplier);
-                            setShowDeleteModal(true);
-                          }}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-      </div>
-      
+
+      {/* Content */}
+      {viewMode === "grid" ? <GridView /> : <ListView />}
 
       {/* Registration Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center">
-          <div className="bg-white p-6 rounded shadow-lg w-3/4 max-h-[90vh] overflow-auto">
+        <div className="fixed inset-0 bg-black/40 z-50 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-2xl shadow-lg w-11/12 md:w-3/4 max-h-[90vh] overflow-auto">
             <SupplierRegistrationForm
               onClose={() => {
                 setShowRegisterModal(false);
@@ -143,8 +406,8 @@ const Suppliers = () => {
 
       {/* Edit Modal */}
       {editSupplierId && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 z-50 flex justify-center items-center">
-          <div className="bg-white p-6 rounded shadow-lg w-3/4 max-h-[90vh] overflow-auto">
+        <div className="fixed inset-0 bg-black/40 z-50 flex justify-center items-center">
+          <div className="bg-white p-6 rounded-2xl shadow-lg w-11/12 md:w-3/4 max-h-[90vh] overflow-auto">
             <SupplierEditForm
               supplierId={editSupplierId}
               onClose={() => {
@@ -158,27 +421,25 @@ const Suppliers = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && supplierToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
-          <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
+        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 px-4">
+          <div className="bg-white p-6 rounded-2xl shadow-lg max-w-full w-[520px]">
             <p className="text-lg font-semibold mb-6">
-                Are you sure you want to delete <strong>{supplierToDelete.company_name}</strong>?
+              Are you sure you want to delete{" "}
+              <strong>{supplierToDelete.company_name}</strong>?
             </p>
             <div className="flex justify-between">
-                <button
+              <button
                 className="btn btn-cancel"
                 onClick={() => {
-                    setShowDeleteModal(false);
-                    setSupplierToDelete(null);
+                  setShowDeleteModal(false);
+                  setSupplierToDelete(null);
                 }}
-                >
+              >
                 Cancel
-                </button>
-                <button
-                className="btn btn-danger"
-                onClick={handleDelete}
-                >
+              </button>
+              <button className="btn btn-danger" onClick={handleDelete}>
                 Delete
-                </button>
+              </button>
             </div>
           </div>
         </div>

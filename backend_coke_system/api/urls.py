@@ -175,6 +175,7 @@ urlpatterns = [
     path("reports/product_breakdown/", ProductBreakdownReport.as_view()),
     #path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
 
+
 ]
 
 router = DefaultRouter()
