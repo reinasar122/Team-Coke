@@ -172,22 +172,26 @@ class UserSerializer(serializers.ModelSerializer):
         )
         return user
 
-    def update(self, instance, validated_data):
+    def create(self, validated_data):
         password = validated_data.pop('password', None)
-        role = validated_data.pop('role', None)
-        warehouse = validated_data.pop('warehouse', None)
+        user = super().create(validated_data)
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
 
-        if password:
-            instance.set_password(password)
-        if role:
-            instance.role = role
-        if warehouse:
-            instance.warehouse = warehouse
+        reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
+        send_mail(
+            subject='Set Your Account Password',
+            message=(
+                f"Hello {user.first_name} {user.last_name},\n\n"
+                f"Your username is: {user.username}\n\n"
+                f"Please set your password using the link below:\n{reset_link}"
+            ),
+            from_email='your_email@gmail.com',
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        return user
 
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
 
 
 
