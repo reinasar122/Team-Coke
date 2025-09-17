@@ -110,7 +110,7 @@ export default function SalesReport() {
               net_revenue: n(r?.summary?.revenue?.net_revenue),
               net_profit: n(r?.summary?.revenue?.net_profit),
               discounts: n(r?.summary?.discount?.total), // pick total discount
-              return_rate: n(r?.summary?.return_rate),
+              returned_rate: n(r?.summary?.returned_rate),
             },
           sales_by_route: Array.isArray(r?.by_route)
             ? r.by_route.map((x) => ({ name: x.route ?? x.name, revenue: n(x.revenue) }))
@@ -122,7 +122,10 @@ export default function SalesReport() {
             expected_sale: n(r?.returns?.expected_sale),
             actual_sale: n(r?.returns?.actual_sale),
             difference: n(r?.returns?.difference),
-            supplier_returnables: n(r?.returns?.supplier_returnables),
+            supplier_returnables: {
+              bottle: n(r?.returns?.supplier_returnables?.bottle),
+              shell: n(r?.returns?.supplier_returnables?.shell),
+            },
           },
           misc_expenses: Array.isArray(r?.misc_expenses)
             ? r.misc_expenses.map((m) => ({
@@ -302,8 +305,8 @@ export default function SalesReport() {
           </h3>
         </div>
         <div className="p-4 border rounded bg-white">
-          <p className="text-sm text-gray-500">Return Rate</p>
-          <h3 className="text-xl font-bold">{pct(data.summary.return_rate ?? 0)}</h3>
+          <p className="text-sm text-gray-500">Returned Rate</p>
+          <h3 className="text-xl font-bold">{pct(data.summary.returned_rate ?? 0)}</h3>
         </div>
       </div>
 
@@ -347,15 +350,23 @@ export default function SalesReport() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <Card title="Returns & Discrepancies">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            <Metric label="Expected Sales" value={peso(data.returns_block.expected_sale)} />
+            {/* <Metric label="Expected Sales" value={peso(data.returns_block.expected_sale)} /> */}
             <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
-            <Metric label="Difference" value={peso(data.returns_block.difference)} />
-            <Metric label="Supplier Returnables" value={peso(data.returns_block.supplier_returnables)} />
+            {/* <Metric label="Difference" value={peso(data.returns_block.difference)} /> */}
+            <Metric
+              label="Supplier Returnables (Bottle)"
+              value={n(data.returns_block.supplier_returnables.bottle)}
+            />
+            <Metric
+              label="Supplier Returnables (Shell)"
+              value={n(data.returns_block.supplier_returnables.shell)}
+            />
           </div>
           <div className="mt-3">
             <button className="btn btn-back text-xs px-3 py-2">View items</button>
           </div>
         </Card>
+
 
         <Card title="Miscellaneous & Expenses">
           <div className="overflow-auto rounded-lg border border-slate-200">

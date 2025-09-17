@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.db.models import (
     Sum, F, Q, Value, ExpressionWrapper,
-    DecimalField, IntegerField, OuterRef, Subquery, Case, When
+    DecimalField, IntegerField, OuterRef, Subquery, Case, When, Avg
 )
 from django.db.models.functions import Cast
 
@@ -22,7 +22,8 @@ from .models import (
     MerchandisingItem,
     MiscellaneousItem,
     Product,
-    ReceivingItem,   # 👈 use latest unit_cost from receiving lines
+    ReceivingItem,
+    ReturnableStock,   # 👈 use latest unit_cost from receiving lines
 )
 
 # ---------- helpers ----------
@@ -235,11 +236,11 @@ class SalesReportAPIView(APIView):
             )
         )["avg"] or Decimal("0.0")
 
-# Optional combined average
-combined_avg = (shell_avg + pcs_avg) / Decimal("2") if (shell_qs.exists() and pcs_qs.exists()) else shell_avg
+        # Optional combined average
+        combined_avg = (shell_avg + pcs_avg) / Decimal("2") if (shell_qs.exists() and pcs_qs.exists()) else shell_avg
 
-# Use shell macro-average as returned_rate
-returned_rate = float(shell_avg)
+        # Use shell macro-average as returned_rate
+        returned_rate = float(shell_avg)
 
         # -------------------------------
         # Header-level discounts (transaction)
@@ -375,17 +376,89 @@ returned_rate = float(shell_avg)
             for r in by_wh_qs
         ]
 
-        # ------------------------------------
-        # Header-level expected vs actual
-        # ------------------------------------
-        hdr_aggs = sales_hdr.aggregate(
-            expected=Coalesce(Sum("expected_sale"), DEC0),
-            actual=Coalesce(Sum("actual_sale"), DEC0),
-            misc_sum=Coalesce(Sum("miscellaneous"), DEC0),
+        # # ------------------------------------
+        # # Header-level expected vs actual
+        # # ------------------------------------
+        # hdr_aggs = sales_hdr.aggregate(
+        #     expected=Coalesce(Sum("expected_sale"), DEC0),
+        #     actual=Coalesce(Sum("actual_sale"), DEC0),
+        #     misc_sum=Coalesce(Sum("miscellaneous"), DEC0),
+        # )
+        # expected_sale = Decimal(hdr_aggs["expected"] or 0)
+        # actual_sale = Decimal(hdr_aggs["actual"] or 0)
+        # difference = actual_sale - expected_sale
+        # --- Sales (Merchandising) ---
+        
+        # Turn "all" into None so we can ignore it later
+        # --- Normalize params ---
+        warehouse_id = (request.query_params.get("warehouse_id") or "").strip()
+        route_id = (request.query_params.get("route_id") or "").strip()
+
+        if warehouse_id.lower() == "all":
+            warehouse_id = None
+        if route_id.lower() == "all":
+            route_id = None
+
+        # --- Date range (use helpers you already have) ---
+        period = request.query_params.get("period", "this_week")
+        start = request.query_params.get("start")
+        end = request.query_params.get("end")
+
+        start_date, end_date = _daterange_from_period(period, start, end)
+        start_dt, end_dt = _make_dt_window(start_date, end_date)
+
+        # --- Header Merchandising queryset ---
+        m_fields = {f.name for f in Merchandising._meta.get_fields()}
+
+        hdr_qs = Merchandising.objects.filter(
+            date_time__gte=start_dt,
+            date_time__lt=end_dt,
         )
-        expected_sale = Decimal(hdr_aggs["expected"] or 0)
-        actual_sale = Decimal(hdr_aggs["actual"] or 0)
-        difference = actual_sale - expected_sale
+
+        if warehouse_id:
+            if "warehouse" in m_fields:
+                hdr_qs = hdr_qs.filter(warehouse_id=warehouse_id)
+            elif "van" in m_fields:
+                hdr_qs = hdr_qs.filter(van__warehouse_id=warehouse_id)
+
+        if route_id and "route" in m_fields:
+            hdr_qs = hdr_qs.filter(route_id=route_id)
+
+        # --- Sales (Merchandising) ---
+        merch_qs = Merchandising.objects.filter(
+            date_time__gte=start_dt,
+            date_time__lt=end_dt,
+        )
+        if warehouse_id:
+            merch_qs = merch_qs.filter(warehouse_id=warehouse_id)
+        if route_id:
+            merch_qs = merch_qs.filter(route_id=route_id)
+
+        sums = merch_qs.aggregate(
+            expected_sale_sum=Sum("expected_sale"),
+            actual_sale_sum=Sum("actual_sale"),
+        )
+
+        # --- Supplier returnables ---
+        ret_qs = ReturnableStock.objects.filter(
+            last_updated__gte=start_dt,
+            last_updated__lte=end_dt,
+        )
+        if warehouse_id:
+            ret_qs = ret_qs.filter(warehouse_id=warehouse_id)
+
+        ret_sums = ret_qs.aggregate(
+            bottle_sum=Sum("empty_bottle_qty"),
+            shell_sum=Sum("empty_shell_qty"),
+        )
+
+        data = {
+            "expected_sale": sums["expected_sale_sum"] or 0,
+            "actual_sale": sums["actual_sale_sum"] or 0,
+            "difference": (sums["actual_sale_sum"] or 0) - (sums["expected_sale_sum"] or 0),
+            "supplier_returnables_bottle": ret_sums["bottle_sum"] or 0,
+            "supplier_returnables_shell": ret_sums["shell_sum"] or 0,
+        }
 
        # ------------------------------------
         # Misc Expenses (with Notes)
@@ -479,6 +552,7 @@ returned_rate = float(shell_avg)
         summary = {
             "revenue": revenue_summary,
             "discount": discount_summary,
+            "returned_rate": returned_rate,
         }
 
 
@@ -490,10 +564,13 @@ returned_rate = float(shell_avg)
             "by_route": by_route,
             "by_warehouse": by_warehouse,
             "returns": {
-                "expected_sale": float(expected_sale),
-                "actual_sale": float(actual_sale),
-                "difference": float(difference),
-                "supplier_returnables": 0.0,
+                "expected_sale": float(data["expected_sale"]),
+                "actual_sale": float(data["actual_sale"]),
+                "difference": float(data["difference"]),
+                "supplier_returnables": {
+                    "bottle": float(data["supplier_returnables_bottle"]),
+                    "shell": float(data["supplier_returnables_shell"]),
+                },
             },
             "misc_expenses": misc_expenses_list,
         }
