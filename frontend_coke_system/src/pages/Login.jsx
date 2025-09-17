@@ -27,7 +27,7 @@ const Login = () => {
   const [loading, setLoading] = useState(false);
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
   const [remember, setRemember] = useState(false);
-  const [showPassword, setShowPassword] = useState(false); // 👈 add this
+  const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
 
@@ -124,19 +124,17 @@ const Login = () => {
           )}
 
           <form onSubmit={handleLogin} className="space-y-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-200 mb-2">Username</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="username or email"
-              required
-              className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
-            />
-          </div>
-
-  
+            <div>
+              <label className="block text-sm font-medium text-gray-200 mb-2">Username</label>
+              <input
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                placeholder="username or email"
+                required
+                className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
+              />
+            </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-200 mb-2">Password</label>
@@ -148,13 +146,12 @@ const Login = () => {
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="w-full rounded-xl border border-gray-400/50 px-4 py-3 pr-12 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
-                  // In case some global CSS forces dots, this unsets it when showing:
+                  className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
                   style={showPassword ? { WebkitTextSecurity: "none" } : undefined}
                 />
                 <button
-                  type="button"                               // prevent form submit
-                  onClick={() => setShowPassword((v) => !v)}  // toggle
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
                   className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500"
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
@@ -163,7 +160,7 @@ const Login = () => {
               </div>
             </div>
 
-          {/* Remember Me + Forgot Password */}
+            {/* Remember Me + Forgot Password */}
             <div className="flex items-center justify-between">
               <label className="inline-flex items-center gap-2 text-sm text-gray-200 select-none">
                 <input
@@ -183,31 +180,31 @@ const Login = () => {
               </p>
             </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full flex items-center justify-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all ${
-              loading ? "bg-red-700/80 text-white cursor-wait" : "bg-red-600 text-white hover:bg-red-700"
-            }`}
-          >
-            {loading && <Spinner size={4} />}
-            <span>{loading ? "Signing in..." : "Sign in"}</span>
-          </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full flex items-center justify-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all ${
+                loading
+                  ? "bg-red-700/80 text-white cursor-wait"
+                  : "bg-red-600 text-white hover:bg-red-700"
+              }`}
+            >
+              {loading && <Spinner size={4} />}
+              <span>{loading ? "Signing in..." : "Sign in"}</span>
+            </button>
 
-          {/* Don’t have an account */}
-          <div className="mt-8 border-t border-white/20 pt-5 text-center">
-            <p className="text-sm text-gray-200">
-              Don’t have an account?{" "}
-              <button
-                onClick={() => navigate("/register")}
-                className="text-red-400 font-semibold hover:text-red-600 hover:underline"
-              >
-                Contact the Admin
-              </button>
-            </p>
-          </div>
-        </form>
-
+            <div className="mt-8 border-t border-white/20 pt-5 text-center">
+              <p className="text-sm text-gray-200">
+                Don’t have an account?{" "}
+                <button
+                  onClick={() => navigate("/register")}
+                  className="text-red-400 font-semibold hover:text-red-600 hover:underline"
+                >
+                  Contact the Admin
+                </button>
+              </p>
+            </div>
+          </form>
         </div>
       </div>
 
@@ -262,7 +259,7 @@ const Login = () => {
             )}
           </div>
         </div>
-      )} 
+      )}
     </div>
   );
 };
