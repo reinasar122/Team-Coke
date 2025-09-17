@@ -67,18 +67,16 @@ const isAuthenticated = () => {
   return localStorage.getItem("user") !== null;
 };
 
-
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user"));
 
-  // Not logged in
+  // Not logged in → force login
   if (!user) return <Navigate to="/login" replace />;
 
   // Force password change
   const requiresPasswordChange = user?.requires_password_change;
   const isOnChangePasswordPage = location.pathname.startsWith("/change-password");
-
 
   if (requiresPasswordChange && !isOnChangePasswordPage) {
     return <Navigate to="/change-password" replace />;
@@ -86,7 +84,6 @@ const ProtectedRoute = ({ children }) => {
 
   return children;
 };
-
 
 // ✅ Layout wrapper for protected pages
 const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
@@ -187,10 +184,20 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             />
 
             {/* Edit Role Access */}
-            <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
+            <Route
+              path="/edit-role-access/:id"
+              element={<EditRoleAccessWrapper />}
+            />
 
-            {/* Fallback for authenticated routes */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {/* ✅ Default Fallback */}
+            <Route
+              path="*"
+              element={
+                isAuthenticated()
+                  ? <Navigate to="/dashboard" replace />
+                  : <Navigate to="/login" replace />
+              }
+            />
           </Routes>
         </div>
       </div>
@@ -218,15 +225,12 @@ function App() {
         style={{ top: "70px" }}
       />
 
-     <Routes>
+      <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
-        <Route
-          path="/change-password/:uid/:token"
-          element={<ChangePassword />}
-        />
+        <Route path="/change-password/:uid/:token" element={<ChangePassword />} />
 
         {/* Protected Routes */}
         <Route
