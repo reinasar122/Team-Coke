@@ -196,6 +196,14 @@ class User(models.Model):
     class Meta:
         db_table = 'users'
 
+    @property
+    def is_active_user(self):
+        # default_token_generator expects `is_active` attribute; you already have one
+        return self.is_active
+
+    def get_email_field_name(self):
+        return "email"
+
     def __str__(self):
         return self.username
 

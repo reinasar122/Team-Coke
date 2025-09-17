@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { NavLink } from "react-router-dom";
+
 import {
   faTachometerAlt,
   faShoppingCart,
@@ -156,18 +158,45 @@ const Sidebar = ({ isSidebarOpen }) => {
             <FontAwesomeIcon icon={openDropdown === "report" ? faChevronUp : faChevronDown} />
           </button>
           {openDropdown === "report" && (
-              <ul className="ml-4 mt-2 space-y-2">
-                {canView("Sales Report") ? (
-                  <li>
-                    <Link to="/reports/sales" className="block p-2 text-sm hover:bg-gray-600 rounded">
-                      Sales Report
-                    </Link>
-                  </li>
-                ) : (
-                  <DisabledSubItem text="Sales Report" />
-                )}
-              </ul>
-            )}
+            <ul className="ml-4 mt-2 space-y-2">
+              {canView("Sales Report") ? (
+                <li>
+                  <NavLink
+                    to="/reports/sales"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Sales Report
+                  </NavLink>
+                </li>
+              ) : (
+                <DisabledSubItem text="Sales Report" />
+              )}
+
+              {/* Uncomment and update if you add Inventory Report route */}
+              {/*
+              {canView("Inventory Report") ? (
+                <li>
+                  <NavLink
+                    to="/reports/inventory"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Inventory Report
+                  </NavLink>
+                </li>
+              ) : (
+                <DisabledSubItem text="Inventory Report" />
+              )}
+              */}
+            </ul>
+          )}
         </li>
 
         {/* Manage */}
@@ -215,9 +244,16 @@ const Sidebar = ({ isSidebarOpen }) => {
         {/* Settings */}
         <li>
           {canView("Settings") ? (
-            <Link to="/settings" className=" p-2 hover:bg-gray-700 rounded flex items-center">
+            <NavLink
+              to="/settings"
+              className={({ isActive }) =>
+                `p-2 hover:bg-gray-700 rounded flex items-center ${
+                  isActive ? "bg-gray-800" : ""
+                }`
+              }
+            >
               <FontAwesomeIcon icon={faCog} className="mr-2" /> Settings
-            </Link>
+            </NavLink>
           ) : (
             <DisabledItem icon={faCog} text="Settings" />
           )}
