@@ -78,6 +78,7 @@ export default function ProductBreakdownContainer({
         const products = data?.products ?? data?.product_breakdown ?? data?.rows ?? [];
 
         // --- Normalize rows
+        // --- Normalize rows
         let rows = products.map((p) => ({
           product_id:
             p.product_id ??
@@ -87,10 +88,16 @@ export default function ProductBreakdownContainer({
           qty: Number(p.qty_sold ?? p.qty ?? 0),
           revenue: Number(p.revenue ?? p.net_revenue ?? 0),
           profit: Number(p.profit ?? p.revenue ?? 0),
-          discount_rate: Number(p.discount_rate ?? 0), // 0..1
-          return_rate: Number(p.return_rate ?? 0),     // 0..1
+          discount_rate: Number(p.discount_rate ?? 0),
+          return_rate: Number(p.return_rate ?? 0),
           _raw: p,
         }));
+
+        // 🧹 Filter out junk rows
+        rows = rows.filter(
+          (r) => r.product && r.product.toLowerCase() !== "product"
+        );
+
 
         // --- If "All Warehouses" -> merge duplicates by product (sum qty/revenue/profit)
         if (!warehouseId || warehouseId === "all") {

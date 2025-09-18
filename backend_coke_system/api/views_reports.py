@@ -1,4 +1,4 @@
-# app/views_reports.py
+# api/views_reports.py
 from __future__ import annotations
 
 from datetime import date, timedelta, datetime
@@ -84,9 +84,8 @@ class SalesReportAPIView(APIView):
 
         sales_hdr = Merchandising.objects.filter(hdr_q)
 
-      
         # ------------------------------------
-        # Product breakdown (list ALL products)
+        # Product breakdown (aggregated items)
         # ------------------------------------
         items_base_q = Q(
             merchandising__date_time__gte=start_dt,
@@ -97,7 +96,6 @@ class SalesReportAPIView(APIView):
         if route_id and route_id != "all":
             items_base_q &= Q(merchandising__route_id=route_id)
 
-        # 1) Aggregate from matching line items
         items_aggs = (
             MerchandisingItem.objects
             .filter(items_base_q)
@@ -115,7 +113,6 @@ class SalesReportAPIView(APIView):
                     )),
                     DEC0,
                 ),
-                # If you want to deduct empty returns instead, change to empty_return_pcs
                 returns_qty=Coalesce(Sum("actual_return_pcs"), INT0),
                 returns_value=Coalesce(
                     Sum(ExpressionWrapper(F("actual_return_pcs") * F("selling_price"), output_field=DECIMAL)),
@@ -126,29 +123,32 @@ class SalesReportAPIView(APIView):
         by_product_id = {r["product_id"]: r for r in items_aggs}
 
         # ---- latest unit cost per product from ReceivingItem.unit_cost ----
-        # Order by newest receiving detail. If Receiving has a date field, you can order by that too.
         last_cost_sq = Subquery(
             ReceivingItem.objects
             .filter(product=OuterRef("pk"))
-            .order_by("-id")              # or .order_by("-receiving_id", "-id")
+            .order_by("-id")
             .values("unit_cost")[:1]
         )
 
-        # 2) Merge onto ALL products (Profit = Net Revenue − COGS with returns)
-        products = []
-        total_gross = Decimal("0")
-        total_discount = Decimal("0")
-        total_returns_value = Decimal("0")
-        total_revenue = Decimal("0")      # net revenue total (after discounts & returns)
-        total_qty = 0
-        total_return_qty = 0
+        # ✅ FIX: restrict products list based on warehouse filter
+        if warehouse_id and warehouse_id != "all":
+            products_with_cost = (
+                Product.objects
+                .filter(id__in=by_product_id.keys())
+                .annotate(unit_cost=Coalesce(last_cost_sq, DEC0))
+                .only("id", "product_name")
+            )
+        else:
+            products_with_cost = (
+                Product.objects
+                .annotate(unit_cost=Coalesce(last_cost_sq, DEC0))
+                .only("id", "product_name")
+            )
 
-        # Annotate each product with latest unit_cost from ReceivingItem
-        products_with_cost = (
-            Product.objects
-            .annotate(unit_cost=Coalesce(last_cost_sq, DEC0))
-            .only("id", "product_name")
-        )
+        # -------------- build product rows --------------
+        products = []
+        total_gross = total_discount = total_returns_value = total_revenue = Decimal("0")
+        total_qty = total_return_qty = 0
 
         for p in products_with_cost:
             a = by_product_id.get(p.id) or {}
@@ -158,18 +158,12 @@ class SalesReportAPIView(APIView):
             returned_qty = int(a.get("returns_qty", 0) or 0)
             returns_value = Decimal(a.get("returns_value", 0) or 0)
 
-            # --- revenue side ---
             net_revenue = gross - discount - returns_value
-
-            # --- COGS: only for net-sold units (sold - returned), never negative ---
             unit_cost = Decimal(getattr(p, "unit_cost", 0) or 0)
             net_units = max(qty_sold - returned_qty, 0)
             cogs = unit_cost * Decimal(net_units)
-
-            # --- Profit (accounting-correct) ---
             profit = net_revenue - cogs
 
-            # rates (safe-divide)
             discount_rate = float((discount / gross) if gross else Decimal("0"))
             denom = qty_sold + returned_qty
             return_rate = float((Decimal(returned_qty) / Decimal(denom)) if denom else Decimal("0"))
@@ -177,14 +171,10 @@ class SalesReportAPIView(APIView):
             products.append({
                 "product": p.product_name or "—",
                 "qty_sold": qty_sold,
-                "revenue": float(net_revenue),  # net revenue (after discounts & returns)
-                "profit": float(profit),        # ✅ net profit after COGS
+                "revenue": float(net_revenue),
+                "profit": float(profit),
                 "discount_rate": discount_rate,
                 "return_rate": return_rate,
-                # uncomment for auditing:
-                # "unit_cost": float(unit_cost),
-                # "cogs": float(cogs),
-                # "gross_revenue": float(gross),
             })
 
             total_gross += gross
@@ -362,8 +352,9 @@ class SalesReportAPIView(APIView):
             .order_by("-revenue")
         )
         by_route = [
-            {"name": r["merchandising__route__route_name"] or "—", "revenue": float(r["revenue"])}
+            {"name": r["merchandising__route__route_name"], "revenue": float(r["revenue"])}
             for r in by_route_qs
+            if r["merchandising__route__route_name"] and r["revenue"] > 0
         ]
 
         by_wh_qs = (
@@ -372,9 +363,11 @@ class SalesReportAPIView(APIView):
             .order_by("-revenue")
         )
         by_warehouse = [
-            {"name": r["merchandising__warehouse__name"] or "—", "revenue": float(r["revenue"])}
+            {"name": r["merchandising__warehouse__name"], "revenue": float(r["revenue"])}
             for r in by_wh_qs
+            if r["merchandising__warehouse__name"] and r["revenue"] > 0
         ]
+
 
         # # ------------------------------------
         # # Header-level expected vs actual
@@ -461,12 +454,12 @@ class SalesReportAPIView(APIView):
         }
 
        # ------------------------------------
-        # Misc Expenses (with Notes)
+        # Misc Expenses (MSP only in notes)
         # ------------------------------------
         misc_items_qs = (
             MiscellaneousItem.objects
             .filter(merchandising__in=sales_hdr)
-            .select_related("merchandising", "merchandising__warehouse", "merchandising__route")
+            .select_related("merchandising")
             .order_by("-id")
         )
 
@@ -474,49 +467,23 @@ class SalesReportAPIView(APIView):
         misc_total = Decimal("0")
         tz = timezone.get_current_timezone()
 
-        def _short(s: str, n: int = 60) -> str:
-            s = (s or "").strip()
-            return s if len(s) <= n else (s[: n - 1] + "…")
-
         for m in misc_items_qs:
             amt = Decimal(m.amount or 0)
             misc_total += amt
             merch = m.merchandising
 
-            # Build a compact notes string from available context
-            parts = []
-            try:
-                if m.receipt_file and hasattr(m.receipt_file, "url") and m.receipt_file.url:
-                    parts.append("Receipt attached")
-            except Exception:
-                pass
-
-            if getattr(merch, "msp_no", None):
-                parts.append(f"MSP {merch.msp_no}")
-
-            wh_name = getattr(getattr(merch, "warehouse", None), "name", None)
-            if wh_name:
-                parts.append(wh_name)
-
-            rt = getattr(merch, "route", None)
-            rt_name = getattr(rt, "route_name", None) or getattr(rt, "name", None)
-            if rt_name:
-                parts.append(rt_name)
-
-            if getattr(merch, "remarks", None):
-                parts.append(_short(merch.remarks, 60))
-
-            notes = " • ".join(parts) if parts else "—"
+            # ✅ MSP only
+            msp_no = getattr(merch, "msp_no", None)
+            notes = f"MSP {msp_no}" if msp_no else None
 
             d = getattr(merch, "date_time", None)
             date_str = d.astimezone(tz).date().isoformat() if d else None
 
             misc_expenses_list.append({
                 "description": m.description or "—",
-                "notes": notes,                 # ✅ now populated
+                "notes": notes,
                 "amount": float(amt),
                 "date": date_str,
-                # "receipt_url": m.receipt_file.url if you want to expose it
             })
 
         # Optional fallback: show header total if no itemized rows exist
@@ -525,10 +492,11 @@ class SalesReportAPIView(APIView):
             misc_total += Decimal(header_misc_total)
             misc_expenses_list.append({
                 "description": "Miscellaneous (header total)",
-                "notes": "No itemized expenses for this period",
+                "notes": None,   # ✅ no MSP in header fallback
                 "amount": float(header_misc_total),
                 "date": start_date.isoformat(),
             })
+
 
 
         #     # ------------------------------------

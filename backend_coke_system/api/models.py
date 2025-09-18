@@ -672,8 +672,8 @@ class MiscellaneousItem(models.Model):
     def __str__(self):
         return f"{self.description} - ₱{self.amount}"
 
-    def __str__(self):
-        return f"{self.description} - ₱{self.amount}"
+  #  def __str__(self):
+       # return f"{self.description} - ₱{self.amount}"
     
 class ReturnableStock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
