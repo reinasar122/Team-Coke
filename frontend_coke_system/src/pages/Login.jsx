@@ -55,42 +55,57 @@ const Login = () => {
   };
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
+  e.preventDefault();
+  setError("");
+  setLoading(true);
 
-    try {
-      const res = await axios.post("http://localhost:8080/api/login/", { username, password });
-      const { role, must_change_password, id } = res.data;
+  try {
+    const res = await axios.post("http://localhost:8080/api/login/", { username, password });
 
-      localStorage.setItem("user", JSON.stringify(res.data));
-      localStorage.setItem("access", JSON.stringify(res.data.accessibilities));
+    // Log the response data to check if it's structured as expected
+    console.log("Login successful, response:", res.data);
 
-      if (must_change_password) {
-        navigate("/change-password", { state: { userId: id } });
-      } else if (role?.toLowerCase() === "admin") {
-        await fetchWarehouses();
-        setShowWarehouseModal(true);
-      } else {
-        switch (role?.toLowerCase()) {
-          case "cashier":
-            navigate("/cashier-dashboard");
-            break;
-          case "manager":
-            navigate("/manager-dashboard");
-            break;
-          default:
-            navigate("/user-dashboard");
-        }
+    const { role, must_change_password, id } = res.data;
+
+    // Store user data and access permissions in localStorage
+    localStorage.setItem("user", JSON.stringify(res.data)); // Store user info
+    localStorage.setItem("access", JSON.stringify(res.data.accessibilities)); // Store accessibilities
+
+    // Log role and must_change_password values for debugging
+    console.log("Role:", role);
+    console.log("Must change password:", must_change_password);
+
+    if (must_change_password) {
+      // Redirect to change password page
+      navigate("/change-password", { state: { userId: id } });
+    } else if (role?.toLowerCase() === "admin") {
+      // Admin logic: fetch warehouses and show modal
+      await fetchWarehouses();
+      setShowWarehouseModal(true);
+    } else {
+      // Handle different roles: cashier, manager, etc.
+      switch (role?.toLowerCase()) {
+        case "cashier":
+          navigate("/cashier-dashboard");
+          break;
+        case "manager":
+          navigate("/manager-dashboard");
+          break;
+        default:
+          navigate("/dashboard");
       }
-    } catch (err) {
-      setError(
-        err.response?.data?.non_field_errors?.[0] || "Login failed. Please check your credentials."
-      );
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (err) {
+    // Log the error for debugging
+    console.error("Login error:", err);
+    setError(
+      err.response?.data?.non_field_errors?.[0] || "Login failed. Please check your credentials."
+    );
+  } finally {
+    setLoading(false);
+  }
+};
+
 
 
   const handleWarehouseSelection = () => {
@@ -100,7 +115,7 @@ const Login = () => {
     }
     localStorage.setItem("selectedWarehouse", JSON.stringify(selectedWarehouse));
     setShowWarehouseModal(false);
-    navigate("/admin-dashboard");
+    navigate("/dashboard"); // Redirect to dashboard after selecting warehouse
   };
 
   const closeModal = () => {
