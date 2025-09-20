@@ -20,10 +20,10 @@ from .models import (
     Stock, ReturnableStock, Product
 )
 
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer, ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 
 from django.db import connection
@@ -108,10 +108,8 @@ class CreditPaymentCreateAPIView(APIView):
 
 
 
-# Temporary OTP store (for demo; use cache or DB for production)
+# kerkmodify this part  otp
 # Temporary OTP storage (in production use cache like Redis or DB)
-otp_storage = {}
-
 class SendOTPAPIView(APIView):
     def post(self, request):
         email = request.data.get('email', '').lower().strip()
@@ -123,19 +121,23 @@ class SendOTPAPIView(APIView):
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
 
-        # Generate 6-digit OTP
+        # Generate OTP
         otp = str(random.randint(100000, 999999))
-        cache.set(f'otp_{email}', otp, timeout=300)  # Store for 5 minutes
+        cache.set(f'otp_{email}', otp, timeout=300)  # valid for 5 mins
 
-        # Send the OTP to the email
-        send_mail(
-            subject='Your OTP Code',
-            message=f'Your OTP code is: {otp}',
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[email],
-            fail_silently=False
-        )
+        try:
+            send_mail(
+                subject="Your OTP Code",
+                message=f"Your OTP code is: {otp}",
+                from_email=settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[email],
+                fail_silently=False
+            )
+        except Exception as e:
+            print("❌ Email sending failed:", str(e))
+            return Response({"error": "Failed to send email."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+        print(f"📩 OTP for {email}: {otp} (valid 5 mins)")
         return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
 
 
@@ -143,29 +145,42 @@ class VerifyOTPAPIView(APIView):
     def post(self, request):
         print("📨 VERIFY OTP DATA:", request.data)
 
-        email = request.data.get("email")
-        otp = request.data.get("otp")
+        email = str(request.data.get("email", "")).lower().strip()
+        otp = str(request.data.get("otp", "")).strip()
 
         if not email or not otp:
             return Response({"error": "Email and OTP are required"}, status=status.HTTP_400_BAD_REQUEST)
 
-        email = str(email).lower().strip()
+        # Get cached OTP
         cached_otp = cache.get(f'otp_{email}')
 
-        if str(cached_otp) == str(otp):
-            try:
-                user = User.objects.get(email=email)
-                return Response({
-                    "user": {
-                        "id": user.id,
-                        "email": user.email,
-                        "username": user.username  # optional
-                    }
-                }, status=status.HTTP_200_OK)
-            except User.DoesNotExist:
-                return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        if cached_otp is None:
+            return Response({"error": "OTP expired or not found. Please request again."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+        if str(cached_otp) != otp:
+            return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # OTP is valid ✅
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Invalidate OTP after successful use
+        cache.delete(f'otp_{email}')
+
+        # Generate token for password reset/change
+        token = default_token_generator.make_token(user)
+
+        return Response({
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "token": token,
+            }
+        }, status=status.HTTP_200_OK)
 
 
 
@@ -173,6 +188,19 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
+    @action(detail=True, methods=["post"])
+    def set_invoice_no(self, request, pk=None):
+        merchandising = self.get_object()
+        invoice_no = request.data.get("invoice_no", None)
+        # quick debug log (will appear in runserver console)
+        print("DEBUG set_invoice_no called. id=", merchandising.id, "invoice_no=", invoice_no)
+
+        # Use your main serializer so response contains full object
+        serializer = self.get_serializer(merchandising, data={"invoice_no": invoice_no}, partial=True)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        print("DEBUG saved invoice_no:", instance.invoice_no)
+        return Response(self.get_serializer(instance).data, status=status.HTTP_200_OK)
 
 
 class HasAccessPermission(BasePermission):
@@ -581,9 +609,28 @@ class TransactionTypeListCreateView(generics.ListCreateAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
 
+    def create(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types are managed by the system."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
 class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
+
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be updated."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be deleted."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
 
 class CustomerListCreateView(generics.ListCreateAPIView):
     serializer_class = CustomerSerializer

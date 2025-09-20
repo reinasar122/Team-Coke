@@ -86,20 +86,20 @@ const Sidebar = ({ isSidebarOpen }) => {
               ) : (
                 <DisabledSubItem text="Supplier Return" />
               )}
-              {/* {canView("Invoice") ? (
+              {canView("Invoice") ? (
                 <li><Link to="/invoice" className="block p-2 text-sm hover:bg-gray-600 rounded">Invoice</Link></li>
               ) : (
                 <DisabledSubItem text="Invoice" />
-              )} */}
-              {canView("Credit") ? (
-                <li>
-                  <Link to="/credit" className="block p-2 text-sm hover:bg-gray-600 rounded">
-                    Credit
-                  </Link>
-                </li>
-              ) : (
-                <DisabledSubItem text="Credit" />
               )}
+              {canView("Credit") ? (
+                  <li>
+                    <Link to="/credits" className="block p-2 text-sm hover:bg-gray-600 rounded">
+                      Credit
+                    </Link>
+                  </li>
+                ) : (
+                  <DisabledSubItem text="Credit" />
+                )}
               {canView("Expenses") ? (
                 <li>
                   <Link to="/expenses" className="block p-2 text-sm hover:bg-gray-600 rounded">

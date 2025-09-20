@@ -23,24 +23,48 @@ export default function Expenses() {
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
 
-  // modal state
-  const [open, setOpen] = useState(false);
+  const [warehouseMSP, setWarehouseMSP] = useState(null);
+
+  // modal states
+  const [openAddModal, setOpenAddModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
-    merchandising: "", // optional id
-    description: "",
-    amount: "",
-  });
-  const [formErr, setFormErr] = useState(""); // show backend validation
+  const [form, setForm] = useState({ merchandising: "", description: "", amount: "" });
+  const [formErr, setFormErr] = useState("");
+
+  // NEW: view modal state
+  const [selectedGroup, setSelectedGroup] = useState(null);
 
   const sortLatest = useCallback((arr) => {
     return [...(arr || [])].sort((a, b) => {
       const ta = new Date(a.created_at || a.updated_at || a.date || 0).getTime();
       const tb = new Date(b.created_at || b.updated_at || b.date || 0).getTime();
-      if (tb !== ta) return tb - ta;          // newer first
-      return (b.id ?? 0) - (a.id ?? 0);       // tie-breaker
+      if (tb !== ta) return tb - ta; // newer first
+      return (b.id ?? 0) - (a.id ?? 0);
     });
   }, []);
+
+
+  useEffect(() => {
+    const fetchWarehouseMSP = async () => {
+      try {
+        const res = await axios.get(`${API}/merchandisings/?transaction_type=Warehouse`, authHeaders());
+        if (res.data && res.data.length > 0) {
+          const latest = [...res.data].sort((a, b) => {
+            const ta = new Date(a.created_at || 0).getTime();
+            const tb = new Date(b.created_at || 0).getTime();
+            return tb - ta;
+          })[0];
+          setWarehouseMSP(latest);
+        }
+      } catch (e) {
+        console.error("Failed to fetch Warehouse MSP:", e);
+      }
+    };
+    fetchWarehouseMSP();
+  }, []);
+
+
+
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,19 +87,51 @@ export default function Expenses() {
     fetchData();
   }, [sortLatest]);
 
-  // merch id → msp_no
+
+  // latest merchandising (by created_at or id)
+  const latestMerch = useMemo(() => {
+    if (!merch || merch.length === 0) return null;
+    const sorted = [...merch].sort((a, b) => {
+      const ta = new Date(a.created_at || 0).getTime();
+      const tb = new Date(b.created_at || 0).getTime();
+      return tb - ta;
+    });
+    return sorted[0]; // newest merchandising
+  }, [merch]);
+
+
+
+
+  // merch id → msp_no map
   const merchMap = useMemo(() => {
     const map = {};
-    merch.forEach((m) => { map[m.id] = m.msp_no; });
+    merch.forEach((m) => (map[m.id] = m.msp_no));
     return map;
   }, [merch]);
 
+  // group items by msp_no
+  const groupedExpenses = useMemo(() => {
+    const groups = {};
+    items.forEach((exp) => {
+      const mspNo = merchMap[exp.merchandising] || "—";
+      if (!groups[mspNo]) groups[mspNo] = [];
+      groups[mspNo].push(exp);
+    });
+    return Object.entries(groups).map(([mspNo, exps]) => ({
+      mspNo,
+      expenses: exps,
+      totalAmount: exps.reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0),
+      itemCount: exps.length,
+      date: exps[0]?.created_at || exps[0]?.updated_at || exps[0]?.date,
+    }));
+  }, [items, merchMap]);
+
   const total = useMemo(
-    () => items.reduce((sum, x) => sum + (parseFloat(x.amount) || 0), 0),
-    [items]
+    () => groupedExpenses.reduce((sum, g) => sum + g.totalAmount, 0),
+    [groupedExpenses]
   );
 
-  // ---- modal helpers ----
+  // form handlers
   const onChange = (e) => {
     const { name, value } = e.target;
     setFormErr("");
@@ -93,13 +149,13 @@ export default function Expenses() {
     !Number.isNaN(parseFloat(form.amount));
 
   useEffect(() => {
-    if (!open) return;
+    if (!openAddModal) return;
     const onKey = (e) => {
-      if (e.key === "Escape" && !saving) setOpen(false);
+      if (e.key === "Escape" && !saving) setOpenAddModal(false);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, saving]);
+  }, [openAddModal, saving]);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -108,26 +164,20 @@ export default function Expenses() {
     try {
       setSaving(true);
       setFormErr("");
-
-      // Build payload: OMIT 'merchandising' if empty to avoid null-validation errors
       const payload = {
         description: form.description.trim(),
         amount: parseFloat(form.amount),
+        merchandising: warehouseMSP?.id, // always latest MSP
       };
-      if (form.merchandising) {
-        payload.merchandising = Number(form.merchandising);
-      }
+      if (form.merchandising) payload.merchandising = Number(form.merchandising);
 
       const res = await axios.post(`${API}/miscellaneous-items/`, payload, authHeaders());
-
-      // optimistic insert + keep sorted latest first
       setItems((prev) => sortLatest([res.data, ...prev]));
-      setOpen(false);
+      setOpenAddModal(false);
       setForm({ merchandising: "", description: "", amount: "" });
     } catch (e) {
       console.error(e);
       const server = e?.response?.data;
-      // Surface DRF validation details for fast debugging
       setFormErr(
         server
           ? typeof server === "string"
@@ -143,15 +193,26 @@ export default function Expenses() {
 
   return (
     <div className="p-4">
-      {/* Header + Button */}
+      {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-bold">All Expenses</h1>
         <button
-          onClick={() => { setOpen(true); setFormErr(""); }}
+          onClick={() => {
+            setOpenAddModal(true);
+            setFormErr("");
+            setForm({
+              merchandising: warehouseMSP?.id || "", // link to warehouse MSP
+              description: "",
+              amount: "",
+            });
+          }}
           className="px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white text-sm"
         >
           + Add Expense
         </button>
+
+
+
       </div>
 
       {loading && <div>Loading…</div>}
@@ -161,55 +222,62 @@ export default function Expenses() {
         <table className="w-full border border-gray-300 rounded-md overflow-hidden">
           <thead className="bg-gray-100 text-left">
             <tr>
-              <th className="p-2 border-b">Date &amp; Time</th>
               <th className="p-2 border-b">MSP No</th>
-              <th className="p-2 border-b">Description</th>
-              <th className="p-2 border-b text-right">Amount</th>
+              <th className="p-2 border-b">Items Count</th>
+              <th className="p-2 border-b">Date</th>
+              <th className="p-2 border-b text-right">Total Amount</th>
+              <th className="p-2 border-b text-center">Action</th>
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 && (
+            {groupedExpenses.length === 0 && (
               <tr>
-                <td colSpan="4" className="p-4 text-center text-gray-500">
+                <td colSpan="5" className="p-4 text-center text-gray-500">
                   No expenses found
                 </td>
               </tr>
             )}
-            {items.map((exp) => (
-              <tr key={exp.id} className="hover:bg-gray-50">
-                <td className="p-2 border-b">
-                  {dayjs(exp.created_at || exp.updated_at || exp.date).format("MMM DD, YYYY hh:mm A")}
+            {groupedExpenses.map((group) => (
+              <tr key={group.mspNo} className="hover:bg-gray-50">
+                <td className="p-2 border-b">{group.mspNo}</td>
+                <td className="p-2 border-b">{group.itemCount} {group.itemCount > 1 ? "items" : "item"}</td>
+                <td className="p-2 border-b">{dayjs(group.date).format("MMM DD, YYYY hh:mm A")}</td>
+                <td className="p-2 border-b text-right">{peso(group.totalAmount)}</td>
+                <td className="p-2 border-b text-center">
+                  <button
+                    onClick={() => setSelectedGroup(group)}
+                    className="px-3 py-1 text-sm rounded-md border hover:bg-gray-100"
+                  >
+                    👁 View
+                  </button>
                 </td>
-                <td className="p-2 border-b">{merchMap[exp.merchandising] || "—"}</td>
-                <td className="p-2 border-b">{exp.description || "—"}</td>
-                <td className="p-2 border-b text-right">{peso(exp.amount)}</td>
               </tr>
             ))}
           </tbody>
-          {items.length > 0 && (
+          {groupedExpenses.length > 0 && (
             <tfoot>
               <tr className="bg-gray-50 font-semibold">
                 <td colSpan="3" className="p-2 border-t text-right">
-                  Total
+                  Grand Total:
                 </td>
-                <td className="p-2 border-t text-right">{peso(total)}</td>
+                <td colSpan="2" className="p-2 border-t text-right text-blue-600">
+                  {peso(total)}
+                </td>
               </tr>
             </tfoot>
           )}
         </table>
       )}
 
-      {/* -------- Modal -------- */}
-      {open && (
+      {/* -------- Add Expense Modal -------- */}
+      {openAddModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
           aria-modal="true"
           role="dialog"
-          onClick={() => !saving && setOpen(false)}
+          onClick={() => !saving && setOpenAddModal(false)}
         >
-          {/* backdrop */}
           <div className="absolute inset-0 bg-black/40" />
-          {/* dialog */}
           <div
             className="relative bg-white w-full max-w-lg rounded-lg shadow-lg p-5"
             onClick={(e) => e.stopPropagation()}
@@ -217,7 +285,7 @@ export default function Expenses() {
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xl font-semibold">Add Expense</h2>
               <button
-                onClick={() => !saving && setOpen(false)}
+                onClick={() => !saving && setOpenAddModal(false)}
                 className="text-gray-500 hover:text-gray-700"
                 aria-label="Close"
               >
@@ -225,7 +293,6 @@ export default function Expenses() {
               </button>
             </div>
 
-            {/* Backend validation error (pretty-printed) */}
             {formErr && (
               <pre className="text-xs text-red-600 bg-red-50 border border-red-200 rounded p-2 mb-2 whitespace-pre-wrap">
                 {formErr}
@@ -234,23 +301,16 @@ export default function Expenses() {
 
             <form onSubmit={handleSave} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Link to MSP (optional)
-                </label>
-                <select
-                  name="merchandising"
-                  value={form.merchandising}
-                  onChange={onChange}
-                  className="w-full border rounded-md p-2 text-sm"
-                >
-                  <option value="">— Select MSP —</option>
-                  {merch.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.msp_no}
-                    </option>
-                  ))}
-                </select>
+                <label className="block text-sm font-medium mb-1">Warehouse MSP (auto)</label>
+                <input
+                  type="text"
+                  value={warehouseMSP?.msp_no || "—"}
+                  className="w-full border rounded-md p-2 text-sm bg-gray-100 cursor-not-allowed"
+                  readOnly
+                />
               </div>
+
+
 
               <div>
                 <label className="block text-sm font-medium mb-1">Description</label>
@@ -282,7 +342,7 @@ export default function Expenses() {
               <div className="flex items-center justify-end gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => !saving && setOpen(false)}
+                  onClick={() => !saving && setOpenAddModal(false)}
                   className="px-4 py-2 rounded-md border text-sm"
                   disabled={saving}
                 >
@@ -298,9 +358,69 @@ export default function Expenses() {
                   }`}
                 >
                   {saving ? "Saving…" : "Save Expense"}
-                </button> 
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* -------- View Expenses Modal -------- */}
+      {selectedGroup && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center"
+          aria-modal="true"
+          role="dialog"
+          onClick={() => setSelectedGroup(null)}
+        >
+          <div className="absolute inset-0 bg-black/40" />
+          <div
+            className="relative bg-white w-full max-w-2xl rounded-lg shadow-lg p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-semibold">
+                Expenses for MSP {selectedGroup.mspNo}
+              </h2>
+              <button
+                onClick={() => setSelectedGroup(null)}
+                className="text-gray-500 hover:text-gray-700"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <table className="w-full border border-gray-300 rounded-md overflow-hidden">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th className="p-2 border-b">Date & Time</th>
+                  <th className="p-2 border-b">Description</th>
+                  <th className="p-2 border-b text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedGroup.expenses.map((exp) => (
+                  <tr key={exp.id} className="hover:bg-gray-50">
+                    <td className="p-2 border-b">
+                      {dayjs(exp.created_at || exp.updated_at || exp.date).format("MMM DD, YYYY hh:mm A")}
+                    </td>
+                    <td className="p-2 border-b">{exp.description}</td>
+                    <td className="p-2 border-b text-right">{peso(exp.amount)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="bg-gray-50 font-semibold">
+                  <td colSpan="2" className="p-2 border-t text-right">
+                    Total for MSP {selectedGroup.mspNo}:
+                  </td>
+                  <td className="p-2 border-t text-right">
+                    {peso(selectedGroup.totalAmount)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       )}

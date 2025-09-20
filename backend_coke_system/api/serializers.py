@@ -7,7 +7,7 @@ from .models import Van
 from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
 from .models import User, RoleAccessibility
 import re
-from .models import SupplierReturnForm, SupplierReturnFormItem, Product
+from .models import SupplierReturnForm, SupplierReturnFormItem, Product, Invoice
 from .models import *
 from django.db import transaction
 from django.db.models import F
@@ -172,22 +172,26 @@ class UserSerializer(serializers.ModelSerializer):
         )
         return user
 
-    def update(self, instance, validated_data):
+    def create(self, validated_data):
         password = validated_data.pop('password', None)
-        role = validated_data.pop('role', None)
-        warehouse = validated_data.pop('warehouse', None)
+        user = super().create(validated_data)
+        token = default_token_generator.make_token(user)
+        uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
 
-        if password:
-            instance.set_password(password)
-        if role:
-            instance.role = role
-        if warehouse:
-            instance.warehouse = warehouse
+        reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
+        send_mail(
+            subject='Set Your Account Password',
+            message=(
+                f"Hello {user.first_name} {user.last_name},\n\n"
+                f"Your username is: {user.username}\n\n"
+                f"Please set your password using the link below:\n{reset_link}"
+            ),
+            from_email='your_email@gmail.com',
+            recipient_list=[user.email],
+            fail_silently=False,
+        )
+        return user
 
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
 
 
 
@@ -561,6 +565,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     customer = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), allow_null=True, required=False)
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
+    invoice_no = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Merchandising
@@ -898,6 +903,10 @@ class LoginSerializer(serializers.Serializer):
             "must_change_password": user.must_change_password,
             "accessibilities": list(access_list)
         }
+#Kerk modify this part changepassword to otp
+import logging
+from django.contrib.auth.tokens import default_token_generator
+from django.utils.http import urlsafe_base64_decode
 
 class ChangePasswordSerializer(serializers.Serializer):
     uid = serializers.CharField()
@@ -905,6 +914,7 @@ class ChangePasswordSerializer(serializers.Serializer):
     new_password = serializers.CharField(write_only=True, min_length=8)
 
     def validate_new_password(self, value):
+        # Password strength validation
         pattern = re.compile(
             r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$'
         )
@@ -922,9 +932,13 @@ class ChangePasswordSerializer(serializers.Serializer):
             # Decode UID and cast to int
             user_id = int(urlsafe_base64_decode(uid).decode())
             user = User.objects.get(pk=user_id)
+
+            # Log for debugging purposes
+            logging.info(f"User found: {user.id}, Token: {token}")
         except (User.DoesNotExist, ValueError, TypeError, OverflowError):
             raise serializers.ValidationError("Invalid UID")
 
+        # Validate the token
         if not default_token_generator.check_token(user, token):
             raise serializers.ValidationError("Invalid or expired token")
 
@@ -933,10 +947,12 @@ class ChangePasswordSerializer(serializers.Serializer):
 
     def save(self):
         user = self.validated_data['user']
+        # Set new password for the user
         user.set_password(self.validated_data['new_password'])
-        user.must_change_password = False
+        user.must_change_password = False  # Make sure this field exists or remove it if unnecessary
         user.save()
         return user
+
 
 class ForgotPasswordRequestSerializer(serializers.Serializer):
     email = serializers.EmailField()
@@ -955,7 +971,7 @@ class OTPVerificationSerializer(serializers.Serializer):
         if not User.objects.filter(email=data['email']).exists():
             raise serializers.ValidationError("Email not found.")
         return data
-
+    
 #Supplier Return Item Serializer 
 class SupplierReturnFormItemSerializer(serializers.ModelSerializer):
     class Meta:
@@ -997,5 +1013,3 @@ class ProcessEmptiesReturnSerializer(serializers.Serializer):
                     raise serializers.ValidationError(f"Missing required field: {field}")
         
         return value
-
- 

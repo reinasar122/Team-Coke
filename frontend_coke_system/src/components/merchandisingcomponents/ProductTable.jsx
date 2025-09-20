@@ -3,6 +3,8 @@ import axios from "axios";
 import { FaTrash } from 'react-icons/fa';
 import ProductSearchSelect from "../common/ProductSearchSelect"; // adjust path if needed
 
+
+
 const ProductTable = ({
   rows,
   setRows,
@@ -202,6 +204,13 @@ const ProductTable = ({
   const handleRowChange = (index, field, value) => {
     const updated = [...rows];
     const row = { ...updated[index] };
+
+    if (value === null) {
+      row[field] = null;
+      updated[index] = row;
+      setRows(updated);
+      return;   // ⬅️ stops before doing any math
+  }
 
     const n = (v) => parseFloat(v) || 0;
     row[field] = value;
@@ -534,25 +543,25 @@ const ProductTable = ({
               </td>
 
               {/* DISPATCHED */}
-              <td className="border border-gray-200 py-1 px-1">
+             <td className="border border-gray-200 py-1 px-1">
                 <input
                   type="number"
                   placeholder="0"
                   className="input-always-spinner input text-center bg-yellow-50"
-                  value={row.dispatchedShell ?? ""}
+                  value={row.dispatchedShell === null || row.dispatchedShell === undefined ? "" : row.dispatchedShell}
                   onChange={(e) =>
-                    handleRowChange(index, "dispatchedShell", e.target.value)
+                    handleRowChange(index, "dispatchedShell", e.target.value === "" ? null : e.target.value)
                   }
                 />
               </td>
-              <td className="border border-gray-200 py-1 px-1 ">
-                <input
+              <td className="border border-gray-200 py-1 px-1">
+               <input
                   type="number"
                   placeholder="0"
                   className="input-always-spinner input text-center bg-yellow-50"
-                  value={row.dispatchedPcs ?? ""}
+                  value={row.dispatchedPcs === null || row.dispatchedPcs === undefined ? "" : row.dispatchedPcs}
                   onChange={(e) =>
-                    handleRowChange(index, "dispatchedPcs", e.target.value)
+                    handleRowChange(index, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
                   }
                 />
               </td>

@@ -7,7 +7,7 @@ const isStrongPassword = (password) =>
 
 const ChangePassword = () => {
   const navigate = useNavigate();
-  const { uid, token } = useParams(); // URL params from reset link
+  const { uid, token } = useParams();
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -47,13 +47,11 @@ const ChangePassword = () => {
         token: decodeURIComponent(token),
         new_password: newPassword,
       };
-
       await axios.post("http://localhost:8080/api/change-password/", payload);
 
-      setSuccess("Password changed successfully! Redirecting...");
+      setSuccess("✅ Password changed successfully! Redirecting...");
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
-      console.error("Password change error:", err);
       const msg =
         err.response?.data?.error ||
         err.response?.data?.detail ||
@@ -64,30 +62,52 @@ const ChangePassword = () => {
     }
   };
 
+  // ✅ Change: use green when satisfied, gray when not
   const getValidationColor = (condition) =>
-    condition ? "text-green-600 font-semibold" : "text-gray-500";
+    condition ? "text-green-500 font-semibold" : "text-gray-400";
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
-      <div className="bg-white p-8 rounded shadow-md w-full max-w-md">
-        <h3 className="text-xl font-bold mb-4 text-center">Change Password</h3>
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+      {/* Background Design */}
+      <div className="absolute inset-0 bg-black">
+        <div className="absolute inset-0 bg-gradient-to-br from-black via-neutral-900 to-red-900 opacity-90"></div>
+        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-red-600 rounded-full blur-[150px] opacity-30 animate-pulse"></div>
+        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-white rounded-full blur-[200px] opacity-10"></div>
+      </div>
 
-        {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
-        {success && <div className="text-green-600 text-sm mb-2">{success}</div>}
+      {/* Card */}
+      <div className="relative bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white-600">
+        <h3 className="text-2xl font-bold mb-6 text-center text-white uppercase tracking-wide">
+          Change Password
+        </h3>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-3">
-            <label className="block font-medium mb-1">New Password</label>
+        {error && (
+          <div className="bg-red-600 text-white text-sm p-2 rounded mb-3">
+            {error}
+          </div>
+        )}
+        {success && (
+          <div className="bg-green-600 text-white text-sm p-2 rounded mb-3">
+            {success}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* New Password */}
+          <div>
+            <label className="block text-sm font-medium mb-1 text-white">
+              New Password
+            </label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
-                className="w-full p-2 border rounded"
+                className="w-full p-3 bg-black/70 text-white border border-gray-600 rounded focus:outline-none focus:border-red-500"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
               <button
                 type="button"
-                className="absolute right-2 top-2 text-gray-500 text-sm"
+                className="absolute right-3 top-3 text-xs text-red-400 hover:text-red-600"
                 onClick={() => setShowPassword(!showPassword)}
               >
                 {showPassword ? "Hide" : "Show"}
@@ -95,17 +115,21 @@ const ChangePassword = () => {
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="block font-medium mb-1">Confirm Password</label>
+          {/* Confirm Password */}
+          <div>
+            <label className="block text-sm font-medium mb-1 text-white">
+              Confirm Password
+            </label>
             <input
               type={showPassword ? "text" : "password"}
-              className="w-full p-2 border rounded"
+              className="w-full p-3 bg-black/70 text-white border border-gray-600 rounded focus:outline-none focus:border-red-500"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
             />
           </div>
 
-          <ul className="mb-4 text-sm">
+          {/* Password requirements */}
+          <ul className="space-y-1 text-xs">
             <li className={getValidationColor(newPassword.length >= 8)}>
               • Minimum 8 characters
             </li>
@@ -123,11 +147,14 @@ const ChangePassword = () => {
             </li>
           </ul>
 
+          {/* Submit */}
           <button
             type="submit"
             disabled={loading}
-            className={`w-full py-2 rounded text-white ${
-              loading ? "bg-blue-300" : "bg-blue-600 hover:bg-blue-700"
+            className={`w-full py-3 rounded text-white font-bold uppercase tracking-wide ${
+              loading
+                ? "bg-red-400 cursor-not-allowed"
+                : "bg-red-600 hover:bg-red-700 transition"
             }`}
           >
             {loading ? "Updating..." : "Update Password"}

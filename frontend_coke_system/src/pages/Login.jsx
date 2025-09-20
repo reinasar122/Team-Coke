@@ -1,6 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
+import { FaEye, FaEyeSlash } from "react-icons/fa";
+import ForgotPasswordModal from "./ForgotPassword";
+import VerifyOTPModal from "./VerifyOTP";
 
 // Spinner component
 const Spinner = ({ size = 5 }) => (
@@ -17,66 +20,87 @@ const Spinner = ({ size = 5 }) => (
 );
 
 const Login = () => {
-  const navigate = useNavigate();
-
-  // States
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [showVerifyOTPModal, setShowVerifyOTPModal] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [warehouses, setWarehouses] = useState([]);
+  const [selectedWarehouse, setSelectedWarehouse] = useState(null);
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showWarehouseModal, setShowWarehouseModal] = useState(false);
   const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
 
-  const [warehouses, setWarehouses] = useState([]);
-  const [loadingWarehouses, setLoadingWarehouses] = useState(false);
-  const [selectedWarehouse, setSelectedWarehouse] = useState(null);
-  const [showWarehouseModal, setShowWarehouseModal] = useState(false);
+  const navigate = useNavigate();
 
-  // Restore remembered username
-  useEffect(() => {
-    const saved = localStorage.getItem("remember_username");
-    if (saved) setUsername(saved);
-  }, []);
+  // ✅ Handle success after OTP verification
+  const handleOtpVerified = (encodedUid, token) => {
+    setShowVerifyOTPModal(false); // close modal
+    navigate(`/change-password/${encodedUid}/${token}`); // go to Change Password
+  };
 
-  // Login handler
+  const fetchWarehouses = async () => {
+    setLoadingWarehouses(true);
+    try {
+      const res = await axios.get("http://localhost:8080/api/warehouses/");
+      setWarehouses(res.data);
+      if (res.data.length > 0) setSelectedWarehouse(res.data[0]);
+    } catch (err) {
+      setError("Failed to load warehouses. Please try again.");
+    } finally {
+      setLoadingWarehouses(false);
+    }
+  };
+
   const handleLogin = async (e) => {
   e.preventDefault();
   setError("");
   setLoading(true);
 
   try {
-    const res = await axios.post("http://127.0.0.1:8080/api/login/", { username, password });
-    const user = res.data.user || res.data;
-    const access = res.data.accessibilities || [];
+    const res = await axios.post("http://localhost:8080/api/login/", { username, password });
 
-    localStorage.setItem("user", JSON.stringify(user));
-    localStorage.setItem("access", JSON.stringify(access));
+    // Log the response data to check if it's structured as expected
+    console.log("Login successful, response:", res.data);
 
-    if (remember) localStorage.setItem("remember_username", username);
-    else localStorage.removeItem("remember_username");
+    const { role, must_change_password, id } = res.data;
 
-    // --- If admin, fetch warehouses separately ---
-    if (user.role?.name?.toLowerCase() === "admin") {
-      setLoadingWarehouses(true);
-      try {
-        const warehouseRes = await axios.get("http://127.0.0.1:8080/api/warehouses/");
-        setWarehouses(warehouseRes.data);
-        if (warehouseRes.data.length > 0) setSelectedWarehouse(warehouseRes.data[0]);
-        setShowWarehouseModal(true); // Show modal
-      } catch (err) {
-        setError("Failed to fetch warehouses.");
-        console.error(err);
-      } finally {
-        setLoadingWarehouses(false);
+    // Store user data and access permissions in localStorage
+    localStorage.setItem("user", JSON.stringify(res.data)); // Store user info
+    localStorage.setItem("access", JSON.stringify(res.data.accessibilities)); // Store accessibilities
+
+    // Log role and must_change_password values for debugging
+    console.log("Role:", role);
+    console.log("Must change password:", must_change_password);
+
+    if (must_change_password) {
+      // Redirect to change password page
+      navigate("/change-password", { state: { userId: id } });
+    } else if (role?.toLowerCase() === "admin") {
+      // Admin logic: fetch warehouses and show modal
+      await fetchWarehouses();
+      setShowWarehouseModal(true);
+    } else {
+      // Handle different roles: cashier, manager, etc.
+      switch (role?.toLowerCase()) {
+        case "cashier":
+          navigate("/cashier-dashboard");
+          break;
+        case "manager":
+          navigate("/manager-dashboard");
+          break;
+        default:
+          navigate("/dashboard");
       }
-      return; // stop here for admin
     }
-
-    // Non-admin logic
-    navigate("/dashboard");
-
   } catch (err) {
-    setError(err?.response?.data?.non_field_errors?.[0] || "Invalid username or password.");
+    // Log the error for debugging
+    console.error("Login error:", err);
+    setError(
+      err.response?.data?.non_field_errors?.[0] || "Login failed. Please check your credentials."
+    );
   } finally {
     setLoading(false);
   }
@@ -91,24 +115,29 @@ const Login = () => {
     }
     localStorage.setItem("selectedWarehouse", JSON.stringify(selectedWarehouse));
     setShowWarehouseModal(false);
-    navigate("/dashboard");
+    navigate("/dashboard"); // Redirect to dashboard after selecting warehouse
   };
 
-  const closeModal = () => setShowWarehouseModal(false);
+  const closeModal = () => {
+    setShowWarehouseModal(false);
+    setSelectedWarehouse(null);
+    setError("");
+  };
+
   const logoSrc = encodeURI("/static/images/Wilfie’s 5.png");
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-black via-gray-900 to-black">
-      {/* Background glow circles */}
+      {/* Background glow */}
       <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-700 rounded-full blur-3xl opacity-30 animate-pulse"></div>
       <div className="absolute -bottom-32 -right-24 w-80 h-80 bg-red-800 rounded-full blur-3xl opacity-25 animate-pulse"></div>
 
-      {/* Main card */}
+      {/* Login card */}
       <div className="relative z-10 w-full max-w-md mx-4">
         <div className="rounded-3xl bg-white/10 backdrop-blur-md shadow-2xl p-10 border border-white/20">
           <div className="flex flex-col items-center mb-6">
             <div className="w-52 h-52 rounded-full bg-white flex items-center justify-center mb-4">
-              <img src={logoSrc} alt="Wilfie's Logo" className="w-80 h-80 rounded-full object-cover mb-1" />
+              <img src={logoSrc} alt="Logo" className="w-80 h-80 rounded-full object-cover mb-1" />
             </div>
             <h1 className="text-3xl font-bold text-white mb-1">Welcome back</h1>
             <p className="text-sm text-gray-200 text-center">Sign in to Continue</p>
@@ -129,7 +158,6 @@ const Login = () => {
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="username or email"
                 required
-                autoComplete="username"
                 className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
               />
             </div>
@@ -144,18 +172,21 @@ const Login = () => {
                   placeholder="••••••••"
                   required
                   autoComplete="current-password"
-                  className="w-full rounded-xl border border-gray-400/50 px-4 py-3 pr-28 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
+                  className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
+                  style={showPassword ? { WebkitTextSecurity: "none" } : undefined}
                 />
                 <button
                   type="button"
-                  onClick={() => setShowPassword((s) => !s)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-red-400 hover:text-red-600"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {showPassword ? "Hide" : "Show"}
+                  {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
                 </button>
               </div>
             </div>
 
+            {/* Remember Me + Forgot Password */}
             <div className="flex items-center justify-between">
               <label className="inline-flex items-center gap-2 text-sm text-gray-200 select-none">
                 <input
@@ -167,44 +198,45 @@ const Login = () => {
                 <span>Remember me</span>
               </label>
 
-              <button
-                type="button"
-                onClick={() => navigate("/forgot-password")}
-                className="text-sm text-red-400 font-semibold hover:text-red-600 hover:underline"
+              <p
+                className="text-sm text-red-400 hover:underline cursor-pointer"
+                onClick={() => setShowForgotModal(true)}
               >
-                Forgot?
-              </button>
+                Forgot password?
+              </p>
             </div>
 
             <button
               type="submit"
               disabled={loading}
               className={`w-full flex items-center justify-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all ${
-                loading ? "bg-red-700/80 text-white cursor-wait" : "bg-red-600 text-white hover:bg-red-700"
+                loading
+                  ? "bg-red-700/80 text-white cursor-wait"
+                  : "bg-red-600 text-white hover:bg-red-700"
               }`}
             >
               {loading && <Spinner size={4} />}
               <span>{loading ? "Signing in..." : "Sign in"}</span>
             </button>
-          </form>
 
-          <div className="mt-8 border-t border-white/20 pt-5 text-center">
-            <p className="text-sm text-gray-200">
-              Don’t have an account?{" "}
-              <button
-                onClick={() => navigate("/register")}
-                className="text-red-400 font-semibold hover:text-red-600 hover:underline"
-              >
-                Contact the Admin
-              </button>
-            </p>
-          </div>
+            <div className="mt-8 border-t border-white/20 pt-5 text-center">
+              <p className="text-sm text-gray-200">
+                Don’t have an account?{" "}
+                <button
+                  onClick={() => navigate("/register")}
+                  className="text-red-400 font-semibold hover:text-red-600 hover:underline"
+                >
+                  Contact the Admin
+                </button>
+              </p>
+            </div>
+          </form>
         </div>
       </div>
 
       {/* Warehouse Modal */}
       {showWarehouseModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
           <div className="bg-white p-8 rounded-lg shadow-xl max-w-md w-full">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold text-gray-800">Select Warehouse</h3>
@@ -223,7 +255,7 @@ const Login = () => {
                         ? "border-red-600 bg-red-50"
                         : "border-gray-200 hover:border-red-300"
                     }`}
-                                        onClick={() => setSelectedWarehouse(w)}
+                    onClick={() => setSelectedWarehouse(w)}
                   >
                     <h4 className="font-semibold">{w.name}</h4>
                     <p className="text-sm text-gray-600">{w.street}, {w.city}</p>
@@ -252,6 +284,29 @@ const Login = () => {
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Forgot Password Modal Overlay */}
+      {showForgotModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <ForgotPasswordModal
+            onClose={() => setShowForgotModal(false)}
+            onOtpSent={() => {
+              setShowForgotModal(false);
+              setShowVerifyOTPModal(true);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Verify OTP Modal Overlay */}
+      {showVerifyOTPModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <VerifyOTPModal
+            onClose={() => setShowVerifyOTPModal(false)}
+            onVerified={handleOtpVerified} // ✅ function is now defined
+          />
         </div>
       )}
     </div>

@@ -906,11 +906,11 @@ const PaymentModal = ({
 
         {/* Footer Buttons */}
         <div className="mt-6 flex justify-between">
-          <button className="border px-4 py-2 rounded" onClick={onClose} disabled={submitting}>
+          <button className="btn btn-back" onClick={onClose} disabled={submitting}>
             Back to Sale
           </button>
           <button
-            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60"
+            className="btn btn-primary"
             disabled={submitting || (paymentMethod === "cash" && n(cashReceived) < amountDueFinal)}
             onClick={async () => {
               // ✅ More robust warehouse extraction
