@@ -1,7 +1,8 @@
 // components/charts/SalesByRoutePie.jsx
 import React, { useMemo } from "react";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from "recharts";
-import { peso } from "../../utils/formatters"; // <-- use peso for tooltip formatting
+import Empty from "../common/Empty"; // <-- import Empty
+import { peso } from "../../utils/formatters";
 
 const COLORS = ["#4f46e5","#22c55e","#ef4444","#f59e0b","#06b6d4","#8b5cf6","#84cc16","#e11d48","#10b981"];
 
@@ -9,9 +10,8 @@ const RAD = Math.PI / 180;
 
 // Outside label that avoids overlapping the pie
 function renderLabel({ name, percent, cx, cy, midAngle, outerRadius }) {
-  // hide labels for tiny slices; they stay in legend + tooltip
-  if (percent < 0.06) return null; // <6%
-  const r = outerRadius + 18;      // label distance from pie
+  if (percent < 0.06) return null; // hide labels for tiny slices
+  const r = outerRadius + 18;
   const x = cx + r * Math.cos(-midAngle * RAD);
   const y = cy + r * Math.sin(-midAngle * RAD);
   const p = (percent * 100).toFixed(1);
@@ -33,10 +33,15 @@ export default function SalesByRoutePie({ data = [] }) {
   const chartData = useMemo(
     () =>
       (Array.isArray(data) ? data : [])
-        .filter(d => d && d.name && d.revenue > 0)   // ensure only real routes
-        .sort((a, b) => b.revenue - a.revenue),      // stable layout
+        .filter(d => d && d.name && d.revenue > 0)
+        .sort((a, b) => b.revenue - a.revenue),
     [data]
   );
+
+  // Show empty state if no routes have revenue
+  if (!chartData.length) {
+    return <Empty text="No route sales for the selected filters." />;
+  }
 
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -50,8 +55,8 @@ export default function SalesByRoutePie({ data = [] }) {
           startAngle={90}
           endAngle={-270}
           paddingAngle={1}
-          minAngle={6}          // ensures skinny slices still get space
-          label={renderLabel}   // custom outside labels
+          minAngle={6}
+          label={renderLabel}
           labelLine
           isAnimationActive={false}
         >
@@ -62,7 +67,6 @@ export default function SalesByRoutePie({ data = [] }) {
 
         <Tooltip
           formatter={(value, _name, { payload }) => {
-            // Use peso() to format with currency symbol + thousand separators
             try {
               return [peso(Number(value)), payload?.name || ""];
             } catch {

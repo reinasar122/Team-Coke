@@ -60,19 +60,20 @@ export default function ProductBreakdownTable({
       </div>
 
       {/* Scrollable table container with sticky header */}
-      <div className="overflow-auto rounded-lg border border-slate-200 max-h-[520px]">
-        <table className="w-full text-sm table-fixed">
+      <div className="table-wrap overflow-x-auto max-h-[520px] overflow-y-auto rounded-lg border border-slate-200">
+        <table className="w-full text-sm table-auto">
           {/* Product flexes; numeric columns have fixed px widths */}
           <colgroup>
-            <col />                     {/* Product (flex) */}
-            <col style={{ width: 88 }} />   {/* Qty */}
-            <col style={{ width: 132 }} />  {/* Revenue */}
-            <col style={{ width: 120 }} />  {/* Profit */}
-            <col style={{ width: 110 }} />  {/* Discount % */}
-            <col style={{ width: 120 }} />  {/* Return Rate */}
+            <col /> {/* Product (flex) */}
+            <col style={{ width: '88px' }} /> {/* Qty */}
+            <col style={{ width: '132px' }} /> {/* Revenue */}
+            <col style={{ width: '120px' }} /> {/* Profit */}
+            <col style={{ width: '110px' }} /> {/* Discount % */}
+            <col style={{ width: '120px' }} /> {/* Return Rate */}
           </colgroup>
 
-          <thead className="bg-slate-50 text-slate-600 sticky top-0 z-20 shadow-sm">
+          {/* Sticky header */}
+          <thead className="bg-slate-50 text-slate-600 sticky top-0 z-30 shadow-sm">
             <tr>
               {headers.map((h) => (
                 <th
