@@ -103,7 +103,9 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
         {!hideLayout && <Sidebar isSidebarOpen={isSidebarOpen} />}
 
         <div
-          className={`app-content p-5 flex-1 transition-all duration-300 ${!hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"}`}
+          className={`app-content p-5 flex-1 transition-all duration-300 ${
+            !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
+          }`}
         >
           <Routes>
             {/* Dashboard */}
@@ -173,7 +175,12 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
 
             {/* ✅ Default Fallback */}
-            <Route path="*" element={<Navigate to={isAuthenticated() ? "/dashboard" : "/login"} replace />} />
+            <Route
+              path="*"
+              element={
+                <Navigate to={isAuthenticated() ? "/dashboard" : "/login"} replace />
+              }
+            />
           </Routes>
         </div>
       </div>
@@ -189,13 +196,16 @@ function App() {
   // Loading state to prevent flickering before rendering the page
   const [loading, setLoading] = useState(true);
 
-  // Ensure that Login page is shown first on startup, regardless of user session
   useEffect(() => {
-    localStorage.removeItem("user");  // Clear any cached user session data on startup
-    setLoading(false); // Allow the app to render after session has been cleared
-  }, []);
+      // Check if this browser session has been initialized
+      if (!sessionStorage.getItem("app_initialized")) {
+        // First load after yarn start → clear old user session
+        localStorage.removeItem("user");
+        sessionStorage.setItem("app_initialized", "true");
+      }
+      setLoading(false);
+    }, []);
 
-  // If still loading, show nothing to prevent flickering
   if (loading) {
     return <div>Loading...</div>;
   }
