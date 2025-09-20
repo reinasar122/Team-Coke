@@ -1137,6 +1137,19 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     if (misc) miscPoints.push({ date: txDate, amount: misc });
   }
 
+  /* -------- Products Sold count with DATE FILTERING -------- */
+  let productsSold = 0;
+  for (const m of merch) {
+    const txDate = m?.date_time || m?.created_at || m?.updated_at;
+    if (!txDate || !Array.isArray(m.items) || !isWithinDateRange(txDate)) continue;
+
+    for (const it of m.items) {
+      const prod = productById.get(it.product);
+      const qty = pieceQty(it, prod);
+      productsSold += qty;
+    }
+  }
+
   /* -------- Product Performance TIME SERIES with DATE FILTERING -------- */
   const ppSeriesByDate = new Map();
   const categoryMapObj = {};
@@ -1208,6 +1221,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       todaysSales: 0,
       todaysReturns,
       todaysReturnsCount,
+      productsSold, 
     },
     lists: {
       lowStockList,
@@ -1598,7 +1612,7 @@ const Dashboard = () => {
           <MetricsCards
             data={{
               totalRevenue: periodSums.revenue ?? 0,
-              productsSold: metrics?.totalProducts ?? 0,
+              productsSold: metrics?.productsSold ?? 0,   // ✅ fixed
               supplierReturnables: lists?.supplierReturnsList?.length ?? 0,
               miscCharges: periodSums.misc ?? 0,
               actualProfit: periodSums.profit ?? 0,
