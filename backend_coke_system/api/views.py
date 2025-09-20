@@ -167,8 +167,6 @@ class VerifyOTPAPIView(APIView):
 
         return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
 
-
-
 class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
@@ -176,16 +174,30 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=["post"])
     def set_invoice_no(self, request, pk=None):
         merchandising = self.get_object()
-        invoice_no = request.data.get("invoice_no", None)
-        # quick debug log (will appear in runserver console)
-        print("DEBUG set_invoice_no called. id=", merchandising.id, "invoice_no=", invoice_no)
+        invoice_no = request.data.get("invoice_no")
+        empties_price_total = request.data.get("empties_price_total")
+        empty_returns = request.data.get("empty_returns")
+        payment_method = request.data.get("payment_method") 
 
-        # Use your main serializer so response contains full object
-        serializer = self.get_serializer(merchandising, data={"invoice_no": invoice_no}, partial=True)
-        serializer.is_valid(raise_exception=True)
-        instance = serializer.save()
-        print("DEBUG saved invoice_no:", instance.invoice_no)
-        return Response(self.get_serializer(instance).data, status=status.HTTP_200_OK)
+        if not invoice_no:
+            return Response(
+                {"detail": "Invoice number is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        merchandising.invoice_no = invoice_no
+
+        if empties_price_total is not None:
+            merchandising.empties_price_total = empties_price_total
+
+        if empty_returns is not None:
+            merchandising.empty_returns = empty_returns
+
+        if payment_method is not None:
+            merchandising.payment_method = str(payment_method)
+
+
+        merchandising.save(update_fields=["invoice_no", "empties_price_total", "empty_returns", "payment_method"])
+        return Response(self.get_serializer(merchandising).data, status=200)
 
 
 class HasAccessPermission(BasePermission):

@@ -192,11 +192,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   />
                 <Route
                   path="/invoice"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaFileInvoice /> Invoice
-                    </h1>
-                  }
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaFileInvoice /> Invoice
+                  //   </h1>
+                  // }
                 />
                 <Route
                   path="/StocksAdjustment"

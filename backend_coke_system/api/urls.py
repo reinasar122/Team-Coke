@@ -122,6 +122,7 @@ urlpatterns = [
     path('merchandisings/', MerchandisingListCreateView.as_view(), name='merchandising-list'),
     path('merchandisings/<int:pk>/', MerchandisingDetailView.as_view(), name='merchandising-detail'),
     path('merchandisings/msp-next/', NextMspNoView.as_view(), name='next-msp-no'),
+   
 
     path('stocks/<int:product_id>/availability/', StockAvailabilityView.as_view(), name='stock-availability'),
     path('stocks/<int:product_id>/update/', UpdateStockView.as_view(), name='update-stock'),

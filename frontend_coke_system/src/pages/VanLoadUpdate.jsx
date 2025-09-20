@@ -704,7 +704,8 @@ const VanLoadUpdate = () => {
       const postRes = await axios.post('http://localhost:8080/api/van-load-return/', payload);
       console.log('API Response:', postRes.data);
 
-
+      paymentData.id = saleId;
+        return paymentData;
 
       // create each misc item row
       await Promise.all(
@@ -1115,6 +1116,7 @@ const VanLoadUpdate = () => {
           remarks={remarks}
           onRemarksChange={setRemarks}
           onPaymentSuccess={handleVanLoadPaymentSuccess}
+          transactionId={saleId} 
         />
       )}
     </div>

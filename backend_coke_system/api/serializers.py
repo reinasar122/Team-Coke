@@ -7,7 +7,7 @@ from .models import Van
 from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
 from .models import User, RoleAccessibility
 import re
-from .models import SupplierReturnForm, SupplierReturnFormItem, Product, Invoice
+from .models import SupplierReturnForm, SupplierReturnFormItem, Product
 from .models import *
 from django.db import transaction
 from django.db.models import F

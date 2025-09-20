@@ -204,6 +204,7 @@ const ProductTable = ({
   const handleRowChange = (index, field, value) => {
     const updated = [...rows];
     const row = { ...updated[index] };
+    
 
     if (value === null) {
       row[field] = null;

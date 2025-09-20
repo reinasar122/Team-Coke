@@ -65,6 +65,7 @@ const PaymentModal = ({
   onConfirm,
   onSave,
   onPaymentSuccess,
+  transactionId,
 
   // data
   rows = [],
@@ -996,6 +997,8 @@ const PaymentModal = ({
                 warehouseId: warehouseId,
                 warehouse_id: warehouseId, // alternative format
                 warehouseName: warehouseName,
+
+                 merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
               };
 
               console.log("💳 Complete payment data:", data);
@@ -1049,7 +1052,10 @@ const PaymentModal = ({
                   await onConfirm(data);
                 }
                 if (typeof onSave === "function") {
-                  await onSave(data);
+                  const merchandising = await onSave(data);   // ✅ capture backend response
+                   if (merchandising?.id) {
+                     data.id = merchandising.id;               // ✅ attach saleId to invoiceData
+                   }
                 }
 
                 // 3) Show invoice
@@ -1077,7 +1083,9 @@ const PaymentModal = ({
             setShowInvoiceModal(false);
             if (typeof onClose === "function") onClose();
           }}
-          invoiceData={invoiceData}
+              invoiceData={{
+                 ...invoiceData,
+                  id: transactionId || invoiceData?.id || null }}
         />
       )}
     </div>

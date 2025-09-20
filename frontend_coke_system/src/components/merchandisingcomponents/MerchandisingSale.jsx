@@ -791,7 +791,7 @@ const mapped = items.map((it, idx) => {
       // ✅ FIXED: Include customer in payload
       customer: selectedCustomerId ? Number(selectedCustomerId) : null,
 
-      handled_by: handledBy || "",
+      handled_by: String(selectedUser) || null,  // ✅ send id, not name
       date_time: utcIso, // ✅ Always include date_time
       //date: utcIso.split('T')[0], // ✅ FIXED: Add required date field (YYYY-MM-DD format)
 
@@ -903,7 +903,7 @@ const mapped = items.map((it, idx) => {
       }
 
       showAlert("Transaction saved successfully!");
-      return true;
+      return merchandising;
 
     } catch (error) {
       console.error("❌ Transaction creation failed:", error);
@@ -1131,19 +1131,18 @@ const handleSaveVanLoadEdit = async () => {
             <div>
               <label className="text-sm mb-1 block">Handled By</label>
               <select
-                value={selectedUser || ""}   // default: ""
+                value={selectedUser || ""}
                 onChange={(e) => setSelectedUser(e.target.value)}
                 className="border w-full rounded-md px-2 py-1 text-black text-base"
               >
-            
-
-                {/* Map users into dropdown options */}
+                <option value="">-- Select User --</option>
                 {users.map((u) => (
                   <option key={u.id} value={u.id}>
                     {`${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username || `User #${u.id}`}
                   </option>
                 ))}
               </select>
+
             </div>
 
 
