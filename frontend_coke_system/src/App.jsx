@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   BrowserRouter as Router,
   Routes,
@@ -67,18 +67,16 @@ const isAuthenticated = () => {
   return localStorage.getItem("user") !== null;
 };
 
-
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
   const user = JSON.parse(localStorage.getItem("user"));
 
-  // Not logged in
+  // Not logged in → force login
   if (!user) return <Navigate to="/login" replace />;
 
   // Force password change
   const requiresPasswordChange = user?.requires_password_change;
   const isOnChangePasswordPage = location.pathname.startsWith("/change-password");
-
 
   if (requiresPasswordChange && !isOnChangePasswordPage) {
     return <Navigate to="/change-password" replace />;
@@ -86,7 +84,6 @@ const ProtectedRoute = ({ children }) => {
 
   return children;
 };
-
 
 // ✅ Layout wrapper for protected pages
 const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
@@ -106,9 +103,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
         {!hideLayout && <Sidebar isSidebarOpen={isSidebarOpen} />}
 
         <div
-          className={`app-content p-5 flex-1 transition-all duration-300 ${
-            !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
-          }`}
+          className={`app-content p-5 flex-1 transition-all duration-300 ${!hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"}`}
         >
           <Routes>
             {/* Dashboard */}
@@ -125,10 +120,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
             {/* Suppliers */}
             <Route path="/suppliers" element={<Suppliers />} />
-            <Route
-              path="/register-supplier"
-              element={<SupplierRegistrationForm />}
-            />
+            <Route path="/register-supplier" element={<SupplierRegistrationForm />} />
             <Route path="/edit-supplier/:id" element={<SupplierEditForm />} />
 
             {/* Stocks */}
@@ -155,10 +147,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/merchandising" element={<Merchandising />} />
             <Route path="/merchandising-sale" element={<MerchandisingSale />} />
-            <Route
-              path="/merchandising-sale/:id"
-              element={<MerchandisingSaleDetailPage />}
-            />
+            <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
 
             {/* Profile & Expenses */}
             <Route path="/profile" element={<Profile />} />
@@ -174,23 +163,17 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/reports/sales" element={<SalesReport />} />
 
             {/* Warehouse Details */}
-            <Route
-              path="/warehouse-details/:mspNo"
-              element={<WarehouseProductDetails />}
-            />
+            <Route path="/warehouse-details/:mspNo" element={<WarehouseProductDetails />} />
 
             {/* Van Load */}
             <Route path="/van-load-update" element={<VanLoadUpdate />} />
-            <Route
-              path="/van-load-product-details/:id"
-              element={<VanLoadProductDetails />}
-            />
+            <Route path="/van-load-product-details/:id" element={<VanLoadProductDetails />} />
 
             {/* Edit Role Access */}
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
 
-            {/* Fallback for authenticated routes */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            {/* ✅ Default Fallback */}
+            <Route path="*" element={<Navigate to={isAuthenticated() ? "/dashboard" : "/login"} replace />} />
           </Routes>
         </div>
       </div>
@@ -202,6 +185,20 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+
+  // Loading state to prevent flickering before rendering the page
+  const [loading, setLoading] = useState(true);
+
+  // Ensure that Login page is shown first on startup, regardless of user session
+  useEffect(() => {
+    localStorage.removeItem("user");  // Clear any cached user session data on startup
+    setLoading(false); // Allow the app to render after session has been cleared
+  }, []);
+
+  // If still loading, show nothing to prevent flickering
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   return (
     <Router>
@@ -218,15 +215,12 @@ function App() {
         style={{ top: "70px" }}
       />
 
-     <Routes>
+      <Routes>
         {/* Public Routes */}
         <Route path="/login" element={<Login />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/verify-otp" element={<VerifyOTP />} />
-        <Route
-          path="/change-password/:uid/:token"
-          element={<ChangePassword />}
-        />
+        <Route path="/change-password/:uid/:token" element={<ChangePassword />} />
 
         {/* Protected Routes */}
         <Route
@@ -240,6 +234,9 @@ function App() {
             </ProtectedRoute>
           }
         />
+
+        {/* Default Redirect to Login if not authenticated */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </Router>
   );
