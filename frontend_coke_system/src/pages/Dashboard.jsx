@@ -31,10 +31,22 @@ const IconWarehouse = (props) => (
 );
 
 const IconSales = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
-    <path d="M4 20V8m6 12V4m6 16v-8" fill="none" stroke="currentColor" strokeWidth="1.6" />
+  <svg
+    viewBox="0 0 24 24"
+    width="20"
+    height="20"
+    aria-hidden="true"
+    {...props}
+  >
+    {/* Left bar - Green */}
+    <path d="M4 20V8" fill="none" stroke="#22c55e" strokeWidth="3" />
+    {/* Middle bar - Yellow */}
+    <path d="M10 20V4" fill="none" stroke="#eab308" strokeWidth="3" />
+    {/* Right bar - Blue */}
+    <path d="M16 20v-8" fill="none" stroke="#3b82f6" strokeWidth="3" />
   </svg>
 );
+
 
 const IconCalendar = (props) => (
   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
@@ -1555,7 +1567,12 @@ const Dashboard = () => {
       <div className="px-4 pt-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shadow-sm">
+            <div className="h-10 w-10 rounded-2xl 
+              bg-white text-gray-700 
+              flex items-center justify-center 
+              shadow-md shadow-gray-300/50 
+              border border-gray-200 
+              transition-all duration-300 hover:scale-105 hover:shadow-lg">
               <IconSales />
             </div>
             <div>

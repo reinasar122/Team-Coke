@@ -3,6 +3,7 @@ import { FaSearch, FaEdit, FaTrash, FaTruck } from "react-icons/fa";
 import { toast } from "react-toastify";
 import VanForm from "./VanForm";
 import { errorStyle, successStyle } from "../utils/toastStyles";
+import { canCreate, canEdit, canDelete, canView } from "../utils/accessControl";
 import "../styles/pages/vanlist.scss";
 
 const VanList = () => {
@@ -12,9 +13,6 @@ const VanList = () => {
   const [editingVan, setEditingVan] = useState(null);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
-  // ---------------------------
-  // Lifecycle
-  // ---------------------------
   useEffect(() => {
     fetchVans();
     getCurrentWarehouse();
@@ -28,9 +26,6 @@ const VanList = () => {
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, []);
 
-  // ---------------------------
-  // Warehouse Helpers
-  // ---------------------------
   const getCurrentWarehouse = () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
@@ -42,9 +37,6 @@ const VanList = () => {
     }
   };
 
-  // ---------------------------
-  // Fetch Vans
-  // ---------------------------
   const fetchVans = async () => {
     try {
       const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -70,24 +62,19 @@ const VanList = () => {
     }
   };
 
-  // ---------------------------
-  // Handlers
-  // ---------------------------
   const handleVanAdded = (newVan) => {
     const exists = vans.find((v) => v.id === newVan.id);
 
     if (exists) {
       setVans((prev) => prev.map((v) => (v.id === newVan.id ? newVan : v)));
-      toast.success(
-        `Van '${newVan.plate_number}' has been updated successfully!`,
-        { style: successStyle }
-      );
+      toast.success(`Van '${newVan.plate_number}' has been updated successfully!`, {
+        style: successStyle,
+      });
     } else {
       setVans((prev) => [...prev, newVan]);
-      toast.success(
-        `Van '${newVan.plate_number}' has been added successfully!`,
-        { style: successStyle }
-      );
+      toast.success(`Van '${newVan.plate_number}' has been added successfully!`, {
+        style: successStyle,
+      });
     }
 
     setIsVanFormVisible(false);
@@ -141,21 +128,26 @@ const VanList = () => {
     setIsVanFormVisible(true);
   };
 
-
   const filteredVans = vans.filter((van) =>
     van.plate_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  if (!canView("Van")) {
+    return (
+      <div className="p-6 text-red-500 font-semibold">
+        🚫 You do not have permission to view vans.
+      </div>
+    );
+  }
+
   return (
     <div className="page">
-
       <div className="flex justify-between items-center mb-6">
-        {/* Title + Search */}
-        <div  className="flex items-center gap-6">
+        <div className="flex items-center gap-6">
           <h2 className="text-2xl font-bold flex items-center gap-2">
             <FaTruck className="color: var(--text)" /> Van Management
-          </h2>      
-          
+          </h2>
+
           <div className="relative w-72 mr-4">
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
@@ -170,18 +162,20 @@ const VanList = () => {
 
         {/* Add Van Button */}
         <button
-          onClick={() => {
-            setEditingVan(null);
-            setIsVanFormVisible(true);
-          }}
-          className="px-4 py-2 btn btn-add">
+          onClick={() => canCreate("Van") && setIsVanFormVisible(true)}
+          disabled={!canCreate("Van")}
+          className={`px-4 py-2 rounded-lg text-white font-semibold ${
+            canCreate("Van")
+              ? "bg-green-500 hover:bg-green-600 cursor-pointer"
+              : "bg-gray-400 cursor-not-allowed"
+          }`}
+        >
           + Add Van
         </button>
       </div>
 
-      {/* Vans Table */}
-      <div className=" table-wrapper">
-        <table className="table-van">
+      <div className="table-wrapper bg-white shadow-md rounded-lg">
+        <table className="table table-hover w-full">
           <thead>
             <tr>
               <th className="px-4 py-3 w-1/4">Van ID</th>
@@ -196,20 +190,25 @@ const VanList = () => {
                   <td className="px-4 py-2">{van.van_id}</td>
                   <td className="px-4 py-2">{van.plate_number}</td>
                   <td className="px-3 py-2 space-x-2">
-                    <button
-                      onClick={() => handleEdit(van)}
-                      className="icon-btn-edit "
-                      title="Edit Van"
-                    >
-                      <FaEdit />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(van.id)}
-                      className="icon-btn-danger"
-                      title="Delete Van"
-                    >
-                      <FaTrash />
-                    </button>
+                    <div className="inline-flex items-center gap-3">
+                      <button
+                        onClick={() => handleEdit(van)}
+                        disabled={!canEdit("Van")}
+                        className={canEdit("Van") ? "icon-btn-edit" : "icon-btn-disabled"}
+                        title="Edit Van"
+                      >
+                        <FaEdit size={20} />
+                      </button>
+
+                      <button
+                        onClick={() => handleDelete(van.id)}
+                        disabled={!canDelete("Van")}
+                        className={canDelete("Van") ? "icon-btn-danger" : "icon-btn-disabled"}
+                        title="Delete Van"
+                      >
+                        <FaTrash size={20} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))
@@ -224,7 +223,6 @@ const VanList = () => {
         </table>
       </div>
 
-      {/* Van Form */}
       {isVanFormVisible && (
         <VanForm
           vanToEdit={editingVan}

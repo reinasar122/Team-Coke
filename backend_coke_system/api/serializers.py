@@ -142,59 +142,75 @@ class RoleAccessibilitySerializer(serializers.ModelSerializer):
 
 
 class UserSerializer(serializers.ModelSerializer):
-    role_name = serializers.CharField(source='role.name', read_only=True)
-    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
-    role_id = serializers.PrimaryKeyRelatedField(queryset=Role.objects.all(), source='role', write_only=True)
-    warehouse_id = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all(), source='warehouse', write_only=True)
+    # Accept IDs when creating/updating
+    role_id = serializers.PrimaryKeyRelatedField(
+        queryset=Role.objects.all(),
+        source="role",
+        write_only=True
+    )
+    warehouse_id = serializers.PrimaryKeyRelatedField(
+        queryset=Warehouse.objects.all(),
+        source="warehouse",
+        write_only=True
+    )
+
+    # Return full object when reading
+    role = serializers.SerializerMethodField(read_only=True)
+    warehouse = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = User
         fields = [
-            'id', 'username', 'password', 'email', 'first_name', 'last_name', 'gender',
-            'phone_number', 'role_name', 'role_id', 'warehouse_name', 'warehouse_id',
-            'is_active', 'created_at', 'last_login'
+            "id", "username", "password", "email", "first_name", "last_name",
+            "gender", "phone_number",
+            "role_id", "warehouse_id",  # for input
+            "role", "warehouse",        # for output
+            "is_active", "created_at", "last_login",
         ]
-        extra_kwargs = {'password': {'write_only': True}}
+        extra_kwargs = {"password": {"write_only": True}}
+
+    def get_role(self, obj):
+        if obj.role:
+            return {"id": obj.role.id, "name": obj.role.name}
+        return None
+
+    def get_warehouse(self, obj):
+        if obj.warehouse:
+            return {"id": obj.warehouse.id, "name": obj.warehouse.name}
+        return None
 
     def create(self, validated_data):
-        password = validated_data.pop('password', None)
+        password = validated_data.pop("password", None)
         user = super().create(validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+
+        # send reset link
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
-
         reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
-        send_mail(
-            subject='Set Your Account Password',
-            message=f"Hello {user.first_name},\n\nPlease set your password: {reset_link}",
-            from_email='your_email@gmail.com',
-            recipient_list=[user.email],
-            fail_silently=False,
-        )
-        return user
 
-    def create(self, validated_data):
-        password = validated_data.pop('password', None)
-        user = super().create(validated_data)
-        token = default_token_generator.make_token(user)
-        uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
-
-        reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
         send_mail(
-            subject='Set Your Account Password',
+            subject="Set Your Account Password",
             message=(
                 f"Hello {user.first_name} {user.last_name},\n\n"
                 f"Your username is: {user.username}\n\n"
                 f"Please set your password using the link below:\n{reset_link}"
             ),
-            from_email='your_email@gmail.com',
+            from_email="your_email@gmail.com",
             recipient_list=[user.email],
             fail_silently=False,
         )
         return user
 
-
-
-
+    def update(self, instance, validated_data):
+        password = validated_data.pop("password", None)
+        user = super().update(instance, validated_data)
+        if password:
+            user.set_password(password)
+            user.save()
+        return user
 
 
 

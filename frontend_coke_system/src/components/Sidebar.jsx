@@ -259,7 +259,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           )}
         </li>
 
-        {/* Logout */}
+        {/* Logout
         <li>
           <button
             onClick={handleLogout}
@@ -268,6 +268,7 @@ const Sidebar = ({ isSidebarOpen }) => {
             <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" /> Log out
           </button>
         </li>
+         */}
       </ul>
     </div>
   );

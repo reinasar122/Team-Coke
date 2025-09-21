@@ -953,24 +953,15 @@ const VanLoadUpdate = () => {
                     );
                   })}
 
-                  {/* DISCOUNT (editable when sold > 0) */}
-                  <td className="border border-gray-200 py-1 px-1">
-                    {row.sold_shell > 0 || row.sold_pcs > 0 ? (
-                      <ZeroInput
-                        type="number"
-                        value={row.discount}
-                        onValue={(v) => handleRowChange(index, 'discount', v)}
-                        className="input-always-spinner w-full p-1 text-sm text-center rounded bg-yellow-50 border"
-                      />
-                    ) : (
+                  {/* DISCOUNT (always read-only) */}
+                    <td className="border border-gray-200 py-1 px-1">
                       <input
                         type="number"
                         value={z(row.discount)}
                         disabled
-                        className="w-full p-1 text-sm text-center rounded bg-yellow-50 cursor-not-allowed border"
+                        className="w-full p-1 text-sm text-center rounded bg-gray-100 cursor-not-allowed border"
                       />
-                    )}
-                  </td>
+                    </td>
 
                   {/* EXPECTED SALE (read-only) */}
                   <td className="border border-gray-200 py-1 px-1">

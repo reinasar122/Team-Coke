@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { toast } from "react-toastify"; // Import toast for notifications
-import { successStyle, errorStyle } from "../utils/toastStyles"; // Import custom styles
+import { toast } from "react-toastify";
+import { successStyle, errorStyle } from "../utils/toastStyles";
 
 const EditUser = ({ userId, onClose, onUserUpdated }) => {
   const [user, setUser] = useState(null);
@@ -9,25 +9,6 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await fetch(`http://127.0.0.1:8080/api/users/${userId}/`);
-        const data = await response.json();
-        setUser({
-          first_name: data.first_name || "",
-          last_name: data.last_name || "",
-          gender: data.gender || "",
-          username: data.username || "",
-          phone_number: data.phone_number || "",
-          role_id: data.role?.id || data.role_id || "",
-          warehouse_id: data.warehouse?.id || data.warehouse_id || "",
-          is_active: data.is_active ?? true,
-        });
-      } catch (err) {
-        console.error("Failed to load user:", err);
-      }
-    };
-
     const fetchRoles = async () => {
       try {
         const res = await fetch("http://127.0.0.1:8080/api/roles/");
@@ -48,16 +29,59 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
       }
     };
 
-    fetchUser();
-    fetchRoles();
-    fetchWarehouses();
+    const fetchUser = async () => {
+  try {
+    const response = await fetch(`http://127.0.0.1:8080/api/users/${userId}/`);
+    const data = await response.json();
+
+    console.log("Fetched user:", data);
+
+    // ✅ If backend sends role.name instead of role.id, map it to ID
+    let roleId = "";
+    if (data.role?.id) {
+      roleId = Number(data.role.id);
+    } else if (typeof data.role === "string") {
+      const match = roles.find((r) => r.name === data.role);
+      roleId = match ? match.id : "";
+    } else {
+      roleId = Number(data.role_id) || "";
+    }
+
+    let warehouseId = "";
+    if (data.warehouse?.id) {
+      warehouseId = Number(data.warehouse.id);
+    } else if (typeof data.warehouse === "string") {
+      const match = warehouses.find((w) => w.name === data.warehouse);
+      warehouseId = match ? match.id : "";
+    } else {
+      warehouseId = Number(data.warehouse_id) || "";
+    }
+
+    setUser({
+      first_name: data.first_name || "",
+      last_name: data.last_name || "",
+      gender: data.gender || "",
+      username: data.username || "",
+      phone_number: data.phone_number || "",
+      role_id: roleId,
+      warehouse_id: warehouseId,
+      is_active: data.is_active ?? true,
+    });
+  } catch (err) {
+    console.error("Failed to load user:", err);
+  }
+};
+
+
+    // Load all in parallel, but ensure lists are ready before form
+    Promise.all([fetchRoles(), fetchWarehouses()]).then(fetchUser);
   }, [userId]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setUser((prevUser) => ({
       ...prevUser,
-      [name]: value,
+      [name]: name === "role_id" || name === "warehouse_id" ? Number(value) : value,
     }));
   };
 
@@ -72,8 +96,8 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
         username: user.username,
         gender: user.gender,
         phone_number: user.phone_number,
-        role: parseInt(user.role_id),
-        warehouse: parseInt(user.warehouse_id),
+        role: Number(user.role_id),
+        warehouse: Number(user.warehouse_id),
         is_active: user.is_active === "true" || user.is_active === true,
       };
 
@@ -89,14 +113,12 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
       onUserUpdated(result);
       onClose();
 
-      // Success Toast with the user's name
       toast.success(`User ${user.first_name} ${user.last_name} updated successfully!`, {
         style: successStyle,
       });
     } catch (err) {
       console.error("Error updating user:", err);
-      
-      // Error Toast
+
       toast.error("Failed to update user. Please check the fields and try again.", {
         style: errorStyle,
       });
@@ -105,7 +127,10 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
     }
   };
 
-  if (!user) return <div>Loading user data...</div>;
+  // Wait until both user and roles are loaded
+  if (!user || roles.length === 0 || warehouses.length === 0) {
+    return <div>Loading user data...</div>;
+  }
 
   return (
     <div className="modal-overlay bg-gray-900 bg-opacity-50">
@@ -180,7 +205,6 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
                 className="w-full border p-2 rounded"
                 required
               >
-                <option value="">Select Role</option>
                 {roles.map((role) => (
                   <option key={role.id} value={role.id}>
                     {role.name}
@@ -197,7 +221,6 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
                 className="w-full border p-2 rounded"
                 required
               >
-                <option value="">Select Warehouse</option>
                 {warehouses.map((wh) => (
                   <option key={wh.id} value={wh.id}>
                     {wh.name}
@@ -250,7 +273,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
             <button type="button" onClick={onClose} className="btn btn-cancel py-2 px-4">
               Cancel
             </button>
-            <button type="submit" className="btn btn-primary py-2 px-4 " disabled={loading}>
+            <button type="submit" className="btn btn-primary py-2 px-4" disabled={loading}>
               {loading ? "Saving..." : "Save Changes"}
             </button>
           </div>
