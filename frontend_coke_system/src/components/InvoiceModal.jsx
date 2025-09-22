@@ -972,7 +972,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
             onClick={handleClose}
             className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
           >
-            {isViewOnly ? "Close" : "Save & Close"}
+            {isViewOnly ? "Close" : "Close"}
           </button>
         </div>
       </div>

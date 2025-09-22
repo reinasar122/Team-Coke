@@ -704,13 +704,6 @@ const mapped = items.map((it, idx) => {
 ]);
 
 
-
-
-
-
-
-
-
   // 🔧 FIXED: Two-step process - create transaction first, then payments separately
   const handleSubmit = async (paymentData = null) => {
     const warehouseId = currentWarehouse?.id;
