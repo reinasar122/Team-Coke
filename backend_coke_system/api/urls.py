@@ -49,7 +49,8 @@ from .views import SupplierReturnFormDetailView
 from .views import ProcessEmptiesReturnView
 
 
-from .views_reports import RevenueSummaryView, SalesAndReturnables, SalesReportAPIView
+#from .views_reports import RevenueSummaryView, SalesAndReturnables, SalesReportAPIView
+from .views_reports import SalesReportAPIView, ProductBreakdownReport
 
 
 urlpatterns = [
@@ -121,6 +122,7 @@ urlpatterns = [
     path('merchandisings/', MerchandisingListCreateView.as_view(), name='merchandising-list'),
     path('merchandisings/<int:pk>/', MerchandisingDetailView.as_view(), name='merchandising-detail'),
     path('merchandisings/msp-next/', NextMspNoView.as_view(), name='next-msp-no'),
+   
 
     path('stocks/<int:product_id>/availability/', StockAvailabilityView.as_view(), name='stock-availability'),
     path('stocks/<int:product_id>/update/', UpdateStockView.as_view(), name='update-stock'),
@@ -170,8 +172,10 @@ urlpatterns = [
     #Sales Report API
     path("reports/sales/", SalesReportAPIView.as_view(), name="reports-sales"),
     path("sales_report/", SalesReportAPIView.as_view(), name="sales-report-legacy"),
-    path("reports/revenue-summary/", RevenueSummaryView.as_view(), name="revenue-summary"), #kath
-    path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
+    #path("reports/revenue-summary/", RevenueSummaryView.as_view(), name="revenue-summary"), #kath
+    path("reports/product_breakdown/", ProductBreakdownReport.as_view()),
+    #path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
+
 
 ]
 

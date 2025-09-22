@@ -1528,14 +1528,14 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-100px,rgba(99,102,241,0.10),transparent)]">
       {/* Loading overlay */}
-      {loading && (
+      {/* {loading && (
         <div className="fixed inset-0 bg-black/10 backdrop-blur-sm z-40 flex items-center justify-center">
           <div className="bg-white rounded-lg shadow-lg p-6 flex items-center gap-3">
             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-600"></div>
             <span className="text-sm text-gray-600">Loading dashboard...</span>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Header */}
       <div className="px-4 pt-4">
@@ -1583,9 +1583,9 @@ const Dashboard = () => {
 
             <button
               onClick={() => setPickerOpen(true)}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-black text-xs shadow-sm hover:shadow"
+              className="btn btn-add"
             >
-              ➕ Add Widgets
+              + Add Widgets
             </button>
           </div>
         </div>

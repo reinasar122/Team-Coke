@@ -361,7 +361,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
           <button
             type="button"
             onClick={addContact}
-            className="px-4 py-2 btn btn-add"
+            className="btn btn-add mt-4"
           >
             Add Contact
           </button>
@@ -374,7 +374,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
             onClick={onClose}
             className="px-4 py-2 btn btn-cancel"
           >
-            Cancel
+            Cancel  
           </button>
           <button
             type="submit"

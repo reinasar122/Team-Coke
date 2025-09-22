@@ -560,11 +560,12 @@ class MerchandisingSaleSerializer(serializers.ModelSerializer):
 class MiscellaneousItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = MiscellaneousItem
-        fields = '__all__'
+        fields = "__all__"
         extra_kwargs = {
-            'merchandising': {'required': False}  # ✅ make it optional
+            "merchandising": {"required": False},   # still optional
+            "created_at": {"read_only": True},      # 🔒 prevent client override
+            "updated_at": {"read_only": True},      # 🔒 prevent client override
         }
-
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
@@ -586,6 +587,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     customer = serializers.PrimaryKeyRelatedField(queryset=Customer.objects.all(), allow_null=True, required=False)
     total_trading_amount = serializers.SerializerMethodField()
     total_expenses_amount = serializers.SerializerMethodField()
+    invoice_no = serializers.CharField(required=False, allow_blank=True, allow_null=True)
 
     class Meta:
         model = Merchandising
@@ -999,5 +1001,3 @@ class ProcessEmptiesReturnSerializer(serializers.Serializer):
                     raise serializers.ValidationError(f"Missing required field: {field}")
         
         return value
-
- 

@@ -109,7 +109,7 @@ const Header = ({ toggleSidebar }) => {
 
   return (
     <>
-      <header className="bg-gray-900 text-white px-6 py-3 flex justify-between items-center shadow-md fixed w-full top-0 z-10">
+      <header className="bg-gray-900 text-white px-6 py-3 flex justify-between items-center shadow-md fixed w-full mb-10 top-0 z-10">
         {/* Left - Toggle Button & Logo */}
         <div className="flex items-center">
           <button onClick={toggleSidebar} className="text-xl mr-4 focus:outline-none">

@@ -65,6 +65,7 @@ const PaymentModal = ({
   onConfirm,
   onSave,
   onPaymentSuccess,
+  transactionId,
 
   // data
   rows = [],
@@ -906,11 +907,11 @@ const PaymentModal = ({
 
         {/* Footer Buttons */}
         <div className="mt-6 flex justify-between">
-          <button className="border px-4 py-2 rounded" onClick={onClose} disabled={submitting}>
+          <button className="btn btn-back" onClick={onClose} disabled={submitting}>
             Back to Sale
           </button>
           <button
-            className="bg-blue-600 text-white px-4 py-2 rounded disabled:opacity-60"
+            className="btn btn-primary"
             disabled={submitting || (paymentMethod === "cash" && n(cashReceived) < amountDueFinal)}
             onClick={async () => {
               // ✅ More robust warehouse extraction
@@ -996,6 +997,8 @@ const PaymentModal = ({
                 warehouseId: warehouseId,
                 warehouse_id: warehouseId, // alternative format
                 warehouseName: warehouseName,
+
+                 merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
               };
 
               console.log("💳 Complete payment data:", data);
@@ -1049,7 +1052,10 @@ const PaymentModal = ({
                   await onConfirm(data);
                 }
                 if (typeof onSave === "function") {
-                  await onSave(data);
+                  const merchandising = await onSave(data);   // ✅ capture backend response
+                   if (merchandising?.id) {
+                     data.id = merchandising.id;               // ✅ attach saleId to invoiceData
+                   }
                 }
 
                 // 3) Show invoice
@@ -1077,7 +1083,9 @@ const PaymentModal = ({
             setShowInvoiceModal(false);
             if (typeof onClose === "function") onClose();
           }}
-          invoiceData={invoiceData}
+              invoiceData={{
+                 ...invoiceData,
+                  id: transactionId || invoiceData?.id || null }}
         />
       )}
     </div>

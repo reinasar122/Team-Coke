@@ -1,4 +1,3 @@
-// SupplierRegistrationForm.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -18,9 +17,8 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     province: "",
     city: "",
     barangay: "",
-    street_address: "",   // IMPORTANT: backend expects street_address
+    street_address: "",   
     zip_code: "",
-    // Optional nested contacts
     contacts: [],
   });
 
@@ -137,9 +135,9 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
   };
 
   return (
-    <div className="container p-4">
-      <h2 className="text-2xl font-bold border-l-4 border-red-500 pl-2 mb-4">
-        Supplier Registration
+    <div className="modal-over ">
+      <h2 className="text-2xl font-bold mb-4">
+         New Supplier Registration
       </h2>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -292,20 +290,6 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               ))}
             </select>
           </div>
-
-          <div>
-            <label className="block font-medium">Street</label>
-            <input
-              type="text"
-              name="street_address"
-              value={formData.street_address}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-              required
-              placeholder="House No., Street"
-            />
-          </div>
-
           <div>
             <label className="block font-medium">Zip Code</label>
             <input
@@ -317,6 +301,22 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               required
             />
           </div>
+          <div className="md:col-span-2">
+            <label className="block font-medium">Street </label>
+            <div className="flex flex-col md:flex-row gap-3">
+              <input
+                type="text"
+                name="street_address"
+                value={formData.street_address}
+                onChange={handleChange}
+                className="w-full md:flex-1 border p-2 rounded"
+                required
+                placeholder="House No., Street"
+              />
+              </div>
+          </div>
+
+          
         </div>
 
         {/* Additional Contacts */}
@@ -370,7 +370,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
           <button
             type="button"
             onClick={addContact}
-            className="btn btn-add"
+            className="btn btn-add mt-4"
           >
             Add Contact
           </button>

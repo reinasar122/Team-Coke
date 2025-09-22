@@ -63,6 +63,8 @@ import SalesReport from "./pages/reports/SalesReport.jsx";
 import CreditList from "./pages/CreditList";
 import CreditDetail from "./pages/CreditDetail";
 
+import Invoice from "./pages/Invoice";
+
 
 
 
@@ -118,7 +120,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   path="/"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
-                      <FaHome /> Home Page
+                       Home Page
                     </h1>
                   }
                 />
@@ -190,11 +192,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   />
                 <Route
                   path="/invoice"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaFileInvoice /> Invoice
-                    </h1>
-                  }
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaFileInvoice /> Invoice
+                  //   </h1>
+                  // }
                 />
                 <Route
                   path="/StocksAdjustment"
@@ -309,6 +311,8 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/verify-otp" element={<VerifyOTP />} />
             <Route path="/expences" element={<Navigate to="/expenses" replace />} />
+
+            <Route path="/invoice" element={<Invoice />} />      
 
             {/* Karen Changes */}
             <Route path="/van-load-update" element={<VanLoadUpdate />} />

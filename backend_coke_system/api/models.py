@@ -13,6 +13,11 @@ from django.utils import timezone
 from django.core.validators import MinValueValidator
 from django.db.models import Q
 
+
+from django.db.models.signals import post_migrate
+from django.dispatch import receiver
+
+
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 
@@ -408,12 +413,7 @@ class TransactionType(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
-
-@receiver(post_migrate)
-def create_default_transaction_types(sender, **kwargs):
-    for t_name in TransactionType.ALLOWED_TYPES:
-        TransactionType.objects.get_or_create(name=t_name)
-
+    
 class Customer(models.Model):
     name = models.CharField(max_length=255)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
@@ -523,12 +523,16 @@ class Merchandising(models.Model):
     status = models.CharField(max_length=50, default="PENDING")
     remarks = models.TextField(blank=True, null=True)
 
+    empties_price_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    empty_returns = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     cash_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     # ✅ NEW: used by the /api/van-load-return/ endpoint so stocks aren’t added twice
     full_returns_applied = models.BooleanField(default=False)
+
+    
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
@@ -643,10 +647,21 @@ class MerchandisingItem(models.Model):
 
 
 class MiscellaneousItem(models.Model):
-    merchandising = models.ForeignKey(Merchandising, related_name='misc_items', on_delete=models.CASCADE)
+    merchandising = models.ForeignKey(
+        Merchandising, related_name='misc_items', on_delete=models.CASCADE
+    )
     description = models.CharField(max_length=255)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     receipt_file = models.FileField(upload_to='misc_receipts/', blank=True, null=True)
+    notes = models.CharField(max_length=255, blank=True, null=True) 
+
+    # timestamps
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True, null=True, blank=True)
+    
+
+    def __str__(self):
+        return f"{self.description} - ₱{self.amount}"
 
     def __str__(self):
         return f"{self.description} - ₱{self.amount}"
@@ -722,3 +737,18 @@ class SupplierReturnFormItem(models.Model):
 
     def __str__(self):
         return f"{self.product.product_name} ({self.qty_shell} shell)"
+    
+
+# class Invoice(models.Model):
+#     invoice_no = models.CharField(max_length=50, unique=True)
+#     customer_name = models.CharField(max_length=255)
+#     date = models.DateTimeField(auto_now_add=True)
+#     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+#     status = models.CharField(
+#         max_length=20,
+#         choices=[("Pending", "Pending"), ("Paid", "Paid"), ("Cancelled", "Cancelled")],
+#         default="Pending"
+#     )
+
+#     def __str__(self):
+#      return f"Invoice {self.invoice_no} - {self.customer_name}"

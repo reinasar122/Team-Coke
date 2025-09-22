@@ -48,7 +48,7 @@ const Profile = () => {
   }
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-50 p-6">
+    <div className="flex justify-center items-center min-h-screen bg-gray-50 ">
       <div className="bg-white shadow-lg rounded-2xl p-8 w-full max-w-md">
         {/* Profile Header */}
         <div className="flex flex-col items-center text-center mb-6">

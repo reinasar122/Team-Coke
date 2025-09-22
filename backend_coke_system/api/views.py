@@ -20,10 +20,10 @@ from .models import (
     Stock, ReturnableStock, Product
 )
 
-from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer,ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
+from .serializers import SupplierSerializer, UserSerializer, RoleSerializer, ProductSerializer, ProductDetailSerializer,UnitTypeSerializer, PricingSerializer, ShellTypeSerializer, ContentTypeSerializer, VanSerializer, ReceivingSerializer, StockSerializer, RouteSerializer,  TransactionTypeSerializer, MerchandisingSerializer, MerchandisingItemSerializer, MiscellaneousItemSerializer, ReturnableStockSerializer, SupplierReturnSerializer, SupplierReturnItemSerializer, PaymentSerializer, CustomerSerializer
 from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 
-from rest_framework.decorators import api_view
+from rest_framework.decorators import api_view, action
 from rest_framework.response import Response
 
 from django.db import connection
@@ -167,12 +167,37 @@ class VerifyOTPAPIView(APIView):
 
         return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
 
-
-
 class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
+    @action(detail=True, methods=["post"])
+    def set_invoice_no(self, request, pk=None):
+        merchandising = self.get_object()
+        invoice_no = request.data.get("invoice_no")
+        empties_price_total = request.data.get("empties_price_total")
+        empty_returns = request.data.get("empty_returns")
+        payment_method = request.data.get("payment_method") 
+
+        if not invoice_no:
+            return Response(
+                {"detail": "Invoice number is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        merchandising.invoice_no = invoice_no
+
+        if empties_price_total is not None:
+            merchandising.empties_price_total = empties_price_total
+
+        if empty_returns is not None:
+            merchandising.empty_returns = empty_returns
+
+        if payment_method is not None:
+            merchandising.payment_method = str(payment_method)
+
+
+        merchandising.save(update_fields=["invoice_no", "empties_price_total", "empty_returns", "payment_method"])
+        return Response(self.get_serializer(merchandising).data, status=200)
 
 
 class HasAccessPermission(BasePermission):
@@ -587,6 +612,12 @@ class TransactionTypeListCreateView(generics.ListCreateAPIView):
             status=status.HTTP_403_FORBIDDEN
         )
 
+    def create(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types are managed by the system."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
 class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
@@ -602,6 +633,19 @@ class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
             {"detail": "Transaction types cannot be deleted."},
             status=status.HTTP_403_FORBIDDEN
         )
+
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be updated."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be deleted."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
 
 class CustomerListCreateView(generics.ListCreateAPIView):
     serializer_class = CustomerSerializer
