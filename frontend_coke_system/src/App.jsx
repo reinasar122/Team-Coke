@@ -62,6 +62,26 @@ import CreditDetail from "./pages/CreditDetail";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
+import Invoice from "./pages/Invoice";
+
+import {
+  FaHome,
+  FaClipboardCheck,
+  FaChartLine,
+  FaFileInvoice,
+  FaBoxes,
+  FaTruck,
+  FaChartPie,
+  FaCogs,
+  FaUsers,
+  FaUserShield,
+  FaWarehouse,
+  FaUndoAlt,
+  FaChartBar,   // ✅ for Sales Report title
+  FaMoneyBillWave,
+} from "react-icons/fa";
+
+
 // ✅ Check if user is logged in
 const isAuthenticated = () => {
   return localStorage.getItem("user") !== null;
@@ -114,6 +134,8 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             {/* Credits */}
             <Route path="/credits" element={<CreditList />} />
             <Route path="/credits/:id" element={<CreditDetail />} />
+            {/* Invoices */}  
+            <Route path="/invoice" element={<Invoice />} />      
 
             {/* Warehouse */}
             <Route path="/warehouses" element={<Warehouses />} />
