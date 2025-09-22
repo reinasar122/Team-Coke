@@ -374,7 +374,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
             onClick={onClose}
             className="px-4 py-2 btn btn-cancel"
           >
-            Cancel
+            Cancel  
           </button>
           <button
             type="submit"

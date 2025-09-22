@@ -534,6 +534,8 @@ class Merchandising(models.Model):
     status = models.CharField(max_length=50, default="PENDING")
     remarks = models.TextField(blank=True, null=True)
 
+    empties_price_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    empty_returns = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     cash_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -748,16 +750,16 @@ class SupplierReturnFormItem(models.Model):
         return f"{self.product.product_name} ({self.qty_shell} shell)"
     
 
-class Invoice(models.Model):
-    invoice_no = models.CharField(max_length=50, unique=True)
-    customer_name = models.CharField(max_length=255)
-    date = models.DateTimeField(auto_now_add=True)
-    total_amount = models.DecimalField(max_digits=10, decimal_places=2)
-    status = models.CharField(
-        max_length=20,
-        choices=[("Pending", "Pending"), ("Paid", "Paid"), ("Cancelled", "Cancelled")],
-        default="Pending"
-    )
+# class Invoice(models.Model):
+#     invoice_no = models.CharField(max_length=50, unique=True)
+#     customer_name = models.CharField(max_length=255)
+#     date = models.DateTimeField(auto_now_add=True)
+#     total_amount = models.DecimalField(max_digits=10, decimal_places=2)
+#     status = models.CharField(
+#         max_length=20,
+#         choices=[("Pending", "Pending"), ("Paid", "Paid"), ("Cancelled", "Cancelled")],
+#         default="Pending"
+#     )
 
-    def __str__(self):
-     return f"Invoice {self.invoice_no} - {self.customer_name}"
+#     def __str__(self):
+#      return f"Invoice {self.invoice_no} - {self.customer_name}"

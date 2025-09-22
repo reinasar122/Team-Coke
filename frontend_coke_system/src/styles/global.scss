@@ -101,6 +101,7 @@ body {
 .vanlist-container,
 .suppliers-container,
 .stocks-container,
+.invoicelist-container,
 .creditlist-container,
 .tradinglist-container,.expenseslist-container {
   flex: 1;
@@ -109,6 +110,8 @@ body {
   overflow: hidden;     /* lock this page */
 }
 
+
+.invoicelist-container-wrapper,
 .stocks-table-wrapper,
 .creditlist-container-wrapper,.expenseslist-container-wrapper,
 .warehousedetails-table-wrapper,
