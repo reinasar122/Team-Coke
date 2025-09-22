@@ -192,28 +192,36 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
         invoice_no = request.data.get("invoice_no")
         empties_price_total = request.data.get("empties_price_total")
         empty_returns = request.data.get("empty_returns")
-        payment_method = request.data.get("payment_method") 
+        payment_method = request.data.get("payment_method")
 
         if not invoice_no:
             return Response(
                 {"detail": "Invoice number is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        merchandising.invoice_no = invoice_no
 
+        # track which fields to update
+        update_fields = []
+
+        # required invoice_no
+        merchandising.invoice_no = invoice_no
+        update_fields.append("invoice_no")
+
+        # optional fields
         if empties_price_total is not None:
             merchandising.empties_price_total = empties_price_total
+            update_fields.append("empties_price_total")
 
         if empty_returns is not None:
             merchandising.empty_returns = empty_returns
+            update_fields.append("empty_returns")
 
         if payment_method is not None:
             merchandising.payment_method = str(payment_method)
+            update_fields.append("payment_method")
 
-
-        merchandising.save(update_fields=["invoice_no", "empties_price_total", "empty_returns", "payment_method"])
-        return Response(self.get_serializer(merchandising).data, status=200)
-
+        merchandising.save(update_fields=update_fields)
+        return Response(self.get_serializer(merchandising).data, status=status.HTTP_200_OK)
 
 class HasAccessPermission(BasePermission):
     """
@@ -1798,5 +1806,3 @@ class VanLoadReturnUpdateAPIView(APIView):
             import traceback; traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
         
-
-

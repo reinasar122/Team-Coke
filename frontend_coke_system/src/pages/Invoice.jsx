@@ -1,3 +1,4 @@
+// src/pages/InvoiceList.jsx
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import InvoiceModal from "../components/InvoiceModal"; // Reuse your existing InvoiceModal
@@ -11,16 +12,25 @@ const InvoiceList = () => {
   // Fetch invoices on page load
   useEffect(() => {
     axios
-      .get("http://localhost:8080/api/merchandising/")
-      .then((res) => setInvoices(res.data))
+      .get("http://localhost:8080/api/merchandisings/")
+      .then((res) => {
+        // ✅ sort newest first
+        const sorted = [...res.data].sort(
+          (a, b) => new Date(b.date_time) - new Date(a.date_time)
+        );
+        setInvoices(sorted);
+      })
       .catch((err) => console.error("Error fetching invoices:", err));
   }, []);
 
   // Handle view action - fetch invoice details
   const handleView = async (id) => {
     try {
-      const res = await axios.get(`http://localhost:8080/api/merchandising-set/${id}/`);
-      console.log("Invoice Data: ", res.data);  // Log the data here
+      // ✅ Use the correct endpoint
+      const res = await axios.get(
+        `http://localhost:8080/api/merchandisings/${id}/`
+      );
+      console.log("Invoice Data: ", res.data);
       setSelectedInvoice(res.data);
       setShowModal(true);
     } catch (err) {
@@ -29,7 +39,7 @@ const InvoiceList = () => {
   };
 
   return (
-    <div className="invoicelist-container,">
+    <div className="invoicelist-container">
       <h2 className="text-2xl font-bold mb-4">Invoice List</h2>
       <div className="table-wrapper">
         <div className="table">
@@ -57,7 +67,7 @@ const InvoiceList = () => {
                       onClick={() => handleView(inv.id)}
                       className="icon-btn icon-btn-view"
                     >
-                     <FaEye size={16} />
+                      <FaEye size={16} />
                     </button>
                   </td>
                 </tr>
@@ -66,29 +76,28 @@ const InvoiceList = () => {
           </table>
         </div>
       </div>
-      
 
       {/* Reuse InvoiceModal */}
       {showModal && selectedInvoice && (
         <InvoiceModal
-          onClose={() => setShowModal(false)}  // Close modal on button click
+          onClose={() => setShowModal(false)} // Close modal on button click
           invoiceData={{
             ...selectedInvoice,
-            rows: selectedInvoice.items || [], // map items → rows for InvoiceModal
-            miscItems: selectedInvoice.misc_items || [],  // Ensure miscItems is passed
-            handledBy: selectedInvoice.handled_by_name || "",  // Ensure handledBy is passed
-            transactionTypeName: selectedInvoice.transaction_type_name || "", // Ensure transactionTypeName is passed
-            transactionDate: selectedInvoice.date_time || "",  // Ensure transactionDate is passed
-            // Additional necessary data can be calculated or added here:
-            subtotal: selectedInvoice.total_trading_amount || 0,  // Add subtotal if needed
-            totalAmount: selectedInvoice.total_amount || 0,  // Add totalAmount if needed
-            actualSales: selectedInvoice.actual_sale || 0,  // Pass actualSales if available
-            emptiesPriceTotal: selectedInvoice.empties_price_total || 0,  // ✅ correct
-            emptyReturns: selectedInvoice.empty_returns || 0,  
-            expensesTotal: selectedInvoice.total_expenses_amount || 0, // Pass expensesTotal if available
+            rows: selectedInvoice.items || [],
+            miscItems: selectedInvoice.misc_items || [],
+            handledBy: selectedInvoice.handled_by_name || "",
+            transactionTypeName: selectedInvoice.transaction_type_name || "",
+            transactionDate: selectedInvoice.date_time || "",
+            subtotal: selectedInvoice.total_trading_amount || 0,
+            totalAmount: selectedInvoice.total_amount || 0,
+            actualSales: selectedInvoice.actual_sale || 0,
+            emptiesPriceTotal: selectedInvoice.empties_price_total || 0,
+            emptyReturns: selectedInvoice.empty_returns || 0,
+            expensesTotal: selectedInvoice.total_expenses_amount || 0,
             paymentMethod: selectedInvoice.payment_method || "",
+            invoice_no: selectedInvoice.invoice_no || "", // ✅ ensure invoice_no is passed
           }}
-          hidePaymentBreakdown={true} 
+          hidePaymentBreakdown={true}
           isViewOnly={true}
         />
       )}
