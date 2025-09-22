@@ -19,23 +19,22 @@ def create_default_admin(apps, schema_editor):
             username="admin",
             role=admin_role,
             warehouse=default_warehouse,
-            password=make_password("admin123")  # hashed password
+            password=make_password("admin123"),  # hashed password
         )
         admin_user.save()
 
-    # Give full permissions for all submenus for Admin role
-    # Assuming your MODULES are stored in SubMenu table or predefined
+    # Predefined submenus (strings)
     submenus = [
         "Dashboard", "Stocks", "Product", "Returned Empties", "Sales Report",
         "Inventory Report", "User", "Roles", "Supplier", "Warehouse",
-        "Van", "Receiving", "Trading", "Supplier Return", "Credit", "Expenses","Settings",
+        "Van", "Receiving", "Trading", "Supplier Return", "Credit", "Expenses", "Settings",
     ]
 
-    for submenu in submenus:
-        # create or update access
+    # Ensure Admin has full access to all submenus
+    for submenu_name in submenus:
         RoleAccessibility.objects.update_or_create(
             role=admin_role,
-            submenu=submenu,
+            submenu=submenu_name,   # 👈 string field
             defaults={
                 "full": True,
                 "view": True,
