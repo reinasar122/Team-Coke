@@ -601,6 +601,11 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     document.body.appendChild(modal);
   };
 
+  // ✅ Subtotal logic
+const subtotalFromRows = tableRows.reduce((sum, r) => sum + getRowActual(r), 0);
+// Prefer backend actualSales if > 0, else use calculated rows
+const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white w-full max-w-5xl p-6 rounded-lg overflow-y-auto max-h-[90vh] shadow-lg relative">
@@ -700,6 +705,8 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
           </div>
         </div>
 
+        
+
         {/* SOLD PRODUCTS */}
         <div className="mt-6">
           <h4 className="font-bold mb-2 text-gray-700">SOLD PRODUCTS</h4>
@@ -731,7 +738,10 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
               ))}
             </tbody>
           </table>
-          <p className="text-right font-semibold mt-1">SUBTOTAL: ₱{fmt(actualSales)}</p>
+           <p className="text-right font-semibold mt-1">
+            SUBTOTAL: ₱{fmt(subtotal)}
+           </p>
+
         </div>
 
         {/* EMPTY PRICE */}
