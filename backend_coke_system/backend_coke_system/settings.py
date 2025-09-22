@@ -92,14 +92,13 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'new_schema',
+         'NAME': 'jelyn07_db',
          'USER': 'root',
-         'PASSWORD': '@ctu7220957',
+         'PASSWORD': 'yjh434ctuG@-@',
          'HOST': 'localhost',
          'PORT': '3306',
      }
  }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
