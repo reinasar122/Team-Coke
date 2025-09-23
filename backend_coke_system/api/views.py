@@ -154,33 +154,20 @@ class VerifyOTPAPIView(APIView):
         # Get cached OTP
         cached_otp = cache.get(f'otp_{email}')
 
-        if cached_otp is None:
-            return Response({"error": "OTP expired or not found. Please request again."},
-                            status=status.HTTP_400_BAD_REQUEST)
+        if str(cached_otp) == str(otp):
+            try:
+                user = User.objects.get(email=email)
+                return Response({
+                    "user": {
+                        "id": user.id,
+                        "email": user.email,
+                        "username": user.username  # optional
+                    }
+                }, status=status.HTTP_200_OK)
+            except User.DoesNotExist:
+                return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        if str(cached_otp) != otp:
-            return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # OTP is valid ✅
-        try:
-            user = User.objects.get(email=email)
-        except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
-
-        # Invalidate OTP after successful use
-        cache.delete(f'otp_{email}')
-
-        # Generate token for password reset/change
-        token = default_token_generator.make_token(user)
-
-        return Response({
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "username": user.username,
-                "token": token,
-            }
-        }, status=status.HTTP_200_OK)
+        return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
 
 class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()
@@ -192,36 +179,28 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
         invoice_no = request.data.get("invoice_no")
         empties_price_total = request.data.get("empties_price_total")
         empty_returns = request.data.get("empty_returns")
-        payment_method = request.data.get("payment_method")
+        payment_method = request.data.get("payment_method") 
 
         if not invoice_no:
             return Response(
                 {"detail": "Invoice number is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
-        # track which fields to update
-        update_fields = []
-
-        # required invoice_no
         merchandising.invoice_no = invoice_no
-        update_fields.append("invoice_no")
 
-        # optional fields
         if empties_price_total is not None:
             merchandising.empties_price_total = empties_price_total
-            update_fields.append("empties_price_total")
 
         if empty_returns is not None:
             merchandising.empty_returns = empty_returns
-            update_fields.append("empty_returns")
 
         if payment_method is not None:
             merchandising.payment_method = str(payment_method)
-            update_fields.append("payment_method")
 
-        merchandising.save(update_fields=update_fields)
-        return Response(self.get_serializer(merchandising).data, status=status.HTTP_200_OK)
+
+        merchandising.save(update_fields=["invoice_no", "empties_price_total", "empty_returns", "payment_method"])
+        return Response(self.get_serializer(merchandising).data, status=200)
+
 
 class HasAccessPermission(BasePermission):
     """
@@ -635,9 +614,27 @@ class TransactionTypeListCreateView(generics.ListCreateAPIView):
             status=status.HTTP_403_FORBIDDEN
         )
 
+    def create(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types are managed by the system."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
 class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
+
+    def update(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be updated."},
+            status=status.HTTP_403_FORBIDDEN
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        return Response(
+            {"detail": "Transaction types cannot be deleted."},
+            status=status.HTTP_403_FORBIDDEN
+        )
 
     def update(self, request, *args, **kwargs):
         return Response(

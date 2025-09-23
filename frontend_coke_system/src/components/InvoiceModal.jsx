@@ -374,24 +374,26 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
 
  const handleClose = async () => {
+  // 👇 if modal is opened just for viewing (InvoiceList), skip saving
   if (isViewOnly) {
     onClose?.();
     return;
   }
 
-  if (!saleId) {
-    console.warn("⚠️ InvoiceModal: no saleId provided.");
-    onClose?.(); // just close, skip saving
-    return;
-  }
-
-  if (!invoiceNumber) {
-    showAlert("Cannot save invoice: invoice number is empty.");
-    return;
-  }
-
   try {
-    const token = localStorage.getItem("authToken");
+    // validate required fields
+    if (!saleId) {
+      showAlert("Cannot save invoice: missing sale id.");
+      return;
+    }
+
+    if (!invoiceNumber) {
+      showAlert("Cannot save invoice: invoice number is empty.");
+      return;
+    }
+
+    // headers
+    const token = localStorage.getItem("authToken"); // adjust if you use a different key
     const headers = {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Token ${token}` } : {}),
@@ -399,6 +401,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
     console.log("📤 Saving invoice for merchandising ID:", saleId, "Invoice No:", invoiceNumber);
 
+    // POST to correct endpoint
     const res = await fetch(
       `http://localhost:8080/api/merchandising-set/${saleId}/set_invoice_no/`,
       {
@@ -422,10 +425,8 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
           JSON.stringify(responseBody) ||
           "Failed to save invoice number. See console."
       );
-      return;
+      return; // 🚫 stop here, don’t close modal or navigate
     }
-
-    console.log("✅ Invoice saved:", responseBody);
 
     // success → close modal + redirect
     onClose?.();
@@ -435,7 +436,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     showAlert("Network error while saving invoice. Check console.");
   }
 };
-
 
 
 
