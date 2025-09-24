@@ -50,7 +50,9 @@ const PaymentModal = ({
   onConfirm,
   onSave,
   onPaymentSuccess,
-  // 🔻 transactionId not needed anymore
+  transactionId,
+
+  // data
   rows = [],
   amountDue = 0,
   totalAmount = 0,
@@ -997,15 +999,10 @@ const PaymentModal = ({
                 }
 
                 if (typeof onSave === "function") {
-                  const merchandising = await onSave(data);
-                  if (merchandising?.id) {
-                    data.id = merchandising.id;
-                  }
-                }
-
-                // ✅ Fallback: ensure id is set
-                if (!data.id && mspNo) {
-                  data.id = Number(String(mspNo).replace(/\D/g, ""));
+                  const merchandising = await onSave(data);   // ✅ capture backend response
+                   if (merchandising?.id) {
+                     data.id = merchandising.id;               // ✅ attach saleId to invoiceData
+                   }
                 }
 
                 // 3) Show invoice
@@ -1034,7 +1031,9 @@ const PaymentModal = ({
             setShowInvoiceModal(false);
             if (typeof onClose === "function") onClose();
           }}
-          invoiceData={invoiceData}  // ✅ fixed: no transactionId
+              invoiceData={{
+                 ...invoiceData,
+                  id: transactionId || invoiceData?.id || null }}
         />
       )}
     </div>
