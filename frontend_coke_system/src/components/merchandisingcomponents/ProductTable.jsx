@@ -202,105 +202,112 @@ const ProductTable = ({
   //const isMissing = v => v == null || v === "";
 
   const handleRowChange = (index, field, value) => {
-    const updated = [...rows];
-    const row = { ...updated[index] };
+  const updated = [...rows];
+  const row = { ...updated[index] };
 
-    if (value === null) {
-      row[field] = null;
-      updated[index] = row;
-      setRows(updated);
-      return;   // ⬅️ stops before doing any math
-    }
-
-    const n = (v) => parseFloat(v) || 0;
-    row[field] = value;
-
-    const productId = Number(row.productId);
-    const product = products.find(p => p.id === productId);
-    const conversion = n(product?.unit_type?.content_no || 1);
-    const price = n(row.unitPrice || product?.price?.selling_price);
-
-    row.unitPrice = price;
-    row.conversion = conversion;
-
-    const discountPercent = n(row.discount);
-    const discountAmt = (price * row.soldPcs * discountPercent) / 100;
-
-    const isReturnable =
-      product?.returnable === true ||
-      n(product?.price?.shell_price) > 0 ||
-      n(product?.price?.bottle_price) > 0;
-
-    // --- DISPATCHED / SOLD FIELDS ---
-    if (["dispatchedPcs", "dispatchedShell"].includes(field)) {
-      if (field === "dispatchedShell") {
-        // When Shell is changed, calculate PCS based on contentNo
-        row.dispatchedPcs = Math.round(n(value) * conversion);
-        row.dispatchedShell = Math.floor(n(value));  // Keep the shell as the user typed
-      } else if (field === "dispatchedPcs") {
-        // When PCS is changed, calculate Shell based on contentNo
-        row.dispatchedShell = n(value) < conversion ? 0 : Math.floor(n(value) / conversion);
-        row.dispatchedPcs = n(value);  // Keep the PCS as the user typed
-      }
-
-      // Sync sold fields with dispatched
-      row.soldPcs = row.dispatchedPcs;
-      row.soldShell = row.dispatchedShell;
-
-      // Recalculate expected/actual sales
-      row.expectedSale = Number((price * row.dispatchedPcs).toFixed(2));
-      row.actualSale = Number((price * row.soldPcs - discountAmt).toFixed(2));
-      row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
-    }
-
-    // --- DISCOUNT FIELD CHANGE ---
-    if (field === "discount") {
-      const discountAmt = (price * row.soldPcs * discountPercent) / 100;
-      row.actualSale = Number((price * row.soldPcs - discountAmt).toFixed(2));  // Update actual sale based on discount
-      row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));  // Recalculate discrepancy
-    }
-
-    // --- RETURNED EMPTY FIELDS ---
-    if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
-      if (isReturnable) {
-        if (field === "expectedReturnShellEmpty") {
-          const shellQty = Math.floor(n(value));
-          row.expectedReturnShellEmpty = shellQty;
-          row.expectedReturnPcsEmpty = shellQty * conversion; // PCS based on shell
-        } else if (field === "expectedReturnPcsEmpty") {
-          row.expectedReturnPcsEmpty = n(value); // PCS manually typed, Shell stays
-        }
-
-        // Always recalc discrepancy for EMPTY
-        row.discrepancyPcsEmpty = n(row.soldPcs) - n(row.expectedReturnPcsEmpty);
-        row.discrepancyShellEmpty = n(row.soldShell) - n(row.expectedReturnShellEmpty);
-      } else {
-        // Non-returnable products → reset to 0
-        row.expectedReturnPcsEmpty = 0;
-        row.expectedReturnShellEmpty = 0;
-        row.discrepancyPcsEmpty = 0;
-        row.discrepancyShellEmpty = 0;
-      }
-    }
-
-    // --- RETURNED NON-EMPTY FIELDS ---
-    if (["expectedReturnPcsNonempty", "expectedReturnShellNonempty"].includes(field)) {
-      if (field === "expectedReturnShellNonempty") {
-        const shellQty = Math.floor(n(value));
-        row.expectedReturnShellNonempty = shellQty;
-        row.expectedReturnPcsNonempty = shellQty * conversion;
-      } else if (field === "expectedReturnPcsNonempty") {
-        row.expectedReturnPcsNonempty = n(value); // PCS manually typed
-      }
-
-      // Update discrepancy for NON-EMPTY
-      row.discrepancyPcsNonempty = n(row.soldPcs) - n(row.expectedReturnPcsNonempty);
-      row.discrepancyShellNonempty = n(row.soldShell) - n(row.expectedReturnShellNonempty);
-    }
-
+  if (value === null) {
+    row[field] = null;
     updated[index] = row;
     setRows(updated);
-  };
+    return;   // ⬅️ stops before doing any math
+  }
+
+  const n = (v) => parseFloat(v) || 0;
+  row[field] = value;
+
+  const productId = Number(row.productId);
+  const product = products.find(p => p.id === productId);
+  const conversion = n(product?.unit_type?.content_no || 1); // This is the content_no (how many PCS in one Shell)
+  const price = n(row.unitPrice || product?.price?.selling_price);
+
+  row.unitPrice = price;
+  row.conversion = conversion;
+
+  const discountPercent = n(row.discount);
+  const discountAmt = (price * row.soldPcs * discountPercent) / 100;
+
+  const isReturnable =
+    product?.returnable === true ||
+    n(product?.price?.shell_price) > 0 ||
+    n(product?.price?.bottle_price) > 0;
+
+  // --- DISPATCHED / SOLD FIELDS ---
+  if (["dispatchedPcs", "dispatchedShell"].includes(field)) {
+    // When Shell is changed, calculate PCS based on contentNo
+    if (field === "dispatchedShell") {
+      const shellQty = Math.floor(n(value));  // Round Shell down
+      row.dispatchedShell = shellQty;  // Store the Shell value
+      row.dispatchedPcs = shellQty * conversion;  // PCS based on content_no (conversion)
+    }
+    // When PCS is changed, calculate Shell based on contentNo
+    else if (field === "dispatchedPcs") {
+      const pcs = n(value);
+      row.dispatchedPcs = pcs;  // Keep the PCS as the user typed
+      // Calculate Shell based on PCS, but only if the PCS is valid (PCS >= conversion)
+      if (pcs >= conversion) {
+        row.dispatchedShell = Math.floor(pcs / conversion); // Shell based on PCS (PCS / content_no)
+      }
+    }
+
+    // Sync sold fields with dispatched
+    row.soldPcs = row.dispatchedPcs;
+    row.soldShell = row.dispatchedShell;
+
+    // Recalculate expected/actual sales
+    row.expectedSale = Number((price * row.dispatchedPcs).toFixed(2));  // Expected sale based on dispatched PCS
+    row.actualSale = Number((price * row.soldPcs - discountAmt).toFixed(2));  // Actual sale based on sold PCS
+    row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));  // Discrepancy between expected and actual
+  }
+
+  // --- DISCOUNT FIELD CHANGE ---
+  if (field === "discount") {
+    const discountAmt = (price * row.soldPcs * discountPercent) / 100;
+    row.actualSale = Number((price * row.soldPcs - discountAmt).toFixed(2));  // Update actual sale based on discount
+    row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));  // Recalculate discrepancy
+  }
+
+  // --- RETURNED EMPTY FIELDS ---
+  if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
+    if (isReturnable) {
+      if (field === "expectedReturnShellEmpty") {
+        const shellQty = Math.floor(n(value));
+        row.expectedReturnShellEmpty = shellQty;
+        row.expectedReturnPcsEmpty = shellQty * conversion; // PCS based on shell
+      } else if (field === "expectedReturnPcsEmpty") {
+        row.expectedReturnPcsEmpty = n(value); // PCS manually typed, Shell stays
+      }
+
+      // Always recalc discrepancy for EMPTY
+      row.discrepancyPcsEmpty = n(row.soldPcs) - n(row.expectedReturnPcsEmpty);
+      row.discrepancyShellEmpty = n(row.soldShell) - n(row.expectedReturnShellEmpty);
+    } else {
+      // Non-returnable products → reset to 0
+      row.expectedReturnPcsEmpty = 0;
+      row.expectedReturnShellEmpty = 0;
+      row.discrepancyPcsEmpty = 0;
+      row.discrepancyShellEmpty = 0;
+    }
+  }
+
+  // --- RETURNED NON-EMPTY FIELDS ---
+  if (["expectedReturnPcsNonempty", "expectedReturnShellNonempty"].includes(field)) {
+    if (field === "expectedReturnShellNonempty") {
+      const shellQty = Math.floor(n(value));
+      row.expectedReturnShellNonempty = shellQty;
+      row.expectedReturnPcsNonempty = shellQty * conversion;
+    } else if (field === "expectedReturnPcsNonempty") {
+      row.expectedReturnPcsNonempty = n(value); // PCS manually typed
+    }
+
+    // Update discrepancy for NON-EMPTY
+    row.discrepancyPcsNonempty = n(row.soldPcs) - n(row.expectedReturnPcsNonempty);
+    row.discrepancyShellNonempty = n(row.soldShell) - n(row.expectedReturnShellNonempty);
+  }
+
+  updated[index] = row;
+  setRows(updated);
+};
+
 
 
   const handleRemoveRow = (rowIndex) => {
@@ -732,7 +739,7 @@ const ProductTable = ({
 
             {/* RETURNED (Empty) */}
             <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
-              ₱{parseFloat(refundablesTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+              ₱{parseFloat(-refundablesTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
             </td>
 
             {/* DISCREPANCY (Empty) */}
