@@ -204,14 +204,13 @@ const ProductTable = ({
   const handleRowChange = (index, field, value) => {
     const updated = [...rows];
     const row = { ...updated[index] };
-    
 
     if (value === null) {
       row[field] = null;
       updated[index] = row;
       setRows(updated);
       return;   // ⬅️ stops before doing any math
-  }
+    }
 
     const n = (v) => parseFloat(v) || 0;
     row[field] = value;
@@ -224,6 +223,9 @@ const ProductTable = ({
     row.unitPrice = price;
     row.conversion = conversion;
 
+    const discountPercent = n(row.discount);
+    const discountAmt = (price * row.soldPcs * discountPercent) / 100;
+
     const isReturnable =
       product?.returnable === true ||
       n(product?.price?.shell_price) > 0 ||
@@ -232,11 +234,13 @@ const ProductTable = ({
     // --- DISPATCHED / SOLD FIELDS ---
     if (["dispatchedPcs", "dispatchedShell"].includes(field)) {
       if (field === "dispatchedShell") {
+        // When Shell is changed, calculate PCS based on contentNo
         row.dispatchedPcs = Math.round(n(value) * conversion);
-        row.dispatchedShell = Math.floor(n(value));
+        row.dispatchedShell = Math.floor(n(value));  // Keep the shell as the user typed
       } else if (field === "dispatchedPcs") {
+        // When PCS is changed, calculate Shell based on contentNo
         row.dispatchedShell = n(value) < conversion ? 0 : Math.floor(n(value) / conversion);
-        row.dispatchedPcs = n(value);
+        row.dispatchedPcs = n(value);  // Keep the PCS as the user typed
       }
 
       // Sync sold fields with dispatched
@@ -244,11 +248,16 @@ const ProductTable = ({
       row.soldShell = row.dispatchedShell;
 
       // Recalculate expected/actual sales
-      const discountPercent = n(row.discount);
-      const discountAmt = (price * row.soldPcs * discountPercent) / 100;
       row.expectedSale = Number((price * row.dispatchedPcs).toFixed(2));
       row.actualSale = Number((price * row.soldPcs - discountAmt).toFixed(2));
       row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
+    }
+
+    // --- DISCOUNT FIELD CHANGE ---
+    if (field === "discount") {
+      const discountAmt = (price * row.soldPcs * discountPercent) / 100;
+      row.actualSale = Number((price * row.soldPcs - discountAmt).toFixed(2));  // Update actual sale based on discount
+      row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));  // Recalculate discrepancy
     }
 
     // --- RETURNED EMPTY FIELDS ---
@@ -292,6 +301,7 @@ const ProductTable = ({
     updated[index] = row;
     setRows(updated);
   };
+
 
   const handleRemoveRow = (rowIndex) => {
     const updatedRows = rows.filter((_, idx) => idx !== rowIndex);

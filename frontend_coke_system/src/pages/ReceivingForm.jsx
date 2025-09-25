@@ -19,6 +19,11 @@ const ReceivingForm = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [debugInfo, setDebugInfo] = useState("");
   const [isLoadingWarehouse, setIsLoadingWarehouse] = useState(true);
+  const [notice, setNotice] = useState({
+    open: false,
+    type: "success",
+    text: "",
+  });
 
   // NEW: State to track the selected warehouse from localStorage
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
@@ -46,6 +51,14 @@ const ReceivingForm = () => {
       },
     ],
   });
+
+  // Show notice function
+  const showNotice = (text, type = "success") => {
+    setNotice({ open: true, type, text });
+    setTimeout(() => {
+      setNotice({ open: false, type: "success", text: "" });
+    }, 3000);
+  };
 
   // NEW: Reset form when warehouse changes
   const resetForm = useCallback(() => {
@@ -644,24 +657,24 @@ const ReceivingForm = () => {
     e.preventDefault();
 
     if (!currentWarehouse?.id) {
-      alert("❌ No warehouse selected. Please contact your administrator. Debug: " + debugInfo);
+      showNotice("❌ No warehouse selected. Please contact your administrator. Debug: " + debugInfo, "error");
       return;
     }
 
     const filteredRows = form.details.filter((row) => row.product_id && (row.shell_qty !== "" && row.shell_qty !== 0));
 
     if (filteredRows.length === 0) {
-      alert("Please add at least one product to the receiving form.");
+      showNotice("❌ Please add at least one product to the receiving form.", "error");
       return;
     }
 
     if (!form.supplier) {
-      alert("Please select a supplier.");
+      showNotice("❌ Please select a supplier.", "error");
       return;
     }
 
     if (!form.received_by) {
-      alert("Please select who received the items.");
+      showNotice("❌ Please select who received the items.", "error");
       return;
     }
 
@@ -689,8 +702,10 @@ const ReceivingForm = () => {
         message += ` ${deletedCount} supplier return(s) have been processed and removed.`;
       }
 
-      alert(message);
-      navigate("/receiving");
+      showNotice(message, "success");
+      setTimeout(() => {
+        navigate("/receiving");
+      }, 1500);
     } catch (error) {
       console.error("❌ Save failed:", error);
       console.error("❌ Error details:", error.response?.data);
@@ -706,7 +721,7 @@ const ReceivingForm = () => {
         errorMessage += "Please check console for details.";
       }
 
-      alert(errorMessage);
+      showNotice(errorMessage, "error");
     }
   };
 
@@ -740,268 +755,322 @@ const ReceivingForm = () => {
     );
   } else {
     content = (
-      // <div className="receiving-container">
-        <form onSubmit={handleSubmit} className="mt-10 receiving-form">
-          {error && (
-            <div className="error-box">
-              <p className="font-bold">Error</p>
-              <p>{error}</p>
-            </div>
-          )}
-
-          {/* Basic Info */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <label className="form-label">Receiving No:</label>
-              <input type="text" value={receiveNo} readOnly className="form-input" />
-            </div>
-            <div>
-              <label className="form-label">Supplier:</label>
-              <select
-                value={form.supplier}
-                onChange={(e) => handleSupplierChange(e.target.value)}
-                className="form-input"
-              >
-                <option value="">Select Supplier</option>
-                {suppliers.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.company_name}
-                  </option>
-                ))}
-              </select>
-              {isLoadingReturns && <p className="text-primary text-sm mt-1">Loading supplier returns...</p>}
-              {form.supplier && filteredProducts.length > 0 && (
-                <p className="text-add text-sm mt-1">
-                  {filteredProducts.length} products available from this supplier in {currentWarehouse.name}
-                </p>
-              )}
-              {form.supplier && suppliers.length > 0 && filteredProducts.length === 0 && (
-                <p className="text-edit text-sm mt-1">No products found for this supplier in {currentWarehouse.name}</p>
-              )}
-            </div>
-            <div>
-              <label className="form-label">Receipt No:</label>
-              <input
-                type="text"
-                value={form.invoice_no}
-                onChange={(e) => setForm({ ...form, invoice_no: e.target.value })}
-                className="form-input"
-              />
-            </div>
+      <form onSubmit={handleSubmit} className="mt-10 receiving-form">
+        {error && (
+          <div className="error-box">
+            <p className="font-bold">Error</p>
+            <p>{error}</p>
           </div>
+        )}
 
-          {/* Financial Summary */}
-          <div className="financial-summary">
-            <h3>Financial Summary</h3>
-            <div className="grid md:grid-cols-3 gap-6">
-              <div>
-                <label className="form-label">Total Receiving Amount:</label>
-                <div className="relative">
-                  <span className="currency">₱</span>
-                  <input
-                    type="text"
-                    value={parseFloat(totalReceiving || 0).toFixed(2)}
-                    readOnly
-                    className="form-input with-currency font-semibold"
-                  />
-                </div>
+        {/* Basic Info */}
+        <div className="grid md:grid-cols-2 gap-6">
+          <div>
+            <label className="form-label">Receiving No:</label>
+            <input type="text" value={receiveNo} readOnly className="form-input" />
+          </div>
+          <div>
+            <label className="form-label">Supplier:</label>
+            <select
+              value={form.supplier}
+              onChange={(e) => handleSupplierChange(e.target.value)}
+              className="form-input"
+            >
+              <option value="">Select Supplier</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.company_name}
+                </option>
+              ))}
+            </select>
+            {isLoadingReturns && <p className="text-primary text-sm mt-1">Loading supplier returns...</p>}
+            {form.supplier && filteredProducts.length > 0 && (
+              <p className="text-add text-sm mt-1">
+                {filteredProducts.length} products available from this supplier in {currentWarehouse.name}
+              </p>
+            )}
+            {form.supplier && suppliers.length > 0 && filteredProducts.length === 0 && (
+              <p className="text-edit text-sm mt-1">No products found for this supplier in {currentWarehouse.name}</p>
+            )}
+          </div>
+          <div>
+            <label className="form-label">Receipt No:</label>
+            <input
+              type="text"
+              value={form.invoice_no}
+              onChange={(e) => setForm({ ...form, invoice_no: e.target.value })}
+              className="form-input"
+            />
+          </div>
+        </div>
+
+        {/* Financial Summary */}
+        <div className="financial-summary">
+          <h3>Financial Summary</h3>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div>
+              <label className="form-label">Total Receiving Amount:</label>
+              <div className="relative">
+                <span className="currency">₱</span>
+                <input
+                  type="text"
+                  value={parseFloat(totalReceiving || 0).toFixed(2)}
+                  readOnly
+                  className="form-input with-currency font-semibold"
+                />
               </div>
-              <div>
-                <label className="form-label">
-                  Return Total Amount:
-                  {supplierReturns.length > 0 && (
-                    <span className="ml-2 text-sm text-primary">({supplierReturns.length} returns)</span>
-                  )}
-                </label>
-                <div className="relative">
-                  <span className="currency">₱</span>
-                  <input
-                    type="text"
-                    value={parseFloat(form.return_total_amount || 0).toFixed(2)}
-                    readOnly
-                    className={`form-input with-currency font-semibold ${
-                      parseFloat(form.return_total_amount) > 0 ? "text-danger" : "text"
-                    }`}
-                  />
-                </div>
+            </div>
+            <div>
+              <label className="form-label">
+                Return Total Amount:
+                {supplierReturns.length > 0 && (
+                  <span className="ml-2 text-sm text-primary">({supplierReturns.length} returns)</span>
+                )}
+              </label>
+              <div className="relative">
+                <span className="currency">₱</span>
+                <input
+                  type="text"
+                  value={parseFloat(form.return_total_amount || 0).toFixed(2)}
+                  readOnly
+                  className={`form-input with-currency font-semibold ${
+                    parseFloat(form.return_total_amount) > 0 ? "text-danger" : "text"
+                  }`}
+                />
               </div>
-              <div>
-                <label className="form-label">Net Amount:</label>
-                <div className="relative">
-                  <span className="currency">₱</span>
-                  <input
-                    type="text"
-                    value={parseFloat(form.net_amount || 0).toFixed(2)}
-                    readOnly
-                    className="form-input with-currency font-semibold"
-                  />
-                </div>
+            </div>
+            <div>
+              <label className="form-label">Net Amount:</label>
+              <div className="relative">
+                <span className="currency">₱</span>
+                <input
+                  type="text"
+                  value={parseFloat(form.net_amount || 0).toFixed(2)}
+                  readOnly
+                  className="form-input with-currency font-semibold"
+                />
               </div>
             </div>
           </div>
+        </div>
 
-          {/* Supplier Returns */}
-          {supplierReturns.length > 0 && (
-            <div className="supplier-returns">
-              <h3>Supplier Return Details (Will be processed)</h3>
-              <div className="overflow-x-auto mt-2">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Return Reference</th>
-                      <th>Date</th>
-                      <th>Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {supplierReturns.map((r, i) => (
-                      <tr key={i}>
-                        <td>{r.sup_no || "N/A"}</td>
-                        <td>{r.date ? new Date(r.date).toLocaleDateString() : "N/A"}</td>
-                        <td className="text-danger font-semibold">₱{parseFloat(r.total_amount || 0).toFixed(2)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr>
-                      <td colSpan="2" className="text-right font-bold">
-                        Total Return Amount:
-                      </td>
-                      <td className="text-right font-bold text-danger">
-                        ₱{parseFloat(form.return_total_amount || 0).toFixed(2)}
-                      </td>
-                    </tr>
-                  </tfoot>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Receiving Table */}
-          <div className="card">
-            <div className="table-wrapper">
-              <table className="table table-hover">
+        {/* Supplier Returns */}
+        {supplierReturns.length > 0 && (
+          <div className="supplier-returns">
+            <h3>Supplier Return Details (Will be processed)</h3>
+            <div className="overflow-x-auto mt-2">
+              <table className="table">
                 <thead>
                   <tr>
-                    <th>Product</th>
-                    <th>Shell</th>
-                    <th>PCS</th>
-                    <th>Bad Orders (PCS)</th>
-                    <th>Unit Cost</th>
-                    <th>Total</th>
+                    <th>Return Reference</th>
+                    <th>Date</th>
+                    <th>Amount</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {form.details.map((row, index) => (
-                    <tr key={index}>
-                      <td>
-                        <select
-                          value={row.product_id || ""}
-                          onChange={(e) => handleRowChange(index, "product_id", e.target.value)}
-                          className="form-input"
-                          disabled={!form.supplier}
-                        >
-                          <option value="">
-                            {!form.supplier
-                              ? "Select Supplier First"
-                              : filteredProducts.length === 0
-                              ? `No products from this supplier in ${currentWarehouse.name}`
-                              : `Select Product (${filteredProducts.length} available)`}
-                          </option>
-                          {filteredProducts.map((p) => (
-                            <option key={p.id} value={p.id}>
-                              {p.product_name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          type="number"
-                          disabled={!row.product_id}
-                          value={
-                            row.shell_qty === "" || row.shell_qty === 0
-                              ? ""                         // empty so placeholder shows
-                              : row.shell_qty              // show the actual number
-                          }
-                          placeholder={row.shell_qty ? String(row.shell_qty) : "0"}
-                          onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
-                          className="form-input text-center"
-                        />
-                      </td>
+                  {supplierReturns.map((r, i) => (
+                    <tr key={i}>
+                      <td>{r.sup_no || "N/A"}</td>
+                      <td>{r.date ? new Date(r.date).toLocaleDateString() : "N/A"}</td>
+                      <td className="text-danger font-semibold">₱{parseFloat(r.total_amount || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan="2" className="text-right font-bold">
+                      Total Return Amount:
+                    </td>
+                    <td className="text-right font-bold text-danger">
+                      ₱{parseFloat(form.return_total_amount || 0).toFixed(2)}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        )}
 
-                      <td>
-                        <input
-                          type="number"
-                          value={row.pcs_qty || 0}
-                          readOnly
-                          disabled
-                          className="form-input text-center"
-                        />
-                      </td>
+        {/* Receiving Table */}
+        <div className="card">
+          <div className="table-wrapper">
+            <table className="table table-hover">
+              <thead>
+                <tr>
+                  <th>Product</th>
+                  <th>Shell</th>
+                  <th>PCS</th>
+                  <th>Bad Orders (PCS)</th>
+                  <th>Unit Cost</th>
+                  <th>Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.details.map((row, index) => (
+                  <tr key={index}>
+                    <td>
+                      <select
+                        value={row.product_id || ""}
+                        onChange={(e) => handleRowChange(index, "product_id", e.target.value)}
+                        className="form-input"
+                        disabled={!form.supplier}
+                      >
+                        <option value="">
+                          {!form.supplier
+                            ? "Select Supplier First"
+                            : filteredProducts.length === 0
+                            ? `No products from this supplier in ${currentWarehouse.name}`
+                            : `Select Product (${filteredProducts.length} available)`}
+                        </option>
+                        {filteredProducts.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.product_name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
                     <td>
                       <input
                         type="number"
                         disabled={!row.product_id}
                         value={
-                          row.bad_order_pcs === "" || row.bad_order_pcs === 0
-                            ? ""                       // show placeholder when empty or zero
-                            : row.bad_order_pcs
+                          row.shell_qty === "" || row.shell_qty === 0
+                            ? ""                         // empty so placeholder shows
+                            : row.shell_qty              // show the actual number
                         }
-                        placeholder={row.bad_order_pcs ? String(row.bad_order_pcs) : "0"}
-                        onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
+                        placeholder={row.shell_qty ? String(row.shell_qty) : "0"}
+                        onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
                         className="form-input text-center"
-                        min="0"
                       />
                     </td>
 
-                      <td className="text-center">₱{parseFloat(row.unit_cost || 0).toFixed(2)}</td>
-                      <td className="text-center font-bold">₱{parseFloat(row.total || 0).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                    <td>
+                      <input
+                        type="number"
+                        value={row.pcs_qty || 0}
+                        readOnly
+                        disabled
+                        className="form-input text-center"
+                      />
+                    </td>
+                  <td>
+                    <input
+                      type="number"
+                      disabled={!row.product_id}
+                      value={
+                        row.bad_order_pcs === "" || row.bad_order_pcs === 0
+                          ? ""                       // show placeholder when empty or zero
+                          : row.bad_order_pcs
+                      }
+                      placeholder={row.bad_order_pcs ? String(row.bad_order_pcs) : "0"}
+                      onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
+                      className="form-input text-center"
+                      min="0"
+                    />
+                  </td>
 
-          {/* Footer */}
-          <div className="grid md:grid-cols-2 gap-6 mt-10">
-            <div>
-              <label className="form-label">Received By:</label>
-              <select
-                value={form.received_by}
-                onChange={(e) => setForm({ ...form, received_by: e.target.value })}
-                className="form-input"
-              >
-                <option value="">Select user</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.first_name} {u.last_name}
-                  </option>
+                    <td className="text-center">₱{parseFloat(row.unit_cost || 0).toFixed(2)}</td>
+                    <td className="text-center font-bold">₱{parseFloat(row.total || 0).toFixed(2)}</td>
+                  </tr>
                 ))}
-              </select>
-            </div>
-            <div>
-              <label className="form-label">Remarks:</label>
-              <textarea
-                rows="3"
-                value={form.remarks}
-                onChange={(e) => setForm({ ...form, remarks: e.target.value })}
-                className="form-input"
-              />
-            </div>
+              </tbody>
+            </table>
           </div>
+        </div>
 
-          <div className="form-actions mt-10">
-            <button type="button" onClick={() => navigate("/receiving")} className="btn btn-back">
-              Cancel
-            </button>
-            <button type="submit" className="btn btn-primary font-semibold">
-              Save to {currentWarehouse.name}
-            </button>
+        {/* Footer */}
+        <div className="grid md:grid-cols-2 gap-6 mt-10">
+          <div>
+            <label className="form-label">Received By:</label>
+            <select
+              value={form.received_by}
+              onChange={(e) => setForm({ ...form, received_by: e.target.value })}
+              className="form-input"
+            >
+              <option value="">Select user</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.first_name} {u.last_name}
+                </option>
+              ))}
+            </select>
           </div>
-        </form>
-      // </div>
+          <div>
+            <label className="form-label">Remarks:</label>
+            <textarea
+              rows="3"
+              value={form.remarks}
+              onChange={(e) => setForm({ ...form, remarks: e.target.value })}
+              className="form-input"
+            />
+          </div>
+        </div>
+
+        <div className="form-actions mt-10">
+          <button type="button" onClick={() => navigate("/receiving")} className="btn btn-back">
+            Cancel
+          </button>
+          <button type="submit" className="btn btn-primary font-semibold">
+            Save to {currentWarehouse.name}
+          </button>
+        </div>
+
+        {/* Notice Modal - Consistent with ProductForm INCLUDING BLUR */}
+        {notice.open && (
+          <div 
+            className="modal-overlay" 
+            style={{ 
+              zIndex: 9999,
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+            }}
+          >
+            <div 
+              className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}
+              style={{
+                minWidth: '320px',
+                maxWidth: '450px',
+                padding: '24px 20px',
+                borderRadius: '8px',
+                boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
+                border: notice.type === "success" ? '2px solid #10b981' : '2px solid #ef4444'
+              }}
+            >
+              <div className="modal-body">
+                <div style={{ textAlign: 'center' }}>
+                  <div style={{
+                    fontSize: '32px',
+                    marginBottom: '12px'
+                  }}>
+                    {notice.type === "success" ? "✅" : "❌"}
+                  </div>
+                  <p 
+                    className="pf-modal-text" 
+                    style={{
+                      fontSize: '16px',
+                      lineHeight: '1.5',
+                      margin: '0',
+                      color: notice.type === "success" ? '#065f46' : '#991b1b',
+                      fontWeight: '500'
+                    }}
+                  >
+                    {notice.text}
+                  </p>
+                  {notice.type === "success" && (
+                    <div style={{
+                      fontSize: '13px',
+                      color: '#059669',
+                      marginTop: '12px',
+                      fontStyle: 'italic'
+                    }}>
+                    
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </form>
     );
   }
 

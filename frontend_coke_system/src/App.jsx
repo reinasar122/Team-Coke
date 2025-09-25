@@ -127,6 +127,151 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
           }`}
         >
+          {/* Page Titles */}
+          {!hideLayout && (
+            <div className="page-title mb-4">
+              <Routes>
+                <Route
+                  path="/"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                       Home Page
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/dashboard"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaChartPie /> Dashboard
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/receiving"
+                  // element={
+                  //   <h1 className="text-2xl flex items-center">
+                  //     <FaClipboardCheck /> Receiving
+                  //   </h1>
+                  // }
+                />
+                <Route path="/stocks" />
+                <Route path="/products" />
+                <Route
+                  path="/suppliers"
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaTruck /> Suppliers
+                  //   </h1>
+                  // }
+                />
+                <Route
+                  path="/settings"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaCogs /> Settings
+                    </h1>
+                  }
+                />
+                {/*<Route
+                  path="/users"
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaUsers /> Users
+                  //   </h1>
+                  // }
+                />
+                <Route
+                  path="/roles"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaUserShield /> Roles
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/warehouses"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaWarehouse className="text-red-500" /> Warehouses
+                    </h1>
+                  }
+                />*/}
+                <Route
+                    path="/profile"
+                    // element={
+                    //   <h1 className="text-2xl flex items-center gap-2">
+                    //     <FaUser /> Profile
+                    //   </h1>
+                    // }
+                  />
+                <Route
+                  path="/invoice"
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaFileInvoice /> Invoice
+                  //   </h1>
+                  // }
+                />
+                <Route
+                  path="/StocksAdjustment"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaTruck /> Stocks Adjustment
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/supplier-returns"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaTruck /> Supplier Returns
+                    </h1>
+                  }
+                />
+                <Route path="/return-empties" />
+                <Route path="/credits" />
+                <Route
+                  path="/credits/:id"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      Credit Detail
+                    </h1>
+                  }
+                />
+
+                {/* ✅ Sales Report page title */}
+                <Route
+                  path="/reports/sales"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaChartBar /> Sales Report
+                    </h1>
+                  }
+                />
+
+                 <Route
+                  path="/profile"
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaUser /> Profile
+                  //   </h1>
+                  // }
+                />
+
+                <Route
+                  path="/expenses"
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaMoneyBillWave /> Expenses
+                  //   </h1>
+                  // }
+                />
+              </Routes>
+            </div>
+          )}
+
+          {/* Page Routes */}
           <Routes>
             {/* Dashboard */}
             <Route path="/dashboard" element={<Dashboard />} />

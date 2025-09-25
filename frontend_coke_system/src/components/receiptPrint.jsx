@@ -32,25 +32,17 @@ export const generateReceiptHTML = (payload, options = {}) => {
     warehouse = {},
     totals = {},
     tables = {},
-    miscItems, // optional top-level
   } = payload || {};
 
   const width = options.width || "58mm";          // "58mm" | "80mm"
   const cols = options.cols || (width === "80mm" ? 48 : 42);
 
-  // Try to find misc items if not passed at top-level
-  const expensesList =
-    miscItems ||
-    options.miscItems ||
-    (tables?.products?.[0]?.expenses && Array.isArray(tables.products[0].expenses)
-      ? tables.products[0].expenses
-      : []);
-
   /* ---------- helpers ---------- */
   const n = (v) => Number(v || 0);
   const peso = (v) =>
-    `₱${(n(v)).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    `${n(v).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const line = (ch = "-") => ch.repeat(cols);
+  const dblLine = (ch = "=") => ch.repeat(cols);
   const clip = (s = "", len = cols) =>
     String(s).normalize("NFKD").replace(/[^\x00-\x7F]/g, "").slice(0, len);
   const lr = (left, right) => {
@@ -92,92 +84,90 @@ export const generateReceiptHTML = (payload, options = {}) => {
     line()
   ].filter(Boolean).join("\n");
 
-  /* ---------- items (sold products) ---------- */
+  /* ---------- SOLD PRODUCTS ---------- */
   const products = Array.isArray(tables?.products) ? tables.products : [];
-  const itemsBlock = products.map((r) => {
-    const name = clip(r.product || "--", cols);
-    const amount = peso(r.amount);
-    const l1 = lr(name, amount);
-
-    const pcs = n(r.soldPcs);
-    const shells = n(r.soldShell);
-    const unit = peso(r.unitPrice);
-    const l2 = lr(`${pcs} pcs @ ${unit}`, shells ? `Shells: ${shells}` : "");
-
-    const discPct = n(r.discountPercent);
-    const l3 = discPct ? lr("", `Less: ${discPct}%`) : "";
-
-    return [l1, l2, l3].filter(Boolean).join("\n");
-  }).join("\n");
-
-  /* ---------- totals ---------- */
-  const {
-    actualSales,
-    emptiesPriceTotal,
-    emptyReturns,
-    emptyDiscrepancies,
-    totalAmount,
-    cashReceived,
-    change,
-    amountDue,
-    isVanLoad,
-    // isWarehouse,
-    vl_discNE,
-    vl_retWc,
-    expensesTotal,
-    vl_overallTotal,
-    vl_grandTotal,
-  } = totals;
-
-  const commonTotals = [
-    line(),
-    lr("Subtotal", peso(actualSales)),
-    lr("Empties Price", peso(emptiesPriceTotal)),
-    lr("Empty Returns", `- ${peso(emptyReturns)}`),
-    lr("Discrepancies (Empty)", peso(emptyDiscrepancies)),
-  ];
-
-  const totalsBlock = isVanLoad
+  const itemsBlock = products.length
     ? [
-        ...commonTotals,
-        lr("Discrepancies (Non-Empty)", peso(vl_discNE)),
-        lr("Returned w/ Content",      peso(vl_retWc)),
-        lr("Expenses",                 `- ${peso(expensesTotal)}`),
+        "SOLD PRODUCTS",
         line(),
-        lr("Overall Total",            peso(vl_overallTotal)),
-        lr("Grand Total",              peso(vl_grandTotal)),
-      ].join("\n")
-    : [
-        ...commonTotals,
-        line(),
-        lr("Total Amount Due", peso(totalAmount)),
-      ].join("\n");
-
-  /* ---------- expenses (optional) ---------- */
-  const expensesBlock = expensesList && expensesList.length
-    ? [
-        "EXPENSES",
-        line(),
-        ...expensesList.map(e => lr(clip(e.description, cols - 12), peso(Number(e.amount || 0)))),
-        lr("Total Expenses", peso(expensesList.reduce((s, i) => s + Number(i.amount || 0), 0))),
-        line()
+        ...products.map((r) => {
+          const name = clip(r.product || "--", cols);
+          const l1 = lr(name, peso(r.amount));
+          const pcs = n(r.soldPcs);
+          const shells = n(r.soldShell);
+          const unit = peso(r.unitPrice);
+          const l2 = lr(`${pcs} pcs @ ₱${unit}`, shells ? `${shells} shells` : "");
+          return [l1, l2].join("\n");
+        }),
+        lr("SOLD TOTAL", peso(totals.actualSales)),
       ].join("\n")
     : "";
+
+  /* ---------- EMPTY PRICE ---------- */
+  const emptiesRows = Array.isArray(tables?.empties) ? tables.empties : [];
+  const emptiesBlock = emptiesRows.length
+    ? [
+        "EMPTY PRICE",
+        line(),
+        ...emptiesRows.map((e) => {
+          const name = clip(e.product || "--", cols);
+          const l1 = lr(name, peso(e.amount));
+          const l2 = lr(
+            `₱${peso(e.shellPrice)} x ${n(e.totalShells)}`,
+            `₱${peso(e.bottlePrice)} x ${n(e.totalPieces)}`
+          );
+          return [l1, l2].join("\n");
+        }),
+        lr("EMPTIES TOTAL", peso(totals.emptiesPriceTotal)),
+      ].join("\n")
+    : "";
+
+  /* ---------- RETURNS ---------- */
+  const returnsRows = Array.isArray(tables?.returns) ? tables.returns : [];
+  const returnsBlock = returnsRows.length
+    ? [
+        "RETURNS",
+        line(),
+        ...returnsRows.map((r) => {
+          const name = clip(r.product || "--", cols);
+          const l1 = lr(name, peso(r.amount));
+          const l2 = lr(
+            `₱${peso(r.shellPrice)} x ${n(r.returnedShells)}`,
+            `₱${peso(r.bottlePrice)} x ${n(r.returnedPieces)}`
+          );
+          return [l1, l2].join("\n");
+        }),
+        lr("RETURNS TOTAL", `-${peso(totals.emptyReturns)}`),
+      ].join("\n")
+    : "";
+
+  /* ---------- GRAND TOTAL ---------- */
+  const totalAmountVal  = n(totals.totalAmount);
+  const amountDueVal    = n(totals.amountDue) || totalAmountVal;
+  const cashReceivedVal = n(totals.cashReceived) || amountDueVal;
+  const changeVal       = n(totals.change) || (cashReceivedVal - amountDueVal);
+
+  const totalsBlock = [
+    dblLine(),
+    lr("TOTAL AMOUNT DUE", peso(totalAmountVal)),
+    dblLine(),
+  ].join("\n");
 
   /* ---------- payment ---------- */
   const paymentBlock = [
     lr("Payment Method", (paymentMethod || "-").toString().toUpperCase()),
-    lr("Amount Due",     peso(n(amountDue) || n(totalAmount))),
-    lr("Cash Received",  peso(cashReceived)),
-    lr("Change",         peso(change)),
-    line()
+    lr("Amount Due", peso(amountDueVal)),
+    lr("Cash Received", peso(cashReceivedVal)),
+    lr("Change", peso(changeVal)),
+    line(),
   ].join("\n");
 
   /* ---------- footer ---------- */
   const footerBlock = [
-    "Thank you for your business!",
-    "Keep this receipt for your records.",
-    ""
+    line(),
+    "THANK YOU FOR YOUR BUSINESS!".padStart(Math.floor((cols + 29) / 2)),
+    "Keep this receipt for your records.".padStart(Math.floor((cols + 35) / 2)),
+    "",
   ].join("\n");
 
   /* ---------- compose text ---------- */
@@ -185,8 +175,9 @@ export const generateReceiptHTML = (payload, options = {}) => {
     headerBlock,
     metaBlock,
     itemsBlock,
+    emptiesBlock,
+    returnsBlock,
     totalsBlock,
-    expensesBlock,
     paymentBlock,
     footerBlock
   ].filter(Boolean).join("\n");
@@ -211,7 +202,7 @@ export const generateReceiptHTML = (payload, options = {}) => {
     }
     .wrap {
       padding: 6mm 3mm;
-      white-space: pre; /* preserve spaces/newlines for monospace layout */
+      white-space: pre;
     }
     @media print {
       body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -227,19 +218,14 @@ export const generateReceiptHTML = (payload, options = {}) => {
 export const printReceipt = (payload, options = {}) => {
   const html = generateReceiptHTML(payload, options);
 
-  // Guard for non-browser environments
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
-  // --- Try popup window first ---
   let win = null;
   try {
     win = window.open("", "_blank", "width=480,height=800,noopener,noreferrer");
-  } catch (_) {
-    // ignored
-  }
+  } catch (_) {}
 
   if (win && win.document) {
-    // Success: write and print from popup
     win.document.open();
     win.document.write(html);
     win.document.close();
@@ -250,7 +236,6 @@ export const printReceipt = (payload, options = {}) => {
       try { win.close(); } catch (_) {}
     };
 
-    // Give the browser a tick to lay out
     if ("onload" in win) {
       win.onload = finalize;
     } else {
@@ -259,7 +244,6 @@ export const printReceipt = (payload, options = {}) => {
     return;
   }
 
-  // --- Fallback: hidden iframe (works even if popups are blocked) ---
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
   iframe.style.right = "0";
@@ -286,7 +270,6 @@ export const printReceipt = (payload, options = {}) => {
     cleanup();
   };
 
-  // onload can be flaky after document.write — add a safety timeout too
   iframe.onload = doPrint;
   setTimeout(doPrint, 300);
 };

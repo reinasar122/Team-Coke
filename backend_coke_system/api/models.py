@@ -12,6 +12,9 @@ from django.db import models
 from django.utils import timezone
 from django.core.validators import MinValueValidator
 from django.db.models import Q
+from datetime import datetime
+from django.db import models
+from django.utils import timezone
 
 
 from django.db.models.signals import post_migrate
@@ -511,6 +514,9 @@ class MSPSequence(models.Model):
 # ------------------------------------------------------------
 # Merchandising (main header)
 # ------------------------------------------------------------
+from datetime import datetime
+from django.db import transaction
+
 class Merchandising(models.Model):
     msp_no = models.CharField(max_length=20, editable=False)  # not unique (by design)
     transaction_type = models.ForeignKey('TransactionType', on_delete=models.CASCADE)
@@ -523,7 +529,7 @@ class Merchandising(models.Model):
 
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     actual_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    
+
     discrepancy_non_empty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discrepancy_empty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
@@ -540,15 +546,19 @@ class Merchandising(models.Model):
     cash_received = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     change = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
-    # ✅ NEW: used by the /api/van-load-return/ endpoint so stocks aren’t added twice
     full_returns_applied = models.BooleanField(default=False)
-
-    
 
     def save(self, *args, **kwargs):
         is_new = self._state.adding
+
+        # ✅ Auto-generate invoice_no if missing
+        if not self.invoice_no:
+            now = datetime.now()
+            suffix = str(now.timestamp()).replace(".", "")[-4:]
+            self.invoice_no = f"INV-{now.strftime('%Y%m%d')}-{suffix}"
+
+        # ✅ Existing MSP No logic
         if is_new and not self.msp_no:
-            # ensure there is some dt set
             if not self.date_time:
                 self.date_time = timezone.now()
 
@@ -557,13 +567,10 @@ class Merchandising(models.Model):
             prefix = _prefix_for(tt)
 
             if tt_name == 'warehouse':
-                # Always use server-local “today”
                 today = timezone.localdate()
-                # Also store server time (ignore client datetime for MSP purposes)
                 self.date_time = timezone.now()
 
                 with transaction.atomic():
-                    # 1) Get or create the daily row
                     seq, created = MSPSequence.objects.select_for_update().get_or_create(
                         date=today,
                         warehouse=self.warehouse,
@@ -572,8 +579,6 @@ class Merchandising(models.Model):
                     )
 
                     if created or seq.last_number == 0:
-                        # 2) First Warehouse transaction today → decide today's number
-                        #    Find the last used number across any previous day for this warehouse
                         last_rec = (
                             Merchandising.objects
                             .filter(warehouse=self.warehouse, transaction_type=tt)
@@ -589,16 +594,15 @@ class Merchandising(models.Model):
                         else:
                             prev_num = 0
 
-                        seq.last_number = prev_num + 1  # today’s fixed number
+                        seq.last_number = prev_num + 1
                         seq.save(update_fields=['last_number'])
 
-                    # 3) Reuse the same number for the rest of the day
                     self.msp_no = f'{prefix}-{seq.last_number:04d}'
 
             elif tt_name == 'van load':
                 with transaction.atomic():
                     seq, created = MSPSequence.objects.select_for_update().get_or_create(
-                        date=None,                        # ← ensure the single timeless row
+                        date=None,
                         warehouse=self.warehouse,
                         transaction_type=tt,
                         defaults={'last_number': 0}
@@ -611,6 +615,7 @@ class Merchandising(models.Model):
                 self.msp_no = f'{prefix}-0001'
 
         super().save(*args, **kwargs)
+
 
 # ------------------------------------------------------------
 # MerchandisingItem

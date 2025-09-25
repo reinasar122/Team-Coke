@@ -8,28 +8,16 @@ async function createCreditLedgerFromModalPayload(payload) {
   if (payload.paymentMethod !== "credit") return null;
 
   console.log("🔍 Full credit payload:", payload);
-  console.log("🔍 Available keys:", Object.keys(payload));
 
-  // ✅ Try multiple warehouse ID extraction methods
-  const warehouseId = 
+  const warehouseId =
     payload.warehouseId ||
     payload.warehouse_id ||
     payload.warehouse?.id ||
     payload.warehouse?.warehouse_id ||
-    (typeof payload.warehouse === 'number' ? payload.warehouse : null) ||
+    (typeof payload.warehouse === "number" ? payload.warehouse : null) ||
     null;
 
-  console.log("🏪 Extracted warehouse ID:", warehouseId);
-  console.log("🏪 Warehouse ID type:", typeof warehouseId);
-
   if (!warehouseId) {
-    console.error("❌ No warehouse ID found:", {
-      warehouseId: payload.warehouseId,
-      warehouse_id: payload.warehouse_id,
-      warehouse: payload.warehouse,
-      warehouseType: typeof payload.warehouse,
-      allPayloadKeys: Object.keys(payload)
-    });
     throw new Error("Warehouse ID is required for credit transactions");
   }
 
@@ -44,14 +32,11 @@ async function createCreditLedgerFromModalPayload(payload) {
     totalAmount: payload.totalAmount,
     rows: payload.rows || [],
     transactionDate: payload.transactionDate || new Date().toISOString(),
-    warehouse: Number(warehouseId), // ✅ Ensure it's a number
+    warehouse: Number(warehouseId),
   };
-
-  console.log("📋 Credit request body:", body);
 
   try {
     const res = await axios.post("http://127.0.0.1:8080/api/credits/", body);
-    console.log("✅ Credit created successfully:", res.data);
     return res.data;
   } catch (err) {
     console.error("❌ Credit creation failed:", err.response?.data || err.message);
@@ -69,29 +54,20 @@ const PaymentModal = ({
 
   // data
   rows = [],
-
-  // money coming from parent (falls back to recompute if missing)
   amountDue = 0,
   totalAmount = 0,
   actualSales = 0,
   emptiesPriceTotal = 0,
   emptyReturns = 0,
   emptyDiscrepancies = 0,
-
-  // header info
   mspNo,
   customerName,
   handledBy,
   transactionDate,
-
-  // Van Load extras
-  transactionTypeName, // "Warehouse" | "Van Load"
+  transactionTypeName,
   expensesTotal = 0,
   remarks = "",
-
   onRemarksChange,
-
-  // van load breakdown props
   expectedSale = 0,
   totalReturnedWithContent = 0,
   totalDiscrepancyNonEmpty = 0,
@@ -99,16 +75,9 @@ const PaymentModal = ({
   overallTotalVL = 0,
   grandTotalVL = 0,
   transactionTypes = "",
-
   miscItems = [],
-  warehouse, // ✅ ADD WAREHOUSE PROP
+  warehouse,
 }) => {
-  // ✅ DEBUG: Log warehouse prop when component renders
-  console.log("🏪 PaymentModal received warehouse prop:", warehouse);
-  console.log("🏪 Warehouse type:", typeof warehouse);
-  console.log("🏪 Warehouse keys:", warehouse ? Object.keys(warehouse) : "null/undefined");
-
-  // ------------ hooks ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("30 Days");
@@ -117,10 +86,8 @@ const PaymentModal = ({
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // ------------ helpers ------------
   const n = (v) => Number(v || 0);
   const fmt = (v) => n(v).toFixed(2);
-
   const peso = (v) =>
     `₱${n(v).toLocaleString("en-PH", {
       minimumFractionDigits: 2,
@@ -140,7 +107,6 @@ const PaymentModal = ({
     d.setDate(d.getDate() + days);
     return d;
   }, [days]);
-
   const formattedDueDate = useMemo(
     () =>
       paymentDueDate.toLocaleDateString("en-PH", {
@@ -152,35 +118,34 @@ const PaymentModal = ({
   );
 
   const formatLocalToManila = (localStr) => {
-    if (!localStr) return "";
-    const d = new Date(localStr);
-    return new Intl.DateTimeFormat("en-PH", {
-      timeZone: "Asia/Manila",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    }).format(d);
-  };
+  if (!localStr) return "";
+  const d = new Date(localStr);
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d);
+};
 
-  // ✅ Custom alert function
+
   const showAlert = (message) => {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    const alertDiv = document.createElement("div");
+    alertDiv.className =
+      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
     alertDiv.innerHTML = `
       <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
         <p class="text-gray-700 mb-4">${message}</p>
         <div class="flex justify-end">
           <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
         </div>
-      </div>
-    `;
+      </div>`;
     document.body.appendChild(alertDiv);
   };
 
-  // ---- robust accessors ----
   const pickNum = (...vals) => {
     for (const v of vals) {
       if (v !== "" && v !== null && v !== undefined) {
@@ -190,7 +155,6 @@ const PaymentModal = ({
     }
     return 0;
   };
-
   const getProdName = (row) =>
     row.productName || row.product_name || row.product_detail?.product_name || "--";
   const getSoldShell = (row) => pickNum(row.sold_shell, row.soldShell);
@@ -203,31 +167,24 @@ const PaymentModal = ({
   const getDirectTotal = (row) =>
     pickNum(row.actualSale, row.actual_sale, row.total, row.line_total, row.lineTotal);
 
-  // Compute a line total if not directly provided
   const getLineTotal = (row) => {
     const direct = getDirectTotal(row);
     if (direct) return direct;
-
     const pcs = getSoldPcs(row);
     const shell = getSoldShell(row);
     const price = getUnitPrice(row);
-
     if (isWarehouse) {
-      // Warehouse: price * pcs - discount
       const discPct = getDiscountPercent(row);
       const discAmtFromPct = (price * pcs * discPct) / 100;
       const discAmt = getDiscountAmount(row) || discAmtFromPct;
       return Number((pcs * price - discAmt).toFixed(2));
     }
-
-    // Van Load: (pcs*unit + shell*emptyShell) * (1 - discount%)
     const emptyShellPrice = getEmptyShellPrice(row);
     const discPct = getDiscountPercent(row);
     const gross = pcs * price + shell * emptyShellPrice;
     return Number((gross * (1 - discPct / 100)).toFixed(2));
   };
 
-  // Filter out blank/placeholder rows
   const tableRows = useMemo(
     () =>
       (rows || []).filter(
@@ -239,22 +196,16 @@ const PaymentModal = ({
       ),
     [rows]
   );
-
-  // Modal "Actual Sales" fallback
   const actualSalesValue = useMemo(() => {
     const fromParent = n(actualSales);
     if (fromParent > 0) return fromParent;
     return tableRows.reduce((sum, r) => sum + getLineTotal(r), 0);
   }, [actualSales, tableRows]);
 
-  // Clear cash input every time the modal opens or a new MSP is loaded
   useEffect(() => {
-    if (open) {
-      setCashReceived("");      // clears the Cash Amount Received box
-    }
+    if (open) setCashReceived("");
   }, [open, mspNo]);
 
-  // ---- Compute a consistent total due inside the modal ----
   const computedTotalDue = useMemo(() => {
     const base =
       n(actualSalesValue) -
@@ -272,26 +223,20 @@ const PaymentModal = ({
     isVanLoad,
   ]);
 
-  // ---- VAN LOAD totals (with safe fallbacks) ----
   const vl_actual = n(actualSalesValue);
   const vl_retWc = n(totalReturnedWithContent);
   const vl_discNE = n(totalDiscrepancyNonEmpty);
   const vl_discE = n(emptyDiscrepancies);
-
   const vl_totalActualRetrieved =
     n(totalActualRetrievedVL) || vl_actual + vl_retWc + vl_discNE;
-
   const vl_overallTotal = n(overallTotalVL) || vl_actual + vl_discE + vl_discNE;
-
   const vl_grandTotal = n(grandTotalVL) || vl_overallTotal - n(expensesTotal);
 
-  // Prefer parent values only if they're explicitly positive
   const amountDueFinal = isVanLoad
     ? vl_grandTotal
     : n(amountDue) > 0
     ? n(amountDue)
     : computedTotalDue;
-
   const totalAmountFinal = isVanLoad
     ? vl_grandTotal
     : n(totalAmount) > 0
@@ -1048,9 +993,11 @@ const PaymentModal = ({
                 if (isVanLoad && paymentOk && typeof onPaymentSuccess === "function") {
                   await onPaymentSuccess(data);
                 }
+
                 if (typeof onConfirm === "function") {
                   await onConfirm(data);
                 }
+
                 if (typeof onSave === "function") {
                   const merchandising = await onSave(data);   // ✅ capture backend response
                    if (merchandising?.id) {
@@ -1061,6 +1008,7 @@ const PaymentModal = ({
                 // 3) Show invoice
                 setInvoiceData(data);
                 setShowInvoiceModal(true);
+
               } catch (e) {
                 console.error(e);
                 
@@ -1076,7 +1024,7 @@ const PaymentModal = ({
         </div>
       </div>
 
-      {showInvoiceModal && (
+            {showInvoiceModal && (
         <InvoiceModal
           transactionTypes={transactionTypes}
           onClose={() => {
@@ -1085,11 +1033,13 @@ const PaymentModal = ({
           }}
               invoiceData={{
                  ...invoiceData,
-                  id: transactionId || invoiceData?.id || null }}
+                  id: transactionId || invoiceData?.id || null
+                  }}
         />
       )}
     </div>
   );
 };
+
 
 export default PaymentModal;

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { FaTrash, FaEye } from "react-icons/fa";
+import { FaTrash, FaEye, FaSearch } from "react-icons/fa";
 
 const SupplierReturnList = () => {
   const [returns, setReturns] = useState([]);
@@ -320,16 +320,19 @@ const SupplierReturnList = () => {
 
   return (
     <div className="page">
-      {/* Header section with search instead of title */}
-      <div className="page-header">
-        <input
-          type="text"
-          placeholder="Search..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="input"
-          style={{ width: '250px', textAlign: 'left' }}
-        />
+      {/* Header section with styled search bar */}
+      <div className="page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div className="relative w-72 mr-4">
+          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+          <input
+            type="text"
+            placeholder="Search supplier"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <button
             onClick={() => navigate("/supplier-returns/new")}
@@ -353,7 +356,7 @@ const SupplierReturnList = () => {
           </colgroup>
           <thead>
             <tr>
-              <th className="text-left">Sup No.</th>
+              <th className="text-left">Supplier No.</th>
               <th style={{ textAlign: 'center' }}>Date</th>
               <th style={{ textAlign: 'center' }}>Supplier</th>
               <th style={{ textAlign: 'center' }}>Warehouse</th>

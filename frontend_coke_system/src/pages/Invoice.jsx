@@ -1,3 +1,4 @@
+// src/pages/InvoiceList.jsx
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import InvoiceModal from "../components/InvoiceModal"; // Reuse your existing InvoiceModal
@@ -70,12 +71,15 @@ const InvoiceList = () => {
 
       {/* Reuse InvoiceModal */}
       {showModal && selectedInvoice && (
+        
+         console.log("Selected Invoice:", selectedInvoice),
+
+
         <InvoiceModal
           onClose={() => setShowModal(false)}  // Close modal on button click
           invoiceData={{
             ...selectedInvoice,
             rows: selectedInvoice.items || [], // map items → rows for InvoiceModal
-            miscItems: selectedInvoice.misc_items || [],  // Ensure miscItems is passed
             handledBy: selectedInvoice.handled_by_name || "",  // Ensure handledBy is passed
             transactionTypeName: selectedInvoice.transaction_type_name || "", // Ensure transactionTypeName is passed
             transactionDate: selectedInvoice.date_time || "",  // Ensure transactionDate is passed
@@ -85,10 +89,10 @@ const InvoiceList = () => {
             actualSales: selectedInvoice.actual_sale || 0,  // Pass actualSales if available
             emptiesPriceTotal: selectedInvoice.empties_price_total || 0,  // ✅ correct
             emptyReturns: selectedInvoice.empty_returns || 0,  
-            expensesTotal: selectedInvoice.total_expenses_amount || 0, // Pass expensesTotal if available
             paymentMethod: selectedInvoice.payment_method || "",
           }}
           hidePaymentBreakdown={true} 
+          hideExpenses={true}
           isViewOnly={true}
         />
       )}

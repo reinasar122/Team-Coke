@@ -13,6 +13,7 @@ const InvoiceModal = ({
   onClose,
   invoiceData = {}, 
   hidePaymentBreakdown = false,
+  hideExpenses = false,
   isViewOnly = false,
  }) => {
 
@@ -805,7 +806,7 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
         </div>
 
       {/* Expenses Summary — only if NOT Warehouse */}
-        {!isWarehouse && (
+        {!isWarehouse && !hideExpenses && (
           <div className="mt-6 mb-6">
             <h3 className="font-semibold mb-2">Expenses Summary</h3>
             <table className="w-full mt-2 border">

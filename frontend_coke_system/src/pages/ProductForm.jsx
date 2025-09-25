@@ -695,12 +695,51 @@ const ProductForm = () => {
         </div>
       )}
 
-      {/* Notice Modal */}
+      {/* Notice Modal - Slightly Bigger & User Friendly */}
       {notice.open && (
-        <div className="modal-overlay">
-          <div className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}>
+        <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
+          <div 
+            className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}
+            style={{
+              minWidth: '320px',
+              maxWidth: '450px',
+              padding: '24px 20px',
+              borderRadius: '8px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
+              border: notice.type === "success" ? '2px solid #10b981' : '2px solid #ef4444'
+            }}
+          >
             <div className="modal-body">
-              <p className="pf-modal-text text-center">{notice.text}</p>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  fontSize: '32px',
+                  marginBottom: '12px'
+                }}>
+                  {notice.type === "success" ? "✅" : "❌"}
+                </div>
+                <p 
+                  className="pf-modal-text" 
+                  style={{
+                    fontSize: '16px',
+                    lineHeight: '1.5',
+                    margin: '0',
+                    color: notice.type === "success" ? '#065f46' : '#991b1b',
+                    fontWeight: '500'
+                  }}
+                >
+                  {notice.text}
+                </p>
+                {notice.type === "success" && (
+                  <div style={{
+                    fontSize: '13px',
+                    color: '#059669',
+                    marginTop: '12px',
+                    fontStyle: 'italic'
+                  }}>
+                   
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
