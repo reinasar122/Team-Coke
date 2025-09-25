@@ -739,7 +739,7 @@ const ProductTable = ({
 
             {/* RETURNED (Empty) */}
             <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
-              ₱{parseFloat(refundablesTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+              ₱{parseFloat(-refundablesTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
             </td>
 
             {/* DISCREPANCY (Empty) */}
