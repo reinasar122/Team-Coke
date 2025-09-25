@@ -764,7 +764,7 @@ const PaymentModal = ({
                 <label className="block mb-1">Cash Amount Received</label>
                 <input
                   type="number"
-                  className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
+                  className="input-always-spinner w-full border-[2px] border-slate-200 rounded px-2 py-1"
                   value={cashReceived}
                   onChange={(e) => setCashReceived(e.target.value)}
                 />

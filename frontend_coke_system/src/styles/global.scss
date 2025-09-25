@@ -412,7 +412,7 @@ body {
   &::-webkit-inner-spin-button,
   &::-webkit-outer-spin-button {
     -webkit-appearance: inner-spin-button;
-    display: inline-block;
+    display: none;
     opacity: 1;
     margin: 0;
     width: auto;
