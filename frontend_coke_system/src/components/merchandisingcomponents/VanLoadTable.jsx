@@ -245,62 +245,57 @@ const VanLoadTable = ({
   };
 
   const handleRowChange = (index, field, value) => {
-    const updated = [...rows];
-    const row = { ...updated[index] };
+  const updated = [...rows];
+  const row = { ...updated[index] };
 
-    // ✅ clamp discount and keep as number or ""
-    if (field === "discount") {
-      const vNum = value === "" ? "" : Math.max(0, Math.min(100, parseFloat(value) || 0));
-      row.discount = vNum;
-    } else {
-      row[field] = value;
-    }
+  const n = (v) => parseFloat(v) || 0;
 
-    const product = products.find((p) => p.id === parseInt(row.productId, 10));
-
-    const conversion = n(product?.unit_type?.content_no || row.contentNo || 1);
-    row.contentNo = conversion;
-
-    const fullPrice = pricingData.find((p) => p.id === row.priceId) || product?.price || {};
-    row.sellingPrice = n(fullPrice.selling_price);
-
-    const availablePcs = availableStock[Number(row.productId)];
-    const hasAvail = typeof availablePcs === "number";
-    const cap = hasAvail ? availablePcs : Infinity;
-
-    if (field === "dispatchedShell") {
-      const pcsCalc = Math.round(n(value) * conversion);
-      if (pcsCalc > cap) {
-        if (hasAvail) alert(`Dispatched PCS (${pcsCalc}) exceeds available stock (${availablePcs}).`);
-        row.dispatchedPcs = hasAvail ? cap : pcsCalc;
-        row.dispatchedShell = ((hasAvail ? cap : pcsCalc) / conversion).toFixed(2);
-      } else {
-        row.dispatchedPcs = pcsCalc;
-      }
-    } else if (field === "dispatchedPcs") {
-      const pcsVal = Math.max(0, Math.round(n(value)));
-      if (pcsVal > cap) {
-        if (hasAvail) alert(`Dispatched PCS (${pcsVal}) exceeds available stock (${availablePcs}).`);
-        row.dispatchedPcs = hasAvail ? cap : pcsVal;
-        row.dispatchedShell = ((hasAvail ? cap : pcsVal) / conversion).toFixed(2);
-      } else {
-        row.dispatchedPcs = pcsVal;
-        row.dispatchedShell = (pcsVal / conversion).toFixed(2);
-      }
-    }
-
-    // ✅ Expected Sale (NET of discount)
-    const dispatchedPcs = n(row.dispatchedPcs);
-    const price = n(row.sellingPrice);
-    const dPct = n(row.discount); // "" -> 0
-    row.expectedSale = Number((price * dispatchedPcs * (1 - dPct / 100)).toFixed(2));
-
+  if (value === null) {
+    row[field] = null;
     updated[index] = row;
     setRows(updated);
+    return;
+  }
 
-    const expectedTotal = updated.reduce((sum, r) => sum + n(r.expectedSale), 0);
-    setTotalExpectedSale(expectedTotal);
-  };
+  row[field] = value;
+
+  // Get product & conversion
+  const productId = Number(row.productId);
+  const product = products.find(p => p.id === productId);
+  const conversion = n(product?.unit_type?.content_no || 1);
+  const price = n(row.unitPrice || product?.price?.selling_price);
+
+  row.unitPrice = price;
+  row.conversion = conversion;
+
+  const discountPercent = n(row.discount); // Discount in %
+
+  // --- Update dispatched quantities ---
+  if (["dispatchedPcs", "dispatchedShell"].includes(field)) {
+    if (field === "dispatchedShell") {
+      const shellQty = Math.floor(n(value));
+      row.dispatchedShell = shellQty;
+      row.dispatchedPcs = shellQty * conversion;
+    } else if (field === "dispatchedPcs") {
+      const pcsQty = n(value);
+      row.dispatchedPcs = pcsQty;
+      if (pcsQty >= conversion) row.dispatchedShell = Math.floor(pcsQty / conversion);
+    }
+  }
+
+  // --- Calculate expectedSale with discount ---
+  const baseSale = price * row.dispatchedPcs;
+  row.expectedSale = Number((baseSale * (1 - discountPercent / 100)).toFixed(2));
+
+  updated[index] = row;
+  setRows(updated);
+
+  const totalExpected = updated.reduce((sum, r) => sum + n(r.expectedSale), 0);
+  setTotalExpectedSale(totalExpected);
+};
+
+
+
 
   const removeRow = (index) => {
     const updated = [...rows];
