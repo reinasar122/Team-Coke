@@ -604,6 +604,22 @@ const ReceivingForm = () => {
     }));
   };
 
+
+  useEffect(() => {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    if (user?.id) {
+      setForm((prev) => ({
+        ...prev,
+        received_by: user.id, // automatically set logged in user
+      }));
+    }
+  }, []);
+
+
+
+
+
+
   const handleRowChange = (index, field, value) => {
     const newRows = [...form.details];
     const row = newRows[index];
@@ -982,19 +998,23 @@ const ReceivingForm = () => {
         <div className="grid md:grid-cols-2 gap-6 mt-10">
           <div>
             <label className="form-label">Received By:</label>
-            <select
-              value={form.received_by}
-              onChange={(e) => setForm({ ...form, received_by: e.target.value })}
-              className="form-input"
-            >
-              <option value="">Select user</option>
-              {users.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.first_name} {u.last_name}
-                </option>
-              ))}
-            </select>
+            <input
+              type="text"
+              value={
+                (() => {
+                  const user = JSON.parse(localStorage.getItem("user") || "{}");
+                  if (user?.first_name || user?.last_name) {
+                    return `${user.first_name || ""} ${user.last_name || ""}`.trim();
+                  }
+                  return user?.username || "Unknown User";
+                })()
+              }
+              readOnly
+              className="form-input font-semibold bg-gray-100 cursor-not-allowed"
+            />
           </div>
+
+
           <div>
             <label className="form-label">Remarks:</label>
             <textarea
