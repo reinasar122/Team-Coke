@@ -347,7 +347,8 @@ const VanLoadUpdate = () => {
       if (row.sold_pcs > row.dispatched_pcs) {
         row.sold_pcs = row.dispatched_pcs;
       }
-      row.sold_shell = shellInt(row.sold_pcs / contentNo);
+
+      //row.sold_shell = shellInt(row.sold_pcs / contentNo);
 
     } else {
       row.sold_pcs   = pcsInt(row.sold_pcs);
@@ -383,7 +384,7 @@ const VanLoadUpdate = () => {
       }
 
       // keep shell synced from pcs
-      row.empty_return_shell = shellInt(row.empty_return_pcs / contentNo);
+      //row.empty_return_shell = shellInt(row.empty_return_pcs / contentNo);
 
     } else {
       row.empty_return_pcs   = pcsInt(row.empty_return_pcs);
