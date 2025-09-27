@@ -7,48 +7,35 @@ def create_default_admin(apps, schema_editor):
     Warehouse = apps.get_model('api', 'Warehouse')
     RoleAccessibility = apps.get_model('api', 'RoleAccessibility')
 
-    # Ensure Admin role + warehouse
+    # Create Admin role if it doesn't exist
     admin_role, _ = Role.objects.get_or_create(name="Admin")
+
+    # Create default warehouse if it doesn't exist
     default_warehouse, _ = Warehouse.objects.get_or_create(name="Main Warehouse")
 
-    # Always ensure an admin user exists
-    admin_user, created = User.objects.get_or_create(
-        username="admin",
-        defaults={
-            "password": make_password("admin123"),
-            "first_name": "System",
-            "last_name": "Administrator",
-            "gender": "Other",  # optional
-            "email": "admin@example.com",
-            "phone_number": "0000000000",
-            "role": admin_role,
-            "warehouse": default_warehouse,
-            "is_active": True,
-        }
-    )
-    if not created:
-        # Reset password + update role/warehouse if user already exists
-        admin_user.password = make_password("admin123")
-        admin_user.role = admin_role
-        admin_user.warehouse = default_warehouse
-        admin_user.first_name = "System"
-        admin_user.last_name = "Administrator"
-        if not admin_user.email:
-            admin_user.email = "admin@example.com"
-        admin_user.is_active = True
+    # Create default admin user if it doesn't exist
+    if not User.objects.filter(username="admin").exists():
+        admin_user = User(
+            username="admin",
+            role=admin_role,
+            warehouse=default_warehouse,
+            password=make_password("admin123")  # hashed password
+        )
         admin_user.save()
 
-    # Predefined submenus
+    # Give full permissions for all submenus for Admin role
+    # Assuming your MODULES are stored in SubMenu table or predefined
     submenus = [
         "Dashboard", "Stocks", "Product", "Returned Empties", "Sales Report",
         "Inventory Report", "User", "Roles", "Supplier", "Warehouse",
-        "Van", "Receiving", "Trading", "Supplier Return", "Credit", "Expenses", "Settings",
+        "Van", "Receiving", "Trading", "Supplier Return", "Credit", "Expenses","Settings",
     ]
 
-    for submenu_name in submenus:
+    for submenu in submenus:
+        # create or update access
         RoleAccessibility.objects.update_or_create(
             role=admin_role,
-            submenu=submenu_name,
+            submenu=submenu,
             defaults={
                 "full": True,
                 "view": True,

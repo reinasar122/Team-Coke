@@ -125,7 +125,7 @@ class Warehouse(models.Model):
         return self.name
 
 class Supplier(models.Model):
-    company_name = models.CharField(max_length=255)
+    company_name = models.CharField(max_length=255, unique=True)
     registration_number = models.CharField(max_length=20, unique=True, editable=False)
     bir_no = models.CharField(max_length=100, blank=True, null=True)
     contact_person = models.CharField(max_length=255)

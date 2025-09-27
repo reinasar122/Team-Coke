@@ -392,6 +392,28 @@ class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
 
+    def destroy(self, request, *args, **kwargs):
+        supplier = self.get_object()
+
+        # ✅ Safely check if related records exist
+        has_receivings = getattr(supplier, "receiving_set", None)
+        has_returns = getattr(supplier, "supplierreturn_set", None)
+
+        if (has_receivings and has_receivings.exists()) or (has_returns and has_returns.exists()):
+            return Response(
+                {"detail": "Supplier cannot be deleted because it has linked transactions."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # ✅ If no dependencies, proceed with deletion
+        try:
+            return super().destroy(request, *args, **kwargs)
+        except ProtectedError:
+            return Response(
+                {"detail": "Supplier cannot be deleted because it is linked to other records."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
 
 class VanListCreateView(generics.ListCreateAPIView):
     serializer_class = VanSerializer

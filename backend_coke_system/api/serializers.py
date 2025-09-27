@@ -223,23 +223,40 @@ class WarehouseSerializer(serializers.ModelSerializer):
 class SupplierContactSerializer(serializers.ModelSerializer):
     class Meta:
         model = SupplierContact
-        fields = ["id", "contact_person", "email", "phone_number"]  # Include 'id' for updates
+        fields = '__all__'
 
 
 class SupplierSerializer(serializers.ModelSerializer):
     contacts = SupplierContactSerializer(many=True, required=False)
+    can_delete = serializers.SerializerMethodField()  # ✅ still here
 
     class Meta:
         model = Supplier
         fields = '__all__'
 
+    # ✅ Fix duplicate check: ignore self when editing
+    def validate_company_name(self, value):
+        qs = Supplier.objects.filter(company_name__iexact=value.strip())
+        if self.instance:  # Editing case
+            qs = qs.exclude(id=self.instance.id)
+        if qs.exists():
+            raise serializers.ValidationError(
+                "A supplier with this company name already exists."
+            )
+        return value
+
+    def get_can_delete(self, obj):
+        has_receivings = getattr(obj, "receiving_set", None)
+        has_returns = getattr(obj, "supplierreturn_set", None)
+        if (has_receivings and has_receivings.exists()) or (has_returns and has_returns.exists()):
+            return False
+        return True
+
     def create(self, validated_data):
         contacts_data = validated_data.pop('contacts', [])
         supplier = Supplier.objects.create(**validated_data)
-
         for contact_data in contacts_data:
             SupplierContact.objects.create(supplier=supplier, **contact_data)
-
         return supplier
 
     def update(self, instance, validated_data):
@@ -252,10 +269,12 @@ class SupplierSerializer(serializers.ModelSerializer):
         existing_ids = [c.id for c in instance.contacts.all()]
         incoming_ids = [c.get("id") for c in contacts_data if c.get("id")]
 
+        # Remove deleted contacts
         for contact in instance.contacts.all():
             if contact.id not in incoming_ids:
                 contact.delete()
 
+        # Update or create contacts
         for contact_data in contacts_data:
             contact_id = contact_data.get("id")
             if contact_id and contact_id in existing_ids:
@@ -268,12 +287,25 @@ class SupplierSerializer(serializers.ModelSerializer):
 
         return instance
 
-
 class VanSerializer(serializers.ModelSerializer):
+    can_delete = serializers.SerializerMethodField()
+
     class Meta:
         model = Van
         fields = '__all__'
 
+    def validate_plate_number(self, value):
+        qs = Van.objects.filter(plate_number__iexact=value.strip())
+        if self.instance:
+            qs = qs.exclude(id=self.instance.id)
+        if qs.exists():
+            raise serializers.ValidationError("A van with this plate number already exists.")
+        return value
+
+    def get_can_delete(self, obj):
+        has_routes = hasattr(obj, "route_set") and obj.route_set.exists()
+        has_transactions = hasattr(obj, "merchandising_set") and obj.merchandising_set.exists()
+        return not (has_routes or has_transactions)
 
 #ProductSerializer
 
