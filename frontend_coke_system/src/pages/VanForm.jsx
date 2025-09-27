@@ -1,6 +1,10 @@
 import { useState, useEffect } from "react";
+import { toast } from "react-toastify";
+import { successStyle, errorStyle } from "../utils/toastStyles";
 
-const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
+const API = "http://127.0.0.1:8080/api";
+
+const VanForm = ({ vanToEdit, onSuccess, onClose }) => {
   const [vanId, setVanId] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
 
@@ -14,46 +18,58 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Get current warehouse from localStorage
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-    
-    // Determine which warehouse to use
+
     let warehouseId;
     if (user.role?.toLowerCase() === "admin" && selectedWarehouse) {
       warehouseId = selectedWarehouse.id;
     } else if (user.warehouse_id) {
       warehouseId = user.warehouse_id;
     } else {
-      console.error("No warehouse found for user");
-      alert("Error: No warehouse assigned to user");
+      toast.error("No warehouse assigned to user", { style: errorStyle });
       return;
     }
 
+    const payload = {
+      van_id: vanId.trim(),
+      plate_number: plateNumber.trim(),
+      warehouse: warehouseId,
+    };
+
     const method = vanToEdit ? "PUT" : "POST";
     const url = vanToEdit
-      ? `http://127.0.0.1:8080/api/vans/${vanToEdit.id}/`
-      : `http://127.0.0.1:8080/api/vans/`;
+      ? `${API}/vans/${vanToEdit.id}/`
+      : `${API}/vans/`;
 
     try {
-      const response = await fetch(url, {
+      const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          van_id: vanId,
-          plate_number: plateNumber,
-          warehouse: warehouseId, // Include warehouse ID
-        }),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok) throw new Error("Failed to save van");
+      if (!res.ok) {
+        const data = await res.json();
+        if (data.plate_number) {
+          toast.error(`Plate Number: ${data.plate_number[0]}`, { style: errorStyle });
+        } else {
+          toast.error("Failed to save van.", { style: errorStyle });
+        }
+        return;
+      }
 
-      const newVan = await response.json();
-      onVanAdded(newVan);
-      onClose();
+      const newVan = await res.json();
+      toast.success(
+        `Van '${newVan.plate_number}' ${vanToEdit ? "updated" : "registered"} successfully!`,
+        { style: successStyle }
+      );
+
+      onSuccess?.();
+      onClose?.();
     } catch (error) {
-      console.error("Error saving van:", error);
-      alert("Error saving van: " + error.message);
+      toast.error("Error saving van.", { style: errorStyle });
+      console.error("Save van error:", error);
     }
   };
 

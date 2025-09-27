@@ -16,7 +16,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     province: "",
     city: "",
     barangay: "",
-    street_address: "",  // Ensure street_address is used
+    street_address: "",
     zip_code: "",
     contacts: [],
   });
@@ -37,12 +37,12 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
         const { data } = await axios.get(
           `http://localhost:8080/api/suppliers/${supplierId}/`
         );
-        const mapped = {
+        setFormData({
           ...data,
-          street_address: data.street_address ?? data.street ?? "", // Ensure street_address is consistent
+          street_address: data.street_address ?? data.street ?? "",
           country: data.country ?? "Philippines",
-        };
-        setFormData(mapped);
+          contacts: data.contacts || [],
+        });
       } catch (error) {
         console.error("Error fetching supplier:", error);
       }
@@ -50,6 +50,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     if (supplierId) loadSupplier();
   }, [supplierId]);
 
+  // handle PSGC cascade
   useEffect(() => {
     const selectedRegion = psgcData.find(
       (r) => r.region_name === formData.region
@@ -70,15 +71,9 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => {
-      if (name === "region") {
-        return { ...prev, region: value, province: "", city: "", barangay: "" };
-      }
-      if (name === "province") {
-        return { ...prev, province: value, city: "", barangay: "" };
-      }
-      if (name === "city") {
-        return { ...prev, city: value, barangay: "" };
-      }
+      if (name === "region") return { ...prev, region: value, province: "", city: "", barangay: "" };
+      if (name === "province") return { ...prev, province: value, city: "", barangay: "" };
+      if (name === "city") return { ...prev, city: value, barangay: "" };
       return { ...prev, [name]: value };
     });
   };
@@ -93,7 +88,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     if (!contact_person || !email || !phone_number) return;
     setFormData((prev) => ({
       ...prev,
-      contacts: [...prev.contacts, newContact],
+      contacts: [...prev.contacts, { ...newContact }],
     }));
     setNewContact({ contact_person: "", email: "", phone_number: "" });
   };
@@ -107,24 +102,52 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const payload = { ...formData };
 
+    // build clean payload (strip out frontend-only fields)
+    const payload = {
+      company_name: formData.company_name?.trim(),
+      bir_no: formData.bir_no?.trim() || undefined,
+      contact_person: formData.contact_person?.trim(),
+      email: formData.email?.trim(),
+      phone_number: formData.phone_number?.trim(),
+      country: formData.country,
+      region: formData.region,
+      province: formData.province,
+      city: formData.city,
+      barangay: formData.barangay,
+      street_address: formData.street_address?.trim(),
+      zip_code: formData.zip_code?.trim(),
+      contacts: formData.contacts.map((c) => ({
+        id: c.id, // keep id if exists for update
+        contact_person: c.contact_person,
+        email: c.email,
+        phone_number: c.phone_number,
+      })),
+    };
+
+    try {
       await axios.put(
         `http://localhost:8080/api/suppliers/${supplierId}/`,
         payload
       );
       toast.success(
-        `Supplier '${formData.company_name || "Updated Supplier"}' has been successfully updated!`,
+        `Supplier '${formData.company_name}' has been successfully updated!`,
         { style: successStyle }
       );
-      onSuccess?.();
-      onClose?.();
+      onSuccess?.(); // refresh parent list
+      onClose?.();   // close modal
     } catch (error) {
-      console.error("Error updating supplier:", error);
-      toast.error("Failed to update supplier. Please check the fields and try again.", {
-        style: errorStyle,
-      });
+      const data = error.response?.data;
+      if (data && typeof data === "object") {
+        const firstKey = Object.keys(data)[0];
+        const firstErr = Array.isArray(data[firstKey]) ? data[firstKey][0] : data[firstKey];
+        toast.error(`${firstKey}: ${firstErr}`, { style: errorStyle });
+      } else {
+        toast.error("Failed to update supplier. Please check the fields and try again.", {
+          style: errorStyle,
+        });
+      }
+      console.error("Supplier update error:", data || error.message);
     }
   };
 

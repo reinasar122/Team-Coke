@@ -86,12 +86,18 @@ const Suppliers = () => {
     try {
       await axios.delete(`${API}/suppliers/${supplierToDelete.id}/`);
       setSuppliers((prev) => prev.filter((x) => x.id !== supplierToDelete.id));
-      toast.error(`Supplier ${supplierToDelete.company_name} has been deleted.`, {
-        style: errorStyle,
-      });
+      toast.error(
+        `Supplier ${supplierToDelete.company_name} has been deleted.`,
+        { style: errorStyle }
+      );
     } catch (error) {
       console.error("Error deleting supplier:", error);
-      toast.error("Failed to delete supplier.", { style: errorStyle });
+
+      if (error.response?.status === 400 && error.response.data?.detail) {
+        toast.error(error.response.data.detail, { style: errorStyle });
+      } else {
+        toast.error("Failed to delete supplier.", { style: errorStyle });
+      }
     } finally {
       setShowDeleteModal(false);
       setSupplierToDelete(null);
@@ -228,11 +234,16 @@ const Suppliers = () => {
           </button>
           <button
             type="button"
-            title="Delete"
-            className="icon-btn-danger hover:bg-red-50 rounded-md p-2"
+            title={s.can_delete ? "Delete" : "Cannot delete (has transactions)"}
+            className={`icon-btn-danger hover:bg-red-50 rounded-md p-2 ${
+              !s.can_delete ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+            disabled={!s.can_delete}
             onClick={() => {
-              setSupplierToDelete(s);
-              setShowDeleteModal(true);
+              if (s.can_delete) {
+                setSupplierToDelete(s);
+                setShowDeleteModal(true);
+              }
             }}
           >
             <FaTrash />
@@ -248,12 +259,12 @@ const Suppliers = () => {
       <table className="table">
         <thead>
           <tr>
-            <th className="border p-2 text-left">Registration #</th>
-            <th className="border p-2 text-left">Company</th>
-            <th className="border p-2 text-left">Contact Person</th>
-            <th className="border p-2 text-left">Phone</th>
-            <th className="border p-2 text-left">Email</th>
-            <th className="border p-2 text-left">Full Address</th>
+            <th className="border p-2 text-center">Registration #</th>
+            <th className="border p-2 text-center">Company</th>
+            <th className="border p-2 text-center">Contact Person</th>
+            <th className="border p-2 text-center">Phone</th>
+            <th className="border p-2 text-center">Email</th>
+            <th className="border p-2 text-center">Full Address</th>
             <th className="border p-2 text-center">Actions</th>
           </tr>
         </thead>
@@ -277,13 +288,18 @@ const Suppliers = () => {
                     <FaEdit />
                   </button>
                   <button
-                    className="icon-btn-danger hover:bg-red-50 rounded-md p-2"
-                    onClick={() => {
-                      setSupplierToDelete(s);
-                      setShowDeleteModal(true);
-                    }}
-                    title="Delete"
                     type="button"
+                    title={s.can_delete ? "Delete" : "Cannot delete (has transactions)"}
+                    className={`icon-btn-danger hover:bg-red-50 rounded-md p-2 ${
+                      !s.can_delete ? "opacity-50 cursor-not-allowed" : ""
+                    }`}
+                    disabled={!s.can_delete}
+                    onClick={() => {
+                      if (s.can_delete) {
+                        setSupplierToDelete(s);
+                        setShowDeleteModal(true);
+                      }
+                    }}
                   >
                     <FaTrash />
                   </button>
@@ -383,7 +399,7 @@ const Suppliers = () => {
         </div>
 
         <button onClick={() => setShowRegisterModal(true)} className="btn btn-add">
-          + New
+          + Add Supplier
         </button>
       </div>
 
