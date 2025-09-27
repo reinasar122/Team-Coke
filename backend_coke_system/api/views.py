@@ -1118,8 +1118,29 @@ class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = MiscellaneousItemSerializer
 
 class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
-    queryset = MiscellaneousItem.objects.all()
     serializer_class = MiscellaneousItemSerializer
+    
+    def get_queryset(self):
+        queryset = MiscellaneousItem.objects.all()
+        warehouse_id = self.request.query_params.get('warehouse')
+        
+        if warehouse_id:
+            # Filter by warehouse through merchandising relationship
+            queryset = queryset.filter(
+                merchandising__warehouse=warehouse_id
+            ).select_related('merchandising')
+        
+        return queryset.order_by('-id')  # Order by ID instead of created_at
+    
+    def perform_create(self, serializer):
+        # Get warehouse from request data
+        warehouse_id = self.request.data.get('warehouse')
+        
+        # Save the serializer with the warehouse if provided
+        if warehouse_id:
+            serializer.save(warehouse_id=warehouse_id)
+        else:
+            serializer.save()
 
 
 class PaymentListCreateView(generics.ListCreateAPIView):

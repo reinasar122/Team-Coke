@@ -71,7 +71,7 @@ class CreditLedgerListSerializer(serializers.ModelSerializer):
         model = CreditLedger
         fields = [
             "id", "msp_no", "created_at", "handled_by", "customer_name",
-            "total_amount", "amount_paid", "status", "balance", "warehouse_name",  # ADD WAREHOUSE NAME
+            "total_amount", "amount_paid", "status", "balance", "warehouse_id", "warehouse_name",  # ADD WAREHOUSE NAME
         ]
 
     def get_balance(self, obj):
