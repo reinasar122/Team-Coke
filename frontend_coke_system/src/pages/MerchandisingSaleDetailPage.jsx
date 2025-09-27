@@ -273,23 +273,28 @@ export default function MerchandisingSaleDetailPage() {
         it.product?.unit_type?.content_no ??
         1;
 
-      const dispatchedPcs = Number(it.dispatched_pcs || it.dispatchedPcs || "");
-      const dispatchedShell = contentNo > 0 ? (dispatchedPcs / contentNo).toFixed(2) : "0.00";
+      const dispatchedPcs = Number(it.dispatched_pcs || it.dispatchedPcs || 0);
+      const dispatchedShell =
+        it.dispatched_shell !== undefined && it.dispatched_shell !== null
+          ? Number(it.dispatched_shell)
+          : (contentNo > 0 ? Math.floor(dispatchedPcs / contentNo) : 0);
+
 
       return {
         id: it.id,
         productId,
-        productName: productObj?.product_name || "",   // <-- no # fallback now
+        productName: productObj?.product_name || "",
         contentNo,
         sellingPricePc: Number(price.selling_price || 0),
         shellPrice: Number(price.shell_price || 0),
         bottlePrice: Number(price.bottle_price || 0),
         dispatchedPcs,
-        dispatchedShell,
+        dispatchedShell,   // now integer
         expectedSale: Number(
           (Number(price.selling_price || 0) * dispatchedPcs).toFixed(2)
         ),
       };
+
     });
 
     setSaleItems(mapped);
@@ -407,16 +412,17 @@ export default function MerchandisingSaleDetailPage() {
       .filter((r) => Number(r.productId))
       .map((r) => {
         const pcs = Math.max(0, parseInt(r.dispatchedPcs) || 0);
-        const perShell = Number(r.contentNo) || 1;
-        const shells = perShell ? +(pcs / perShell).toFixed(2) : 0;
 
         return {
           id: r.dbItemId || undefined,
           product: Number(r.productId),
           dispatched_pcs: pcs,
-          dispatched_shell: shells,
+          dispatched_shell: Number.isFinite(Number(r.dispatchedShell))
+            ? Number(r.dispatchedShell)   // ✅ keep the original shell
+            : 0,
         };
       });
+
 
     const payload = {
       route: route ? Number(route) : null,
@@ -526,11 +532,12 @@ export default function MerchandisingSaleDetailPage() {
                     <input
                       readOnly
                       className="input-always-spinner input text-center bg-yellow-50 w-full"
-                      value={it.dispatchedShell 
-                        ? (parseFloat(it.dispatchedShell) === 0 
-                            ? '0' 
-                            : (parseFloat(it.dispatchedShell) % 1 === 0 ? parseInt(it.dispatchedShell) : parseFloat(it.dispatchedShell).toFixed(2)))
+                      value={it.dispatchedShell !== undefined && it.dispatchedShell !== null
+                        ? (Number(it.dispatchedShell) % 1 === 0
+                            ? parseInt(it.dispatchedShell)
+                            : Number(it.dispatchedShell).toFixed(2))
                         : ""}
+
                     />
                   </td>
 

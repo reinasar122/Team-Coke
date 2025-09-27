@@ -1,6 +1,8 @@
+// ProductForm.jsx - COMPLETE UPDATED VERSION WITH NOTIFICATIONS
 import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { notifyProductChange } from "../utils/productNotifier"; // ✅ NEW IMPORT
 import "../styles/pages/productform.scss";
 
 const ProductForm = () => {
@@ -322,6 +324,7 @@ const ProductForm = () => {
 
     try {
       const filledRows = rows.filter(row => row.product_name.trim() !== "");
+      let createdProducts = []; // ✅ NEW: Track created products for notifications
       
       for (let formData of filledRows) {
         // Create pricing
@@ -357,10 +360,38 @@ const ProductForm = () => {
           productData.append('image', formData.image);
         }
 
-        await axios.post("http://localhost:8080/api/products/", productData, {
+        const productResponse = await axios.post("http://localhost:8080/api/products/", productData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },
+        });
+
+        // ✅ NEW: Track created product for notification
+        if (productResponse.data) {
+          createdProducts.push({
+            ...productResponse.data,
+            formData: formData // Keep form data for notification details
+          });
+        }
+      }
+      
+      // ✅ NEW: Trigger notifications for all created products
+      if (createdProducts.length > 0) {
+        console.log('📦 Products created successfully:', createdProducts.length);
+        
+        createdProducts.forEach(product => {
+          const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
+          
+          notifyProductChange({
+            action: 'created',
+            id: product.id,
+            product_name: product.formData.product_name,
+            product_code: product.formData.system_code,
+            category: categoryName,
+            selling_price: product.formData.selling_price
+          });
+          
+          console.log(`📦 Product creation notification sent for: ${product.formData.product_name}`);
         });
       }
       
@@ -695,51 +726,12 @@ const ProductForm = () => {
         </div>
       )}
 
-      {/* Notice Modal - Slightly Bigger & User Friendly */}
+      {/* Notice Modal */}
       {notice.open && (
-        <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
-          <div 
-            className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}
-            style={{
-              minWidth: '320px',
-              maxWidth: '450px',
-              padding: '24px 20px',
-              borderRadius: '8px',
-              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
-              border: notice.type === "success" ? '2px solid #10b981' : '2px solid #ef4444'
-            }}
-          >
+        <div className="modal-overlay">
+          <div className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}>
             <div className="modal-body">
-              <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  fontSize: '32px',
-                  marginBottom: '12px'
-                }}>
-                  {notice.type === "success" ? "✅" : "❌"}
-                </div>
-                <p 
-                  className="pf-modal-text" 
-                  style={{
-                    fontSize: '16px',
-                    lineHeight: '1.5',
-                    margin: '0',
-                    color: notice.type === "success" ? '#065f46' : '#991b1b',
-                    fontWeight: '500'
-                  }}
-                >
-                  {notice.text}
-                </p>
-                {notice.type === "success" && (
-                  <div style={{
-                    fontSize: '13px',
-                    color: '#059669',
-                    marginTop: '12px',
-                    fontStyle: 'italic'
-                  }}>
-                   
-                  </div>
-                )}
-              </div>
+              <p className="pf-modal-text text-center">{notice.text}</p>
             </div>
           </div>
         </div>

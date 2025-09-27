@@ -1,13 +1,10 @@
-// src/components/Header.jsx
+// src/components/Header.jsx - Fixed version
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faBars,
-  faUser,
-  faWarehouse,
-  faExchangeAlt,
-} from "@fortawesome/free-solid-svg-icons";
+import { faBars, faUser, faWarehouse, faExchangeAlt } from "@fortawesome/free-solid-svg-icons";
 import { useState, useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import axios from "axios";
+import Notification from "./Notification"; // Import the notification component
 import Profile from "../pages/Profile"; // 👈 import your Profile.jsx
 
 const Header = ({ toggleSidebar }) => {
@@ -32,8 +29,7 @@ const Header = ({ toggleSidebar }) => {
         }
       }
     }
-
-    // close profile dropdown when clicking outside
+     // close profile dropdown when clicking outside
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setIsProfileOpen(false);
@@ -44,6 +40,7 @@ const Header = ({ toggleSidebar }) => {
   }, []);
 
   const isAdmin = user?.role?.toLowerCase() === "admin";
+  
 
   const fetchWarehouses = async () => {
     setLoadingWarehouses(true);
@@ -76,6 +73,7 @@ const Header = ({ toggleSidebar }) => {
 
   const closeModal = () => setShowWarehouseModal(false);
 
+  // Get the warehouse name to display - always prioritize user's enrolled warehouse
   const getDisplayWarehouse = () => {
     if (!isAdmin) return user?.warehouse || "No Warehouse Assigned";
     if (selectedWarehouse?.name) return selectedWarehouse.name;
@@ -93,11 +91,12 @@ const Header = ({ toggleSidebar }) => {
           >
             <FontAwesomeIcon icon={faBars} />
           </button>
-          <h1 className="text-xl font-bold">Coke Sales and Inventory System</h1>
+          <h1 className="text-xl font-bold hidden sm:block">Coke Sales and Inventory System</h1>
+          <h1 className="text-lg font-bold sm:hidden">Coke POS</h1>
         </div>
 
         {/* Center - Warehouse Display */}
-        <div>
+        <div className="hidden md:block">
           <button
             onClick={isAdmin ? handleOpenWarehouseModal : undefined}
             className={`px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors focus:outline-none border ${
@@ -108,7 +107,7 @@ const Header = ({ toggleSidebar }) => {
             disabled={!isAdmin}
           >
             <FontAwesomeIcon icon={faWarehouse} />
-            <span className="font-medium">{getDisplayWarehouse()}</span>
+            <span className="font-medium truncate max-w-48">{getDisplayWarehouse()}</span>
             {isAdmin && (
               <FontAwesomeIcon icon={faExchangeAlt} className="text-sm" />
             )}
@@ -116,7 +115,9 @@ const Header = ({ toggleSidebar }) => {
         </div>
 
         {/* Right - Profile Dropdown */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="flex items-center space-x-4 relative" ref={dropdownRef}>
+          {/* Notification Component */}
+          <Notification />
           <button
             onClick={() => setIsProfileOpen(!isProfileOpen)}
             className="focus:outline-none"
@@ -124,14 +125,33 @@ const Header = ({ toggleSidebar }) => {
             <FontAwesomeIcon icon={faUser} className="cursor-pointer text-xl" />
           </button>
 
+          {/* Profile Dropdown - Fixed positioning */}
           {isProfileOpen && (
-            <div className="absolute right-0 mt-2 w-80 bg-white text-gray-800 rounded-lg shadow-xl z-50">
+            <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] sm:max-w-sm bg-white text-gray-800 rounded-lg shadow-xl z-50 max-h-[calc(100vh-6rem)] overflow-y-auto border border-gray-200">
               <Profile/> {/* compact version */}
             </div>
           )}
-
         </div>
       </header>
+
+      {/* Mobile Warehouse Display */}
+      <div className="md:hidden bg-gray-800 text-white px-6 py-2 fixed w-full top-16 z-10">
+        <button
+          onClick={isAdmin ? handleOpenWarehouseModal : undefined}
+          className={`w-full px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-colors focus:outline-none border ${
+            isAdmin
+              ? "bg-gray-700 hover:bg-gray-600 border-gray-600 cursor-pointer"
+              : "bg-gray-800 border-gray-700 cursor-default"
+          }`}
+          disabled={!isAdmin}
+        >
+          <FontAwesomeIcon icon={faWarehouse} />
+          <span className="font-medium truncate">{getDisplayWarehouse()}</span>
+          {isAdmin && (
+            <FontAwesomeIcon icon={faExchangeAlt} className="text-sm" />
+          )}
+        </button>
+      </div>
 
       {/* Warehouse Modal */}
       {showWarehouseModal && isAdmin && (

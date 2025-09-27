@@ -1,8 +1,10 @@
+// ProductList.jsx - COMPLETE UPDATED VERSION WITH DELETE NOTIFICATIONS
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import axios from 'axios';
 import { Link } from 'react-router-dom';
 import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaChevronDown } from 'react-icons/fa';
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
+import { notifyProductChange } from '../utils/productNotifier'; // ✅ NEW IMPORT
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -13,6 +15,13 @@ const ProductList = () => {
   const [viewMode, setViewMode] = useState('carousel'); // 'carousel' or 'table'
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const gridRef = useRef(null);
+
+  // ✅ NEW: Trigger products page visit event for notifications
+  useEffect(() => {
+    // Notify that products page was visited (for notification system)
+    const event = new CustomEvent('productsPageVisited');
+    window.dispatchEvent(event);
+  }, []);
 
   // Get current warehouse from user session
   const getCurrentWarehouse = () => {
@@ -169,7 +178,11 @@ const ProductList = () => {
     setCurrentPage(0); // Reset to first page when view changes
   };
 
+  // ✅ ENHANCED: Delete handler with notifications
   const handleDelete = async (id) => {
+    // Find the product before deletion for notification
+    const productToDelete = products.find(p => p.id === id);
+    
     const showConfirmDialog = (message, onConfirm) => {
       const modal = document.createElement('div');
       modal.className = 'modal-overlay';
@@ -272,7 +285,26 @@ const ProductList = () => {
       try {
         const warehouseId = getCurrentWarehouse();
         await axios.delete(`http://localhost:8080/api/products/${id}/?warehouse_id=${warehouseId}`);
+        
+        // Update state to remove deleted product
         setProducts(prev => prev.filter(prod => prod.id !== id));
+        
+        // ✅ NEW: Trigger delete notification
+        if (productToDelete) {
+          console.log('📦 Product deleted:', productToDelete);
+          
+          notifyProductChange({
+            action: 'deleted',
+            id: productToDelete.id,
+            product_name: productToDelete.product_name,
+            product_code: productToDelete.system_code,
+            category: productToDelete.product_category?.name || 'Unknown',
+            selling_price: productToDelete.price?.selling_price || 0
+          });
+          
+          console.log('📦 Product deletion notification sent!');
+        }
+        
         showAlert("🗑️ Product deleted successfully!");
       } catch (err) {
         console.error("Delete error:", err);

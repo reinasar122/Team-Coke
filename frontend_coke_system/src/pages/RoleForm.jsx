@@ -225,6 +225,22 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
 
       toast.dismiss();
       toast.success(`Role '${newRole.name}' has been created successfully!`, { style: successStyle });
+      
+      // ✅ Dispatch role permissions updated event for notifications
+      const roleEvent = new CustomEvent('rolePermissionsUpdated', {
+        detail: {
+          action: 'created',
+          roleId: newRole.id,
+          roleName: newRole.name,
+          permissions: permissions,
+          timestamp: new Date().toISOString(),
+          summary: `New role '${newRole.name}' created with permissions`,
+          permissionsCount: Object.keys(permissions).length,
+          fullAccessCount: Object.values(permissions).filter(p => p.full_access).length
+        }
+      });
+      window.dispatchEvent(roleEvent);
+      
       onRoleAdded?.(newRole);
       onClose?.();
     } catch (error) {

@@ -11,6 +11,7 @@ import {
 import MerchandisingSale from "./components/merchandisingcomponents/MerchandisingSale";
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
+import { NotificationProvider } from "./contexts/NotificationContext";
 import "./index.css";
 import "./styles/global.scss";
 
@@ -49,6 +50,8 @@ import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 import ReceivingDetails from "./pages/ReceivingDetails";
 import VanLoadProductDetails from "./pages/VanLoadProductDetails";
 import Settings from "./pages/Settings";
+// ✅ NEW: Import ExpenseSettings component
+import ExpenseSettings from "./components/Settings";
 
 // Dashboard Page
 import Dashboard from "./pages/Dashboard";
@@ -79,6 +82,7 @@ import {
   FaUndoAlt,
   FaChartBar,   // ✅ for Sales Report title
   FaMoneyBillWave,
+  FaDollarSign, // ✅ NEW: for Expense Settings
 } from "react-icons/fa";
 
 
@@ -116,14 +120,20 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
   ];
   const hideLayout = hiddenRoutes.includes(location.pathname);
 
+  // Pages where we want to HIDE the universal scrollbar
+  const lockPrefixes = ["/vans", "/suppliers", "/trading"];
+  const path = location.pathname.toLowerCase();
+  const lockScroll = lockPrefixes.some(p => path === p || path.startsWith(p + "/"));
+
   return (
     <div className="flex flex-col h-screen">
       {!hideLayout && <Header toggleSidebar={toggleSidebar} />}
       <div className="flex flex-1">
         {!hideLayout && <Sidebar isSidebarOpen={isSidebarOpen} />}
 
+        {/* 👇 app-content + conditional lock */}
         <div
-          className={`app-content p-5 flex-1 transition-all duration-300 ${
+          className={`app-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${
             !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
           }`}
         >
@@ -135,7 +145,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   path="/"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
-                       Home Page
+                      <FaHome /> Home Page
                     </h1>
                   }
                 />
@@ -147,24 +157,10 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-                <Route
-                  path="/receiving"
-                  // element={
-                  //   <h1 className="text-2xl flex items-center">
-                  //     <FaClipboardCheck /> Receiving
-                  //   </h1>
-                  // }
-                />
+                <Route path="/receiving" />
                 <Route path="/stocks" />
                 <Route path="/products" />
-                <Route
-                  path="/suppliers"
-                  // element={
-                  //   <h1 className="text-2xl flex items-center gap-2">
-                  //     <FaTruck /> Suppliers
-                  //   </h1>
-                  // }
-                />
+                <Route path="/suppliers" />
                 <Route
                   path="/settings"
                   element={
@@ -173,45 +169,23 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-                {/*<Route
-                  path="/users"
-                  // element={
-                  //   <h1 className="text-2xl flex items-center gap-2">
-                  //     <FaUsers /> Users
-                  //   </h1>
-                  // }
-                />
+                {/* ✅ NEW: Expense Settings page title */}
                 <Route
-                  path="/roles"
+                  path="/expense-settings"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
-                      <FaUserShield /> Roles
+                      <FaDollarSign /> Expense Settings
                     </h1>
                   }
                 />
-                <Route
-                  path="/warehouses"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaWarehouse className="text-red-500" /> Warehouses
-                    </h1>
-                  }
-                />*/}
-                <Route
-                    path="/profile"
-                    // element={
-                    //   <h1 className="text-2xl flex items-center gap-2">
-                    //     <FaUser /> Profile
-                    //   </h1>
-                    // }
-                  />
+                <Route path="/profile" />
                 <Route
                   path="/invoice"
-                  // element={
-                  //   <h1 className="text-2xl flex items-center gap-2">
-                  //     <FaFileInvoice /> Invoice
-                  //   </h1>
-                  // }
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaFileInvoice /> Invoice
+                    </h1>
+                  }
                 />
                 <Route
                   path="/StocksAdjustment"
@@ -250,23 +224,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   }
                 />
 
-                 <Route
-                  path="/profile"
-                  // element={
-                  //   <h1 className="text-2xl flex items-center gap-2">
-                  //     <FaUser /> Profile
-                  //   </h1>
-                  // }
-                />
-
-                <Route
-                  path="/expenses"
-                  // element={
-                  //   <h1 className="text-2xl flex items-center gap-2">
-                  //     <FaMoneyBillWave /> Expenses
-                  //   </h1>
-                  // }
-                />
+                <Route path="/expenses" />
               </Routes>
             </div>
           )}
@@ -279,6 +237,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             {/* Credits */}
             <Route path="/credits" element={<CreditList />} />
             <Route path="/credits/:id" element={<CreditDetail />} />
+            
             {/* Invoices */}  
             <Route path="/invoice" element={<Invoice />} />      
 
@@ -314,7 +273,17 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
             {/* Merchandising */}
             <Route path="/trading" element={<MerchandisingList />} />
-            <Route path="/merchandising" element={<Merchandising />} />
+            <Route
+              path="/merchandising"
+              element={
+                <>
+                  <h1 className="text-2xl flex items-center gap-2 mb-4">
+                    <FaChartLine /> Create New Sale
+                  </h1>
+                  <Merchandising />
+                </>
+              }
+            />
             <Route path="/merchandising-sale" element={<MerchandisingSale />} />
             <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
 
@@ -322,6 +291,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/expenses" element={<Expenses />} />
+            <Route path="/expences" element={<Navigate to="/expenses" replace />} />
+
+            {/* ✅ NEW: Expense Settings Route */}
+            <Route path="/expense-settings" element={<ExpenseSettings />} />
+            <Route path="/settings/expenses" element={<Navigate to="/expense-settings" replace />} />
 
             {/* Supplier Returns */}
             <Route path="/supplier-returns" element={<SupplierReturnList />} />
@@ -330,6 +304,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
             {/* Sales Report */}
             <Route path="/reports/sales" element={<SalesReport />} />
+            <Route path="/salesreport" element={<Navigate to="/reports/sales" replace />} />
 
             {/* Warehouse Details */}
             <Route path="/warehouse-details/:mspNo" element={<WarehouseProductDetails />} />
@@ -355,7 +330,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
   );
 };
 
-// ✅ Main App Component
+// ✅ Main App Component with NotificationProvider
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -379,42 +354,45 @@ function App() {
 
   return (
     <Router>
-      <ToastContainer
-        position="top-center"
-        autoClose={2000}
-        hideProgressBar={true}
-        closeOnClick
-        closeButton={false}
-        rtl={false}
-        pauseOnFocusLoss
-        draggable
-        pauseOnHover
-        style={{ top: "70px" }}
-      />
-
-      <Routes>
-        {/* Public Routes */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/forgot-password" element={<ForgotPassword />} />
-        <Route path="/verify-otp" element={<VerifyOTP />} />
-        <Route path="/change-password/:uid/:token" element={<ChangePassword />} />
-
-        {/* Protected Routes */}
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <ProtectedLayout
-                isSidebarOpen={isSidebarOpen}
-                toggleSidebar={toggleSidebar}
-              />
-            </ProtectedRoute>
-          }
+      <NotificationProvider>
+        {/* Toast container at the root */}
+        <ToastContainer
+          position="top-center"
+          autoClose={2000}
+          hideProgressBar={true}
+          closeOnClick
+          closeButton={false}
+          rtl={false}
+          pauseOnFocusLoss
+          draggable
+          pauseOnHover
+          style={{ top: "70px" }}
         />
 
-        {/* Default Redirect to Login if not authenticated */}
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+        <Routes>
+          {/* Public Routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/forgot-password" element={<ForgotPassword />} />
+          <Route path="/verify-otp" element={<VerifyOTP />} />
+          <Route path="/change-password/:uid/:token" element={<ChangePassword />} />
+
+          {/* Protected Routes */}
+          <Route
+            path="/*"
+            element={
+              <ProtectedRoute>
+                <ProtectedLayout
+                  isSidebarOpen={isSidebarOpen}
+                  toggleSidebar={toggleSidebar}
+                />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Default Redirect to Login if not authenticated */}
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </NotificationProvider>
     </Router>
   );
 }

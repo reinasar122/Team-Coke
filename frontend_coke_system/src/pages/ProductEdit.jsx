@@ -1,6 +1,9 @@
+
+// ProductEdit.jsx - COMPLETE UPDATED VERSION WITH NOTIFICATIONS
 import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
+import { notifyProductChange } from "../utils/productNotifier"; // ✅ NEW IMPORT
 
 import "../styles/pages/productedit.scss";
 
@@ -31,6 +34,9 @@ const ProductEdit = () => {
     currentImage: null,
     removeImage: false
   });
+
+  // ✅ NEW: Store original data for change detection
+  const [originalData, setOriginalData] = useState({});
 
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState([]);
@@ -152,7 +158,7 @@ const ProductEdit = () => {
 
         const categoryId = product.product_category?.id || product.product_category;
 
-        setFormData({
+        const productData = {
           system_code: product.system_code || "",
           supplier_code: product.supplier_code || "",
           supplier: product.supplier || "",
@@ -173,7 +179,48 @@ const ProductEdit = () => {
           imagePreview: null,
           currentImage: product.image || null,
           removeImage: false
+        };
+
+        setFormData(productData);
+        
+        // ✅ NEW: Store original data for change detection
+        setOriginalData({
+          product_name: product.product_name || "",
+          supplier_code: product.supplier_code || "",
+          supplier: product.supplier || "",
+          product_category: categoryId || "",
+          returnable: product.unit_type?.returnable ?? true,
+          purchase_price: product.price?.purchase_price ?? 0,
+          selling_price: product.price?.selling_price ?? 0,
+          shell_price: product.price?.shell_price ?? 0,
+          bottle_price: product.price?.bottle_price ?? 0,
+          content_no: product.unit_type?.content_no || "",
+          shell_type: product.unit_type?.shell_type || "",
+          content_type: product.unit_type?.content_type || "",
+          currentImage: product.image || null,
+          // Also store names for better change detection
+          category_name: product.product_category?.name || "",
+          supplier_name: "",
+          shell_type_name: "",
+          content_type_name: ""
         });
+
+        // Fetch related names after setting dropdowns
+        setTimeout(() => {
+          const categoryName = categories.find(c => c.id === categoryId)?.name || "";
+          const supplierName = suppliers.find(s => s.id === product.supplier)?.company_name || "";
+          const shellTypeName = shellTypes.find(s => s.id === product.unit_type?.shell_type)?.description || "";
+          const contentTypeName = contentTypes.find(c => c.id === product.unit_type?.content_type)?.description || "";
+          
+          setOriginalData(prev => ({
+            ...prev,
+            category_name: categoryName,
+            supplier_name: supplierName,
+            shell_type_name: shellTypeName,
+            content_type_name: contentTypeName
+          }));
+        }, 100);
+
       } catch (err) {
         console.error("❌ Failed to load product:", err);
         setNotice({
@@ -190,6 +237,24 @@ const ProductEdit = () => {
     fetchData();
   }, [id, navigate]);
 
+  // Update original data when dropdowns are loaded
+  useEffect(() => {
+    if (categories.length > 0 && shellTypes.length > 0 && contentTypes.length > 0 && suppliers.length > 0 && originalData.product_category) {
+      const categoryName = categories.find(c => c.id.toString() === originalData.product_category.toString())?.name || "";
+      const supplierName = suppliers.find(s => s.id.toString() === originalData.supplier.toString())?.company_name || "";
+      const shellTypeName = shellTypes.find(s => s.id.toString() === originalData.shell_type.toString())?.description || "";
+      const contentTypeName = contentTypes.find(c => c.id.toString() === originalData.content_type.toString())?.description || "";
+      
+      setOriginalData(prev => ({
+        ...prev,
+        category_name: categoryName,
+        supplier_name: supplierName,
+        shell_type_name: shellTypeName,
+        content_type_name: contentTypeName
+      }));
+    }
+  }, [categories, shellTypes, contentTypes, suppliers, originalData.product_category, originalData.supplier, originalData.shell_type, originalData.content_type]);
+
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     const val = type === "checkbox" ? checked : value;
@@ -204,6 +269,70 @@ const ProductEdit = () => {
     } else {
       setFormData((prev) => ({ ...prev, [name]: val }));
     }
+  };
+
+  // ✅ NEW: Function to detect and format changes
+  const detectChanges = () => {
+    const changes = {};
+    
+    // Check each field for changes
+    if (originalData.product_name !== formData.product_name) {
+      changes.name = { old: originalData.product_name, new: formData.product_name };
+    }
+    
+    if (originalData.supplier_code !== formData.supplier_code) {
+      changes.supplier_code = { old: originalData.supplier_code, new: formData.supplier_code };
+    }
+    
+    if (originalData.product_category.toString() !== formData.product_category.toString()) {
+      const newCategoryName = categories.find(c => c.id.toString() === formData.product_category.toString())?.name || 'Unknown';
+      changes.category = { old: originalData.category_name, new: newCategoryName };
+    }
+    
+    if (originalData.returnable !== formData.returnable) {
+      changes.returnable = { old: originalData.returnable, new: formData.returnable };
+    }
+    
+    if (Number(originalData.purchase_price) !== Number(formData.purchase_price)) {
+      changes.purchase_price = { old: Number(originalData.purchase_price), new: Number(formData.purchase_price) };
+    }
+    
+    if (Number(originalData.selling_price) !== Number(formData.selling_price)) {
+      changes.price = { old: Number(originalData.selling_price), new: Number(formData.selling_price) };
+    }
+    
+    if (Number(originalData.shell_price) !== Number(formData.shell_price)) {
+      changes.shell_price = { old: Number(originalData.shell_price), new: Number(formData.shell_price) };
+    }
+    
+    if (Number(originalData.bottle_price) !== Number(formData.bottle_price)) {
+      changes.bottle_price = { old: Number(originalData.bottle_price), new: Number(formData.bottle_price) };
+    }
+    
+    if (originalData.content_no !== formData.content_no) {
+      changes.content_no = { old: originalData.content_no, new: formData.content_no };
+    }
+    
+    if (originalData.shell_type.toString() !== formData.shell_type.toString()) {
+      const newShellTypeName = shellTypes.find(s => s.id.toString() === formData.shell_type.toString())?.description || 'Unknown';
+      changes.shell_type = { old: originalData.shell_type_name, new: newShellTypeName };
+    }
+    
+    if (originalData.content_type.toString() !== formData.content_type.toString()) {
+      const newContentTypeName = contentTypes.find(c => c.id.toString() === formData.content_type.toString())?.description || 'Unknown';
+      changes.content_type = { old: originalData.content_type_name, new: newContentTypeName };
+    }
+    
+    // Check image changes
+    if (formData.removeImage && originalData.currentImage) {
+      changes.image = { old: 'has image', new: 'removed' };
+    } else if (formData.image && !originalData.currentImage) {
+      changes.image = { old: 'none', new: 'added' };
+    } else if (formData.image && originalData.currentImage) {
+      changes.image = { old: 'has image', new: 'updated' };
+    }
+    
+    return changes;
   };
 
   const handleUpdate = async (e) => {
@@ -252,6 +381,32 @@ const ProductEdit = () => {
           'Content-Type': 'multipart/form-data',
         },
       });
+
+      // ✅ NEW: Detect changes and trigger notification
+      const changes = detectChanges();
+      
+      if (Object.keys(changes).length > 0) {
+        console.log('📦 Product changes detected:', changes);
+        
+        // Get current user for updated_by field
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        
+        // Trigger notification immediately
+        notifyProductChange({
+          action: 'updated',
+          id: id,
+          product_name: formData.product_name,
+          product_code: formData.system_code,
+          category: categories.find(c => c.id.toString() === formData.product_category.toString())?.name || 'Unknown',
+          selling_price: formData.selling_price,
+          changes: changes,
+          updated_by: userData.username || userData.name || 'Admin'
+        });
+        
+        console.log('📦 Product update notification sent!');
+      } else {
+        console.log('📦 No changes detected in product update');
+      }
 
       setNotice({
         open: true,

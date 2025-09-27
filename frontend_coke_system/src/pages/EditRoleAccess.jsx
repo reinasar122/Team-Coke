@@ -4,7 +4,7 @@ import { successStyle, errorStyle } from "../utils/toastStyles";
 import PermissionTable from "../components/roles/PermissionTable";
 import { MODULES } from "../components/roles/constants/modules";
 
-const EditRoleAccess = ({ roleId, onClose }) => {
+const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
   const [roleName, setRoleName] = useState("");
   const [permissions, setPermissions] = useState({});
   const [loading, setLoading] = useState(true);
@@ -107,6 +107,57 @@ const EditRoleAccess = ({ roleId, onClose }) => {
       if (!res.ok) throw new Error("Bulk upsert failed");
 
       toast.success(`✅ Permissions for role '${roleName}' updated successfully!`, { style: successStyle });
+      
+      // ✅ NEW: Trigger notification for submenu access changes
+      console.log('🔔 Triggering submenu access change notification...');
+      
+      // Call the callback to update parent component
+      if (onRoleUpdated) {
+        onRoleUpdated(roleId, roleName, permissions);
+      }
+      
+      // ✅ Dispatch event for notification system
+      const roleEvent = new CustomEvent('rolePermissionsUpdated', {
+        detail: {
+          action: 'updated',
+          roleId: roleId,
+          roleName: roleName,
+          permissions: permissions,
+          timestamp: new Date().toISOString(),
+          summary: `Submenu access updated for role '${roleName}'`,
+          permissionsCount: Object.keys(permissions).length,
+          fullAccessCount: Object.values(permissions).filter(p => p.full_access).length,
+          // ✅ NEW: Add detailed change information
+          changedMenus: Object.entries(permissions).map(([submenu, perms]) => ({
+            menu: submenu,
+            hasAccess: perms.view || perms.create || perms.edit || perms.delete || perms.full_access,
+            permissions: perms
+          }))
+        }
+      });
+      
+      console.log('🔔 Dispatching rolePermissionsUpdated event:', roleEvent.detail);
+      window.dispatchEvent(roleEvent);
+      
+      // ✅ Also dispatch a more specific menu access event
+      const menuAccessEvent = new CustomEvent('menuAccessChanged', {
+        detail: {
+          roleId: roleId,
+          roleName: roleName,
+          timestamp: new Date().toISOString(),
+          changes: Object.entries(permissions).map(([submenu, perms]) => ({
+            menu_name: submenu,
+            role_name: roleName,
+            access_granted: perms.view || perms.create || perms.edit || perms.delete || perms.full_access,
+            permissions: perms,
+            updated_by: 'Admin' // You can get this from user context if available
+          }))
+        }
+      });
+      
+      console.log('🔔 Dispatching menuAccessChanged event:', menuAccessEvent.detail);
+      window.dispatchEvent(menuAccessEvent);
+      
       onClose?.();
     } catch (error) {
       console.error("Error saving permissions:", error);

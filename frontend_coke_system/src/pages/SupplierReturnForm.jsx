@@ -1,11 +1,12 @@
-// SupplierReturnForm.js - Updated with date/time fixes
+// SupplierReturnForm.js - Updated with notification triggers
 import React, { useEffect, useState, useCallback } from "react";
-import { RiArrowDropDownLine } from "react-icons/ri";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import { useNotifications } from '../contexts/NotificationContext';
 
 const SupplierReturnForm = () => {
   const navigate = useNavigate();
+  const { addNotification } = useNotifications();
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [pricing, setPricing] = useState([]);
@@ -54,6 +55,15 @@ const SupplierReturnForm = () => {
 
   // Store ALL merchandising items that contributed to the supplier return
   const [merchandisingItemsToClean, setMerchandisingItemsToClean] = useState([]);
+
+  // Get current user for notifications
+  const getCurrentUser = useCallback(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
 
   // Function to get current warehouse
   const getCurrentWarehouse = useCallback(() => {
@@ -344,6 +354,10 @@ const SupplierReturnForm = () => {
       ...prev,
       warehouse: warehouse?.id || ""
     }));
+
+    // ✅ Trigger supplier returns page visit event for notifications
+    console.log('🔄 Triggering supplier returns form page visit event for notifications');
+    window.dispatchEvent(new Event('supplierReturnsPageVisited'));
 
     // Fetch all data in parallel
     Promise.all([
@@ -664,6 +678,36 @@ const SupplierReturnForm = () => {
       
       console.log("✅ Supplier return saved successfully:", response.data);
 
+      // ✅ NEW: Trigger supplier return notification
+      const user = getCurrentUser();
+      const selectedSupplier = suppliers.find(s => s.id === parseInt(form.supplier));
+      
+      console.log("🔔 Triggering supplier return notification:", {
+        id: response.data.id,
+        sup_no: form.sup_no,
+        supplier_name: selectedSupplier?.company_name,
+        total_amount: totalAmount,
+        items_count: filteredItems.length,
+        warehouse_id: currentWarehouse.id,
+        warehouse_name: currentWarehouse.name,
+        user_role: user.role
+      });
+
+      addNotification('supplier_return_processed', {
+        id: response.data.id || Date.now(),
+        sup_no: form.sup_no,
+        supplier_name: selectedSupplier?.company_name || 'Unknown Supplier',
+        company_name: selectedSupplier?.company_name,
+        total_amount: totalAmount,
+        items_count: filteredItems.length,
+        warehouse_id: currentWarehouse.id,
+        warehouse_name: currentWarehouse.name,
+        date: formattedDate,
+        created_at: formattedDate,
+        supplier_id: form.supplier,
+        items: filteredItems
+      }, user.role);
+
       // STEP 1: Clear merchandising empty returns (DELETE THE DATA)
       console.log("🧹 Step 1: Clearing merchandising empty returns...");
       const merchandisingResult = await clearMerchandisingEmptyReturns();
@@ -696,6 +740,11 @@ const SupplierReturnForm = () => {
       // Show success modal and redirect
       showSuccessModal(message);
       
+      // ✅ Trigger notification check after successful submission
+      setTimeout(() => {
+        window.dispatchEvent(new Event('supplierReturnsPageVisited'));
+      }, 1000);
+      
     } catch (err) {
       console.error("❌ Save error:", err);
       console.log("Error details:", err.response?.data);
@@ -727,7 +776,7 @@ const SupplierReturnForm = () => {
     const modal = document.createElement('div');
     modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
     modal.innerHTML = `
-      <div class="bg-black dark:bg-white-800 p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
+      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
         <div class="text-red-600 text-center mb-4">
           <svg class="w-12 h-12 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -740,8 +789,6 @@ const SupplierReturnForm = () => {
       </div>
     `;
     document.body.appendChild(modal);
-
-    
   };
 
   return (
@@ -751,85 +798,74 @@ const SupplierReturnForm = () => {
           <h2 className="text-xl font-bold">Supplier Return Form</h2>
           
           {/* Warehouse Display */}
-          <div className="bg-green-100 px-4 py-2 rounded-lg">
-            <span className="text-green-800 font-medium">
+          <div className="bg-blue-50 px-4 py-2 rounded-lg">
+            <span className="text-blue-800 font-medium">
               {currentWarehouse?.name || "No Warehouse Selected"}
             </span>
           </div>
         </div>
         
         
-       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-  {/* Left Column */}
-  <div>
-    <div className="mb-4">
-      <label className="block mb-1 font-medium">Supplier No.</label>
-      <input 
-        type="text" 
-        value={form.sup_no} 
-        readOnly 
-        className="w-full h-12 px-3 bg-gray-100 border border-gray-200 rounded"
-      />
-    </div>
-    
-    <div className="mb-4">
-      <label className="block mb-1 font-medium">Date & Time</label>
-      <input
-        type="datetime-local"
-        value={form.date}
-        onChange={(e) => setForm({ ...form, date: e.target.value })}
-        className="w-full h-12 px-3 bg-gray-100 border border-gray-200 rounded"
-        required
-      />
-    </div>
-  </div>
-  
-  {/* Right Column */}
-  <div>
-    <div className="mb-4">
-  <label className="block mb-1 font-medium">Supplier</label>
-  <div className="relative">
-    <select
-      value={form.supplier}
-      onChange={(e) => handleSupplierChange(e.target.value)}
-      className="w-full h-12 px-3 bg-gray-100 border border-gray-200 rounded appearance-none pr-10"
-      required
-    >
-      <option value="">Select Supplier</option>
-      {suppliers.map((s) => (
-        <option key={s.id} value={s.id}>
-          {s.company_name}
-        </option>
-      ))}
-    </select>
-  </div>
-
-
-    </div>
-    
-    <div className="mb-4">
-      <label className="block mb-1 font-medium">Total Amount</label>
-      <div className="relative">
-        <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">₱</span>
-        <input 
-          type="text" 
-          value={formatDecimal(form.total_amount).toFixed(2)}
-          readOnly
-          className="w-full h-12 pl-7 pr-3 bg-gray-100 border border-gray-200 rounded"
-        />
-      </div>
-    </div>
-  </div>
-</div>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Sup No.</label>
+              <input 
+                type="text" 
+                value={form.sup_no} 
+                readOnly 
+                className="w-full p-3 bg-gray-100 border border-gray-200 rounded"
+              />
+            </div>
+            
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Date & Time</label>
+              <input
+                type="datetime-local"
+                value={form.date}
+                onChange={(e) => setForm({ ...form, date: e.target.value })}
+                className="w-full p-3 bg-gray-100 border border-gray-200 rounded"
+                required
+              />
+            </div>
+          </div>
+          
+          <div>
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Supplier</label>
+              <select
+                value={form.supplier}
+                onChange={(e) => handleSupplierChange(e.target.value)}
+                className="w-full p-3 bg-gray-100 border border-gray-200 rounded appearance-none"
+                required
+              >
+                <option value="">Select Supplier</option>
+                {suppliers.map(s => <option key={s.id} value={s.id}>{s.company_name}</option>)}
+              </select>
+            </div>
+            
+            <div className="mb-4">
+              <label className="block mb-1 font-medium">Total Amount</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500 z-10">₱</span>
+                <input 
+                  type="text" 
+                  value={formatDecimal(form.total_amount).toFixed(2)}
+                  readOnly
+                  className="w-full p-5 pl-6 bg-gray-100 border border-gray-200 rounded"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
         
         <div className="overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="bg-gray-900 text-white">
                 <th className="py-3 px-4 text-left font-semibold">Product Name</th>
-                <th className="py-3 px-4 text-center font-semibold">Quantity (Shell)</th>
-                <th className="py-3 px-4 text-center font-semibold">Quantity (PC)</th>
+                <th className="py-3 px-4 text-center font-semibold">Qty (Shell)</th>
+                <th className="py-3 px-4 text-center font-semibold">Qty (PC)</th>
                 <th className="py-3 px-4 text-center font-semibold">Line Total</th>
               </tr>
             </thead>
@@ -889,13 +925,13 @@ const SupplierReturnForm = () => {
           <button
             type="button"
             onClick={() => navigate("/supplier-returns")}
-            className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
+            className="px-6 py-3 bg-red-600 text-white rounded hover:bg-red-700"
           >
             Cancel
           </button>
           <button
             type="submit"
-            className="px-6 py-2 bg-blue-700 text-white rounded hover:bg-blue-800"
+            className="px-6 py-3 bg-gray-900 text-white rounded hover:bg-gray-800"
           >
             Save
           </button>
