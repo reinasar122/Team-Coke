@@ -330,15 +330,17 @@ const VanLoadUpdate = () => {
     if (field === "sold_shell") {
       row.sold_shell = shellInt(value);
 
-      // 🔑 Instead of contentNo, use the dispatched_pcs value for that shell
-      // If user enters 1 shell, fill the corresponding dispatched pcs
-      if (row.sold_shell > 0) {
-        row.sold_pcs = pcsInt(row.dispatched_pcs); 
-      } else {
-        row.sold_pcs = 0;
-      }
+      // ✅ Calculate pcs based on contentNo
+      row.sold_pcs = pcsInt(row.sold_shell * contentNo);
 
-    } else if (field === "sold_pcs") {
+      // Clamp so it can’t exceed dispatched pcs
+      if (row.sold_pcs > row.dispatched_pcs) {
+        row.sold_pcs = row.dispatched_pcs;
+      }
+    }
+
+    
+    else if (field === "sold_pcs") {
       row.sold_pcs = pcsInt(value);
 
       // still allow conversion but clamp to dispatched
@@ -359,16 +361,35 @@ const VanLoadUpdate = () => {
     // ---------- RETURNED EMPTY (Warehouse behavior) ----------
     // If editing shell -> lock PCS to shell * conv
     // If editing PCS   -> only PCS changes; shell stays (user may reconcile later)
+    // ---------- RETURNED EMPTY (guided by SOLD) ----------
     if (field === "empty_return_shell") {
       row.empty_return_shell = shellInt(value);
-      row.empty_return_pcs   = pcsInt(row.empty_return_shell * contentNo);
-    } else if (field === "empty_return_pcs") {
-      row.empty_return_pcs   = pcsInt(value);
-      row.empty_return_shell = shellInt(row.empty_return_shell); // don't auto-change
+
+      // ✅ Calculate pcs based on contentNo
+      row.empty_return_pcs = pcsInt(row.empty_return_shell * contentNo);
+
+      // Clamp so it can’t exceed sold pcs
+      if (row.empty_return_pcs > row.sold_pcs) {
+        row.empty_return_pcs = row.sold_pcs;
+      }
+    }
+
+    else if (field === "empty_return_pcs") {
+      row.empty_return_pcs = pcsInt(value);
+
+      // clamp PCS so it doesn’t exceed sold_pcs
+      if (row.empty_return_pcs > row.sold_pcs) {
+        row.empty_return_pcs = row.sold_pcs;
+      }
+
+      // keep shell synced from pcs
+      row.empty_return_shell = shellInt(row.empty_return_pcs / contentNo);
+
     } else {
       row.empty_return_pcs   = pcsInt(row.empty_return_pcs);
       row.empty_return_shell = shellInt(row.empty_return_shell);
     }
+
 
     const returnedEmptyPcs   = row.empty_return_pcs;
     const returnedEmptyShell = row.empty_return_shell;
