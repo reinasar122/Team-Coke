@@ -1123,22 +1123,24 @@ const handleSaveVanLoadEdit = async () => {
 
             <div>
               <label className="text-sm mb-1 block">Handled By</label>
-              <select
-                value={selectedUser || ""}
-                disabled // 👈 disables the dropdown
-                className="border w-full rounded-md px-2 py-1 text-black text-base bg-gray-200 cursor-not-allowed"
-              >
-                {users
-                  .filter((u) => u.id === selectedUser) // 👈 only show the logged-in user
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {`${u.first_name || ""} ${u.last_name || ""}`.trim() ||
-                        u.username ||
-                        `User #${u.id}`}
-                    </option>
-                  ))}
-              </select>
+              <input
+                type="text"
+                value={
+                  users.find((u) => u.id === selectedUser)
+                    ? `${users.find((u) => u.id === selectedUser).first_name || ""} ${
+                        users.find((u) => u.id === selectedUser).last_name || ""
+                      }`.trim() ||
+                      users.find((u) => u.id === selectedUser).username ||
+                      `User #${selectedUser}`
+                    : ""
+                }
+                readOnly
+                className="border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
+              />
+              {/* Hidden input to still pass the ID */}
+              <input type="hidden" name="handled_by" value={selectedUser} />
             </div>
+
 
 
 
