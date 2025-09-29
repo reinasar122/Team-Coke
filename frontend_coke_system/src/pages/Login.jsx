@@ -4,6 +4,8 @@ import axios from "axios";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import ForgotPasswordModal from "./ForgotPassword";
 import VerifyOTPModal from "./VerifyOTP";
+import { routeMap, routeOrder } from "../utils/routeMap";
+
 
 // Spinner component
 const Spinner = ({ size = 5 }) => (
@@ -34,6 +36,27 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   const navigate = useNavigate();
+
+  // ✅ Find the first accessible route based on user permissions
+  const getFirstAccessibleRoute = () => {
+  const accessList = JSON.parse(localStorage.getItem("access") || "[]");
+
+  // Build a quick lookup for allowed submenus
+  const allowed = new Set(
+      accessList.filter(acc => acc.full || acc.view).map(acc => acc.submenu)
+    );
+
+    // Go through sidebar order and find the first allowed route
+    for (const submenu of routeOrder) {
+      if (allowed.has(submenu) && routeMap[submenu]) {
+        return routeMap[submenu];
+      }
+    }
+
+    return "/no-access"; // fallback if no permissions
+  };
+
+
 
   // ✅ Handle success after OTP verification
   const handleOtpVerified = (encodedUid, token) => {
@@ -79,21 +102,12 @@ const Login = () => {
       // Redirect to change password page
       navigate("/change-password", { state: { userId: id } });
     } else if (role?.toLowerCase() === "admin") {
-      // Admin logic: fetch warehouses and show modal
       await fetchWarehouses();
       setShowWarehouseModal(true);
     } else {
-      // Handle different roles: cashier, manager, etc.
-      switch (role?.toLowerCase()) {
-        case "cashier":
-          navigate("/cashier-dashboard");
-          break;
-        case "manager":
-          navigate("/manager-dashboard");
-          break;
-        default:
-          navigate("/dashboard");
-      }
+      const firstRoute = getFirstAccessibleRoute();
+      console.log("➡️ Redirecting to:", firstRoute);
+      navigate(firstRoute);
     }
   } catch (err) {
     // Log the error for debugging
@@ -115,7 +129,8 @@ const Login = () => {
     }
     localStorage.setItem("selectedWarehouse", JSON.stringify(selectedWarehouse));
     setShowWarehouseModal(false);
-    navigate("/dashboard"); // Redirect to dashboard after selecting warehouse
+    const firstRoute = getFirstAccessibleRoute();
+    navigate(firstRoute);
   };
 
   const closeModal = () => {
