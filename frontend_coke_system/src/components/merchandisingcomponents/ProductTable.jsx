@@ -587,16 +587,23 @@ const ProductTable = ({
               {/* SELLING PRICE */}
               <td className="border border-gray-200 py-1 px-1">
                 <input
-                  type="number"
+                  type="text"
                   disabled
                   className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={
-                    pricingMap[row.priceId]?.selling_price ??
-                    products.find((p) => p.id === parseInt(row.productId, 10))?.price?.selling_price ??
-                    ""
-                  }
+                  value={(() => {
+                    const sellingPrice =
+                      pricingMap[row.priceId]?.selling_price ??
+                      products.find((p) => p.id === parseInt(row.productId, 10))?.price?.selling_price ??
+                      "";
+
+                    return sellingPrice !== "" && sellingPrice != null
+                      ? `₱${Number(sellingPrice).toFixed(2)}`
+                      : "";
+                  })()}
                 />
               </td>
+
+
 
               {/* SOLD */}
               <td className="border border-gray-200 py-1 px-1">
@@ -619,28 +626,40 @@ const ProductTable = ({
               {/* EMPTY PRICES */}
               <td className="border border-gray-200 py-1 px-1">
                 <input
-                  type="number"
+                  type="text"
                   className="w-full p-1 text-sm text-center bg-gray-100"
                   value={
                     !hasProduct
                       ? ""
-                      : (isMissing(row.shellPrice) ? (product?.price?.shell_price ?? 0) : row.shellPrice)
+                      : (() => {
+                          const shellPrice = isMissing(row.shellPrice)
+                            ? product?.price?.shell_price ?? 0
+                            : row.shellPrice;
+                          return `₱${Number(shellPrice).toFixed(2)}`;
+                        })()
                   }
                   disabled
                 />
               </td>
+
               <td className="border border-gray-200 py-1 px-1">
                 <input
-                  type="number"
+                  type="text"
                   className="w-full p-1 text-sm text-center bg-gray-100"
                   value={
                     !hasProduct
                       ? ""
-                      : (isMissing(row.bottlePrice) ? (product?.price?.bottle_price ?? 0) : row.bottlePrice)
+                      : (() => {
+                          const bottlePrice = isMissing(row.bottlePrice)
+                            ? product?.price?.bottle_price ?? 0
+                            : row.bottlePrice;
+                          return `₱${Number(bottlePrice).toFixed(2)}`;
+                        })()
                   }
                   disabled
                 />
               </td>
+
 
               {/* RETURN & DISCREPANCY FIELDS */}
               {[

@@ -383,32 +383,45 @@ const VanLoadTable = ({
                 {/* SELLING PRICE */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
-                    type="number"
+                    type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={row.sellingPrice ?? ""}
+                    value={
+                      row.sellingPrice !== "" && row.sellingPrice != null
+                        ? `₱${Number(row.sellingPrice).toFixed(2)}`
+                        : ""
+                    }
                   />
                 </td>
 
                 {/* EMPTY PRICE - Shell */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
-                    type="number"
+                    type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={row.shellPrice ?? ""}
+                    value={
+                      row.shellPrice !== "" && row.shellPrice != null
+                        ? `₱${Number(row.shellPrice).toFixed(2)}`
+                        : ""
+                    }
                   />
                 </td>
 
                 {/* EMPTY PRICE - PCS */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
-                    type="number"
+                    type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={row.bottlePrice ?? ""}
+                    value={
+                      row.bottlePrice !== "" && row.bottlePrice != null
+                        ? `₱${Number(row.bottlePrice).toFixed(2)}`
+                        : ""
+                    }
                   />
                 </td>
+
 
                 {/* DISCOUNT (%) — editable */}
                 <td className="border border-gray-200 py-1 px-1">
