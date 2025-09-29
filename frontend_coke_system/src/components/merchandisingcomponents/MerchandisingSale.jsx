@@ -1123,19 +1123,20 @@ const handleSaveVanLoadEdit = async () => {
 
             <div>
               <label className="text-sm mb-1 block">Handled By</label>
-              <select
-                value={selectedUser || ""}
-                onChange={(e) => setSelectedUser(e.target.value)}
-                className="border w-full rounded-md px-2 py-1 text-black text-base"
-              >
-                <option value="">-- Select User --</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {`${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username || `User #${u.id}`}
-                  </option>
-                ))}
-              </select>
-
+              <input
+                type="text"
+                value={
+                  (() => {
+                    const user = JSON.parse(localStorage.getItem("user") || "{}");
+                    if (user?.first_name || user?.last_name) {
+                      return `${user.first_name || ""} ${user.last_name || ""}`.trim();
+                    }
+                    return user?.username || "Unknown User";
+                  })()
+                }
+                readOnly
+                className="border w-full rounded-md px-2 py-1 text-black text-base bg-gray-100 cursor-not-allowed font-semibold"
+              />
             </div>
 
 

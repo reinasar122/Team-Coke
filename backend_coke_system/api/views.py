@@ -154,20 +154,33 @@ class VerifyOTPAPIView(APIView):
         # Get cached OTP
         cached_otp = cache.get(f'otp_{email}')
 
-        if str(cached_otp) == str(otp):
-            try:
-                user = User.objects.get(email=email)
-                return Response({
-                    "user": {
-                        "id": user.id,
-                        "email": user.email,
-                        "username": user.username  # optional
-                    }
-                }, status=status.HTTP_200_OK)
-            except User.DoesNotExist:
-                return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        if cached_otp is None:
+            return Response({"error": "OTP expired or not found. Please request again."},
+                            status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+        if str(cached_otp) != otp:
+            return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # OTP is valid ✅
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Invalidate OTP after successful use
+        cache.delete(f'otp_{email}')
+
+        # Generate token for password reset/change
+        token = default_token_generator.make_token(user)
+
+        return Response({
+            "user": {
+                "id": user.id,
+                "email": user.email,
+                "username": user.username,
+                "token": token,
+            }
+        }, status=status.HTTP_200_OK)
 
 class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()

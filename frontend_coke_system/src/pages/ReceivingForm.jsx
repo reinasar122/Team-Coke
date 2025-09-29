@@ -29,6 +29,9 @@ const ReceivingForm = () => {
   const [selectedWarehouseId, setSelectedWarehouseId] = useState(null);
   const [currentUserId, setCurrentUserId] = useState(null);
 
+  const [receivedByName, setReceivedByName] = useState("");
+
+
   // Use ref to track if we've already fetched for this supplier
   const lastFetchedSupplier = useRef(null);
 
@@ -610,10 +613,26 @@ const ReceivingForm = () => {
     if (user?.id) {
       setForm((prev) => ({
         ...prev,
-        received_by: user.id, // automatically set logged in user
+        received_by: user.id,
       }));
+
+      if (user.first_name || user.last_name) {
+        // already in localStorage
+        setReceivedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
+      } else {
+        // fetch from API
+        axios.get(`http://localhost:8080/api/users/${user.id}/`)
+          .then((res) => {
+            setReceivedByName(`${res.data.first_name || ""} ${res.data.last_name || ""}`.trim() || res.data.username);
+          })
+          .catch(() => {
+            setReceivedByName(user.username || "Unknown User");
+          });
+      }
     }
   }, []);
+
+
 
 
 
@@ -1000,19 +1019,12 @@ const ReceivingForm = () => {
             <label className="form-label">Received By:</label>
             <input
               type="text"
-              value={
-                (() => {
-                  const user = JSON.parse(localStorage.getItem("user") || "{}");
-                  if (user?.first_name || user?.last_name) {
-                    return `${user.first_name || ""} ${user.last_name || ""}`.trim();
-                  }
-                  return user?.username || "Unknown User";
-                })()
-              }
+              value={receivedByName}
               readOnly
               className="form-input font-semibold bg-gray-100 cursor-not-allowed"
             />
           </div>
+
 
 
           <div>
