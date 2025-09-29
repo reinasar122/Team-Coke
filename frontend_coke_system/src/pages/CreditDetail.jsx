@@ -207,7 +207,7 @@ export default function CreditDetail() {
         <div><strong>Total:</strong> ₱{fmt(total)}</div>
 
         {/* Paid shows typed amount or last cash tendered */}
-        <div><strong>Paid:</strong> ₱{fmt(paidDisplay)}</div>
+        <div><strong>Paid:</strong> ₱{fmt(paid)}</div>
 
         {/* After fully paying (balance = 0) show last change, if any */}
         {balance <= 0 && lastChange > 0 && (

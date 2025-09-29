@@ -34,11 +34,19 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
     payment_terms_days = serializers.IntegerField(required=False, default=30)
     due_date = serializers.DateTimeField(required=False, allow_null=True)
     transactionDate = serializers.DateTimeField(source="created_at", required=False)
-    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, write_only=True)  # ✅ Mark as write_only
+    amountDue = serializers.DecimalField(max_digits=12, decimal_places=2, required=False, write_only=True)
     totalAmount = serializers.DecimalField(source="total_amount", max_digits=12, decimal_places=2)
     rows = serializers.ListField(child=serializers.DictField(), source="rows_json", required=False, default=list)
-    creditNotes = serializers.CharField(source="remarks", required=False, allow_blank=True, default="")  # ✅ Map to remarks
-    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all())
+    creditNotes = serializers.CharField(source="remarks", required=False, allow_blank=True, default="")
+    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all())  # ✅ keep only this
+
+    amountPaid = serializers.DecimalField(
+        source="amount_paid",  # ✅ maps correctly
+        max_digits=12,
+        decimal_places=2,
+        required=False,
+        default=0
+    )
 
     class Meta:
         model = CreditLedger
@@ -51,36 +59,50 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
             "payment_terms_days",
             "due_date",
             "amountDue",
+            "amountPaid",
             "totalAmount",
             "rows",
             "transactionDate",
             "creditNotes",
-            "warehouse",
+            "warehouse",   # ✅ only warehouse, not warehouse_id
         ]
 
     def create(self, validated_data):
-        # ✅ Remove write_only fields that don't map to model fields
-        validated_data.pop('amountDue', None)  # amountDue is the same as totalAmount
+        # ✅ Remove non-model fields
+        validated_data.pop('amountDue', None)
         return super().create(validated_data)
+
     
 class CreditLedgerListSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
-    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)  # ADD WAREHOUSE NAME
+    status = serializers.SerializerMethodField()  # ✅ add computed status
+    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
 
     class Meta:
         model = CreditLedger
         fields = [
             "id", "msp_no", "created_at", "handled_by", "customer_name",
-            "total_amount", "amount_paid", "status", "balance", "warehouse_id", "warehouse_name",  # ADD WAREHOUSE NAME
+            "total_amount", "amount_paid", "status", "balance",
+            "warehouse_id", "warehouse_name",
         ]
 
     def get_balance(self, obj):
-        return obj.balance
+        return float(obj.total_amount or 0) - float(obj.amount_paid or 0)
+
+    def get_status(self, obj):
+        balance = self.get_balance(obj)
+        if balance <= 0:
+            return "PAID"
+        elif obj.amount_paid > 0:
+            return "PARTIAL"
+        return "PENDING"
+
 
 class CreditLedgerDetailSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
+    status = serializers.SerializerMethodField()  # ✅ add this
     payments = serializers.SerializerMethodField()
-    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)  # ADD WAREHOUSE NAME
+    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
 
     class Meta:
         model = CreditLedger
@@ -89,11 +111,19 @@ class CreditLedgerDetailSerializer(serializers.ModelSerializer):
             "transaction_type", "remarks",
             "payment_terms_days", "due_date",
             "total_amount", "amount_paid", "status", "balance",
-            "rows_json", "payments", "warehouse_name",  # ADD WAREHOUSE NAME
+            "rows_json", "payments", "warehouse_name",
         ]
 
     def get_balance(self, obj):
-        return obj.balance
+        return float(obj.total_amount or 0) - float(obj.amount_paid or 0)
+
+    def get_status(self, obj):
+        balance = self.get_balance(obj)
+        if balance <= 0:
+            return "PAID"
+        elif obj.amount_paid > 0:
+            return "PARTIAL"
+        return "PENDING"
 
     def get_payments(self, obj):
         return [

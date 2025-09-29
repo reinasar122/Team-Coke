@@ -5,7 +5,10 @@ import axios from "axios";
 
 // ---- Helper to create a Credit Ledger on the backend (POST /api/credits/) ----
 async function createCreditLedgerFromModalPayload(payload) {
-  if (payload.paymentMethod !== "credit") return null;
+  // Accept both explicit "credit" and mixed "cash+credit"
+  if (payload.paymentMethod !== "credit" && payload.paymentMethod !== "cash+credit") {
+    return null;
+  }
 
   console.log("🔍 Full credit payload:", payload);
 
@@ -29,11 +32,13 @@ async function createCreditLedgerFromModalPayload(payload) {
     remarks: payload.creditNotes || "",
     payment_terms_days: payload.paymentTermsDays,
     due_date: payload.dueDate,
-    totalAmount: payload.totalAmount,
+    totalAmount: payload.totalAmount,      // always full ₱420
+    amountPaid: payload.cashReceived || 0, // upfront cash ₱200
     rows: payload.rows || [],
     transactionDate: payload.transactionDate || new Date().toISOString(),
     warehouse: Number(warehouseId),
   };
+
 
   try {
     const res = await axios.post("http://127.0.0.1:8080/api/credits/", body);
@@ -745,7 +750,7 @@ const PaymentModal = ({
         <div className="mt-6 text-sm">
           <h3 className="font-semibold mb-2">Payment Method</h3>
           <div className="flex gap-4 mb-4">
-            {["cash", "credit", "bank"].map((method) => (
+            {["cash", "bank"].map((method) => (
               <button
                 key={method}
                 className={`px-4 py-2 rounded border ${
@@ -753,7 +758,7 @@ const PaymentModal = ({
                 }`}
                 onClick={() => setPaymentMethod(method)}
               >
-                {method === "cash" ? "Cash" : method === "credit" ? "Credit" : "E-wallet"}
+                {method === "cash" ? "Cash" : "E-wallet"}
               </button>
             ))}
           </div>
@@ -777,7 +782,8 @@ const PaymentModal = ({
                   readOnly
                 />
               </div>
-              {showChange && (
+
+              {showChange && n(cashReceived) >= amountDueFinal && (
                 <div>
                   <label className="block mb-1">Change</label>
                   <input
@@ -787,67 +793,69 @@ const PaymentModal = ({
                   />
                 </div>
               )}
+
+              {/* If cash < due → show Credit section */}
+                {n(cashReceived || 0) < amountDueFinal && (
+                  <div className="col-span-2 mt-6 space-y-4">
+                    <div className="bg-blue-100 border border-blue-300 p-4 rounded">
+                      <div className="font-semibold text-blue-700">Credit Amount:</div>
+                      <div className="flex justify-between items-center mt-1 text-sm">
+                        <div>
+                          <div><strong>Customer:</strong> {customerName || "Walk-in"}</div>
+                          <div><strong>Due:</strong> {formattedDueDate}</div>
+                        </div>
+                        <div className="text-2xl font-bold text-blue-800">
+                          ₱{fmt(amountDueFinal - n(cashReceived || 0))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 📅 Credit Terms & Notes */}
+                    <div className="p-4 border-[2px] border-slate-200 rounded space-y-4">
+                      <div>
+                        <h4 className="font-semibold text-blue-600 mb-2">📅 Credit Terms</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block mb-1">Payment Terms (Days)</label>
+                            <select
+                              className="w-full border rounded px-2 py-1"
+                              value={paymentTerms}
+                              onChange={(e) => setPaymentTerms(e.target.value)}
+                            >
+                              <option>7 Days</option>
+                              <option>15 Days</option>
+                              <option>30 Days</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block mb-1">Payment Due Date</label>
+                            <input
+                              type="text"
+                              className="w-full border rounded px-2 py-1"
+                              value={formattedDueDate}
+                              readOnly
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block mb-1">Credit Notes (Optional)</label>
+                        <textarea
+                          rows="3"
+                          className="w-full border rounded px-2 py-1"
+                          placeholder="Add any special arrangements or notes..."
+                          value={creditNotes}
+                          onChange={(e) => setCreditNotes(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
             </div>
           )}
 
-          {paymentMethod === "credit" && (
-            <div className="p-4 border-[2px] border-slate-200 rounded space-y-4">
-              <div>
-                <h4 className="font-semibold text-blue-600 mb-2">📅 Credit Terms</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block mb-1">Payment Terms (Days)</label>
-                    <select
-                      className="w-full border rounded px-2 py-1"
-                      value={paymentTerms}
-                      onChange={(e) => setPaymentTerms(e.target.value)}
-                    >
-                      <option>7 Days</option>
-                      <option>15 Days</option>
-                      <option>30 Days</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block mb-1">Payment Due Date</label>
-                    <input
-                      type="text"
-                      className="w-full border rounded px-2 py-1"
-                      value={formattedDueDate}
-                      readOnly
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block mb-1">Credit Notes (Optional)</label>
-                <textarea
-                  rows="3"
-                  className="w-full border rounded px-2 py-1"
-                  placeholder="Add any special arrangements or notes for this credit transaction..."
-                  value={creditNotes}
-                  onChange={(e) => setCreditNotes(e.target.value)}
-                />
-              </div>
-
-              <div className="bg-blue-100 border border-blue-300 p-4 rounded">
-                <div className="font-semibold text-blue-700">Credit Amount:</div>
-                <div className="flex justify-between items-center mt-1 text-sm">
-                  <div>
-                    <div>
-                      <strong>Customer:</strong> {customerName || "Walk-in"}
-                    </div>
-                    <div>
-                      <strong>Due:</strong> {formattedDueDate}
-                    </div>
-                  </div>
-                  <div className="text-2xl font-bold text-blue-800">
-                    ₱{fmt(totalAmountFinal)}
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Footer Buttons */}
@@ -857,7 +865,7 @@ const PaymentModal = ({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting || (paymentMethod === "cash" && n(cashReceived) < amountDueFinal)}
+            disabled={submitting}
             onClick={async () => {
               // ✅ More robust warehouse extraction
               console.log("🏪 Button clicked - warehouse:", warehouse);
@@ -936,21 +944,33 @@ const PaymentModal = ({
 
                 // final due used in the modal
                 amountDue: amountDueFinal,
-                
-                // ✅ MULTIPLE WAREHOUSE FORMATS FOR COMPATIBILITY
-                warehouse: warehouse,
-                warehouseId: warehouseId,
-                warehouse_id: warehouseId, // alternative format
-                warehouseName: warehouseName,
 
-                 merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
+                // ✅ Only warehouse (integer ID)
+                warehouse: warehouseId,
+
+                merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
               };
+
 
               console.log("💳 Complete payment data:", data);
 
-              const isCredit = data.paymentMethod === "credit";
-              const paymentOk =
-                data.paymentMethod === "cash" ? n(cashReceived) >= amountDueFinal : true;
+              const isPartialCash = data.paymentMethod === "cash" && n(cashReceived) > 0 && n(cashReceived) < amountDueFinal;
+              const isFullCash = data.paymentMethod === "cash" && n(cashReceived) >= amountDueFinal;
+
+              // ✅ treat both partial cash and full credit (0 cash) as credit
+              const isCredit = isPartialCash || (data.paymentMethod === "cash" && n(cashReceived) === 0 && amountDueFinal > 0);
+
+
+
+              // mark partial case
+              if (isPartialCash) {
+                data.paymentMethod = "cash+credit";
+                data.creditAmount = amountDueFinal - n(cashReceived);
+              }
+
+              // this replaces the old "paymentOk"
+              const paymentOk = isFullCash || isCredit;
+
 
               try {
                 setSubmitting(true);
