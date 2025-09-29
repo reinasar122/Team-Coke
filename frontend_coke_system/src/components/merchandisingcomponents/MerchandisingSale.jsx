@@ -1152,10 +1152,12 @@ const handleSaveVanLoadEdit = async () => {
               <label className="text-sm">Date/Time</label>
               <input
                 type="datetime-local"
-                className="w-full rounded-md px-2 py-1 text-sm"
+                className="w-full rounded-md px-2 py-1 text-sm no-picker"
                 value={transactionDate}
                 onChange={(e) => setTransactionDate(e.target.value)}
+                readOnly
               />
+
             </div>
 
             {/* Warehouse: CUSTOMER FIELD WITH ADD OPTION */}
