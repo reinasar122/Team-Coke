@@ -1085,8 +1085,8 @@ const handleSaveVanLoadEdit = async () => {
               <input
                 type="text"
                 value={mspNo}
-                onChange={(e) => setMspNo(e.target.value)}
                 className="border w-full rounded-md px-2 py-1 text-sm"
+                disabled
               />
             </div>
 
