@@ -4,8 +4,6 @@ import axios from "axios";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import ForgotPasswordModal from "./ForgotPassword";
 import VerifyOTPModal from "./VerifyOTP";
-import { routeMap, routeOrder } from "../utils/routeMap";
-
 
 // Spinner component
 const Spinner = ({ size = 5 }) => (
@@ -37,27 +35,6 @@ const Login = () => {
 
   const navigate = useNavigate();
 
-  // ✅ Find the first accessible route based on user permissions
-  const getFirstAccessibleRoute = () => {
-  const accessList = JSON.parse(localStorage.getItem("access") || "[]");
-
-  // Build a quick lookup for allowed submenus
-  const allowed = new Set(
-      accessList.filter(acc => acc.full || acc.view).map(acc => acc.submenu)
-    );
-
-    // Go through sidebar order and find the first allowed route
-    for (const submenu of routeOrder) {
-      if (allowed.has(submenu) && routeMap[submenu]) {
-        return routeMap[submenu];
-      }
-    }
-
-    return "/no-access"; // fallback if no permissions
-  };
-
-
-
   // ✅ Handle success after OTP verification
   const handleOtpVerified = (encodedUid, token) => {
     setShowVerifyOTPModal(false); // close modal
@@ -78,49 +55,60 @@ const Login = () => {
   };
 
   const handleLogin = async (e) => {
-  e.preventDefault();
-  setError("");
-  setLoading(true);
+    e.preventDefault();
+    setError("");
+    setLoading(true);
 
-  try {
-    const res = await axios.post("http://localhost:8080/api/login/", { username, password });
+    try {
+      const res = await axios.post("http://localhost:8080/api/login/", { username, password });
 
-    // Log the response data to check if it's structured as expected
-    console.log("Login successful, response:", res.data);
+      // Log the response data to check if it's structured as expected
+      console.log("Login successful, response:", res.data);
 
-    const { role, must_change_password, id } = res.data;
+      const { role, must_change_password, id } = res.data;
 
-    // Store user data and access permissions in localStorage
-    localStorage.setItem("user", JSON.stringify(res.data)); // Store user info
-    localStorage.setItem("access", JSON.stringify(res.data.accessibilities)); // Store accessibilities
+      // Store user data and access permissions in localStorage
+      localStorage.setItem("user", JSON.stringify(res.data)); // Store user info
+      localStorage.setItem("access", JSON.stringify(res.data.accessibilities)); // Store accessibilities
 
-    // Log role and must_change_password values for debugging
-    console.log("Role:", role);
-    console.log("Must change password:", must_change_password);
+      // ✅ IMPORTANT: Dispatch login event to trigger notifications
+      console.log("🔐 Dispatching userLoggedIn event...");
+      window.dispatchEvent(new CustomEvent('userLoggedIn'));
 
-    if (must_change_password) {
-      // Redirect to change password page
-      navigate("/change-password", { state: { userId: id } });
-    } else if (role?.toLowerCase() === "admin") {
-      await fetchWarehouses();
-      setShowWarehouseModal(true);
-    } else {
-      const firstRoute = getFirstAccessibleRoute();
-      console.log("➡️ Redirecting to:", firstRoute);
-      navigate(firstRoute);
+      // Log role and must_change_password values for debugging
+      console.log("Role:", role);
+      console.log("Must change password:", must_change_password);
+
+      if (must_change_password) {
+        // Redirect to change password page
+        navigate("/change-password", { state: { userId: id } });
+      } else if (role?.toLowerCase() === "admin") {
+        // Admin logic: fetch warehouses and show modal
+        await fetchWarehouses();
+        setShowWarehouseModal(true);
+      } else {
+        // Handle different roles: cashier, manager, etc.
+        switch (role?.toLowerCase()) {
+          case "cashier":
+            navigate("/cashier-dashboard");
+            break;
+          case "manager":
+            navigate("/manager-dashboard");
+            break;
+          default:
+            navigate("/dashboard");
+        }
+      }
+    } catch (err) {
+      // Log the error for debugging
+      console.error("Login error:", err);
+      setError(
+        err.response?.data?.non_field_errors?.[0] || "Login failed. Please check your credentials."
+      );
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    // Log the error for debugging
-    console.error("Login error:", err);
-    setError(
-      err.response?.data?.non_field_errors?.[0] || "Login failed. Please check your credentials."
-    );
-  } finally {
-    setLoading(false);
-  }
-};
-
-
+  };
 
   const handleWarehouseSelection = () => {
     if (!selectedWarehouse) {
@@ -129,8 +117,21 @@ const Login = () => {
     }
     localStorage.setItem("selectedWarehouse", JSON.stringify(selectedWarehouse));
     setShowWarehouseModal(false);
-    const firstRoute = getFirstAccessibleRoute();
-    navigate(firstRoute);
+    
+    // ✅ IMPORTANT: Dispatch warehouse change event
+    window.dispatchEvent(
+      new CustomEvent("warehouseChanged", {
+        detail: { warehouse: selectedWarehouse, action: "select", source: "login" },
+      })
+    );
+    
+    // ✅ IMPORTANT: Trigger notification check after warehouse selection
+    setTimeout(() => {
+      console.log("🔐 Admin warehouse selected - triggering notification check...");
+      window.dispatchEvent(new CustomEvent('userSessionRestored'));
+    }, 1000);
+    
+    navigate("/dashboard"); // Redirect to dashboard after selecting warehouse
   };
 
   const closeModal = () => {
@@ -236,7 +237,7 @@ const Login = () => {
 
             <div className="mt-8 border-t border-white/20 pt-5 text-center">
               <p className="text-sm text-gray-200">
-                Don’t have an account?{" "}
+                Don't have an account?{" "}
                 <button
                   onClick={() => navigate("/register")}
                   className="text-red-400 font-semibold hover:text-red-600 hover:underline"

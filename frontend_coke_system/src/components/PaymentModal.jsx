@@ -157,6 +157,50 @@ const PaymentModal = ({
   };
   const getProdName = (row) =>
     row.productName || row.product_name || row.product_detail?.product_name || "--";
+
+  //jea
+  const getDispatchedShell = (r) => pickNum(r.dispatchedShell, r.dispatched_shell);
+  const getDispatchedPcs   = (r) => pickNum(r.dispatchedPcs, r.dispatched_pcs);
+  const getEmptyBottlePrice = (r) => pickNum(r.bottlePrice, r.empty_price_pc, r.emptyPricePc);
+  const getReturnedShells = (r) =>
+    pickNum(r.expectedReturnShellEmpty, r.empty_return_shell, r.returnedEmptyShell);
+  const getReturnedPcs = (r) =>
+    pickNum(r.expectedReturnPcsEmpty, r.empty_return_pcs, r.returnedEmptyPcs);
+  const getDirectActual = (r) =>
+    pickNum(r.actualSale, r.actual_sale, r.total, r.line_total, r.lineTotal);
+  const getRowActual = (r) => {
+    const direct = getDirectActual(r);
+    if (direct) return direct;
+
+    const pcs = getSoldPcs(r);
+    const shell = getSoldShell(r);
+    const price = getUnitPrice(r);
+
+    if (isWarehouse) {
+      const discPct = getDiscountPercent(r);
+      const discAmtFromPct = (price * pcs * discPct) / 100;
+      const discAmt = getDiscountAmount(r) || discAmtFromPct;
+      return Number((pcs * price - discAmt).toFixed(2));
+    }
+
+    const emptyShell = getEmptyShellPrice(r);
+    const gross = pcs * price + shell * emptyShell;
+    const discPct = getDiscountPercent(r);
+    return Number((gross * (1 - discPct / 100)).toFixed(2));
+  };
+  const rowEmptiesValue = (r) => {
+  const shell = getSoldShell(r);
+  const pcs = getSoldPcs(r);
+    return shell * getEmptyShellPrice(r) + pcs * getEmptyBottlePrice(r);
+  };
+
+  const rowReturnsValue = (r) => {
+    const shells = getReturnedShells(r);
+    const pcs = getReturnedPcs(r);
+    return shells * getEmptyShellPrice(r) + pcs * getEmptyBottlePrice(r);
+  };
+  //jea
+
   const getSoldShell = (row) => pickNum(row.sold_shell, row.soldShell);
   const getSoldPcs = (row) => pickNum(row.sold_pcs, row.soldPcs, row.qty, row.quantity);
   const getUnitPrice = (row) => pickNum(row.unitPrice, row.selling_price, row.price);
@@ -185,17 +229,14 @@ const PaymentModal = ({
     return Number((gross * (1 - discPct / 100)).toFixed(2));
   };
 
-  const tableRows = useMemo(
-    () =>
-      (rows || []).filter(
-        (r) =>
-          getProdName(r) !== "--" ||
-          getSoldPcs(r) > 0 ||
-          getSoldShell(r) > 0 ||
-          getUnitPrice(r) > 0
-      ),
-    [rows]
-  );
+  //jea
+  const tableRows = (rows || []).filter(
+    (r) =>
+      getProdName(r) !== "--" ||
+      getSoldPcs(r) > 0 ||
+      getSoldShell(r) > 0 ||
+      getUnitPrice(r) > 0
+  );//jeaaaa
   const actualSalesValue = useMemo(() => {
     const fromParent = n(actualSales);
     if (fromParent > 0) return fromParent;
@@ -334,6 +375,10 @@ const PaymentModal = ({
 
   // ------------- early return AFTER hooks -------------
   if (!open) return null;
+
+  const subtotalFromRows = tableRows.reduce((sum, r) => sum + getRowActual(r), 0);
+  // Prefer backend actualSales if > 0, else use calculated rows
+  const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-30 flex items-center justify-center">
@@ -600,38 +645,109 @@ const PaymentModal = ({
           </>
         ) : (
           /* your non-van-load table stays as-is */
-          <div className="mt-6">
-            <h3 className="font-semibold mb-2">Products Summary</h3>
-            <table className="w-full mt-4 border">
-              <thead className="bg-gray-200">
-                <tr>
-                  <th className="p-2 text-left">Product</th>
-                  <th className="p-2 text-left">Sold Qty (Shell)</th>
-                  <th className="p-2 text-left">Sold Qty (PC)</th>
-                  <th className="p-2 text-left">Unit Price</th>
-                  <th className="p-2 text-left">Discount (%)</th>
-                  <th className="p-2 text-left">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.map((row, index) => (
-                  <tr key={index} className="border-t">
-                    <td className="p-2">{getProdName(row)}</td>
-                    <td className="p-2">{getSoldShell(row)}</td>
-                    <td className="p-2">{getSoldPcs(row)}</td>
-                    <td className="p-2">₱{n(getUnitPrice(row)).toFixed(2)}</td>
-                    <td className="p-2">{n(getDiscountPercent(row)).toFixed(2)}</td>
-                    <td className="p-2">₱{n(getLineTotal(row)).toFixed(2)}</td>
+          <>
+            {/* SOLD PRODUCTS (same as InvoiceModal) */}
+            <div className="mt-4">
+              <h4 className="font-bold mb-2 text-gray-700">SOLD PRODUCTS</h4>
+              <table className="w-full text-sm border border-gray-300">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 text-left">Product</th>
+                    <th className="p-2 text-left">Dispatched</th>
+                    <th className="p-2 text-left">Sold</th>
+                    <th className="p-2 text-left">Unit Price</th>
+                    <th className="p-2 text-left">Discount (%)</th>
+                    <th className="p-2 text-left">Amount</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, i) => (
+                    <tr key={i}>
+                      <td className="border px-2 py-1">{getProdName(row)}</td>
+                      <td className="border px-2 py-1">
+                        {`${getDispatchedShell(row)} shells (${getDispatchedPcs(row)} pcs)`}
+                      </td>
+                      <td className="border px-2 py-1">
+                        {`${getSoldShell(row)} shells (${getSoldPcs(row)} pcs)`}
+                      </td>
+                      <td className="border px-2 py-1">₱{fmt(getUnitPrice(row))}</td>
+                      <td className="border px-2 py-1">{fmt(getDiscountPercent(row))}</td>
+                      <td className="border px-2 py-1">₱{fmt(getRowActual(row))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-right font-semibold mt-1">
+                SUBTOTAL: ₱{fmt(subtotal)}
+              </p>
+            </div>
+
+            {/* EMPTY PRICE */}
+            <div className="mt-6">
+              <h4 className="font-bold mb-2 text-gray-700">EMPTY PRICE</h4>
+              <table className="w-full text-sm border border-gray-300">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2">Product</th>
+                    <th className="p-2">Shell Price</th>
+                    <th className="p-2">Bottle Price</th>
+                    <th className="p-2">Total Shells</th>
+                    <th className="p-2">Total Pieces</th>
+                    <th className="p-2">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, i) => (
+                    <tr key={i}>
+                      <td className="border px-2 py-1">{getProdName(row)}</td>
+                      <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
+                      <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
+                      <td className="border px-2 py-1">{getSoldShell(row)}</td>
+                      <td className="border px-2 py-1">{getSoldPcs(row)}</td>
+                      <td className="border px-2 py-1">₱{fmt(rowEmptiesValue(row))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-right font-semibold mt-1">SUBTOTAL: ₱{fmt(emptiesPriceTotal)}</p>
+            </div>
+
+            {/* RETURNS */}
+            <div className="mt-6">
+              <h4 className="font-bold mb-2 text-gray-700">RETURNS</h4>
+              <table className="w-full text-sm border border-gray-300">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2">Product</th>
+                    <th className="p-2">Shell Price</th>
+                    <th className="p-2">Bottle Price</th>
+                    <th className="p-2">Returned Shells</th>
+                    <th className="p-2">Returned Pieces</th>
+                    <th className="p-2">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, i) => (
+                    <tr key={i}>
+                      <td className="border px-2 py-1">{getProdName(row)}</td>
+                      <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
+                      <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
+                      <td className="border px-2 py-1">{getReturnedShells(row)}</td>
+                      <td className="border px-2 py-1">{getReturnedPcs(row)}</td>
+                      <td className="border px-2 py-1">₱{fmt(rowReturnsValue(row))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-right font-semibold mt-1">SUBTOTAL: ₱-{fmt(emptyReturns)}</p>
+            </div>
+          </>
         )}
 
         {/* Payment Breakdown */}
-        <h3 className="font-semibold mt-4 mb-0">Payment Breakdown</h3>
+        
         <div className="mt-6 text-sm">
+          <h3 className="font-semibold mb-2">Payment Breakdown</h3>
           <div className="flex flex-col bg-transparent p-6 border-[2px] border-slate-200">
             {isVanLoad ? (
               // ---------- VAN LOAD layout ----------
@@ -703,7 +819,6 @@ const PaymentModal = ({
             ) : (
               // ---------- WAREHOUSE ----------
               <>
-                <h3 className="font-semibold mb-2">Payment Breakdown</h3>
                 <div className="space-y-1">
                   <div className="font-semibold mb-2 flex justify-between">
                     <span>Actual Sales:</span>

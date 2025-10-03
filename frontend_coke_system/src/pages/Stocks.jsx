@@ -84,6 +84,10 @@ const Stocks = () => {
 
   useEffect(() => {
     fetchStocks();
+    
+    // ✅ Dispatch event when stocks page is visited (for notifications)
+    window.dispatchEvent(new CustomEvent('stocksPageVisited'));
+    
     const handleWarehouseChange = () => fetchStocks();
     window.addEventListener("warehouseChanged", handleWarehouseChange);
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
@@ -106,28 +110,12 @@ const Stocks = () => {
 
   return (
     <div className="stocks-container">
-      {/* <div className="stocks-title-header">
-      <h2 className="page-title" style={{ marginRight: 'auto' }}>Product List</h2>
-        <div>
-          <h2>🧾 Stocks Table</h2>
-          <p className="muted">Overview of all inventory stock levels</p>
-        </div>
-
-        {currentWarehouse && (
-          <div className="warehouse-chip">
-            <FaWarehouse />
-            <span>{currentWarehouse}</span>
-          </div>
-        )}
-      </div> */}
       <div>
         <h2 className="page-title mb-5" style={{ marginRight: 'auto' }}>🧾 Stocks Table</h2>
       </div>
     
-
-     
-        <div className="table-wrapper">
-            <table className="table table-hover">
+      <div className="table-wrapper">
+        <table className="table table-hover">
           <thead>
             <tr>
               <th>Product</th>
@@ -170,7 +158,7 @@ const Stocks = () => {
             )}
           </tbody>
         </table>
-        </div>
+      </div>
     </div>
   );
 };
