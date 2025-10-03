@@ -283,6 +283,19 @@ const VanLoadTable = ({
     }
   }
 
+  // ✅ Stock availability check (same as ProductTable)
+    const stockQty = availableStock[productId];
+    if (stockQty !== undefined && stockQty !== null) {
+      if (row.dispatchedPcs > stockQty) {
+        alert(`Insufficient stock! Available: ${stockQty}, You entered: ${row.dispatchedPcs}`);
+        // Reset all back to 0
+        row.dispatchedPcs = 0;
+        row.dispatchedShell = 0;
+        row.expectedSale = 0;
+      }
+    }
+  
+
   // --- Calculate expectedSale with discount ---
   const baseSale = price * row.dispatchedPcs;
   row.expectedSale = Number((baseSale * (1 - discountPercent / 100)).toFixed(2));
