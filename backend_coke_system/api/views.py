@@ -186,9 +186,44 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
+    def get_queryset(self):
+        """
+        Filter merchandising records by warehouse for multi-warehouse support
+        """
+        queryset = super().get_queryset()
+        
+        # Get warehouse filter from query params
+        warehouse_id = self.request.query_params.get('warehouse', None)
+        
+        if warehouse_id:
+            try:
+                warehouse_id = int(warehouse_id)
+                queryset = queryset.filter(warehouse_id=warehouse_id)
+            except (ValueError, TypeError):
+                pass  # Invalid warehouse_id, return unfiltered for now
+        
+        # For non-admin users, filter by their warehouse automatically
+        user = self.request.user
+        if hasattr(user, 'warehouse_id') and user.warehouse_id:
+            if not (hasattr(user, 'role') and user.role.lower() == 'admin'):
+                queryset = queryset.filter(warehouse_id=user.warehouse_id)
+        
+        return queryset.select_related('transaction_type', 'warehouse', 'customer', 'route', 'van')
+
     @action(detail=True, methods=["post"])
     def set_invoice_no(self, request, pk=None):
         merchandising = self.get_object()
+        
+        # Verify user has access to this warehouse's data
+        user = request.user
+        if hasattr(user, 'warehouse_id') and user.warehouse_id:
+            if not (hasattr(user, 'role') and user.role.lower() == 'admin'):
+                if merchandising.warehouse_id != user.warehouse_id:
+                    return Response(
+                        {"detail": "Access denied: You can only modify invoices from your warehouse."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+        
         invoice_no = request.data.get("invoice_no")
         empties_price_total = request.data.get("empties_price_total")
         empty_returns = request.data.get("empty_returns")
@@ -199,21 +234,29 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
                 {"detail": "Invoice number is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        merchandising.invoice_no = invoice_no
 
+        # track which fields to update
+        update_fields = []
+
+        # required invoice_no
+        merchandising.invoice_no = invoice_no
+        update_fields.append("invoice_no")
+
+        # optional fields
         if empties_price_total is not None:
             merchandising.empties_price_total = empties_price_total
+            update_fields.append("empties_price_total")
 
         if empty_returns is not None:
             merchandising.empty_returns = empty_returns
+            update_fields.append("empty_returns")
 
         if payment_method is not None:
             merchandising.payment_method = str(payment_method)
+            update_fields.append("payment_method")
 
-
-        merchandising.save(update_fields=["invoice_no", "empties_price_total", "empty_returns", "payment_method"])
-        return Response(self.get_serializer(merchandising).data, status=200)
-
+        merchandising.save(update_fields=update_fields)
+        return Response(self.get_serializer(merchandising).data, status=status.HTTP_200_OK)
 
 class HasAccessPermission(BasePermission):
     """
