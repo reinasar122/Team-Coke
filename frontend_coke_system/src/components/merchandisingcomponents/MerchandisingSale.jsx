@@ -62,9 +62,7 @@ const MerchandisingSale = () => {
   
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
   const [vanLoadDiscount, setVanLoadDiscount] = useState("");
-
-  const [discrepancyEmptyTotal, setDiscrepancyEmptyTotal] = useState(0);
-
+  
 
   // at top of component
   const editingExistingRef = useRef(false);
@@ -1087,8 +1085,8 @@ const handleSaveVanLoadEdit = async () => {
               <input
                 type="text"
                 value={mspNo}
+                onChange={(e) => setMspNo(e.target.value)}
                 className="border w-full rounded-md px-2 py-1 text-sm"
-                disabled
               />
             </div>
 
@@ -1125,25 +1123,20 @@ const handleSaveVanLoadEdit = async () => {
 
             <div>
               <label className="text-sm mb-1 block">Handled By</label>
-              <input
-                type="text"
-                value={
-                  users.find((u) => u.id === selectedUser)
-                    ? `${users.find((u) => u.id === selectedUser).first_name || ""} ${
-                        users.find((u) => u.id === selectedUser).last_name || ""
-                      }`.trim() ||
-                      users.find((u) => u.id === selectedUser).username ||
-                      `User #${selectedUser}`
-                    : ""
-                }
-                readOnly
-                className="border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
-              />
-              {/* Hidden input to still pass the ID */}
-              <input type="hidden" name="handled_by" value={selectedUser} />
+              <select
+                value={selectedUser || ""}
+                onChange={(e) => setSelectedUser(e.target.value)}
+                className="border w-full rounded-md px-2 py-1 text-black text-base"
+              >
+                <option value="">-- Select User --</option>
+                {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {`${u.first_name || ""} ${u.last_name || ""}`.trim() || u.username || `User #${u.id}`}
+                  </option>
+                ))}
+              </select>
+
             </div>
-
-
 
 
           </div>
@@ -1154,12 +1147,10 @@ const handleSaveVanLoadEdit = async () => {
               <label className="text-sm">Date/Time</label>
               <input
                 type="datetime-local"
-                className="w-full rounded-md px-2 py-1 text-sm no-picker"
+                className="w-full rounded-md px-2 py-1 text-sm"
                 value={transactionDate}
                 onChange={(e) => setTransactionDate(e.target.value)}
-                readOnly
               />
-
             </div>
 
             {/* Warehouse: CUSTOMER FIELD WITH ADD OPTION */}
@@ -1359,7 +1350,6 @@ const handleSaveVanLoadEdit = async () => {
           setTotalActualSale={setTotalActualSale}
           setEmptiesPriceTotal={setEmptiesPriceTotal}
           setRefundablesTotal={setRefundablesTotal}
-          setDiscrepancyEmptyTotal={setDiscrepancyEmptyTotal}
           setDiscrepancy={setDiscrepancy}
           setTotalAmount={setTotalAmount}
           totalAmount={totalAmount}
@@ -1412,7 +1402,7 @@ const handleSaveVanLoadEdit = async () => {
         actualSales={totalActualSale}
         emptyReturns={refundablesTotal}
         emptiesPriceTotal={emptiesPriceTotal}
-        emptyDiscrepancies={discrepancyEmptyTotal}
+        emptyDiscrepancies={discrepancy}
         totalAdjustments
         mspNo={mspNo}
         customerName={customerName} // ✅ Calculated customer name

@@ -8,16 +8,28 @@ async function createCreditLedgerFromModalPayload(payload) {
   if (payload.paymentMethod !== "credit") return null;
 
   console.log("🔍 Full credit payload:", payload);
+  console.log("🔍 Available keys:", Object.keys(payload));
 
-  const warehouseId =
+  // ✅ Try multiple warehouse ID extraction methods
+  const warehouseId = 
     payload.warehouseId ||
     payload.warehouse_id ||
     payload.warehouse?.id ||
     payload.warehouse?.warehouse_id ||
-    (typeof payload.warehouse === "number" ? payload.warehouse : null) ||
+    (typeof payload.warehouse === 'number' ? payload.warehouse : null) ||
     null;
 
+  console.log("🏪 Extracted warehouse ID:", warehouseId);
+  console.log("🏪 Warehouse ID type:", typeof warehouseId);
+
   if (!warehouseId) {
+    console.error("❌ No warehouse ID found:", {
+      warehouseId: payload.warehouseId,
+      warehouse_id: payload.warehouse_id,
+      warehouse: payload.warehouse,
+      warehouseType: typeof payload.warehouse,
+      allPayloadKeys: Object.keys(payload)
+    });
     throw new Error("Warehouse ID is required for credit transactions");
   }
 
@@ -32,11 +44,14 @@ async function createCreditLedgerFromModalPayload(payload) {
     totalAmount: payload.totalAmount,
     rows: payload.rows || [],
     transactionDate: payload.transactionDate || new Date().toISOString(),
-    warehouse: Number(warehouseId),
+    warehouse: Number(warehouseId), // ✅ Ensure it's a number
   };
+
+  console.log("📋 Credit request body:", body);
 
   try {
     const res = await axios.post("http://127.0.0.1:8080/api/credits/", body);
+    console.log("✅ Credit created successfully:", res.data);
     return res.data;
   } catch (err) {
     console.error("❌ Credit creation failed:", err.response?.data || err.message);
@@ -54,20 +69,29 @@ const PaymentModal = ({
 
   // data
   rows = [],
+
+  // money coming from parent (falls back to recompute if missing)
   amountDue = 0,
   totalAmount = 0,
   actualSales = 0,
   emptiesPriceTotal = 0,
   emptyReturns = 0,
   emptyDiscrepancies = 0,
+
+  // header info
   mspNo,
   customerName,
   handledBy,
   transactionDate,
-  transactionTypeName,
+
+  // Van Load extras
+  transactionTypeName, // "Warehouse" | "Van Load"
   expensesTotal = 0,
   remarks = "",
+
   onRemarksChange,
+
+  // van load breakdown props
   expectedSale = 0,
   totalReturnedWithContent = 0,
   totalDiscrepancyNonEmpty = 0,
@@ -75,9 +99,16 @@ const PaymentModal = ({
   overallTotalVL = 0,
   grandTotalVL = 0,
   transactionTypes = "",
+
   miscItems = [],
-  warehouse,
+  warehouse, // ✅ ADD WAREHOUSE PROP
 }) => {
+  // ✅ DEBUG: Log warehouse prop when component renders
+  console.log("🏪 PaymentModal received warehouse prop:", warehouse);
+  console.log("🏪 Warehouse type:", typeof warehouse);
+  console.log("🏪 Warehouse keys:", warehouse ? Object.keys(warehouse) : "null/undefined");
+
+  // ------------ hooks ------------
   const [paymentMethod, setPaymentMethod] = useState("cash");
   const [cashReceived, setCashReceived] = useState("");
   const [paymentTerms, setPaymentTerms] = useState("30 Days");
@@ -86,8 +117,10 @@ const PaymentModal = ({
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // ------------ helpers ------------
   const n = (v) => Number(v || 0);
   const fmt = (v) => n(v).toFixed(2);
+
   const peso = (v) =>
     `₱${n(v).toLocaleString("en-PH", {
       minimumFractionDigits: 2,
@@ -107,6 +140,7 @@ const PaymentModal = ({
     d.setDate(d.getDate() + days);
     return d;
   }, [days]);
+
   const formattedDueDate = useMemo(
     () =>
       paymentDueDate.toLocaleDateString("en-PH", {
@@ -118,34 +152,35 @@ const PaymentModal = ({
   );
 
   const formatLocalToManila = (localStr) => {
-  if (!localStr) return "";
-  const d = new Date(localStr);
-  return new Intl.DateTimeFormat("en-PH", {
-    timeZone: "Asia/Manila",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: true,
-  }).format(d);
-};
+    if (!localStr) return "";
+    const d = new Date(localStr);
+    return new Intl.DateTimeFormat("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d);
+  };
 
-
+  // ✅ Custom alert function
   const showAlert = (message) => {
-    const alertDiv = document.createElement("div");
-    alertDiv.className =
-      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
     alertDiv.innerHTML = `
       <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
         <p class="text-gray-700 mb-4">${message}</p>
         <div class="flex justify-end">
           <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
         </div>
-      </div>`;
+      </div>
+    `;
     document.body.appendChild(alertDiv);
   };
 
+  // ---- robust accessors ----
   const pickNum = (...vals) => {
     for (const v of vals) {
       if (v !== "" && v !== null && v !== undefined) {
@@ -155,52 +190,9 @@ const PaymentModal = ({
     }
     return 0;
   };
+
   const getProdName = (row) =>
     row.productName || row.product_name || row.product_detail?.product_name || "--";
-
-  //jea
-  const getDispatchedShell = (r) => pickNum(r.dispatchedShell, r.dispatched_shell);
-  const getDispatchedPcs   = (r) => pickNum(r.dispatchedPcs, r.dispatched_pcs);
-  const getEmptyBottlePrice = (r) => pickNum(r.bottlePrice, r.empty_price_pc, r.emptyPricePc);
-  const getReturnedShells = (r) =>
-    pickNum(r.expectedReturnShellEmpty, r.empty_return_shell, r.returnedEmptyShell);
-  const getReturnedPcs = (r) =>
-    pickNum(r.expectedReturnPcsEmpty, r.empty_return_pcs, r.returnedEmptyPcs);
-  const getDirectActual = (r) =>
-    pickNum(r.actualSale, r.actual_sale, r.total, r.line_total, r.lineTotal);
-  const getRowActual = (r) => {
-    const direct = getDirectActual(r);
-    if (direct) return direct;
-
-    const pcs = getSoldPcs(r);
-    const shell = getSoldShell(r);
-    const price = getUnitPrice(r);
-
-    if (isWarehouse) {
-      const discPct = getDiscountPercent(r);
-      const discAmtFromPct = (price * pcs * discPct) / 100;
-      const discAmt = getDiscountAmount(r) || discAmtFromPct;
-      return Number((pcs * price - discAmt).toFixed(2));
-    }
-
-    const emptyShell = getEmptyShellPrice(r);
-    const gross = pcs * price + shell * emptyShell;
-    const discPct = getDiscountPercent(r);
-    return Number((gross * (1 - discPct / 100)).toFixed(2));
-  };
-  const rowEmptiesValue = (r) => {
-  const shell = getSoldShell(r);
-  const pcs = getSoldPcs(r);
-    return shell * getEmptyShellPrice(r) + pcs * getEmptyBottlePrice(r);
-  };
-
-  const rowReturnsValue = (r) => {
-    const shells = getReturnedShells(r);
-    const pcs = getReturnedPcs(r);
-    return shells * getEmptyShellPrice(r) + pcs * getEmptyBottlePrice(r);
-  };
-  //jea
-
   const getSoldShell = (row) => pickNum(row.sold_shell, row.soldShell);
   const getSoldPcs = (row) => pickNum(row.sold_pcs, row.soldPcs, row.qty, row.quantity);
   const getUnitPrice = (row) => pickNum(row.unitPrice, row.selling_price, row.price);
@@ -211,42 +203,58 @@ const PaymentModal = ({
   const getDirectTotal = (row) =>
     pickNum(row.actualSale, row.actual_sale, row.total, row.line_total, row.lineTotal);
 
+  // Compute a line total if not directly provided
   const getLineTotal = (row) => {
     const direct = getDirectTotal(row);
     if (direct) return direct;
+
     const pcs = getSoldPcs(row);
     const shell = getSoldShell(row);
     const price = getUnitPrice(row);
+
     if (isWarehouse) {
+      // Warehouse: price * pcs - discount
       const discPct = getDiscountPercent(row);
       const discAmtFromPct = (price * pcs * discPct) / 100;
       const discAmt = getDiscountAmount(row) || discAmtFromPct;
       return Number((pcs * price - discAmt).toFixed(2));
     }
+
+    // Van Load: (pcs*unit + shell*emptyShell) * (1 - discount%)
     const emptyShellPrice = getEmptyShellPrice(row);
     const discPct = getDiscountPercent(row);
     const gross = pcs * price + shell * emptyShellPrice;
     return Number((gross * (1 - discPct / 100)).toFixed(2));
   };
 
-  //jea
-  const tableRows = (rows || []).filter(
-    (r) =>
-      getProdName(r) !== "--" ||
-      getSoldPcs(r) > 0 ||
-      getSoldShell(r) > 0 ||
-      getUnitPrice(r) > 0
-  );//jeaaaa
+  // Filter out blank/placeholder rows
+  const tableRows = useMemo(
+    () =>
+      (rows || []).filter(
+        (r) =>
+          getProdName(r) !== "--" ||
+          getSoldPcs(r) > 0 ||
+          getSoldShell(r) > 0 ||
+          getUnitPrice(r) > 0
+      ),
+    [rows]
+  );
+
+  // Modal "Actual Sales" fallback
   const actualSalesValue = useMemo(() => {
     const fromParent = n(actualSales);
     if (fromParent > 0) return fromParent;
     return tableRows.reduce((sum, r) => sum + getLineTotal(r), 0);
   }, [actualSales, tableRows]);
 
+  // Clear cash input every time the modal opens or a new MSP is loaded
   useEffect(() => {
-    if (open) setCashReceived("");
+    if (open) {
+      setCashReceived("");      // clears the Cash Amount Received box
+    }
   }, [open, mspNo]);
 
+  // ---- Compute a consistent total due inside the modal ----
   const computedTotalDue = useMemo(() => {
     const base =
       n(actualSalesValue) -
@@ -264,20 +272,26 @@ const PaymentModal = ({
     isVanLoad,
   ]);
 
+  // ---- VAN LOAD totals (with safe fallbacks) ----
   const vl_actual = n(actualSalesValue);
   const vl_retWc = n(totalReturnedWithContent);
   const vl_discNE = n(totalDiscrepancyNonEmpty);
   const vl_discE = n(emptyDiscrepancies);
+
   const vl_totalActualRetrieved =
     n(totalActualRetrievedVL) || vl_actual + vl_retWc + vl_discNE;
+
   const vl_overallTotal = n(overallTotalVL) || vl_actual + vl_discE + vl_discNE;
+
   const vl_grandTotal = n(grandTotalVL) || vl_overallTotal - n(expensesTotal);
 
+  // Prefer parent values only if they're explicitly positive
   const amountDueFinal = isVanLoad
     ? vl_grandTotal
     : n(amountDue) > 0
     ? n(amountDue)
     : computedTotalDue;
+
   const totalAmountFinal = isVanLoad
     ? vl_grandTotal
     : n(totalAmount) > 0
@@ -375,10 +389,6 @@ const PaymentModal = ({
 
   // ------------- early return AFTER hooks -------------
   if (!open) return null;
-
-  const subtotalFromRows = tableRows.reduce((sum, r) => sum + getRowActual(r), 0);
-  // Prefer backend actualSales if > 0, else use calculated rows
-  const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-30 flex items-center justify-center">
@@ -645,109 +655,38 @@ const PaymentModal = ({
           </>
         ) : (
           /* your non-van-load table stays as-is */
-          <>
-            {/* SOLD PRODUCTS (same as InvoiceModal) */}
-            <div className="mt-4">
-              <h4 className="font-bold mb-2 text-gray-700">SOLD PRODUCTS</h4>
-              <table className="w-full text-sm border border-gray-300">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2 text-left">Product</th>
-                    <th className="p-2 text-left">Dispatched</th>
-                    <th className="p-2 text-left">Sold</th>
-                    <th className="p-2 text-left">Unit Price</th>
-                    <th className="p-2 text-left">Discount (%)</th>
-                    <th className="p-2 text-left">Amount</th>
+          <div className="mt-6">
+            <h3 className="font-semibold mb-2">Products Summary</h3>
+            <table className="w-full mt-4 border">
+              <thead className="bg-gray-200">
+                <tr>
+                  <th className="p-2 text-left">Product</th>
+                  <th className="p-2 text-left">Sold Qty (Shell)</th>
+                  <th className="p-2 text-left">Sold Qty (PC)</th>
+                  <th className="p-2 text-left">Unit Price</th>
+                  <th className="p-2 text-left">Discount (%)</th>
+                  <th className="p-2 text-left">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.map((row, index) => (
+                  <tr key={index} className="border-t">
+                    <td className="p-2">{getProdName(row)}</td>
+                    <td className="p-2">{getSoldShell(row)}</td>
+                    <td className="p-2">{getSoldPcs(row)}</td>
+                    <td className="p-2">₱{n(getUnitPrice(row)).toFixed(2)}</td>
+                    <td className="p-2">{n(getDiscountPercent(row)).toFixed(2)}</td>
+                    <td className="p-2">₱{n(getLineTotal(row)).toFixed(2)}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row, i) => (
-                    <tr key={i}>
-                      <td className="border px-2 py-1">{getProdName(row)}</td>
-                      <td className="border px-2 py-1">
-                        {`${getDispatchedShell(row)} shells (${getDispatchedPcs(row)} pcs)`}
-                      </td>
-                      <td className="border px-2 py-1">
-                        {`${getSoldShell(row)} shells (${getSoldPcs(row)} pcs)`}
-                      </td>
-                      <td className="border px-2 py-1">₱{fmt(getUnitPrice(row))}</td>
-                      <td className="border px-2 py-1">{fmt(getDiscountPercent(row))}</td>
-                      <td className="border px-2 py-1">₱{fmt(getRowActual(row))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="text-right font-semibold mt-1">
-                SUBTOTAL: ₱{fmt(subtotal)}
-              </p>
-            </div>
-
-            {/* EMPTY PRICE */}
-            <div className="mt-6">
-              <h4 className="font-bold mb-2 text-gray-700">EMPTY PRICE</h4>
-              <table className="w-full text-sm border border-gray-300">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2">Product</th>
-                    <th className="p-2">Shell Price</th>
-                    <th className="p-2">Bottle Price</th>
-                    <th className="p-2">Total Shells</th>
-                    <th className="p-2">Total Pieces</th>
-                    <th className="p-2">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row, i) => (
-                    <tr key={i}>
-                      <td className="border px-2 py-1">{getProdName(row)}</td>
-                      <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
-                      <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
-                      <td className="border px-2 py-1">{getSoldShell(row)}</td>
-                      <td className="border px-2 py-1">{getSoldPcs(row)}</td>
-                      <td className="border px-2 py-1">₱{fmt(rowEmptiesValue(row))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="text-right font-semibold mt-1">SUBTOTAL: ₱{fmt(emptiesPriceTotal)}</p>
-            </div>
-
-            {/* RETURNS */}
-            <div className="mt-6">
-              <h4 className="font-bold mb-2 text-gray-700">RETURNS</h4>
-              <table className="w-full text-sm border border-gray-300">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2">Product</th>
-                    <th className="p-2">Shell Price</th>
-                    <th className="p-2">Bottle Price</th>
-                    <th className="p-2">Returned Shells</th>
-                    <th className="p-2">Returned Pieces</th>
-                    <th className="p-2">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row, i) => (
-                    <tr key={i}>
-                      <td className="border px-2 py-1">{getProdName(row)}</td>
-                      <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
-                      <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
-                      <td className="border px-2 py-1">{getReturnedShells(row)}</td>
-                      <td className="border px-2 py-1">{getReturnedPcs(row)}</td>
-                      <td className="border px-2 py-1">₱{fmt(rowReturnsValue(row))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="text-right font-semibold mt-1">SUBTOTAL: ₱-{fmt(emptyReturns)}</p>
-            </div>
-          </>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
 
         {/* Payment Breakdown */}
-        
+        <h3 className="font-semibold mt-4 mb-0">Payment Breakdown</h3>
         <div className="mt-6 text-sm">
-          <h3 className="font-semibold mb-2">Payment Breakdown</h3>
           <div className="flex flex-col bg-transparent p-6 border-[2px] border-slate-200">
             {isVanLoad ? (
               // ---------- VAN LOAD layout ----------
@@ -819,6 +758,7 @@ const PaymentModal = ({
             ) : (
               // ---------- WAREHOUSE ----------
               <>
+                <h3 className="font-semibold mb-2">Payment Breakdown</h3>
                 <div className="space-y-1">
                   <div className="font-semibold mb-2 flex justify-between">
                     <span>Actual Sales:</span>
@@ -879,7 +819,7 @@ const PaymentModal = ({
                 <label className="block mb-1">Cash Amount Received</label>
                 <input
                   type="number"
-                  className="input-always-spinner w-full border-[2px] border-slate-200 rounded px-2 py-1"
+                  className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
                   value={cashReceived}
                   onChange={(e) => setCashReceived(e.target.value)}
                 />
@@ -1108,11 +1048,9 @@ const PaymentModal = ({
                 if (isVanLoad && paymentOk && typeof onPaymentSuccess === "function") {
                   await onPaymentSuccess(data);
                 }
-
                 if (typeof onConfirm === "function") {
                   await onConfirm(data);
                 }
-
                 if (typeof onSave === "function") {
                   const merchandising = await onSave(data);   // ✅ capture backend response
                    if (merchandising?.id) {
@@ -1123,7 +1061,6 @@ const PaymentModal = ({
                 // 3) Show invoice
                 setInvoiceData(data);
                 setShowInvoiceModal(true);
-
               } catch (e) {
                 console.error(e);
                 
@@ -1139,7 +1076,7 @@ const PaymentModal = ({
         </div>
       </div>
 
-            {showInvoiceModal && (
+      {showInvoiceModal && (
         <InvoiceModal
           transactionTypes={transactionTypes}
           onClose={() => {
@@ -1148,13 +1085,11 @@ const PaymentModal = ({
           }}
               invoiceData={{
                  ...invoiceData,
-                  id: transactionId || invoiceData?.id || null
-                  }}
+                  id: transactionId || invoiceData?.id || null }}
         />
       )}
     </div>
   );
 };
-
 
 export default PaymentModal;

@@ -1,4 +1,4 @@
-// src/components/Notification.jsx - COMPLETE VERSION WITH ALL FUNCTIONALITY + LOW STOCK LOGIN NOTIFICATIONS
+// src/components/Notification.jsx - COMPLETE VERSION WITH OBJECT RENDERING FIX
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -93,14 +93,29 @@ const Notification = () => {
     console.log('🔔 Detail modal closed, main dropdown remains open');
   };
 
-  // ✅ NEW: Format notification detail data for display
+  // ✅ FIXED: Format notification detail data for display with proper object handling
   const formatDetailData = (notification) => {
     const data = notification.data || {};
     const details = [];
 
+    // Helper function to safely convert any value to string
+    const safeToString = (value) => {
+      if (value === null || value === undefined) return 'N/A';
+      if (typeof value === 'object') {
+        // If it's an object, try to extract meaningful information
+        if (value.name) return String(value.name);
+        if (value.id) return `ID: ${value.id}`;
+        if (value.toString && typeof value.toString === 'function') {
+          return value.toString();
+        }
+        return 'Object';
+      }
+      return String(value);
+    };
+
     // Common fields for all notifications
     if (data.warehouse_id) {
-      details.push({ label: 'Warehouse ID', value: data.warehouse_id });
+      details.push({ label: 'Warehouse ID', value: safeToString(data.warehouse_id) });
     }
     
     // Type-specific details
@@ -108,55 +123,55 @@ const Notification = () => {
       case 'low_stock':
       case 'out_of_stock':
         details.push(
-          { label: 'Product', value: data.product_name || 'Unknown Product' },
-          { label: 'Available Quantity', value: data.quantity_available || 0 },
-          { label: 'Stock Status', value: data.stock_status || 'Unknown' }
+          { label: 'Product', value: safeToString(data.product_name || 'Unknown Product') },
+          { label: 'Available Quantity', value: safeToString(data.quantity_available || 0) },
+          { label: 'Stock Status', value: safeToString(data.stock_status || 'Unknown') }
         );
         if (data.minimum_stock) {
-          details.push({ label: 'Minimum Stock', value: data.minimum_stock });
+          details.push({ label: 'Minimum Stock', value: safeToString(data.minimum_stock) });
         }
         if (data.login_check) {
           details.push({ label: 'Alert Type', value: 'Login Stock Check' });
         }
         if (data.summary_notification) {
-          details.push({ label: 'Summary', value: data.summary_details || 'Multiple items need attention' });
+          details.push({ label: 'Summary', value: safeToString(data.summary_details || 'Multiple items need attention') });
         }
         break;
 
       case 'stock_adjustment':
         details.push(
-          { label: 'Product', value: data.product_name || 'Unknown Product' },
-          { label: 'Previous Quantity', value: data.old_quantity || 'N/A' },
-          { label: 'New Quantity', value: data.new_quantity || 'N/A' },
-          { label: 'Change Type', value: data.change_type || 'Unknown' },
-          { label: 'Adjustment Reason', value: data.reason || 'Not specified' }
+          { label: 'Product', value: safeToString(data.product_name || 'Unknown Product') },
+          { label: 'Previous Quantity', value: safeToString(data.old_quantity || 'N/A') },
+          { label: 'New Quantity', value: safeToString(data.new_quantity || 'N/A') },
+          { label: 'Change Type', value: safeToString(data.change_type || 'Unknown') },
+          { label: 'Adjustment Reason', value: safeToString(data.reason || 'Not specified') }
         );
         if (data.quantity_changed) {
-          details.push({ label: 'Quantity Changed', value: `${data.change_type === 'increased' ? '+' : '-'}${data.quantity_changed}` });
+          details.push({ label: 'Quantity Changed', value: `${data.change_type === 'increased' ? '+' : '-'}${safeToString(data.quantity_changed)}` });
         }
         break;
 
       case 'expense_created':
       case 'large_expense':
         details.push(
-          { label: 'Description', value: data.description || 'No description' },
+          { label: 'Description', value: safeToString(data.description || 'No description') },
           { label: 'Amount', value: `₱${(data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
-          { label: 'Category', value: data.category || 'Miscellaneous' }
+          { label: 'Category', value: safeToString(data.category || 'Miscellaneous') }
         );
         if (notification.type === 'large_expense' && data.threshold) {
           details.push({ label: 'Threshold', value: `₱${data.threshold.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
         }
         if (data.created_by) {
-          details.push({ label: 'Created By', value: data.created_by });
+          details.push({ label: 'Created By', value: safeToString(data.created_by) });
         }
         break;
 
       case 'expense_updated':
         details.push(
-          { label: 'Description', value: data.description || 'No description' },
+          { label: 'Description', value: safeToString(data.description || 'No description') },
           { label: 'Previous Amount', value: `₱${(data.old_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
           { label: 'New Amount', value: `₱${(data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
-          { label: 'Change Type', value: data.change_type || 'Unknown' }
+          { label: 'Change Type', value: safeToString(data.change_type || 'Unknown') }
         );
         if (data.amount_difference) {
           details.push({ label: 'Amount Difference', value: `₱${data.amount_difference.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
@@ -166,95 +181,106 @@ const Notification = () => {
       case 'supplier_added':
       case 'supplier_updated':
         details.push(
-          { label: 'Supplier Name', value: data.name || 'Unknown Supplier' },
-          { label: 'Contact Number', value: data.contact_number || 'Not provided' },
-          { label: 'Address', value: data.address || 'Not provided' }
+          { label: 'Supplier Name', value: safeToString(data.name || 'Unknown Supplier') },
+          { label: 'Contact Number', value: safeToString(data.contact_number || 'Not provided') },
+          { label: 'Address', value: safeToString(data.address || 'Not provided') }
         );
         if (data.email) {
-          details.push({ label: 'Email', value: data.email });
+          details.push({ label: 'Email', value: safeToString(data.email) });
         }
         break;
 
       case 'warehouse_msp_created':
       case 'warehouse_msp_updated':
         details.push(
-          { label: 'MSP Number', value: data.msp_no || data.msp_number || 'Unknown' },
-          { label: 'Status', value: data.status || 'Unknown' },
+          { label: 'MSP Number', value: safeToString(data.msp_no || data.msp_number || 'Unknown') },
+          { label: 'Status', value: safeToString(data.status || 'Unknown') },
           { label: 'Expected Sale', value: `₱${(data.expected_sale || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
         );
         if (data.actual_sale) {
           details.push({ label: 'Actual Sale', value: `₱${data.actual_sale.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
         }
         if (data.handled_by) {
-          details.push({ label: 'Handled By', value: data.handled_by });
+          details.push({ label: 'Handled By', value: safeToString(data.handled_by) });
         }
         if (data.is_van_load && data.route) {
-          details.push({ label: 'Route', value: typeof data.route === 'object' ? data.route.name : data.route });
+          // ✅ FIXED: Properly handle route objects to prevent rendering object directly
+          const routeValue = typeof data.route === 'object' 
+            ? safeToString(data.route.name || data.route.route_name || `Route ${data.route.id || 'Unknown'}`) 
+            : safeToString(data.route);
+          details.push({ label: 'Route', value: routeValue });
         }
         if (data.is_van_load && data.van) {
-          details.push({ label: 'Van', value: typeof data.van === 'object' ? data.van.name : data.van });
+          // ✅ FIXED: Properly handle van objects to prevent rendering object directly
+          const vanValue = typeof data.van === 'object' 
+            ? safeToString(data.van.name || data.van.van_name || `Van ${data.van.id || 'Unknown'}`) 
+            : safeToString(data.van);
+          details.push({ label: 'Van', value: vanValue });
         }
         break;
 
       case 'new_sale':
       case 'sale_voided':
         details.push(
-          { label: 'Sale ID', value: data.id || 'Unknown' },
+          { label: 'Sale ID', value: safeToString(data.id || 'Unknown') },
           { label: 'Total Amount', value: `₱${(data.total_amount || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
-          { label: 'Customer', value: data.customer_name || 'Walk-in Customer' }
+          { label: 'Customer', value: safeToString(data.customer_name || 'Walk-in Customer') }
         );
         if (data.cashier_name) {
-          details.push({ label: 'Cashier', value: data.cashier_name });
+          details.push({ label: 'Cashier', value: safeToString(data.cashier_name) });
         }
         break;
 
       case 'role_updated':
         details.push(
-          { label: 'User', value: data.user_name || 'Unknown User' },
-          { label: 'Previous Role', value: data.old_role || 'N/A' },
-          { label: 'New Role', value: data.new_role || data.role_name || 'Unknown' },
-          { label: 'Updated By', value: data.updated_by || 'System' }
+          { label: 'User', value: safeToString(data.user_name || 'Unknown User') },
+          { label: 'Previous Role', value: safeToString(data.old_role || 'N/A') },
+          { label: 'New Role', value: safeToString(data.new_role || data.role_name || 'Unknown') },
+          { label: 'Updated By', value: safeToString(data.updated_by || 'System') }
         );
         break;
 
       case 'admin_settings_changed':
         details.push(
-          { label: 'Setting', value: data.setting_name || 'Unknown Setting' },
-          { label: 'Previous Value', value: data.old_value || 'N/A' },
-          { label: 'New Value', value: data.new_value || 'N/A' },
-          { label: 'Changed By', value: data.changed_by || 'Admin' }
+          { label: 'Setting', value: safeToString(data.setting_name || 'Unknown Setting') },
+          { label: 'Previous Value', value: safeToString(data.old_value || 'N/A') },
+          { label: 'New Value', value: safeToString(data.new_value || 'N/A') },
+          { label: 'Changed By', value: safeToString(data.changed_by || 'Admin') }
         );
         break;
 
       case 'product_created':
       case 'product_updated':
         details.push(
-          { label: 'Product Name', value: data.product_name || 'Unknown Product' },
-          { label: 'Category', value: data.category || 'Uncategorized' },
+          { label: 'Product Name', value: safeToString(data.product_name || 'Unknown Product') },
+          { label: 'Category', value: safeToString(data.category || 'Uncategorized') },
           { label: 'Price', value: `₱${(data.selling_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
         );
         if (data.product_code) {
-          details.push({ label: 'Product Code', value: data.product_code });
+          details.push({ label: 'Product Code', value: safeToString(data.product_code) });
         }
         break;
 
       case 'return_processed':
       case 'refund_issued':
         details.push(
-          { label: 'Return Number', value: data.return_no || data.transaction_no || 'Unknown' },
-          { label: 'Customer', value: data.customer_name || 'Unknown Customer' },
+          { label: 'Return Number', value: safeToString(data.return_no || data.transaction_no || 'Unknown') },
+          { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
           { label: 'Refund Amount', value: `₱${(data.refund_amount || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
         );
         if (data.return_reason) {
-          details.push({ label: 'Reason', value: data.return_reason });
+          details.push({ label: 'Reason', value: safeToString(data.return_reason) });
         }
         break;
 
       default:
-        // For any other notification types, show generic data
+        // For any other notification types, show generic data with safe string conversion
         Object.keys(data).forEach(key => {
           if (key !== 'warehouse_id' && data[key] && typeof data[key] !== 'object') {
-            details.push({ label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), value: String(data[key]) });
+            details.push({ 
+              label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), 
+              value: safeToString(data[key]) 
+            });
           }
         });
         break;
