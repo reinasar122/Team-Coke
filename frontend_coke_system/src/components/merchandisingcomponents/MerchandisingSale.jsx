@@ -62,7 +62,9 @@ const MerchandisingSale = () => {
   
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
   const [vanLoadDiscount, setVanLoadDiscount] = useState("");
-  
+
+  const [discrepancyEmptyTotal, setDiscrepancyEmptyTotal] = useState(0);
+
 
   // at top of component
   const editingExistingRef = useRef(false);
@@ -1357,6 +1359,7 @@ const handleSaveVanLoadEdit = async () => {
           setTotalActualSale={setTotalActualSale}
           setEmptiesPriceTotal={setEmptiesPriceTotal}
           setRefundablesTotal={setRefundablesTotal}
+          setDiscrepancyEmptyTotal={setDiscrepancyEmptyTotal}
           setDiscrepancy={setDiscrepancy}
           setTotalAmount={setTotalAmount}
           totalAmount={totalAmount}
@@ -1409,7 +1412,7 @@ const handleSaveVanLoadEdit = async () => {
         actualSales={totalActualSale}
         emptyReturns={refundablesTotal}
         emptiesPriceTotal={emptiesPriceTotal}
-        emptyDiscrepancies={discrepancy}
+        emptyDiscrepancies={discrepancyEmptyTotal}
         totalAdjustments
         mspNo={mspNo}
         customerName={customerName} // ✅ Calculated customer name
