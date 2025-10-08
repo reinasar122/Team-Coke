@@ -293,10 +293,26 @@ const ProductTable = ({
     if (isReturnable) {
       if (field === "expectedReturnShellEmpty") {
         const shellQty = Math.floor(n(value));
+
+        // ✅ Validation: cannot exceed dispatched Shell
+        if (shellQty > n(row.dispatchedShell)) {
+          alert(`⚠️ Returned Shells (${shellQty}) cannot exceed Dispatched Shells (${row.dispatchedShell}).`);
+          return; // stop here — don't update the value
+        }
+
         row.expectedReturnShellEmpty = shellQty;
         row.expectedReturnPcsEmpty = shellQty * conversion; // PCS based on shell
-      } else if (field === "expectedReturnPcsEmpty") {
-        row.expectedReturnPcsEmpty = n(value); // PCS manually typed, Shell stays
+      } 
+      else if (field === "expectedReturnPcsEmpty") {
+        const pcsQty = n(value);
+
+        // ✅ Validation: cannot exceed dispatched PCS
+        if (pcsQty > n(row.dispatchedPcs)) {
+          alert(`⚠️ Returned PCS (${pcsQty}) cannot exceed Dispatched PCS (${row.dispatchedPcs}).`);
+          return; // stop here — don't update the value
+        }
+
+        row.expectedReturnPcsEmpty = pcsQty; // PCS manually typed
       }
 
       // Always recalc discrepancy for EMPTY
@@ -310,6 +326,7 @@ const ProductTable = ({
       row.discrepancyShellEmpty = 0;
     }
   }
+
 
   // --- RETURNED NON-EMPTY FIELDS ---
   if (["expectedReturnPcsNonempty", "expectedReturnShellNonempty"].includes(field)) {
