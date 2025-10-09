@@ -23,6 +23,7 @@ from django.urls import reverse  # If you want to generate relative URL
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from .models import User
+from django.utils.timezone import localtime
 
 
 
@@ -606,6 +607,13 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     msp_no = serializers.CharField(read_only=True)
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
     date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        # Convert UTC to local time before sending it back to frontend
+        representation['date_time'] = localtime(instance.date_time).strftime('%Y-%m-%dT%H:%M:%S')
+        return representation
+
     items = MerchandisingItemSerializer(many=True, required=False)
     misc_items = MiscellaneousItemSerializer(many=True, required=False)
     payments = PaymentSerializer(many=True, required=False, read_only=True)

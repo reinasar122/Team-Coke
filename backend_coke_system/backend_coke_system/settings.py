@@ -92,7 +92,7 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'kath2',
+         'NAME': 'practice_inventory',
          'USER': 'root',
          'PASSWORD': 'karen_123',
          'HOST': 'localhost',
