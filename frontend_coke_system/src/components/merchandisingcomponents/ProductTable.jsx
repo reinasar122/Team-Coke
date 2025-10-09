@@ -710,33 +710,29 @@ const ProductTable = ({
                 <td key={i} className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
+                    placeholder="0"
                     className={`w-full p-1 text-sm text-center rounded
-                      ${
-                        ["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)
-                          ? "input-always-spinner bg-yellow-50"
-                          : "bg-gray-100"
-                      }
-                      ${
-                        field.includes("discrepancy") && parseFloat(row[field]) !== 0
-                          ? "bg-red-100 text-red-700 font-semibold"
-                          : ""
-                      }`}
-                    value={
-                      row[field] === undefined || row[field] === null
-                        ? ""
-                        : row[field] === "" || row[field] === "0"
-                        ? ""
-                        : row[field]
-                    }
-                    onChange={(e) => handleRowChange(index, field, e.target.value)}
-                    onFocus={() => {
-                      if (row[field] === 0 || row[field] === "0") {
-                        handleRowChange(index, field, "");
-                      }
-                    }}
+                      ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)
+                        ? "input-always-spinner bg-yellow-50"
+                        : "bg-gray-100"}
+                      ${field.includes("discrepancy") && parseFloat(row[field]) !== 0
+                        ? "bg-red-100 text-red-700 font-semibold"
+                        : ""}
+                    `}
+                    value={row[field] === "" || row[field] === "0" || row[field] === null ? "" : row[field]}  // Handle empty and "0"
+                    onChange={(e) => handleRowChange(index, field, e.target.value === "" ? null : e.target.value)} // Handle empty input
+                    // onFocus={() => {
+                    //   // Reset to empty string to show placeholder when focused with "0"
+                    //   if (row[field] === "0" || row[field] === "") {
+                    //     handleRowChange(index, field, ""); // Show placeholder
+                    //   }
+                    // }}
                   />
                 </td>
               ))}
+
+
+
 
               {/* DISCOUNT (%) */}
               <td className="border border-gray-200 py-1 px-1">

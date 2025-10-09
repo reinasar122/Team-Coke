@@ -375,8 +375,10 @@ const VanLoadTable = ({
                     step="0.01"
                     placeholder="0"
                     className="input-always-spinner input text-center bg-yellow-50"
-                    value={row.dispatchedShell ?? ""}
-                    onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
+                    value={row.dispatchedShell === null || row.dispatchedShell === undefined ? "" : row.dispatchedShell}
+                  onChange={(e) =>
+                    handleRowChange(index, "dispatchedShell", e.target.value === "" ? null : e.target.value)
+                  }
                   />
                 </td>
 
@@ -388,8 +390,10 @@ const VanLoadTable = ({
                     step="1"
                     placeholder="0"
                     className="input-always-spinner input text-center bg-yellow-50"
-                    value={row.dispatchedPcs ?? ""}
-                    onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
+                    value={row.dispatchedPcs === null || row.dispatchedPcs === undefined ? "" : row.dispatchedPcs}
+                  onChange={(e) =>
+                    handleRowChange(index, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
+                  }
                   />
                 </td>
 

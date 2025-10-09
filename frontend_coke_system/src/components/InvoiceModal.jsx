@@ -4,7 +4,6 @@ import { useNavigate } from "react-router-dom";
 import { downloadInvoicePDF } from "./PDFInvoice"; // ⬅️ new import
 // In src/components/InvoiceModal.jsx (same folder as receiptPrint.jsx)
 import { printReceipt } from "./receiptPrint.jsx"; // Make sure the file name is exactly 'receiptPrint.jsx'
-import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css"
 
 
@@ -13,7 +12,6 @@ const InvoiceModal = ({
   onClose,
   invoiceData = {}, 
   hidePaymentBreakdown = false,
-  hideExpenses = false,
   isViewOnly = false,
  }) => {
 
@@ -63,7 +61,6 @@ const InvoiceModal = ({
     customerPhone,
 
     // warehouse data from merchandising.warehouse_id -> warehouse table
-    warehouseId,
     warehouseName,
     warehouseAddress,
     warehousePhone,
@@ -112,18 +109,9 @@ const InvoiceModal = ({
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
   const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
 
-// jelyn
-  const paymentBreakdown = [
-    { label: "Cash Received", value: cashReceived },
-    { label: "Amount Due", value: amountDue },
-    { label: "Change", value: change },
-  ];
-
-
   //PDF Generation sizes: KathPDF
   const [paper, setPaper] = useState(localStorage.getItem("pdf_paper") || "long");       // short | long | a4 | letter | legal | f4
   const [orientation, setOrientation] = useState(localStorage.getItem("pdf_orientation") || "portrait");
-  const [margins, setMargins] = useState({ top: 12, right: 12, bottom: 12, left: 12 });
 
 // remember last choice
 useEffect(() => localStorage.setItem("pdf_paper", paper), [paper]);
@@ -375,26 +363,26 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
 
  const handleClose = async () => {
-  // 👇 if modal is opened just for viewing (InvoiceList), skip saving
   if (isViewOnly) {
     onClose?.();
+    navigate("/trading", { replace: true });
+    return;
+  }
+
+  if (!saleId) {
+    console.warn("⚠️ InvoiceModal: no saleId provided.");
+    onClose?.(); // just close, skip saving
+    navigate("/trading", { replace: true });
+    return;
+  }
+
+  if (!invoiceNumber) {
+    showAlert("Cannot save invoice: invoice number is empty.");
     return;
   }
 
   try {
-    // validate required fields
-    if (!saleId) {
-      showAlert("Cannot save invoice: missing sale id.");
-      return;
-    }
-
-    if (!invoiceNumber) {
-      showAlert("Cannot save invoice: invoice number is empty.");
-      return;
-    }
-
-    // headers
-    const token = localStorage.getItem("authToken"); // adjust if you use a different key
+    const token = localStorage.getItem("authToken");
     const headers = {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Token ${token}` } : {}),
@@ -402,7 +390,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
     console.log("📤 Saving invoice for merchandising ID:", saleId, "Invoice No:", invoiceNumber);
 
-    // POST to correct endpoint
     const res = await fetch(
       `http://localhost:8080/api/merchandising-set/${saleId}/set_invoice_no/`,
       {
@@ -426,8 +413,10 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
           JSON.stringify(responseBody) ||
           "Failed to save invoice number. See console."
       );
-      return; // 🚫 stop here, don’t close modal or navigate
+      return;
     }
+
+    console.log("✅ Invoice saved:", responseBody);
 
     // success → close modal + redirect
     onClose?.();
@@ -437,6 +426,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     showAlert("Network error while saving invoice. Check console.");
   }
 };
+
 
 
 
@@ -806,7 +796,7 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
         </div>
 
       {/* Expenses Summary — only if NOT Warehouse */}
-        {!isWarehouse && !hideExpenses && (
+        {!isWarehouse && (
           <div className="mt-6 mb-6">
             <h3 className="font-semibold mb-2">Expenses Summary</h3>
             <table className="w-full mt-2 border">

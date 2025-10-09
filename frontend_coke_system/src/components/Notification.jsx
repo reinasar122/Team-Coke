@@ -1,4 +1,4 @@
-// src/components/Notification.jsx - COMPLETE VERSION WITH OBJECT RENDERING FIX
+// src/components/Notification.jsx - COMPLETE VERSION WITH CREDIT PAYMENT AND WAREHOUSE FILTERING FIXES
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -228,6 +228,21 @@ const Notification = () => {
         );
         if (data.cashier_name) {
           details.push({ label: 'Cashier', value: safeToString(data.cashier_name) });
+        }
+        break;
+
+      case 'paid_credit':
+        details.push(
+          { label: 'Credit ID', value: safeToString(data.id || 'Unknown') },
+          { label: 'MSP Number', value: safeToString(data.msp_no || 'N/A') },
+          { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
+          { label: 'Payment Amount', value: `₱${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Payment Date', value: safeToString(data.updated_at ? new Date(data.updated_at).toLocaleDateString() : 'Today') }
+        );
+        // ✅ ENHANCED: Show days since sale for credit payments
+        if (data.created_at && data.updated_at) {
+          const daysSinceSale = Math.floor((new Date(data.updated_at) - new Date(data.created_at)) / (1000 * 60 * 60 * 24));
+          details.push({ label: 'Days Since Sale', value: `${daysSinceSale} days` });
         }
         break;
 
@@ -1686,15 +1701,13 @@ const Notification = () => {
             break;
 
           case 'credits':
-            // Check for new paid credits (last 5 minutes)
-            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            // ✅ FIXED: NO time limit for credit payments
             items.forEach(credit => {
               const creditId = `credit-${credit.id}-${warehouseId}`;
-              const updatedDate = new Date(credit.updated_at || credit.created_at);
               
               if (credit.status?.toUpperCase() === 'PAID' && 
-                  updatedDate > fiveMinutesAgo && 
                   !processedIds.has(creditId)) {
+                console.log(`💳 Credit payment notification: ${credit.msp_no || credit.id} - Amount: ₱${Number(credit.balance || 0).toLocaleString()}`);
                 addNotification('paid_credit', { ...credit, warehouse_id: warehouseId }, userRole);
                 processedIds.add(creditId);
                 newNotifications++;
@@ -2249,7 +2262,7 @@ const Notification = () => {
       if (notif.data?.warehouse_id) {
         return notif.data.warehouse_id === currentWarehouseId;
       }
-      return true;
+      return false; // ✅ FIXED: Don't include notifications without warehouse_id
     });
 
     currentWarehouseNotifications.forEach(notification => {
@@ -2266,7 +2279,7 @@ const Notification = () => {
       if (notif.data?.warehouse_id) {
         return notif.data.warehouse_id === currentWarehouseId;
       }
-      return true;
+      return false; // ✅ FIXED: Don't include notifications without warehouse_id
     });
 
     currentWarehouseNotifications.forEach(notification => {
@@ -2372,7 +2385,7 @@ const Notification = () => {
     return user.warehouse || "Unknown Warehouse";
   };
 
-  // Filter notifications by current warehouse and calculate unread count properly
+  // ✅ FIXED: Strict warehouse filtering - Van Load notifications only show in correct warehouse
   const filteredNotifications = (activeTab === 'all' 
     ? notifications 
     : notifications.filter(notif => !notif.is_read))
@@ -2380,15 +2393,15 @@ const Notification = () => {
       if (notif.data?.warehouse_id) {
         return notif.data.warehouse_id === currentWarehouseId;
       }
-      return true;
+      return false; // ✅ FIXED: Don't show notifications without warehouse_id
     });
 
-  // Calculate unread count for current warehouse only
+  // ✅ FIXED: Calculate unread count for current warehouse only - strict filtering
   const currentWarehouseUnreadCount = notifications.filter(notif => {
     if (notif.data?.warehouse_id) {
       return notif.data.warehouse_id === currentWarehouseId && !notif.is_read;
     }
-    return !notif.is_read;
+    return false; // ✅ FIXED: Don't count notifications without warehouse_id
   }).length;
 
   return (
@@ -2420,6 +2433,7 @@ const Notification = () => {
                   </h3>
                   <div className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mt-1">
                     <div className="font-medium text-gray-700 dark:text-gray-300">{getCurrentWarehouseName()}</div>
+                    <div className="text-xs text-blue-600 dark:text-blue-400">Credit payments: No time limit</div>
                   </div>
                 </div>
                 
@@ -2497,7 +2511,7 @@ const Notification = () => {
                     Loading Notifications...
                   </h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 break-words">
-                    Please wait while we check for stock alerts, expenses (₱{largeExpenseThreshold.toLocaleString()}+ flagged), suppliers, Van Load operations, products, returns, and system & role changes.
+                    Checking for Van Load updates, credit payments (no time limit), and inventory changes.
                   </p>
                 </div>
               ) : filteredNotifications.length === 0 ? (
@@ -2506,10 +2520,10 @@ const Notification = () => {
                     <FontAwesomeIcon icon={faBell} className="text-2xl text-gray-400 dark:text-gray-500" />
                   </div>
                   <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    No Notification Here
+                    No Notifications Here
                   </h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    There is no notification to show right now.
+                    No notifications for {getCurrentWarehouseName()} right now. Credit payments will appear regardless of when they're made.
                   </p>
                 </div>
               ) : (
@@ -2540,6 +2554,16 @@ const Notification = () => {
                               {notification.priority === 'high' && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
                                   HIGH
+                                </span>
+                              )}
+                              {notification.data?.is_van_load && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
+                                  VAN LOAD
+                                </span>
+                              )}
+                              {notification.type === 'paid_credit' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                                  PAID
                                 </span>
                               )}
                               {notification.data?.login_check && (
@@ -2598,6 +2622,16 @@ const Notification = () => {
                       <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium capitalize ${getPriorityColor(selectedNotification.priority)} bg-gray-100 dark:bg-gray-700`}>
                         {selectedNotification.priority || 'Normal'} Priority
                       </span>
+                      {selectedNotification.data?.is_van_load && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
+                          Van Load Update
+                        </span>
+                      )}
+                      {selectedNotification.type === 'paid_credit' && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                          Credit Payment
+                        </span>
+                      )}
                       {selectedNotification.data?.login_check && (
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                           Login Check
