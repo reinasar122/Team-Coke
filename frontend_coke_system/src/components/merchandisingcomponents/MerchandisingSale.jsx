@@ -70,6 +70,12 @@ const MerchandisingSale = () => {
   const [allProductsRaw, setAllProductsRaw] = useState([]);
 
 
+  // Converts local date to UTC (ISO format)
+  const toUtcValue = (date) => {
+    return new Date(date).toISOString();  // Converts to UTC format (ISO 8601)
+  };
+
+
 
   //Kath
   const [stocks, setStocks] = useState([]);
@@ -734,8 +740,8 @@ const mapped = items.map((it, idx) => {
     // }
 
     // ✅ Always include date_time for both transaction types
-    const utcIso = new Date(transactionDate).toISOString();
-
+     const utcIso = toUtcValue(transactionDate); // Convert to UTC
+    
     const nz = v => Math.max(0, parseInt(v) || 0);
 
     const handledByUser = users.find(
