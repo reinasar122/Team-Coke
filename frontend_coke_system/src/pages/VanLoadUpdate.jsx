@@ -310,106 +310,157 @@ const VanLoadUpdate = () => {
     const updated = [...rows];
     const row = { ...updated[index] };
 
-    const n = (v) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : 0);
+    // ---------- Helpers ----------
+    const n = (v) => {
+      const num = parseFloat(v);
+      return Number.isFinite(num) ? num : 0;
+    };
     const pcsInt = (v) => Math.max(0, Math.round(n(v)));
     const shellInt = (v) => Math.max(0, Math.floor(n(v)));
 
-    const contentNo =
-      n(unitTypeMap?.[row.unitTypeId]) || n(row.contentNo) || 1;
+    // Resolve conversion/content_no
+    const contentNo = n(unitTypeMap?.[row.unitTypeId]) || n(row.contentNo) || 1;
 
-    // write numeric field
+    // Write raw field (as numeric) first
     row[field] = n(value);
 
+    // ---------- Pricing / returnable detection ----------
     const price = n(row.selling_price);
-    const dPct = n(row.discount); // DISPLAY-ONLY but used in totals
+    const dPct = n(row.discount);
     const shellEmptyPrice = n(row.empty_price_shell);
     const pcEmptyPrice = n(row.empty_price_pc);
     const isNonReturnable = shellEmptyPrice === 0 && pcEmptyPrice === 0;
 
-    const dispatchedPcs   = pcsInt(row.dispatched_pcs);
+    // ---------- Dispatched / Sold ----------
+    const dispatchedPcs = pcsInt(row.dispatched_pcs);
     const dispatchedShell = shellInt(row.dispatched_shell);
 
-    // SOLD sync
+    // --- SOLD SYNC (guided by dispatched) ---
     if (field === "sold_shell") {
       row.sold_shell = shellInt(value);
-      row.sold_pcs   = pcsInt(row.sold_shell * contentNo);
-    } else if (field === "sold_pcs") {
-      row.sold_pcs   = pcsInt(value);
-      row.sold_shell = shellInt(row.sold_pcs / contentNo);
+
+      // ✅ Calculate pcs based on contentNo
+      row.sold_pcs = pcsInt(row.sold_shell * contentNo);
+
+      // Clamp so it can’t exceed dispatched pcs
+      if (row.sold_pcs > row.dispatched_pcs) {
+        row.sold_pcs = row.dispatched_pcs;
+      }
+    }
+
+    else if (field === "sold_pcs") {
+      row.sold_pcs = pcsInt(value);
+
+      // clamp PCS so it doesn’t exceed dispatched
+      if (row.sold_pcs > row.dispatched_pcs) {
+        row.sold_pcs = row.dispatched_pcs;
+      }
+
+      // ❌ Don’t auto-sync shell — allow pcs to be independent
+      // row.sold_shell = shellInt(row.sold_pcs / contentNo);
+
     } else {
       row.sold_pcs   = pcsInt(row.sold_pcs);
       row.sold_shell = shellInt(row.sold_shell);
     }
 
-    const soldPcs   = row.sold_pcs;
+
+    const soldPcs = row.sold_pcs;
     const soldShell = row.sold_shell;
 
-    // RETURNED EMPTY
+
+    // ---------- RETURNED EMPTY (guided by SOLD) ----------
     if (field === "empty_return_shell") {
       row.empty_return_shell = shellInt(value);
-      row.empty_return_pcs   = pcsInt(row.empty_return_shell * contentNo);
-    } else if (field === "empty_return_pcs") {
-      row.empty_return_pcs   = pcsInt(value);
-      row.empty_return_shell = shellInt(row.empty_return_shell);
+
+      // ✅ Calculate pcs based on contentNo
+      row.empty_return_pcs = pcsInt(row.empty_return_shell * contentNo);
+
+      // Clamp so it can’t exceed sold pcs
+      if (row.empty_return_pcs > row.sold_pcs) {
+        row.empty_return_pcs = row.sold_pcs;
+      }
+    }
+ 
+    else if (field === "empty_return_pcs") {
+      row.empty_return_pcs = pcsInt(value);
+
+      // clamp PCS so it doesn’t exceed sold_pcs
+      if (row.empty_return_pcs > row.sold_pcs) {
+        row.empty_return_pcs = row.sold_pcs;
+      }
+
+      // ❌ Don’t auto-sync shell here — allow pcs to be independent
+      // row.empty_return_shell = shellInt(row.empty_return_pcs / contentNo);
+
     } else {
       row.empty_return_pcs   = pcsInt(row.empty_return_pcs);
       row.empty_return_shell = shellInt(row.empty_return_shell);
     }
 
-    const returnedEmptyPcs   = row.empty_return_pcs;
+
+
+    const returnedEmptyPcs = row.empty_return_pcs;
     const returnedEmptyShell = row.empty_return_shell;
 
     if (isNonReturnable) {
-      row.empty_return_shell    = 0;
-      row.empty_return_pcs      = 0;
-      row.discrepancy_empties_pc    = 0;
+      row.empty_return_shell = 0;
+      row.empty_return_pcs = 0;
+      row.discrepancy_empties_pc = 0;
       row.discrepancy_empties_shell = 0;
     } else {
-      row.discrepancy_empties_pc    = soldPcs   - returnedEmptyPcs;
+      row.discrepancy_empties_pc = soldPcs - returnedEmptyPcs;
       row.discrepancy_empties_shell = soldShell - returnedEmptyShell;
     }
 
-    // NON-EMPTY expected/actual
+    // ---------- RETURNED WITH CONTENT (NON-EMPTY) ----------
     if (field === "expected_return_shell_nonempty") {
       row.expected_return_shell_nonempty = shellInt(value);
-      row.expected_return_pcs_nonempty   = pcsInt(row.expected_return_shell_nonempty * contentNo);
+      row.expected_return_pcs_nonempty = pcsInt(row.expected_return_shell_nonempty * contentNo);
     } else if (field === "expected_return_pcs_nonempty") {
-      row.expected_return_pcs_nonempty   = pcsInt(value);
+      row.expected_return_pcs_nonempty = pcsInt(value);
       row.expected_return_shell_nonempty = shellInt(row.expected_return_shell_nonempty);
     } else {
-      row.expected_return_pcs_nonempty   = Math.max(0, dispatchedPcs   - soldPcs);
-      row.expected_return_shell_nonempty = Math.max(0, dispatchedShell - soldShell);
+      if (field !== "expected_return_pcs_nonempty" && field !== "expected_return_shell_nonempty") {
+        row.expected_return_pcs_nonempty = Math.max(0, dispatchedPcs - soldPcs);
+        row.expected_return_shell_nonempty = Math.max(0, dispatchedShell - soldShell);
+      } else {
+        row.expected_return_pcs_nonempty = pcsInt(row.expected_return_pcs_nonempty);
+        row.expected_return_shell_nonempty = shellInt(row.expected_return_shell_nonempty);
+      }
     }
 
+    // ---------- ACTUAL RETURN ----------
     if (field === "actual_return_shell") {
       row.actual_return_shell = shellInt(value);
-      row.actual_return_pcs   = pcsInt(row.actual_return_shell * contentNo);
+      row.actual_return_pcs = pcsInt(row.actual_return_shell * contentNo);
     } else if (field === "actual_return_pcs") {
-      row.actual_return_pcs   = pcsInt(value);
+      row.actual_return_pcs = pcsInt(value);
       row.actual_return_shell = shellInt(row.actual_return_shell);
     } else {
-      row.actual_return_pcs   = pcsInt(row.actual_return_pcs);
+      row.actual_return_pcs = pcsInt(row.actual_return_pcs);
       row.actual_return_shell = shellInt(row.actual_return_shell);
     }
 
-    const expectedPcs   = pcsInt(row.expected_return_pcs_nonempty);
+    const expectedPcs = pcsInt(row.expected_return_pcs_nonempty);
     const expectedShell = shellInt(row.expected_return_shell_nonempty);
-    const actualPcs     = pcsInt(row.actual_return_pcs);
-    const actualShell   = shellInt(row.actual_return_shell);
+    const actualPcs = pcsInt(row.actual_return_pcs);
+    const actualShell = shellInt(row.actual_return_shell);
 
-    row.discrepancy_full_pcs   = expectedPcs   - actualPcs;
+    // Non-empty discrepancy = expected − actual
+    row.discrepancy_full_pcs = expectedPcs - actualPcs;
     row.discrepancy_full_shell = expectedShell - actualShell;
 
-    // Totals -- expected = NET (dispatched, minus discount); actual = sold - discount
-    row.expected_sale = Number(
-      (price * dispatchedPcs * (1 - dPct / 100)).toFixed(2)
-    );
+    // ---------- Sales totals (Warehouse style) ----------
+    row.expected_sale = Number((price * dispatchedPcs * (1 - dPct / 100)).toFixed(2));
     const discountAmt = (price * soldPcs * dPct) / 100;
-    row.actual_sale   = Number(((price * soldPcs) - discountAmt).toFixed(2));
+    row.actual_sale = Number(((price * soldPcs) - discountAmt).toFixed(2));
 
+    // ---------- Finalize ----------
     updated[index] = row;
     setRows(updated);
   };
+
 
   /* -------------------- Totals -------------------- */
   const emptiesPriceTotal = useMemo(() => {
