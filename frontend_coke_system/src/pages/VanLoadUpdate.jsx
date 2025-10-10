@@ -661,6 +661,11 @@ const VanLoadUpdate = () => {
         misc_items: misc,
         discrepancy_empty_total: Number(totalDiscrepancyEmpty.toFixed(2)),
         discrepancy_non_empty_total: Number(totalDiscrepancyNonEmpty.toFixed(2)),
+
+         // Include empties price total and empty returns
+        empties_price_total: emptiesPriceTotal,
+        empty_returns: refundablesTotal,
+
       };
 
       console.log('🚛 Processing Van Load payment...', payload);
