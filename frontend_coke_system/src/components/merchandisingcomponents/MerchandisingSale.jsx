@@ -63,6 +63,8 @@ const MerchandisingSale = () => {
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
   const [vanLoadDiscount, setVanLoadDiscount] = useState("");
   
+  const [discrepancyEmptyTotal, setDiscrepancyEmptyTotal] = useState(0);
+
 
   // at top of component
   const editingExistingRef = useRef(false);
@@ -1361,6 +1363,7 @@ const handleSaveVanLoadEdit = async () => {
           setEmptiesPriceTotal={setEmptiesPriceTotal}
           setRefundablesTotal={setRefundablesTotal}
           setDiscrepancy={setDiscrepancy}
+          setDiscrepancyEmptyTotal={setDiscrepancyEmptyTotal}
           setTotalAmount={setTotalAmount}
           totalAmount={totalAmount}
           emptiesPriceTotal={emptiesPriceTotal}
