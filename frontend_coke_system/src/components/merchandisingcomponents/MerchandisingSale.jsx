@@ -70,6 +70,12 @@ const MerchandisingSale = () => {
   const [allProductsRaw, setAllProductsRaw] = useState([]);
 
 
+  // Converts local date to UTC (ISO format)
+  const toUtcValue = (date) => {
+    return new Date(date).toISOString();  // Converts to UTC format (ISO 8601)
+  };
+
+
 
   //Kath
   const [stocks, setStocks] = useState([]);
@@ -734,8 +740,8 @@ const mapped = items.map((it, idx) => {
     // }
 
     // ✅ Always include date_time for both transaction types
-    const utcIso = new Date(transactionDate).toISOString();
-
+     const utcIso = toUtcValue(transactionDate); // Convert to UTC
+    
     const nz = v => Math.max(0, parseInt(v) || 0);
 
     const handledByUser = users.find(
@@ -1123,23 +1129,23 @@ const handleSaveVanLoadEdit = async () => {
 
             <div>
               <label className="text-sm mb-1 block">Handled By</label>
-              <select
-                value={selectedUser || ""}
-                disabled // 👈 disables the dropdown
-                className="border w-full rounded-md px-2 py-1 text-black text-base bg-gray-200 cursor-not-allowed"
-              >
-                {users
-                  .filter((u) => u.id === selectedUser) // 👈 only show the logged-in user
-                  .map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {`${u.first_name || ""} ${u.last_name || ""}`.trim() ||
-                        u.username ||
-                        `User #${u.id}`}
-                    </option>
-                  ))}
-              </select>
+              <input
+                type="text"
+                value={
+                  users.find((u) => u.id === selectedUser)
+                    ? `${users.find((u) => u.id === selectedUser).first_name || ""} ${
+                        users.find((u) => u.id === selectedUser).last_name || ""
+                      }`.trim() ||
+                      users.find((u) => u.id === selectedUser).username ||
+                      `User #${selectedUser}`
+                    : ""
+                }
+                readOnly
+                className="border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
+              />
+              {/* Hidden input to still pass the ID */}
+              <input type="hidden" name="handled_by" value={selectedUser} />
             </div>
-
 
 
           </div>
@@ -1150,9 +1156,10 @@ const handleSaveVanLoadEdit = async () => {
               <label className="text-sm">Date/Time</label>
               <input
                 type="datetime-local"
-                className="w-full rounded-md px-2 py-1 text-sm"
+                className="w-full rounded-md px-2 py-1 text-sm no-picker"
                 value={transactionDate}
                 onChange={(e) => setTransactionDate(e.target.value)}
+                readOnly
               />
             </div>
 

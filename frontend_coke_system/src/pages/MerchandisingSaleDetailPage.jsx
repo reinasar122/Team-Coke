@@ -561,7 +561,9 @@ export default function MerchandisingSaleDetailPage() {
                       <input
                         readOnly
                         className="w-full p-1 text-sm text-center bg-gray-100 border rounded"
-                        value={it.sellingPricePc ?? ""}
+                        value={it.sellingPricePc !== "" && it.sellingPricePc != null
+                          ? `₱${Number(it.sellingPricePc).toFixed(2)}`
+                          : ""}
                       />
                     </td>
 
@@ -570,7 +572,9 @@ export default function MerchandisingSaleDetailPage() {
                       <input
                         readOnly
                         className="w-full p-1 text-sm text-center bg-gray-100 border rounded"
-                        value={it.shellPrice ?? ""}
+                        value={it.shellPrice !== "" && it.shellPrice != null
+                          ? `₱${Number(it.shellPrice).toFixed(2)}`
+                          : ""}
                       />
                     </td>
 
@@ -579,9 +583,12 @@ export default function MerchandisingSaleDetailPage() {
                       <input
                         readOnly
                         className="w-full p-1 text-sm text-center bg-gray-100 border rounded"
-                        value={it.bottlePrice ?? ""}
+                        value={it.bottlePrice !== "" && it.bottlePrice != null
+                          ? `₱${Number(it.bottlePrice).toFixed(2)}`
+                          : ""}
                       />
                     </td>
+
 
                     {/* EXPECTED SALE */}
                     <td className="border border-gray-200 py-1 px-1">

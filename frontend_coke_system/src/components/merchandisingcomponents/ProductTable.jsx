@@ -121,19 +121,20 @@ const ProductTable = ({
   const fetchStockQuantity = async (productId) => {
     if (!productId || !warehouseId) return;
 
-    const productExists = products.some((p) => p.id === parseInt(productId, 10));
-    if (!productExists) return;
-
     try {
       const response = await axios.get(
-        `http://localhost:8080/api/stocks/?product_id=${productId}&warehouse_id=${warehouseId}`
+        `http://localhost:8080/api/stocks/${productId}/availability/`
       );
-      const quantity = response.data.quantity_available;
-      setAvailableStock((prev) => ({ ...prev, [productId]: quantity ?? 0 }));
-    } catch {
+
+      const quantity = response.data.quantity_available ?? 0;
+      setAvailableStock((prev) => ({ ...prev, [productId]: quantity }));
+      console.log(`✅ Stock for product ${productId}:`, quantity);
+    } catch (err) {
+      console.error("❌ Error fetching stock:", err);
       setAvailableStock((prev) => ({ ...prev, [productId]: null }));
     }
   };
+
 
   // cache pricing by priceId for fast lookup
   useEffect(() => {
@@ -247,7 +248,28 @@ const ProductTable = ({
       if (pcs >= conversion) {
         row.dispatchedShell = Math.floor(pcs / conversion); // Shell based on PCS (PCS / content_no)
       }
+      
     }
+
+    // ✅ Stock availability check (only if stock is loaded)
+    const stockQty = availableStock[productId];
+    if (stockQty !== undefined && stockQty !== null) {
+      if (row.dispatchedPcs > stockQty) {
+        alert(`Insufficient stock! Available: ${stockQty}, You entered: ${row.dispatchedPcs}`);
+        // Reset back to 0 instead of clamping
+        row.dispatchedPcs = 0;
+        row.dispatchedShell = 0;
+        row.soldPcs = 0;
+        row.soldShell = 0;
+        row.expectedSale = 0;
+        row.actualSale = 0;
+        row.discrepancy = 0;
+      }
+
+    } else {
+      console.warn(`Stock not yet loaded for product ${productId}`);
+    }
+
 
     // Sync sold fields with dispatched
     row.soldPcs = row.dispatchedPcs;
@@ -271,10 +293,26 @@ const ProductTable = ({
     if (isReturnable) {
       if (field === "expectedReturnShellEmpty") {
         const shellQty = Math.floor(n(value));
+
+        // ✅ Validation: cannot exceed dispatched Shell
+        if (shellQty > n(row.dispatchedShell)) {
+          alert(`⚠️ Returned Shells (${shellQty}) cannot exceed Dispatched Shells (${row.dispatchedShell}).`);
+          return; // stop here — don't update the value
+        }
+
         row.expectedReturnShellEmpty = shellQty;
         row.expectedReturnPcsEmpty = shellQty * conversion; // PCS based on shell
-      } else if (field === "expectedReturnPcsEmpty") {
-        row.expectedReturnPcsEmpty = n(value); // PCS manually typed, Shell stays
+      } 
+      else if (field === "expectedReturnPcsEmpty") {
+        const pcsQty = n(value);
+
+        // ✅ Validation: cannot exceed dispatched PCS
+        if (pcsQty > n(row.dispatchedPcs)) {
+          alert(`⚠️ Returned PCS (${pcsQty}) cannot exceed Dispatched PCS (${row.dispatchedPcs}).`);
+          return; // stop here — don't update the value
+        }
+
+        row.expectedReturnPcsEmpty = pcsQty; // PCS manually typed
       }
 
       // Always recalc discrepancy for EMPTY
@@ -288,6 +326,7 @@ const ProductTable = ({
       row.discrepancyShellEmpty = 0;
     }
   }
+
 
   // --- RETURNED NON-EMPTY FIELDS ---
   if (["expectedReturnPcsNonempty", "expectedReturnShellNonempty"].includes(field)) {
@@ -587,16 +626,23 @@ const ProductTable = ({
               {/* SELLING PRICE */}
               <td className="border border-gray-200 py-1 px-1">
                 <input
-                  type="number"
+                  type="text"
                   disabled
                   className="w-full p-1 text-sm text-center bg-gray-100"
-                  value={
-                    pricingMap[row.priceId]?.selling_price ??
-                    products.find((p) => p.id === parseInt(row.productId, 10))?.price?.selling_price ??
-                    ""
-                  }
+                  value={(() => {
+                    const sellingPrice =
+                      pricingMap[row.priceId]?.selling_price ??
+                      products.find((p) => p.id === parseInt(row.productId, 10))?.price?.selling_price ??
+                      "";
+
+                    return sellingPrice !== "" && sellingPrice != null
+                      ? `₱${Number(sellingPrice).toFixed(2)}`
+                      : "";
+                  })()}
                 />
               </td>
+
+
 
               {/* SOLD */}
               <td className="border border-gray-200 py-1 px-1">
@@ -619,28 +665,40 @@ const ProductTable = ({
               {/* EMPTY PRICES */}
               <td className="border border-gray-200 py-1 px-1">
                 <input
-                  type="number"
+                  type="text"
                   className="w-full p-1 text-sm text-center bg-gray-100"
                   value={
                     !hasProduct
                       ? ""
-                      : (isMissing(row.shellPrice) ? (product?.price?.shell_price ?? 0) : row.shellPrice)
+                      : (() => {
+                          const shellPrice = isMissing(row.shellPrice)
+                            ? product?.price?.shell_price ?? 0
+                            : row.shellPrice;
+                          return `₱${Number(shellPrice).toFixed(2)}`;
+                        })()
                   }
                   disabled
                 />
               </td>
+
               <td className="border border-gray-200 py-1 px-1">
                 <input
-                  type="number"
+                  type="text"
                   className="w-full p-1 text-sm text-center bg-gray-100"
                   value={
                     !hasProduct
                       ? ""
-                      : (isMissing(row.bottlePrice) ? (product?.price?.bottle_price ?? 0) : row.bottlePrice)
+                      : (() => {
+                          const bottlePrice = isMissing(row.bottlePrice)
+                            ? product?.price?.bottle_price ?? 0
+                            : row.bottlePrice;
+                          return `₱${Number(bottlePrice).toFixed(2)}`;
+                        })()
                   }
                   disabled
                 />
               </td>
+
 
               {/* RETURN & DISCREPANCY FIELDS */}
               {[
@@ -652,33 +710,29 @@ const ProductTable = ({
                 <td key={i} className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
+                    placeholder="0"
                     className={`w-full p-1 text-sm text-center rounded
-                      ${
-                        ["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)
-                          ? "input-always-spinner bg-yellow-50"
-                          : "bg-gray-100"
-                      }
-                      ${
-                        field.includes("discrepancy") && parseFloat(row[field]) !== 0
-                          ? "bg-red-100 text-red-700 font-semibold"
-                          : ""
-                      }`}
-                    value={
-                      row[field] === undefined || row[field] === null
-                        ? ""
-                        : row[field] === "" || row[field] === "0"
-                        ? ""
-                        : row[field]
-                    }
-                    onChange={(e) => handleRowChange(index, field, e.target.value)}
-                    onFocus={() => {
-                      if (row[field] === 0 || row[field] === "0") {
-                        handleRowChange(index, field, "");
-                      }
-                    }}
+                      ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)
+                        ? "input-always-spinner bg-yellow-50"
+                        : "bg-gray-100"}
+                      ${field.includes("discrepancy") && parseFloat(row[field]) !== 0
+                        ? "bg-red-100 text-red-700 font-semibold"
+                        : ""}
+                    `}
+                    value={row[field] === "" || row[field] === "0" || row[field] === null ? "" : row[field]}  // Handle empty and "0"
+                    onChange={(e) => handleRowChange(index, field, e.target.value === "" ? null : e.target.value)} // Handle empty input
+                    // onFocus={() => {
+                    //   // Reset to empty string to show placeholder when focused with "0"
+                    //   if (row[field] === "0" || row[field] === "") {
+                    //     handleRowChange(index, field, ""); // Show placeholder
+                    //   }
+                    // }}
                   />
                 </td>
               ))}
+
+
+
 
               {/* DISCOUNT (%) */}
               <td className="border border-gray-200 py-1 px-1">

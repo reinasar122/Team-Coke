@@ -42,6 +42,25 @@ const ProductForm = () => {
     text: "",
   });
 
+    useEffect(() => {
+      // Add event listener for the Enter key when the modal is open
+      const handleEnterKey = (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();  // Prevent form submission
+          handleAddNew();      // Add new category
+        }
+      };
+
+      if (showModal.type) {
+        window.addEventListener("keydown", handleEnterKey);
+      }
+
+      return () => {
+        window.removeEventListener("keydown", handleEnterKey);
+      };
+    }, [showModal, newValue]);  // Re-run when showModal or newValue changes
+
+
   // Get current warehouse from user session
   const getCurrentWarehouse = () => {
     const userData = JSON.parse(localStorage.getItem("user") || "{}");
@@ -694,44 +713,85 @@ const ProductForm = () => {
         </div>
       </div>
 
-      {/* Add New Modal */}
-      {showModal.type && (
-        <div className="modal-overlay">
-          <div className="modal">
-            <div className="modal-body">
-              <h3 className="pf-modal-title">Add New {showModal.type.toUpperCase()}</h3>
+    {/* Add New Modal */}
+    {showModal.type && (
+      <div className="modal-overlay">
+        <div className="modal">
+          <div className="modal-body">
+            <h3 className="pf-modal-title">Add New {showModal.type.toUpperCase()}</h3>
 
-              <input
-                type="text"
-                value={newValue}
-                onChange={(e) => setNewValue(e.target.value)}
-                className="pf-input mb-4 w-full"
-                placeholder={`Enter ${showModal.type} value`}
-              />
+            <input
+              type="text"
+              value={newValue}
+              onChange={(e) => setNewValue(e.target.value)}
+              className="pf-input mb-4 w-full"
+              placeholder={`Enter ${showModal.type} value`}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddNew()} // Manually handling Enter here
+            />
 
-              <div className="pf-actions">
-                <button
-                  type="button"
-                  onClick={() => setShowModal({ type: null, rowIndex: null })}
-                  className="btn btn-cancel"
-                >
-                  Cancel
-                </button>
-                <button type="button" onClick={handleAddNew} className="btn btn-add">
-                  Add
-                </button>
-              </div>
+            <div className="pf-actions">
+              <button
+                type="button"
+                onClick={() => setShowModal({ type: null, rowIndex: null })}
+                className="btn btn-cancel"
+              >
+                Cancel
+              </button>
+              <button type="button" onClick={handleAddNew} className="btn btn-add">
+                Add
+              </button>
             </div>
           </div>
         </div>
-      )}
+      </div>
+    )}
 
-      {/* Notice Modal */}
+
+      {/* Notice Modal - Slightly Bigger & User Friendly */}
       {notice.open && (
-        <div className="modal-overlay">
-          <div className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}>
+        <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
+          <div 
+            className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}
+            style={{
+              minWidth: '320px',
+              maxWidth: '450px',
+              padding: '24px 20px',
+              borderRadius: '8px',
+              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
+              border: notice.type === "success" ? '2px solid #10b981' : '2px solid #ef4444'
+            }}
+          >
             <div className="modal-body">
-              <p className="pf-modal-text text-center">{notice.text}</p>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  fontSize: '32px',
+                  marginBottom: '12px'
+                }}>
+                  {notice.type === "success" ? "✅" : "❌"}
+                </div>
+                <p 
+                  className="pf-modal-text" 
+                  style={{
+                    fontSize: '16px',
+                    lineHeight: '1.5',
+                    margin: '0',
+                    color: notice.type === "success" ? '#065f46' : '#991b1b',
+                    fontWeight: '500'
+                  }}
+                >
+                  {notice.text}
+                </p>
+                {notice.type === "success" && (
+                  <div style={{
+                    fontSize: '13px',
+                    color: '#059669',
+                    marginTop: '12px',
+                    fontStyle: 'italic'
+                  }}>
+                   
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

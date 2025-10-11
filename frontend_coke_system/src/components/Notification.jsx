@@ -1,4 +1,4 @@
-// src/components/Notification.jsx - COMPLETE UPDATED VERSION WITH WARNINGS FIXED
+// src/components/Notification.jsx - COMPLETE VERSION WITH CREDIT PAYMENT AND WAREHOUSE FILTERING FIXES
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -18,7 +18,11 @@ import {
   faTimesCircle,
   faUndo,
   faClipboardList,
-  faUserTie
+  faUserTie,
+  faTimes,
+  faCheck,
+  faCalendarAlt,
+  faMapMarkerAlt
 } from "@fortawesome/free-solid-svg-icons";
 import axios from 'axios';
 import { useNotifications } from '../contexts/NotificationContext';
@@ -32,6 +36,10 @@ const Notification = () => {
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
   const [currentWarehouseId, setCurrentWarehouseId] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  
+  // ✅ NEW: State for notification detail modal
+  const [selectedNotification, setSelectedNotification] = useState(null);
+  const [showDetailModal, setShowDetailModal] = useState(false);
   
   // ✅ ENHANCED: Dynamic expense threshold with real-time updates
   const [largeExpenseThreshold, setLargeExpenseThreshold] = useState(10000);
@@ -56,6 +64,255 @@ const Notification = () => {
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
+
+  // ✅ NEW: Handle notification click - show details and mark as read
+  const handleNotificationClick = (notification) => {
+    console.log('🔔 Notification clicked:', notification.title);
+    
+    // Mark as read if not already read
+    if (!notification.is_read) {
+      dispatch({ type: 'MARK_AS_READ', payload: notification.id });
+      console.log('✅ Notification marked as read');
+    }
+    
+    // Show detail modal
+    setSelectedNotification(notification);
+    setShowDetailModal(true);
+  };
+
+  // ✅ FIXED: Close detail modal only with proper event handling
+  const closeDetailModal = (event) => {
+    // Prevent event bubbling to avoid triggering other click handlers
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    setShowDetailModal(false);
+    setSelectedNotification(null);
+    console.log('🔔 Detail modal closed, main dropdown remains open');
+  };
+
+  // ✅ FIXED: Format notification detail data for display with proper object handling
+  const formatDetailData = (notification) => {
+    const data = notification.data || {};
+    const details = [];
+
+    // Helper function to safely convert any value to string
+    const safeToString = (value) => {
+      if (value === null || value === undefined) return 'N/A';
+      if (typeof value === 'object') {
+        // If it's an object, try to extract meaningful information
+        if (value.name) return String(value.name);
+        if (value.id) return `ID: ${value.id}`;
+        if (value.toString && typeof value.toString === 'function') {
+          return value.toString();
+        }
+        return 'Object';
+      }
+      return String(value);
+    };
+
+    // Common fields for all notifications
+    if (data.warehouse_id) {
+      details.push({ label: 'Warehouse ID', value: safeToString(data.warehouse_id) });
+    }
+    
+    // Type-specific details
+    switch (notification.type) {
+      case 'low_stock':
+      case 'out_of_stock':
+        details.push(
+          { label: 'Product', value: safeToString(data.product_name || 'Unknown Product') },
+          { label: 'Available Quantity', value: safeToString(data.quantity_available || 0) },
+          { label: 'Stock Status', value: safeToString(data.stock_status || 'Unknown') }
+        );
+        if (data.minimum_stock) {
+          details.push({ label: 'Minimum Stock', value: safeToString(data.minimum_stock) });
+        }
+        if (data.login_check) {
+          details.push({ label: 'Alert Type', value: 'Login Stock Check' });
+        }
+        if (data.summary_notification) {
+          details.push({ label: 'Summary', value: safeToString(data.summary_details || 'Multiple items need attention') });
+        }
+        break;
+
+      case 'stock_adjustment':
+        details.push(
+          { label: 'Product', value: safeToString(data.product_name || 'Unknown Product') },
+          { label: 'Previous Quantity', value: safeToString(data.old_quantity || 'N/A') },
+          { label: 'New Quantity', value: safeToString(data.new_quantity || 'N/A') },
+          { label: 'Change Type', value: safeToString(data.change_type || 'Unknown') },
+          { label: 'Adjustment Reason', value: safeToString(data.reason || 'Not specified') }
+        );
+        if (data.quantity_changed) {
+          details.push({ label: 'Quantity Changed', value: `${data.change_type === 'increased' ? '+' : '-'}${safeToString(data.quantity_changed)}` });
+        }
+        break;
+
+      case 'expense_created':
+      case 'large_expense':
+        details.push(
+          { label: 'Description', value: safeToString(data.description || 'No description') },
+          { label: 'Amount', value: `₱${(data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Category', value: safeToString(data.category || 'Miscellaneous') }
+        );
+        if (notification.type === 'large_expense' && data.threshold) {
+          details.push({ label: 'Threshold', value: `₱${data.threshold.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+        }
+        if (data.created_by) {
+          details.push({ label: 'Created By', value: safeToString(data.created_by) });
+        }
+        break;
+
+      case 'expense_updated':
+        details.push(
+          { label: 'Description', value: safeToString(data.description || 'No description') },
+          { label: 'Previous Amount', value: `₱${(data.old_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'New Amount', value: `₱${(data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Change Type', value: safeToString(data.change_type || 'Unknown') }
+        );
+        if (data.amount_difference) {
+          details.push({ label: 'Amount Difference', value: `₱${data.amount_difference.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+        }
+        break;
+
+      case 'supplier_added':
+      case 'supplier_updated':
+        details.push(
+          { label: 'Supplier Name', value: safeToString(data.name || 'Unknown Supplier') },
+          { label: 'Contact Number', value: safeToString(data.contact_number || 'Not provided') },
+          { label: 'Address', value: safeToString(data.address || 'Not provided') }
+        );
+        if (data.email) {
+          details.push({ label: 'Email', value: safeToString(data.email) });
+        }
+        break;
+
+      case 'warehouse_msp_created':
+      case 'warehouse_msp_updated':
+        details.push(
+          { label: 'MSP Number', value: safeToString(data.msp_no || data.msp_number || 'Unknown') },
+          { label: 'Status', value: safeToString(data.status || 'Unknown') },
+          { label: 'Expected Sale', value: `₱${(data.expected_sale || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
+        );
+        if (data.actual_sale) {
+          details.push({ label: 'Actual Sale', value: `₱${data.actual_sale.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+        }
+        if (data.handled_by) {
+          details.push({ label: 'Handled By', value: safeToString(data.handled_by) });
+        }
+        if (data.is_van_load && data.route) {
+          // ✅ FIXED: Properly handle route objects to prevent rendering object directly
+          const routeValue = typeof data.route === 'object' 
+            ? safeToString(data.route.name || data.route.route_name || `Route ${data.route.id || 'Unknown'}`) 
+            : safeToString(data.route);
+          details.push({ label: 'Route', value: routeValue });
+        }
+        if (data.is_van_load && data.van) {
+          // ✅ FIXED: Properly handle van objects to prevent rendering object directly
+          const vanValue = typeof data.van === 'object' 
+            ? safeToString(data.van.name || data.van.van_name || `Van ${data.van.id || 'Unknown'}`) 
+            : safeToString(data.van);
+          details.push({ label: 'Van', value: vanValue });
+        }
+        break;
+
+      case 'new_sale':
+      case 'sale_voided':
+        details.push(
+          { label: 'Sale ID', value: safeToString(data.id || 'Unknown') },
+          { label: 'Total Amount', value: `₱${(data.total_amount || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Customer', value: safeToString(data.customer_name || 'Walk-in Customer') }
+        );
+        if (data.cashier_name) {
+          details.push({ label: 'Cashier', value: safeToString(data.cashier_name) });
+        }
+        break;
+
+      case 'paid_credit':
+        details.push(
+          { label: 'Credit ID', value: safeToString(data.id || 'Unknown') },
+          { label: 'MSP Number', value: safeToString(data.msp_no || 'N/A') },
+          { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
+          { label: 'Payment Amount', value: `₱${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Payment Date', value: safeToString(data.updated_at ? new Date(data.updated_at).toLocaleDateString() : 'Today') }
+        );
+        // ✅ ENHANCED: Show days since sale for credit payments
+        if (data.created_at && data.updated_at) {
+          const daysSinceSale = Math.floor((new Date(data.updated_at) - new Date(data.created_at)) / (1000 * 60 * 60 * 24));
+          details.push({ label: 'Days Since Sale', value: `${daysSinceSale} days` });
+        }
+        break;
+
+      case 'role_updated':
+        details.push(
+          { label: 'User', value: safeToString(data.user_name || 'Unknown User') },
+          { label: 'Previous Role', value: safeToString(data.old_role || 'N/A') },
+          { label: 'New Role', value: safeToString(data.new_role || data.role_name || 'Unknown') },
+          { label: 'Updated By', value: safeToString(data.updated_by || 'System') }
+        );
+        break;
+
+      case 'admin_settings_changed':
+        details.push(
+          { label: 'Setting', value: safeToString(data.setting_name || 'Unknown Setting') },
+          { label: 'Previous Value', value: safeToString(data.old_value || 'N/A') },
+          { label: 'New Value', value: safeToString(data.new_value || 'N/A') },
+          { label: 'Changed By', value: safeToString(data.changed_by || 'Admin') }
+        );
+        break;
+
+      case 'product_created':
+      case 'product_updated':
+        details.push(
+          { label: 'Product Name', value: safeToString(data.product_name || 'Unknown Product') },
+          { label: 'Category', value: safeToString(data.category || 'Uncategorized') },
+          { label: 'Price', value: `₱${(data.selling_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
+        );
+        if (data.product_code) {
+          details.push({ label: 'Product Code', value: safeToString(data.product_code) });
+        }
+        break;
+
+      case 'return_processed':
+      case 'refund_issued':
+        details.push(
+          { label: 'Return Number', value: safeToString(data.return_no || data.transaction_no || 'Unknown') },
+          { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
+          { label: 'Refund Amount', value: `₱${(data.refund_amount || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
+        );
+        if (data.return_reason) {
+          details.push({ label: 'Reason', value: safeToString(data.return_reason) });
+        }
+        break;
+
+      default:
+        // For any other notification types, show generic data with safe string conversion
+        Object.keys(data).forEach(key => {
+          if (key !== 'warehouse_id' && data[key] && typeof data[key] !== 'object') {
+            details.push({ 
+              label: key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()), 
+              value: safeToString(data[key]) 
+            });
+          }
+        });
+        break;
+    }
+
+    return details;
+  };
+
+  // ✅ NEW: Get priority color class
+  const getPriorityColor = (priority) => {
+    switch (priority) {
+      case 'high': return 'text-red-600 dark:text-red-400';
+      case 'medium': return 'text-yellow-600 dark:text-yellow-400';
+      case 'low': return 'text-green-600 dark:text-green-400';
+      default: return 'text-blue-600 dark:text-blue-400';
+    }
+  };
 
   // Persist notifications to localStorage helper function
   const persistNotifications = useCallback((notifications) => {
@@ -222,6 +479,7 @@ const Notification = () => {
   }, [getCurrentUser]);
 
   // ENHANCED: Complete stock and adjustment notification checking with change detection
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const checkStockNotifications = useCallback(async () => {
     const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
@@ -413,7 +671,107 @@ const Notification = () => {
     }
   }, [getCurrentUser, getCurrentWarehouse, addNotification]);
 
+  // ✅ NEW: Check for low stock items on every login (bypasses processedIds)
+  const checkLowStockOnLogin = useCallback(async () => {
+    const user = getCurrentUser();
+    const userRole = user.role?.toLowerCase();
+    const warehouseId = getCurrentWarehouse();
+    
+    if (!userRole || !warehouseId) {
+      console.log('❌ No user role or warehouse ID found for login stock check');
+      return;
+    }
+
+    console.log(`🔔 CHECKING LOW STOCK ON LOGIN for ${userRole} in warehouse ${warehouseId}`);
+
+    try {
+      const stockResponse = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`, { timeout: 5000 });
+      const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
+      
+      console.log(`🔔 LOGIN STOCK CHECK: Found ${stocks.length} stock items`);
+
+      let loginNotifications = 0;
+      const lowStockItems = [];
+      const outOfStockItems = [];
+
+      stocks.forEach(stock => {
+        const status = (stock.stock_status || "").toLowerCase();
+        const currentQuantity = parseInt(stock.quantity_available || 0);
+        
+        // Check for out of stock - always notify on login
+        if (currentQuantity === 0 || status.includes("out")) {
+          outOfStockItems.push(stock.product_name || `Product ${stock.id}`);
+          addNotification('out_of_stock', { 
+            ...stock, 
+            warehouse_id: warehouseId,
+            product_name: stock.product_name || `Product ${stock.id}`,
+            quantity_available: currentQuantity,
+            login_check: true,
+            id: `login-out-${stock.id}-${Date.now()}` // Unique ID for login check
+          }, userRole);
+          loginNotifications++;
+          console.log(`🚨 LOGIN - OUT OF STOCK: ${stock.product_name} (Qty: ${currentQuantity})`);
+        }
+        // Check for low stock - always notify on login
+        else if (status.includes("low") && currentQuantity > 0) {
+          lowStockItems.push(`${stock.product_name || `Product ${stock.id}`} (${currentQuantity} left)`);
+          addNotification('low_stock', { 
+            ...stock, 
+            warehouse_id: warehouseId,
+            product_name: stock.product_name || `Product ${stock.id}`,
+            quantity_available: currentQuantity,
+            login_check: true,
+            id: `login-low-${stock.id}-${Date.now()}` // Unique ID for login check
+          }, userRole);
+          loginNotifications++;
+          console.log(`⚠️ LOGIN - LOW STOCK: ${stock.product_name} (Qty: ${currentQuantity})`);
+        }
+      });
+
+      // Create a summary notification if there are multiple items
+      if (loginNotifications > 0) {
+        console.log(`✅ ${loginNotifications} LOGIN STOCK NOTIFICATIONS CREATED!`);
+        
+        if (loginNotifications > 3) {
+          const summaryMessage = [
+            outOfStockItems.length > 0 ? `${outOfStockItems.length} items out of stock` : '',
+            lowStockItems.length > 0 ? `${lowStockItems.length} items low in stock` : ''
+          ].filter(Boolean).join(', ');
+          
+          addNotification('low_stock', {
+            id: `login-summary-${warehouseId}-${Date.now()}`,
+            product_name: 'Stock Alert Summary',
+            quantity_available: loginNotifications,
+            warehouse_id: warehouseId,
+            stock_status: 'Multiple Items Need Attention',
+            summary_notification: true,
+            login_check: true,
+            summary_details: summaryMessage
+          }, userRole);
+        }
+        
+        // Show browser notification if permission granted
+        if (Notification.permission === "granted") {
+          try {
+            new Notification('Stock Alert', {
+              body: `${loginNotifications} items need attention in your warehouse`,
+              icon: '/favicon.ico'
+            });
+          } catch (error) {
+            console.warn("Browser notification failed:", error);
+          }
+        }
+      } else {
+        console.log(`ℹ️ LOGIN STOCK CHECK: All stock levels are adequate`);
+      }
+
+    } catch (error) {
+      console.error("❌ Login stock notification check failed:", error.message);
+    }
+  }, [getCurrentUser, getCurrentWarehouse, addNotification]);
+
   // ✅ ENHANCED: Advanced expense notification checking with improved detection
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const checkExpenseNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     console.log(`💰 CHECKING EXPENSE NOTIFICATIONS for ${userRole} in warehouse ${warehouseId} with threshold ₱${largeExpenseThreshold.toLocaleString()}`);
     let newNotifications = 0;
@@ -596,6 +954,7 @@ const Notification = () => {
   }, [addNotification, largeExpenseThreshold]);
 
   // ✅ NEW: Check system and role accessibility notifications (Admin only)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const checkSystemNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     console.log(`🔐 CHECKING SYSTEM NOTIFICATIONS for ${userRole} in warehouse ${warehouseId}`);
     let newNotifications = 0;
@@ -615,7 +974,7 @@ const Notification = () => {
         timeout: 5000
       };
 
-      const now = new Date().toISOString(); // ✅ FIXED: Define 'now' variable
+      const now = new Date().toISOString();
 
       // 1. CHECK USER ROLE CHANGES
       try {
@@ -832,6 +1191,7 @@ const Notification = () => {
   }, [addNotification]);
 
   // ✅ ENHANCED: Enhanced supplier notifications with Van Load MSP change detection
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const checkSupplierNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     console.log(`🏢 CHECKING SUPPLIER NOTIFICATIONS for ${userRole} in warehouse ${warehouseId}`);
     let newNotifications = 0;
@@ -845,7 +1205,7 @@ const Notification = () => {
         timeout: 5000
       };
 
-      const now = new Date().toISOString(); // ✅ FIXED: Define 'now' variable
+      const now = new Date().toISOString();
 
       // 1. CHECK SUPPLIERS
       const supplierResponse = await axios.get(`http://localhost:8080/api/suppliers/`, config);
@@ -1081,6 +1441,7 @@ const Notification = () => {
   }, [addNotification]);
 
   // ✅ NEW: Check products and returns/refunds notifications (Admin only)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const checkProductsAndReturnsNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     console.log(`📦 CHECKING PRODUCTS & RETURNS NOTIFICATIONS for ${userRole} in warehouse ${warehouseId}`);
     let newNotifications = 0;
@@ -1256,6 +1617,7 @@ const Notification = () => {
   }, [addNotification]);
 
   // Check ALL notification types when user performs actions
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const checkNotificationsOnAction = useCallback(async () => {
     // First, always check stock notifications
     await checkStockNotifications();
@@ -1339,15 +1701,13 @@ const Notification = () => {
             break;
 
           case 'credits':
-            // Check for new paid credits (last 5 minutes)
-            const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+            // ✅ FIXED: NO time limit for credit payments
             items.forEach(credit => {
               const creditId = `credit-${credit.id}-${warehouseId}`;
-              const updatedDate = new Date(credit.updated_at || credit.created_at);
               
               if (credit.status?.toUpperCase() === 'PAID' && 
-                  updatedDate > fiveMinutesAgo && 
                   !processedIds.has(creditId)) {
+                console.log(`💳 Credit payment notification: ${credit.msp_no || credit.id} - Amount: ₱${Number(credit.balance || 0).toLocaleString()}`);
                 addNotification('paid_credit', { ...credit, warehouse_id: warehouseId }, userRole);
                 processedIds.add(creditId);
                 newNotifications++;
@@ -1625,6 +1985,32 @@ const Notification = () => {
     };
   }, [isLoaded, addNotification, getCurrentUser, getCurrentWarehouse]);
 
+  // ✅ NEW: Listen for user login events
+  useEffect(() => {
+    const handleUserLogin = () => {
+      console.log('🔐 User logged in - checking low stock items...');
+      if (isLoaded) {
+        // Wait a bit for other systems to initialize, then check stock
+        setTimeout(() => checkLowStockOnLogin(), 2000);
+      }
+    };
+
+    const handleSessionRestore = () => {
+      console.log('🔐 User session restored - checking low stock items...');
+      if (isLoaded) {
+        setTimeout(() => checkLowStockOnLogin(), 1000);
+      }
+    };
+
+    window.addEventListener('userLoggedIn', handleUserLogin);
+    window.addEventListener('userSessionRestored', handleSessionRestore);
+    
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLogin);
+      window.removeEventListener('userSessionRestored', handleSessionRestore);
+    };
+  }, [isLoaded, checkLowStockOnLogin]);
+
   // Listen for user activities that might trigger notifications
   useEffect(() => {
     const handleUserActivity = () => {
@@ -1811,6 +2197,8 @@ const Notification = () => {
         
         if (isLoaded) {
           setTimeout(() => checkNotificationsOnAction(), 1000);
+          // Also check for low stock when warehouse changes
+          setTimeout(() => checkLowStockOnLogin(), 1500);
         }
       }
     };
@@ -1821,11 +2209,16 @@ const Notification = () => {
     return () => {
       window.removeEventListener('warehouseChanged', handleWarehouseChange);
     };
-  }, [getCurrentWarehouse, currentWarehouseId, checkNotificationsOnAction, isLoaded]);
+  }, [getCurrentWarehouse, currentWarehouseId, checkNotificationsOnAction, isLoaded, checkLowStockOnLogin]);
 
-  // Close dropdown when clicking outside
+  // ✅ FIXED: Proper click outside handling that respects detail modal
   useEffect(() => {
     const handleClickOutside = (event) => {
+      // Don't close main dropdown if detail modal is open and click is on detail modal
+      if (showDetailModal && event.target.closest('.notification-detail-modal')) {
+        return;
+      }
+      
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
         setShowOptionsMenu(false);
@@ -1837,7 +2230,24 @@ const Notification = () => {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [showDetailModal]);
+
+  // ✅ UPDATED: Close detail modal when clicking outside (but keep main dropdown open)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showDetailModal && !event.target.closest('.notification-detail-modal')) {
+        closeDetailModal();
+      }
+    };
+
+    if (showDetailModal) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDetailModal]);
 
   // Request notification permission
   useEffect(() => {
@@ -1852,7 +2262,7 @@ const Notification = () => {
       if (notif.data?.warehouse_id) {
         return notif.data.warehouse_id === currentWarehouseId;
       }
-      return true;
+      return false; // ✅ FIXED: Don't include notifications without warehouse_id
     });
 
     currentWarehouseNotifications.forEach(notification => {
@@ -1869,7 +2279,7 @@ const Notification = () => {
       if (notif.data?.warehouse_id) {
         return notif.data.warehouse_id === currentWarehouseId;
       }
-      return true;
+      return false; // ✅ FIXED: Don't include notifications without warehouse_id
     });
 
     currentWarehouseNotifications.forEach(notification => {
@@ -1975,7 +2385,7 @@ const Notification = () => {
     return user.warehouse || "Unknown Warehouse";
   };
 
-  // Filter notifications by current warehouse and calculate unread count properly
+  // ✅ FIXED: Strict warehouse filtering - Van Load notifications only show in correct warehouse
   const filteredNotifications = (activeTab === 'all' 
     ? notifications 
     : notifications.filter(notif => !notif.is_read))
@@ -1983,202 +2393,357 @@ const Notification = () => {
       if (notif.data?.warehouse_id) {
         return notif.data.warehouse_id === currentWarehouseId;
       }
-      return true;
+      return false; // ✅ FIXED: Don't show notifications without warehouse_id
     });
 
-  // Calculate unread count for current warehouse only
+  // ✅ FIXED: Calculate unread count for current warehouse only - strict filtering
   const currentWarehouseUnreadCount = notifications.filter(notif => {
     if (notif.data?.warehouse_id) {
       return notif.data.warehouse_id === currentWarehouseId && !notif.is_read;
     }
-    return !notif.is_read;
+    return false; // ✅ FIXED: Don't count notifications without warehouse_id
   }).length;
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Notification Bell Icon */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-white hover:text-gray-300 focus:outline-none transition-colors"
-        title={`${currentWarehouseUnreadCount} unread notifications`}
-      >
-        <FontAwesomeIcon icon={faBell} className="text-lg" />
-        {currentWarehouseUnreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold animate-pulse">
-            {currentWarehouseUnreadCount > 99 ? '99+' : currentWarehouseUnreadCount}
-          </span>
-        )}
-      </button>
+    <>
+      <div className="relative" ref={dropdownRef}>
+        {/* Notification Bell Icon */}
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="relative p-2 text-white hover:text-gray-300 focus:outline-none transition-colors"
+          title={`${currentWarehouseUnreadCount} unread notifications`}
+        >
+          <FontAwesomeIcon icon={faBell} className="text-lg" />
+          {currentWarehouseUnreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold animate-pulse">
+              {currentWarehouseUnreadCount > 99 ? '99+' : currentWarehouseUnreadCount}
+            </span>
+          )}
+        </button>
 
-      {/* Notification Dropdown - TALLER CONTAINER */}
-      {isOpen && (
-        <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[600px] overflow-hidden">
-          {/* Header */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex-1 min-w-0 pr-2">
-                <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
-                  Notifications
-                </h3>
-                <div className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mt-1">
-                  <div className="font-medium text-gray-700 dark:text-gray-300">{getCurrentWarehouseName()}</div>
-                  <div className="mt-1 break-words">
-                    Stock • Expenses (₱{largeExpenseThreshold.toLocaleString()}) • Suppliers
+        {/* Notification Dropdown - TALLER CONTAINER */}
+        {isOpen && (
+          <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[600px] overflow-hidden">
+            {/* Header */}
+            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex-1 min-w-0 pr-2">
+                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">
+                    Notifications
+                  </h3>
+                  <div className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mt-1">
+                    <div className="font-medium text-gray-700 dark:text-gray-300">{getCurrentWarehouseName()}</div>
+                    <div className="text-xs text-blue-600 dark:text-blue-400">Credit payments: No time limit</div>
                   </div>
-                  <div className="break-words">
-                    Van Load • Products • Returns • System • {isLoaded ? 'Active' : 'Loading...'}
-                  </div>
+                </div>
+                
+                {/* Options Menu */}
+                <div className="relative flex-shrink-0" ref={optionsRef}>
+                  <button
+                    onClick={() => setShowOptionsMenu(!showOptionsMenu)}
+                    className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded"
+                  >
+                    <FontAwesomeIcon icon={faEllipsisH} />
+                  </button>
+                  
+                  {showOptionsMenu && (
+                    <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 z-10">
+                      <button
+                        onClick={markAllAsRead}
+                        className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 dark:text-blue-400 dark:hover:bg-gray-600 flex items-center"
+                      >
+                        <FontAwesomeIcon icon={faEye} className="mr-2" />
+                        Mark all read
+                      </button>
+                      <button
+                        onClick={clearAllNotifications}
+                        className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 dark:text-red-400 dark:hover:bg-gray-600 flex items-center"
+                      >
+                        <FontAwesomeIcon icon={faTrash} className="mr-2" />
+                        Clear all
+                      </button>
+                      <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                      <button
+                        onClick={() => window.location.href = '/expense-settings'}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-600 flex items-center"
+                      >
+                        <FontAwesomeIcon icon={faCog} className="mr-2" />
+                        Settings
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
               
-              {/* Options Menu */}
-              <div className="relative flex-shrink-0" ref={optionsRef}>
+              {/* Tabs */}
+              <div className="flex space-x-1">
                 <button
-                  onClick={() => setShowOptionsMenu(!showOptionsMenu)}
-                  className="p-1 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded"
-                >
-                  <FontAwesomeIcon icon={faEllipsisH} />
-                </button>
-                
-                {showOptionsMenu && (
-                  <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 z-10">
-                    <button
-                      onClick={markAllAsRead}
-                      className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 dark:text-blue-400 dark:hover:bg-gray-600 flex items-center"
-                    >
-                      <FontAwesomeIcon icon={faEye} className="mr-2" />
-                      Mark all read
-                    </button>
-                    <button
-                      onClick={clearAllNotifications}
-                      className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-50 dark:text-red-400 dark:hover:bg-gray-600 flex items-center"
-                    >
-                      <FontAwesomeIcon icon={faTrash} className="mr-2" />
-                      Clear all
-                    </button>
-                    <div className="border-t border-gray-200 dark:border-gray-600"></div>
-                    <button
-                      onClick={() => window.location.href = '/expense-settings'}
-                      className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-600 flex items-center"
-                    >
-                      <FontAwesomeIcon icon={faCog} className="mr-2" />
-                      Settings
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-            
-            {/* Tabs */}
-            <div className="flex space-x-1">
-              <button
-                onClick={() => setActiveTab('all')}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                  activeTab === 'all'
-                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                All ({filteredNotifications.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('unread')}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${
-                  activeTab === 'unread'
-                    ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-                }`}
-              >
-                Unread ({currentWarehouseUnreadCount})
-              </button>
-            </div>
-          </div>
-
-          {/* Notifications List - TALLER SCROLLABLE AREA */}
-          <div className="max-h-96 overflow-y-auto">
-            {!isLoaded ? (
-              <div className="p-8 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                  <FontAwesomeIcon icon={faBell} className="text-2xl text-gray-400 dark:text-gray-500 animate-pulse" />
-                </div>
-                <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Loading Notifications...
-                </h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400 break-words">
-                  Please wait while we check for stock alerts, expenses (₱{largeExpenseThreshold.toLocaleString()}+ flagged), suppliers, Van Load operations, products, returns, and system & role changes.
-                </p>
-              </div>
-            ) : filteredNotifications.length === 0 ? (
-              <div className="p-8 text-center">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                  <FontAwesomeIcon icon={faBell} className="text-2xl text-gray-400 dark:text-gray-500" />
-                </div>
-                <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  No Notification Here
-                </h4>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
-                  There is no notification to show right now.
-                </p>
-              </div>
-            ) : (
-              filteredNotifications.map((notification) => (
-                <div
-                  key={notification.id}
-                  className={`px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                    !notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500' : ''
+                  onClick={() => setActiveTab('all')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    activeTab === 'all'
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 mt-0.5">
-                      {getNotificationIcon(notification.type, notification.priority)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0 pr-2">
-                          <div className="flex items-center space-x-2 mb-1 flex-wrap">
-                            <h4 className={`text-sm font-medium break-words ${
-                              !notification.is_read 
-                                ? 'text-gray-900 dark:text-white' 
-                                : 'text-gray-600 dark:text-gray-300'
-                            }`}>
-                              {notification.title}
-                            </h4>
-                            {notification.category && getCategoryBadge(notification.category)}
-                            {notification.priority === 'high' && (
-                              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
-                                HIGH
-                              </span>
+                  All ({filteredNotifications.length})
+                </button>
+                <button
+                  onClick={() => setActiveTab('unread')}
+                  className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                    activeTab === 'unread'
+                      ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium'
+                      : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                  }`}
+                >
+                  Unread ({currentWarehouseUnreadCount})
+                </button>
+              </div>
+            </div>
+
+            {/* Notifications List - TALLER SCROLLABLE AREA */}
+            <div className="max-h-96 overflow-y-auto">
+              {!isLoaded ? (
+                <div className="p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                    <FontAwesomeIcon icon={faBell} className="text-2xl text-gray-400 dark:text-gray-500 animate-pulse" />
+                  </div>
+                  <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Loading Notifications...
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 break-words">
+                    Checking for Van Load updates, credit payments (no time limit), and inventory changes.
+                  </p>
+                </div>
+              ) : filteredNotifications.length === 0 ? (
+                <div className="p-8 text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
+                    <FontAwesomeIcon icon={faBell} className="text-2xl text-gray-400 dark:text-gray-500" />
+                  </div>
+                  <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    No Notifications Here
+                  </h4>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    No notifications for {getCurrentWarehouseName()} right now. Credit payments will appear regardless of when they're made.
+                  </p>
+                </div>
+              ) : (
+                filteredNotifications.map((notification) => (
+                  <div
+                    key={notification.id}
+                    onClick={() => handleNotificationClick(notification)}
+                    className={`px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${
+                      !notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500' : ''
+                    }`}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="flex-shrink-0 mt-0.5">
+                        {getNotificationIcon(notification.type, notification.priority)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1 min-w-0 pr-2">
+                            <div className="flex items-center space-x-2 mb-1 flex-wrap">
+                              <h4 className={`text-sm font-medium break-words ${
+                                !notification.is_read 
+                                  ? 'text-gray-900 dark:text-white' 
+                                  : 'text-gray-600 dark:text-gray-300'
+                              }`}>
+                                {notification.title}
+                              </h4>
+                              {notification.category && getCategoryBadge(notification.category)}
+                              {notification.priority === 'high' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+                                  HIGH
+                                </span>
+                              )}
+                              {notification.data?.is_van_load && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
+                                  VAN LOAD
+                                </span>
+                              )}
+                              {notification.type === 'paid_credit' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                                  PAID
+                                </span>
+                              )}
+                              {notification.data?.login_check && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                                  LOGIN
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">
+                              {notification.message}
+                            </p>
+                            {notification.details && (
+                              <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 break-words">
+                                {notification.details}
+                              </p>
+                            )}
+                            <span className="text-xs text-gray-400 dark:text-gray-500 mt-1 inline-block">
+                              {timeAgo(notification.timestamp)}
+                            </span>
+                          </div>
+                          
+                          {/* ✅ CLEANED: Only blue dot indicator remains */}
+                          <div className="flex items-center space-x-1 flex-shrink-0">
+                            {!notification.is_read && (
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                             )}
                           </div>
-                          <p className="text-sm text-gray-600 dark:text-gray-400 mt-0.5 break-words">
-                            {notification.message}
-                          </p>
-                          {notification.details && (
-                            <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 break-words">
-                              {notification.details}
-                            </p>
-                          )}
-                          <span className="text-xs text-gray-400 dark:text-gray-500 mt-1 inline-block">
-                            {timeAgo(notification.timestamp)}
-                          </span>
-                        </div>
-                        
-                        {/* ✅ CLEANED: Only blue dot indicator remains */}
-                        <div className="flex items-center space-x-1 flex-shrink-0">
-                          {!notification.is_read && (
-                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                          )}
                         </div>
                       </div>
                     </div>
                   </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ✅ FIXED: Notification Detail Modal with proper X button behavior */}
+      {showDetailModal && selectedNotification && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
+          <div className="notification-detail-modal bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-start justify-between">
+                <div className="flex items-start space-x-3">
+                  <div className="flex-shrink-0 mt-1">
+                    {getNotificationIcon(selectedNotification.type, selectedNotification.priority)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+                      {selectedNotification.title}
+                    </h2>
+                    <div className="flex items-center space-x-2 mb-2">
+                      {selectedNotification.category && getCategoryBadge(selectedNotification.category)}
+                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium capitalize ${getPriorityColor(selectedNotification.priority)} bg-gray-100 dark:bg-gray-700`}>
+                        {selectedNotification.priority || 'Normal'} Priority
+                      </span>
+                      {selectedNotification.data?.is_van_load && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300">
+                          Van Load Update
+                        </span>
+                      )}
+                      {selectedNotification.type === 'paid_credit' && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                          Credit Payment
+                        </span>
+                      )}
+                      {selectedNotification.data?.login_check && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
+                          Login Check
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-400 text-sm">
+                      {selectedNotification.message}
+                    </p>
+                    {selectedNotification.details && (
+                      <p className="text-gray-500 dark:text-gray-500 text-sm mt-2">
+                        {selectedNotification.details}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              ))
-            )}
+                {/* ✅ FIXED: X button with proper event handling */}
+                <button
+                  onClick={closeDetailModal}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 z-10"
+                  type="button"
+                >
+                  <FontAwesomeIcon icon={faTimes} className="text-lg" />
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {/* Notification Details */}
+              <div className="space-y-4">
+                {/* Basic Information */}
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                    <FontAwesomeIcon icon={faInfoCircle} className="mr-2 text-blue-500" />
+                    Basic Information
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Created:</span>
+                      <div className="font-medium text-gray-900 dark:text-white flex items-center">
+                        <FontAwesomeIcon icon={faCalendarAlt} className="mr-1 text-gray-400" />
+                        {new Date(selectedNotification.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Time Ago:</span>
+                      <div className="font-medium text-gray-900 dark:text-white">
+                        {timeAgo(selectedNotification.timestamp)}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Type:</span>
+                      <div className="font-medium text-gray-900 dark:text-white capitalize">
+                        {selectedNotification.type.replace(/_/g, ' ')}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Status:</span>
+                      <div className={`font-medium ${selectedNotification.is_read ? 'text-green-600' : 'text-blue-600'}`}>
+                        <FontAwesomeIcon icon={selectedNotification.is_read ? faCheck : faEye} className="mr-1" />
+                        {selectedNotification.is_read ? 'Read' : 'Unread'}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Detailed Information */}
+                {formatDetailData(selectedNotification).length > 0 && (
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                      <FontAwesomeIcon icon={faClipboardList} className="mr-2 text-green-500" />
+                      Detailed Information
+                    </h3>
+                    <div className="space-y-2">
+                      {formatDetailData(selectedNotification).map((detail, index) => (
+                        <div key={index} className="flex justify-between items-start text-sm">
+                          <span className="text-gray-500 dark:text-gray-400 w-1/3 flex-shrink-0">
+                            {detail.label}:
+                          </span>
+                          <span className="font-medium text-gray-900 dark:text-white w-2/3 text-right break-words">
+                            {detail.value}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Warehouse Information */}
+                {selectedNotification.data?.warehouse_id && (
+                  <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3 flex items-center">
+                      <FontAwesomeIcon icon={faMapMarkerAlt} className="mr-2 text-purple-500" />
+                      Location Information
+                    </h3>
+                    <div className="text-sm">
+                      <div className="flex justify-between items-center">
+                        <span className="text-gray-500 dark:text-gray-400">Warehouse:</span>
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {getCurrentWarehouseName()} (ID: {selectedNotification.data.warehouse_id})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };
 

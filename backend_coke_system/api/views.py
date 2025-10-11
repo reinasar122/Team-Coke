@@ -186,9 +186,44 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()
     serializer_class = MerchandisingSerializer
 
+    def get_queryset(self):
+        """
+        Filter merchandising records by warehouse for multi-warehouse support
+        """
+        queryset = super().get_queryset()
+        
+        # Get warehouse filter from query params
+        warehouse_id = self.request.query_params.get('warehouse', None)
+        
+        if warehouse_id:
+            try:
+                warehouse_id = int(warehouse_id)
+                queryset = queryset.filter(warehouse_id=warehouse_id)
+            except (ValueError, TypeError):
+                pass  # Invalid warehouse_id, return unfiltered for now
+        
+        # For non-admin users, filter by their warehouse automatically
+        user = self.request.user
+        if hasattr(user, 'warehouse_id') and user.warehouse_id:
+            if not (hasattr(user, 'role') and user.role.lower() == 'admin'):
+                queryset = queryset.filter(warehouse_id=user.warehouse_id)
+        
+        return queryset.select_related('transaction_type', 'warehouse', 'customer', 'route', 'van')
+
     @action(detail=True, methods=["post"])
     def set_invoice_no(self, request, pk=None):
         merchandising = self.get_object()
+        
+        # Verify user has access to this warehouse's data
+        user = request.user
+        if hasattr(user, 'warehouse_id') and user.warehouse_id:
+            if not (hasattr(user, 'role') and user.role.lower() == 'admin'):
+                if merchandising.warehouse_id != user.warehouse_id:
+                    return Response(
+                        {"detail": "Access denied: You can only modify invoices from your warehouse."},
+                        status=status.HTTP_403_FORBIDDEN,
+                    )
+        
         invoice_no = request.data.get("invoice_no")
         empties_price_total = request.data.get("empties_price_total")
         empty_returns = request.data.get("empty_returns")
@@ -199,21 +234,29 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
                 {"detail": "Invoice number is required."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        merchandising.invoice_no = invoice_no
 
+        # track which fields to update
+        update_fields = []
+
+        # required invoice_no
+        merchandising.invoice_no = invoice_no
+        update_fields.append("invoice_no")
+
+        # optional fields
         if empties_price_total is not None:
             merchandising.empties_price_total = empties_price_total
+            update_fields.append("empties_price_total")
 
         if empty_returns is not None:
             merchandising.empty_returns = empty_returns
+            update_fields.append("empty_returns")
 
         if payment_method is not None:
             merchandising.payment_method = str(payment_method)
+            update_fields.append("payment_method")
 
-
-        merchandising.save(update_fields=["invoice_no", "empties_price_total", "empty_returns", "payment_method"])
-        return Response(self.get_serializer(merchandising).data, status=200)
-
+        merchandising.save(update_fields=update_fields)
+        return Response(self.get_serializer(merchandising).data, status=status.HTTP_200_OK)
 
 class HasAccessPermission(BasePermission):
     """
@@ -1714,14 +1757,28 @@ class VanLoadReturnUpdateAPIView(APIView):
 
         updated_items = []
 
+        # -------- helpers --------
+        def to_int(v):
+            try:
+                return int(v or 0)
+            except Exception:
+                return 0
+
+        def to_decimal(v):
+            try:
+                return Decimal(str(v if v is not None else 0))
+            except Exception:
+                return Decimal('0')
+
         try:
             with transaction.atomic():
-                # 1) Update item rows
+                # ---- per-item updates (unchanged logic, trust FE numbers) ----
                 for data in items:
                     product_id = data.get("productId")
                     if not product_id:
                         continue
 
+                    # Lock the row for safe concurrent updates
                     mi = MerchandisingItem.objects.filter(
                         merchandising=sale, product_id=product_id
                     ).first()
@@ -1752,47 +1809,68 @@ class VanLoadReturnUpdateAPIView(APIView):
                     mi.save()
                     updated_items.append(MerchandisingItemSerializer(mi).data)
 
-                # 2) Remarks (optional)
-                if "remarks" in request.data:
-                    sale.remarks = request.data.get("remarks") or sale.remarks
+                # ---- header-level updates (expected/actual/remarks) ----
+                fields_to_update = []
+                total_expected_sale = request.data.get('total_expected_sale')
+                actual_sale_total = request.data.get('actual_sale')
+                remarks = request.data.get('remarks')
 
-                # 2.1) Accept FE-computed discrepancy totals on the header
-                de  = request.data.get('discrepancy_empty_total', None)
+                if total_expected_sale is not None:
+                    sale.expected_sale = to_decimal(total_expected_sale)
+                    fields_to_update.append('expected_sale')
+
+                if actual_sale_total is not None:
+                    sale.actual_sale = to_decimal(actual_sale_total)
+                    fields_to_update.append('actual_sale')
+
+                if remarks is not None:
+                    sale.remarks = remarks
+                    fields_to_update.append('remarks')
+
+                # ---- NEW: save FE-computed discrepancy totals on the header ----
+                de = request.data.get('discrepancy_empty_total', None)
                 dne = request.data.get('discrepancy_non_empty_total', None)
-
-                from decimal import Decimal
-                def dz(v):
-                    try:
-                        return Decimal(str(v if v is not None else 0))
-                    except Exception:
-                        return Decimal('0')
-
-                fields_to_update = ["remarks", "status"]
+                print(">>> DEBUG de/dne from FE:", de, dne)
 
                 if de is not None:
-                    sale.discrepancy_empty = dz(de)
-                    fields_to_update.append("discrepancy_empty")
+                    sale.discrepancy_empty = to_decimal(de)
+                    fields_to_update.append('discrepancy_empty')
+                    print(f"Updating discrepancy_empty: {de}")
 
                 if dne is not None:
-                    sale.discrepancy_non_empty = dz(dne)
-                    fields_to_update.append("discrepancy_non_empty")
+                    sale.discrepancy_non_empty = to_decimal(dne)
+                    fields_to_update.append('discrepancy_non_empty')
+                    print(f"Updating discrepancy_non_empty: {dne}")
 
-                # 3) Mark COMPLETE
-                sale.status = "COMPLETE"
+                # Capture the empties price total and empty returns from FE
+                empties_price_total = request.data.get('empties_price_total', 0)
+                empty_returns = request.data.get('empty_returns', 0)
 
-                # 👇 Use the list you built (this was the bug)
-                sale.save(update_fields=fields_to_update)
+                # Add these new fields to the fields_to_update list
+                sale.empties_price_total = to_decimal(empties_price_total)  # Store the total empties price
+                sale.empty_returns = to_decimal(empty_returns)  # Store the total empty returns
+                fields_to_update.append('empties_price_total')
+                fields_to_update.append('empty_returns')
 
-                # 4) ✅ CORRECTED Stock movements for Van Load completion
+                # Log the fields to update
+                print(">>> DEBUG Fields to update:", fields_to_update)
+
+                # (Optional) mark that the return math has been applied once
+                if not sale.full_returns_applied:
+                    sale.full_returns_applied = True
+                    fields_to_update.append('full_returns_applied')
+
+                # Save updated fields
+                if fields_to_update:
+                    sale.save(update_fields=fields_to_update)
+
+                # ---- CORRECTED Stock movements for Van Load completion ----
                 for data in items:
                     product_id = data.get("productId")
                     if not product_id:
                         continue
 
-                    # ✅ IMPORTANT: For Van Load, ONLY add back unsold returns
-                    # The sold quantities were already deducted during dispatch
-                    # We should NOT deduct sold_pcs again
-                    
+                    # Handle unsold returns
                     actual_return_pcs = to_int(data.get("actual_return_pcs"))
                     if actual_return_pcs > 0:
                         stock_obj, _ = Stock.objects.get_or_create(
@@ -1800,15 +1878,13 @@ class VanLoadReturnUpdateAPIView(APIView):
                             defaults={"quantity_available": 0}
                         )
                         
-                        # Add back the unsold returns to stock
+                        # Add back unsold returns to stock
                         old_qty = stock_obj.quantity_available or 0
                         Stock.objects.filter(pk=stock_obj.pk).update(
                             quantity_available=F("quantity_available") + actual_return_pcs
                         )
                         
-                        # Refresh to get updated quantity for logging
                         stock_obj.refresh_from_db()
-                        
                         print(
                             f"[STOCK DEBUG] Unsold return added | MSP: {sale.msp_no} "
                             f"| Product: {Product.objects.get(id=product_id).product_name} "
@@ -1816,7 +1892,7 @@ class VanLoadReturnUpdateAPIView(APIView):
                             f"| Before: {old_qty} | After: {stock_obj.quantity_available}"
                         )
 
-                    # Handle empty returns (bottles/shells) to ReturnableStock
+                    # Handle empty returns (shells/bottles) to ReturnableStock
                     empty_shells = to_int(data.get("empty_return_shell"))
                     empty_pcs = to_int(data.get("empty_return_pcs"))
                     if empty_shells or empty_pcs:
@@ -1843,6 +1919,10 @@ class VanLoadReturnUpdateAPIView(APIView):
                             empty_bottle_qty=F("empty_bottle_qty") + empty_pcs,
                         )
 
+            # Debug final saved values
+            sale.refresh_from_db()
+            print(f"Saved Sale: {sale.empties_price_total}, {sale.empty_returns}")
+
             return Response(
                 {
                     "message": "Van load return updated successfully",
@@ -1851,6 +1931,8 @@ class VanLoadReturnUpdateAPIView(APIView):
                     "status": sale.status,
                     "discrepancy_empty": str(sale.discrepancy_empty),
                     "discrepancy_non_empty": str(sale.discrepancy_non_empty),
+                    "empties_price_total": str(sale.empties_price_total),  # Include the stored value
+                    "empty_returns": str(sale.empty_returns),  # Include the stored value
                 },
                 status=status.HTTP_200_OK,
             )
@@ -1858,4 +1940,3 @@ class VanLoadReturnUpdateAPIView(APIView):
         except Exception as e:
             import traceback; traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        

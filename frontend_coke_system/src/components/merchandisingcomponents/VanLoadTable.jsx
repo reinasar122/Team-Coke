@@ -283,6 +283,19 @@ const VanLoadTable = ({
     }
   }
 
+  // ✅ Stock availability check (same as ProductTable)
+    const stockQty = availableStock[productId];
+    if (stockQty !== undefined && stockQty !== null) {
+      if (row.dispatchedPcs > stockQty) {
+        alert(`Insufficient stock! Available: ${stockQty}, You entered: ${row.dispatchedPcs}`);
+        // Reset all back to 0
+        row.dispatchedPcs = 0;
+        row.dispatchedShell = 0;
+        row.expectedSale = 0;
+      }
+    }
+  
+
   // --- Calculate expectedSale with discount ---
   const baseSale = price * row.dispatchedPcs;
   row.expectedSale = Number((baseSale * (1 - discountPercent / 100)).toFixed(2));
@@ -362,8 +375,10 @@ const VanLoadTable = ({
                     step="0.01"
                     placeholder="0"
                     className="input-always-spinner input text-center bg-yellow-50"
-                    value={row.dispatchedShell ?? ""}
-                    onChange={(e) => handleRowChange(index, "dispatchedShell", e.target.value)}
+                    value={row.dispatchedShell === null || row.dispatchedShell === undefined ? "" : row.dispatchedShell}
+                  onChange={(e) =>
+                    handleRowChange(index, "dispatchedShell", e.target.value === "" ? null : e.target.value)
+                  }
                   />
                 </td>
 
@@ -375,40 +390,55 @@ const VanLoadTable = ({
                     step="1"
                     placeholder="0"
                     className="input-always-spinner input text-center bg-yellow-50"
-                    value={row.dispatchedPcs ?? ""}
-                    onChange={(e) => handleRowChange(index, "dispatchedPcs", e.target.value)}
+                    value={row.dispatchedPcs === null || row.dispatchedPcs === undefined ? "" : row.dispatchedPcs}
+                  onChange={(e) =>
+                    handleRowChange(index, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
+                  }
                   />
                 </td>
 
                 {/* SELLING PRICE */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
-                    type="number"
+                    type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={row.sellingPrice ?? ""}
+                    value={
+                      row.sellingPrice !== "" && row.sellingPrice != null
+                        ? `₱${Number(row.sellingPrice).toFixed(2)}`
+                        : ""
+                    }
                   />
                 </td>
 
                 {/* EMPTY PRICE - Shell */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
-                    type="number"
+                    type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={row.shellPrice ?? ""}
+                    value={
+                      row.shellPrice !== "" && row.shellPrice != null
+                        ? `₱${Number(row.shellPrice).toFixed(2)}`
+                        : ""
+                    }
                   />
                 </td>
 
                 {/* EMPTY PRICE - PCS */}
                 <td className="border border-gray-200 py-1 px-1">
                   <input
-                    type="number"
+                    type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={row.bottlePrice ?? ""}
+                    value={
+                      row.bottlePrice !== "" && row.bottlePrice != null
+                        ? `₱${Number(row.bottlePrice).toFixed(2)}`
+                        : ""
+                    }
                   />
                 </td>
+
 
                 {/* DISCOUNT (%) — editable */}
                 <td className="border border-gray-200 py-1 px-1">

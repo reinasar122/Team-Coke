@@ -13,26 +13,44 @@ export default function CreditDetail() {
   const [error, setError] = useState("");
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
-  // Persist info so it's visible even after full payment/reload
+  // Persist info
   const [lastCashTendered, setLastCashTendered] = useState(0);
   const [lastChange, setLastChange] = useState(0);
+  const [merch, setMerch] = useState(null); // ✅ add here
 
-  // Get current warehouse information
+  // -------------------- Helpers --------------------
+  const fmt = (v) => Number(v || 0).toFixed(2);
+
+  const formatLocalToManila = (localStr) => {
+    if (!localStr) return "--";
+    const d = new Date(localStr);
+    return new Intl.DateTimeFormat("en-PH", {
+      timeZone: "Asia/Manila",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    }).format(d);
+  };
+
   const getCurrentWarehouse = useCallback(() => {
     const userData = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-    
+
     if (userData.role?.toLowerCase() === "admin") {
       return selectedWarehouse || { id: userData.warehouse_id, name: userData.warehouse };
     }
-    
+
     if (userData.warehouse_id && userData.warehouse) {
       return { id: userData.warehouse_id, name: userData.warehouse };
     }
-    
+
     return null;
   }, []);
 
+  // -------------------- Load data --------------------
   useEffect(() => {
     const warehouse = getCurrentWarehouse();
     setCurrentWarehouse(warehouse);
@@ -40,10 +58,9 @@ export default function CreditDetail() {
 
   const load = async () => {
     if (!currentWarehouse) return;
-
     try {
       setError("");
-      const warehouseParam = searchParams.get('warehouse') || currentWarehouse.id;
+      const warehouseParam = searchParams.get("warehouse") || currentWarehouse.id;
       const { data } = await axios.get(`${API}/api/credits/${id}/?warehouse=${warehouseParam}`);
       setLedger(data);
     } catch (e) {
@@ -52,31 +69,57 @@ export default function CreditDetail() {
     }
   };
 
-  useEffect(() => {
-    if (currentWarehouse) {
-      load();
+    // ✅ Fetch merchandising record that matches this ledger's MSP number exactly
+  const loadMerch = async () => {
+    if (!ledger?.msp_no) return;
+    try {
+      const { data } = await axios.get(`${API}/api/merchandisings/?msp_no=${ledger.msp_no}`);
+      if (Array.isArray(data) && data.length > 0) {
+        // Find the record that exactly matches the current MSP No (case-insensitive)
+        const match = data.find(
+          (item) => String(item.msp_no).toLowerCase() === String(ledger.msp_no).toLowerCase()
+        );
+        if (match) {
+          setMerch(match); // ✅ only this MSP No
+        } else {
+          setMerch(null); // no match found
+        }
+      } else {
+        setMerch(null);
+      }
+    } catch (err) {
+      console.error("Failed to load merchandising details:", err);
+      setMerch(null);
     }
+  };
+
+
+  useEffect(() => {
+    if (currentWarehouse) load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, currentWarehouse]);
 
-  const fmt = (v) => Number(v || 0).toFixed(2);
+    useEffect(() => {
+    if (ledger?.msp_no) loadMerch();
+  }, [ledger]);
 
+
+  // -------------------- Payment logic --------------------
   const addPayment = async (value, method = "cash", note = "") => {
     if (!currentWarehouse) return;
 
     try {
       const balance = Number(ledger?.balance || 0);
       const cash = Number(value) || 0;
-
-      // Save what the customer actually handed over, and compute change
       const changeNow = cash > balance ? cash - balance : 0;
+
       setLastCashTendered(cash);
       setLastChange(changeNow);
 
       const toPost = Math.min(cash, balance);
       if (!toPost || toPost <= 0) return;
 
-      const warehouseParam = searchParams.get('warehouse') || currentWarehouse.id;
+      const warehouseParam = searchParams.get("warehouse") || currentWarehouse.id;
       await axios.post(`${API}/api/credits/${id}/payments/?warehouse=${warehouseParam}`, {
         amount: toPost,
         method,
@@ -94,9 +137,9 @@ export default function CreditDetail() {
 
   if (!currentWarehouse) {
     return (
-      <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
-        <div style={{ textAlign: 'center', color: 'var(--danger)' }}>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.5rem' }}>No Warehouse Selected</h2>
+      <div className="flex justify-center items-center h-full text-red-600">
+        <div className="text-center">
+          <h2 className="text-xl font-bold mb-2">No Warehouse Selected</h2>
           <p>Please select a warehouse to view credit details.</p>
         </div>
       </div>
@@ -106,38 +149,62 @@ export default function CreditDetail() {
   if (error) return <div className="p-4 text-red-600">{error}</div>;
   if (!ledger) return <div className="p-4">Loading…</div>;
 
-  const balance = Number(ledger.balance || 0);
-  const total = Number(ledger.total_amount || 0);
-  const paid = Number(ledger.amount_paid || 0);
-  const numericAmount = Number(amount || 0);
+  // -------------------- Totals --------------------
+  const rows = ledger?.rows_json || ledger?.rows || [];
+  const ledgerDiscNonEmpty = rows.reduce(
+  (sum, r) =>
+    sum +
+    Number(r.discrepancy_full_shell ?? 0) * Number(r.empty_price_shell ?? 0) +
+    Number(r.discrepancy_full_pcs ?? 0) * Number(r.empty_price_pc ?? 0),
+  0
+);
 
-  // Normalize status to avoid casing/whitespace mismatches
+  const totalEmptyAmount = rows.reduce((sum, r) => {
+    const shellPrice = Number(r.shellPrice ?? r.shell_price ?? 0);
+    const bottlePrice = Number(r.bottlePrice ?? r.bottle_price ?? 0);
+    const soldShell = Number(r.sold_shell ?? r.soldShell ?? 0);
+    const soldPcs = Number(r.sold_pcs ?? r.soldPcs ?? 0);
+    return sum + (soldShell * shellPrice + soldPcs * bottlePrice);
+  }, 0);
+
+  const totalReturnedAmount = rows.reduce((sum, r) => {
+    const shellPrice = Number(r.shellPrice ?? r.shell_price ?? 0);
+    const bottlePrice = Number(r.bottlePrice ?? r.bottle_price ?? 0);
+    const retShell = Number(r.expectedReturnShellEmpty ?? r.return_shell_empty ?? r.empty_return_shell ?? 0);
+    const retPcs = Number(r.expectedReturnPcsEmpty ?? r.return_pcs_empty ?? r.empty_return_pcs ?? 0);
+    return sum + (retShell * shellPrice + retPcs * bottlePrice);
+  }, 0);
+
+  const totalDiscAmount = rows.reduce((sum, r) => {
+    const shellPrice = Number(r.shellPrice ?? r.shell_price ?? 0);
+    const bottlePrice = Number(r.bottlePrice ?? r.bottle_price ?? 0);
+    const discShell = Number(r.discrepancyShellEmpty ?? r.disc_shell_empty ?? r.discrepancy_empties_shell ?? 0);
+    const discPcs = Number(r.discrepancyPcsEmpty ?? r.disc_pcs_empty ?? r.discrepancy_empties_pc ?? 0);
+    return sum + (discShell * shellPrice + discPcs * bottlePrice);
+  }, 0);
+
+    // -------------------- Totals --------------------
+  const total = Number(ledger.total_amount ?? ledger.total_trading_amount ?? 0);
+  const paid = Number(ledger.amount_paid ?? ledger.cash_received ?? 0);
+  const balance = Number(ledger.balance ?? total - paid);
+                          // remaining balance
+
+  const numericAmount = Number(amount || 0);
   const statusNorm = String(ledger?.status ?? "").trim().toLowerCase();
   const isPaid = statusNorm === "paid";
 
-  // Button visibility logic
   const showPartial = numericAmount > 0 && numericAmount < balance;
   const showFull = numericAmount >= balance && balance > 0;
-
-  // Live previews while typing
   const appliedPayment = Math.max(0, Math.min(numericAmount, balance));
   const liveChange = numericAmount > balance && balance > 0 ? numericAmount - balance : 0;
   const paidAfter = paid + appliedPayment;
   const newBalance = Math.max(0, balance - appliedPayment);
 
-  // Paid display priority:
-  // 1) current typed amount, 2) last cash tendered, 3) ledger paid
-  const paidDisplay =
-    numericAmount > 0 ? numericAmount : lastCashTendered > 0 ? lastCashTendered : paid;
-
   const handleEnter = (e) => {
     if (e.key !== "Enter") return;
     if (balance <= 0) return;
-    if (showPartial) {
-      addPayment(numericAmount, "cash");
-    } else if (showFull) {
-      addPayment(Math.max(balance, numericAmount), "cash", "Full payment");
-    }
+    if (showPartial) addPayment(numericAmount, "cash");
+    else if (showFull) addPayment(Math.max(balance, numericAmount), "cash", "Full payment");
   };
 
   const handleAmountChange = (e) => {
@@ -146,98 +213,140 @@ export default function CreditDetail() {
     setLastChange(0);
   };
 
+  // -------------------- Render --------------------
   return (
-    <div className="p-4 space-y-6">
-      <div className="receiving-receipt-header">
-        <h1 className="page-title">Credit Receipt - {ledger.warehouse_name}</h1>
+    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+      {/* HEADER */}
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold text-gray-800">Credit Receipt - {ledger.warehouse_name}</h1>
+        <span className={`px-3 py-1 rounded-full text-sm font-medium ${isPaid ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{ledger.status}</span>
       </div>
 
-      <div className="receipt-meta">
-        <div className="meta-col">
-          <div><strong>MSP No:</strong> {ledger.msp_no}</div>
-          <div><strong>Date:</strong> {new Date(ledger.created_at).toLocaleString()}</div>
-          <div><strong>Handled By:</strong> {ledger.handled_by || "--"}</div>
+      {/* META */}
+      <div className="grid grid-cols-2 gap-6 bg-white p-4 rounded-lg shadow">
+        <div className="space-y-1">
+          <p><strong>MSP No:</strong> {ledger.msp_no}</p>
+          <p><strong>Date:</strong> {formatLocalToManila(ledger.created_at)}</p>
+          <p><strong>Handled By:</strong> {ledger.handled_by || "--"}</p>
         </div>
-        <div className="meta-col right">
-          <div><strong>Customer:</strong> {ledger.customer_name}</div>
-          <div><strong>Status:</strong> {ledger.status}</div>
-          <div><strong>Due Date:</strong> {ledger.due_date ? new Date(ledger.due_date).toLocaleDateString() : "--"}</div>
+        <div className="space-y-1 text-right">
+          <p><strong>Customer:</strong> {ledger.customer_name}</p>
+          <p><strong>Due Date:</strong> {ledger.due_date ? formatLocalToManila(ledger.due_date) : "--"}</p>
         </div>
       </div>
 
-      <div className="border rounded">
+      {/* ITEMS TABLE */}
+      <div className="bg-white rounded-lg shadow overflow-x-auto">
         <div className="px-4 py-2 font-semibold bg-gray-100">Items</div>
-        <div className="p-4">
-          <table className="w-full">
-            <thead>
-              <tr className="text-left">
-                <th className="p-2">Product</th>
-                <th className="p-2">Sold Shell</th>
-                <th className="p-2">Sold PC</th>
-                <th className="p-2">Unit Price</th>
-                <th className="p-2">Discount %</th>
-                <th className="p-2">Line Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(ledger.rows_json || []).map((r, i) => (
-                <tr key={i} className="border-t">
-                  <td className="p-2">{r.productName || r.product_name || "--"}</td>
-                  <td className="p-2">{r.sold_shell ?? r.soldShell ?? 0}</td>
-                  <td className="p-2">{r.sold_pcs ?? r.soldPcs ?? r.qty ?? r.quantity ?? 0}</td>
-                  <td className="p-2">₱{fmt(r.unitPrice ?? r.selling_price ?? r.price ?? 0)}</td>
-                  <td className="p-2">{fmt(r.discount_percent ?? r.discount ?? 0)}</td>
-                  <td className="p-2">₱{fmt(r.actualSale ?? r.actual_sale ?? r.total ?? r.line_total ?? r.lineTotal ?? 0)}</td>
-                </tr>
-              ))}
-              {!ledger.rows_json?.length && (
-                <tr>
-                  <td colSpan={6} className="p-4 text-center text-gray-500">
-                    No items snapshot.
+        <table className="w-full text-sm border-collapse">
+          <thead className="bg-gray-50 sticky top-0">
+            <tr>
+              <th className="p-2 border">Product</th>
+              <th className="p-2 border">Sold Shell</th>
+              <th className="p-2 border">Sold PC</th>
+              <th className="p-2 border">Unit Price</th>
+              <th className="p-2 border">Discount %</th>
+              <th className="p-2 border">Empty Price</th>
+              <th className="p-2 border">Returned (Empty)</th>
+              <th className="p-2 border">Discrepancy (Empty)</th>
+              <th className="p-2 border">Returned (With Content/s)</th>
+              <th className="p-2 border">Discrepancy (Non-empty)</th>
+              <th className="p-2 border">Line Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows
+              .filter((r) => {
+                // Hide rows that have no valid product name and zero values
+                const hasName = (r.productName || r.product_name || "").trim() !== "--" && (r.productName || r.product_name);
+                const soldShell = Number(r.sold_shell ?? r.soldShell ?? 0);
+                const soldPcs = Number(r.sold_pcs ?? r.soldPcs ?? 0);
+                const actualSale = Number(r.actualSale ?? r.actual_sale ?? r.total ?? r.line_total ?? r.lineTotal ?? 0);
+                const anyValue = soldShell > 0 || soldPcs > 0 || actualSale > 0;
+                return hasName || anyValue; // ✅ Only show if there’s actual data
+              })
+              .map((r, i) => {
+              const shellPrice = Number(r.shellPrice ?? r.shell_price ?? 0);
+              const bottlePrice = Number(r.bottlePrice ?? r.bottle_price ?? 0);
+              const soldShell = Number(r.sold_shell ?? r.soldShell ?? 0);
+              const soldPcs = Number(r.sold_pcs ?? r.soldPcs ?? r.qty ?? r.quantity ?? 0);
+              const retShell = Number(r.expectedReturnShellEmpty ?? r.return_shell_empty ?? r.empty_return_shell ?? 0);
+              const retPcs = Number(r.expectedReturnPcsEmpty ?? r.return_pcs_empty ?? r.empty_return_pcs ?? 0);
+              const discShell = Number(r.discrepancyShellEmpty ?? r.disc_shell_empty ?? r.discrepancy_empties_shell ?? 0);
+              const discPcs = Number(r.discrepancyPcsEmpty ?? r.disc_pcs_empty ?? r.discrepancy_empties_pc ?? 0);
+              const actualSale = Number(r.actualSale ?? r.actual_sale ?? r.total ?? r.line_total ?? r.lineTotal ?? 0);
+
+              const emptyPriceShell = Number(r.empty_price_shell ?? 0);
+              const emptyPricePc = Number(r.empty_price_pc ?? 0);
+
+              const emptyAmount = soldShell * emptyPriceShell + soldPcs * emptyPricePc;
+              const returnedAmount = retShell * emptyPriceShell + retPcs * emptyPricePc;
+              const discAmount = discShell * emptyPriceShell + discPcs * emptyPricePc;
+
+              const discNonEmpty =
+                Number(r.discrepancy_full_shell ?? 0) * Number(r.empty_price_shell ?? 0) +
+                Number(r.discrepancy_full_pcs ?? 0) * Number(r.empty_price_pc ?? 0);
+
+
+
+              return (
+                <tr key={i} className="border-t hover:bg-gray-50">
+                  <td className="p-2 border">{r.productName || r.product_name || "--"}</td>
+                  <td className="p-2 border">{soldShell}</td>
+                  <td className="p-2 border">{soldPcs}</td>
+                  <td className="p-2 border">₱{fmt(Number(r.unitPrice ?? r.selling_price ?? r.price ?? 0))}</td>
+                  <td className="p-2 border">{fmt(r.discount_percent ?? r.discount ?? 0)}</td>
+                  <td className="p-2 border font-semibold">
+                      ₱{fmt(merch?.empties_price_total ?? emptyAmount)}
+                    </td>
+                    <td className="p-2 border text-green-700 font-semibold">
+                      ₱{fmt(merch?.empty_returns ?? returnedAmount)}
+                    </td>
+                    <td
+                      className={`p-2 border font-semibold ${
+                        (merch?.discrepancy_empty ?? discAmount) !== 0 ? "text-red-600" : "text-gray-500"
+                      }`}
+                    >
+                      ₱{fmt(merch?.discrepancy_empty ?? discAmount)}
+                    </td>
+                    <td className="p-2 border">{r.returnedWithContent || 0}</td>
+
+                  <td className="p-2 border font-semibold text-red-600">
+                    ₱{fmt(merch?.discrepancy_non_empty ?? discNonEmpty)}
                   </td>
+                  <td className="p-2 border font-bold text-blue-700">₱{fmt(actualSale)}</td>
                 </tr>
-              )}
-            </tbody>
-          </table>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {/* SUMMARY */}
+      <div className="grid grid-cols-3 gap-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-center">
+          <p className="text-sm text-gray-500">Total</p>
+          <p className="text-xl font-bold text-blue-700">₱{fmt(total)}</p>
+        </div>
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+          <p className="text-sm text-gray-500">Paid</p>
+          <p className="text-xl font-bold text-green-600">₱{fmt(paid)}</p>
+        </div>
+        <div className={`rounded-lg p-4 text-center ${balance > 0 ? "bg-red-50 border border-red-200" : "bg-green-50 border border-green-200"}`}>
+          <p className="text-sm text-gray-500">Balance</p>
+          <p className={`text-xl font-bold ${balance > 0 ? "text-red-600" : "text-green-700"}`}>₱{fmt(balance)}</p>
         </div>
       </div>
 
-      {/* Summary with live previews + persisted change after full pay */}
-      <div className="border rounded p-4 space-y-2 text-sm">
-        <div><strong>Total:</strong> ₱{fmt(total)}</div>
-
-        {/* Paid shows typed amount or last cash tendered */}
-        <div><strong>Paid:</strong> ₱{fmt(paid)}</div>
-
-        {/* After fully paying (balance = 0) show last change, if any */}
-        {balance <= 0 && lastChange > 0 && (
-          <div className="text-blue-700"><strong>Change:</strong> ₱{fmt(lastChange)}</div>
-        )}
-
-        {/* While typing with remaining balance, show live previews */}
-        {numericAmount > 0 && balance > 0 && (
-          <>
-            <div><strong>Paid (after):</strong> ₱{fmt(paidAfter)}</div>
-            <div><strong>New Balance (after):</strong> ₱{fmt(newBalance)}</div>
-            {liveChange > 0 && (
-              <div className="text-blue-700"><strong>Change:</strong> ₱{fmt(liveChange)}</div>
-            )}
-          </>
-        )}
-
-        <div><strong>Balance:</strong> ₱{fmt(balance)}</div>
-      </div>
-
-      {/* ✅ Only show Add Payment if status is NOT "Paid" */}
+      {/* ADD PAYMENT */}
       {!isPaid && (
-        <div className="border rounded p-4 space-y-3">
-          <div className="font-semibold">Add Payment</div>
-
-          <div className="flex gap-2 items-start">
+        <div className="bg-white border rounded-lg shadow p-6 space-y-4">
+          <h2 className="font-semibold text-lg text-gray-700">Add Payment</h2>
+          <div className="flex gap-3 items-start">
             <input
               type="number"
               step="0.01"
-              className="border rounded px-2 py-1 bg-yellow-50 input-always-spinner"
+              className="border rounded px-3 py-2 bg-yellow-50 w-48"
               value={amount}
               placeholder="Amount"
               min="0"
@@ -245,19 +354,17 @@ export default function CreditDetail() {
               onKeyDown={handleEnter}
               disabled={balance <= 0}
             />
-
             {showPartial && (
               <button
-                className="px-4 py-2 rounded bg-green-600 text-white disabled:opacity-60"
+                className="px-4 py-2 rounded bg-green-600 text-white hover:bg-green-700"
                 onClick={() => addPayment(numericAmount, "cash")}
               >
                 Partial Pay
               </button>
             )}
-
             {showFull && (
               <button
-                className="px-4 py-2 rounded bg-blue-600 text-white disabled:opacity-60"
+                className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
                 onClick={() =>
                   addPayment(Math.max(balance, numericAmount), "cash", "Full payment")
                 }
@@ -267,25 +374,42 @@ export default function CreditDetail() {
             )}
           </div>
 
-          {numericAmount > balance && balance > 0 && (
-            <div className="text-xs text-gray-700 mt-1">
-              Entered amount exceeds remaining balance. <strong>Change:</strong> ₱{fmt(liveChange)}
-            </div>
-          )}
-          {numericAmount > 0 && numericAmount <= balance && balance > 0 && showFull && (
-            <div className="text-xs text-gray-600 mt-1">
-              Paying exactly the balance will fully settle this credit.
-            </div>
-          )}
-          {balance <= 0 && (
-            <div className="text-xs text-green-700 mt-1">
-              This credit is already fully paid.
+          {/* 🔹 Live preview while typing */}
+          {numericAmount > 0 && balance > 0 && (
+            <div className="mt-4 space-y-1 text-sm">
+              <div>
+                <strong>Paid (after):</strong>{" "}
+                <span className="text-green-700">₱{fmt(paidAfter)}</span>
+              </div>
+              <div>
+                <strong>New Balance (after):</strong>{" "}
+                <span
+                  className={`font-semibold ${newBalance > 0 ? "text-red-600" : "text-gray-600"}`}
+                >
+                  ₱{fmt(newBalance)}
+                </span>
+              </div>
+              {liveChange > 0 && (
+                <div>
+                  <strong>Change:</strong>{" "}
+                  <span className="text-blue-700 font-semibold">
+                    ₱{fmt(liveChange)}
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
-       <div className="flex justify-end">
-            <Link to="/credits" className="btn btn-back">Back</Link>
+
+      {/* BACK */}
+      <div className="flex justify-end">
+        <Link
+          to="/credits"
+          className="px-4 py-2 rounded bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium"
+        >
+          Back
+        </Link>
       </div>
     </div>
   );

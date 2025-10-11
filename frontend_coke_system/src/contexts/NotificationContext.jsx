@@ -133,7 +133,7 @@ export const NotificationProvider = ({ children }) => {
           details: `Current quantity: ${data.quantity_available || 0} PCS - Threshold: ${data.reorder_level || 'N/A'}`,
           timestamp,
           is_read: false,
-          priority: data.stock_status?.toLowerCase().includes('out') ? 'high' : 'medium',
+          priority: 'high',
           data,
           allowedRoles: ['admin', 'supervisor', 'cashier']
         };

@@ -1,4 +1,4 @@
-// src/pages/VanLoadUpdate.jsx - ENHANCED WITH VAN LOAD UPDATE NOTIFICATIONS
+// src/pages/VanLoadUpdate.jsx - ENHANCED WITH VAN LOAD UPDATE NOTIFICATIONS - FIXED WAREHOUSE CONTEXT
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
@@ -66,7 +66,18 @@ const showAlert = (message) => {
   document.body.appendChild(alertDiv);
 };
 
-/* ---------------------------------------------------------------------- */
+/* ✅ FIXED: Helper function to get correct warehouse context */
+const getCurrentWarehouseId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem("user") || "{}");
+    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    return user.role?.toLowerCase() === "admin" && selectedWarehouse 
+      ? selectedWarehouse.id 
+      : user.warehouse_id;
+  } catch {
+    return null;
+  }
+};
 
 /* ---------- disable/edit rules (unchanged behaviour) ---------- */
 const isSoldEqualDispatched = (row) =>
@@ -96,7 +107,6 @@ const shouldDisableEditableField = (row, field) => {
   if (soldEq && isReturnedWithContentsField(field)) return true;
   return false;
 };
-/* ---------------------------------------------------------------------- */
 
 const VanLoadUpdate = () => {
   const location = useLocation();
@@ -300,102 +310,55 @@ const VanLoadUpdate = () => {
     const updated = [...rows];
     const row = { ...updated[index] };
 
-    // ---------- Helpers ----------
-    const n = (v) => {
-      const num = parseFloat(v);
-      return Number.isFinite(num) ? num : 0;
-    };
+    const n = (v) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : 0);
     const pcsInt = (v) => Math.max(0, Math.round(n(v)));
     const shellInt = (v) => Math.max(0, Math.floor(n(v)));
 
-    // Resolve conversion/content_no
     const contentNo =
       n(unitTypeMap?.[row.unitTypeId]) || n(row.contentNo) || 1;
 
-    // Write raw field (as numeric) first
+    // write numeric field
     row[field] = n(value);
 
-    // ---------- Pricing / returnable detection ----------
     const price = n(row.selling_price);
-    const dPct = n(row.discount);
+    const dPct = n(row.discount); // DISPLAY-ONLY but used in totals
     const shellEmptyPrice = n(row.empty_price_shell);
     const pcEmptyPrice = n(row.empty_price_pc);
     const isNonReturnable = shellEmptyPrice === 0 && pcEmptyPrice === 0;
 
-    // ---------- Dispatched / Sold ----------
     const dispatchedPcs   = pcsInt(row.dispatched_pcs);
     const dispatchedShell = shellInt(row.dispatched_shell);
 
-    // --- SOLD SYNC (guided by dispatched) ---
+    // SOLD sync
     if (field === "sold_shell") {
       row.sold_shell = shellInt(value);
-
-      // ✅ Calculate pcs based on contentNo
-      row.sold_pcs = pcsInt(row.sold_shell * contentNo);
-
-      // Clamp so it can’t exceed dispatched pcs
-      if (row.sold_pcs > row.dispatched_pcs) {
-        row.sold_pcs = row.dispatched_pcs;
-      }
-    }
-
-    
-    else if (field === "sold_pcs") {
-      row.sold_pcs = pcsInt(value);
-
-      // still allow conversion but clamp to dispatched
-      if (row.sold_pcs > row.dispatched_pcs) {
-        row.sold_pcs = row.dispatched_pcs;
-      }
-
-      //row.sold_shell = shellInt(row.sold_pcs / contentNo);
-
+      row.sold_pcs   = pcsInt(row.sold_shell * contentNo);
+    } else if (field === "sold_pcs") {
+      row.sold_pcs   = pcsInt(value);
+      row.sold_shell = shellInt(row.sold_pcs / contentNo);
     } else {
       row.sold_pcs   = pcsInt(row.sold_pcs);
       row.sold_shell = shellInt(row.sold_shell);
     }
 
-
     const soldPcs   = row.sold_pcs;
     const soldShell = row.sold_shell;
 
-    // ---------- RETURNED EMPTY (Warehouse behavior) ----------
-    // If editing shell -> lock PCS to shell * conv
-    // If editing PCS   -> only PCS changes; shell stays (user may reconcile later)
-    // ---------- RETURNED EMPTY (guided by SOLD) ----------
+    // RETURNED EMPTY
     if (field === "empty_return_shell") {
       row.empty_return_shell = shellInt(value);
-
-      // ✅ Calculate pcs based on contentNo
-      row.empty_return_pcs = pcsInt(row.empty_return_shell * contentNo);
-
-      // Clamp so it can’t exceed sold pcs
-      if (row.empty_return_pcs > row.sold_pcs) {
-        row.empty_return_pcs = row.sold_pcs;
-      }
-    }
-
-    else if (field === "empty_return_pcs") {
-      row.empty_return_pcs = pcsInt(value);
-
-      // clamp PCS so it doesn’t exceed sold_pcs
-      if (row.empty_return_pcs > row.sold_pcs) {
-        row.empty_return_pcs = row.sold_pcs;
-      }
-
-      // keep shell synced from pcs
-      //row.empty_return_shell = shellInt(row.empty_return_pcs / contentNo);
-
+      row.empty_return_pcs   = pcsInt(row.empty_return_shell * contentNo);
+    } else if (field === "empty_return_pcs") {
+      row.empty_return_pcs   = pcsInt(value);
+      row.empty_return_shell = shellInt(row.empty_return_shell);
     } else {
       row.empty_return_pcs   = pcsInt(row.empty_return_pcs);
       row.empty_return_shell = shellInt(row.empty_return_shell);
     }
 
-
     const returnedEmptyPcs   = row.empty_return_pcs;
     const returnedEmptyShell = row.empty_return_shell;
 
-    // Respect non-returnable items
     if (isNonReturnable) {
       row.empty_return_shell    = 0;
       row.empty_return_pcs      = 0;
@@ -406,33 +369,24 @@ const VanLoadUpdate = () => {
       row.discrepancy_empties_shell = soldShell - returnedEmptyShell;
     }
 
-    // ---------- RETURNED WITH CONTENT (NON-EMPTY) ----------
-    // EXPECTED (editable both directions)
+    // NON-EMPTY expected/actual
     if (field === "expected_return_shell_nonempty") {
       row.expected_return_shell_nonempty = shellInt(value);
       row.expected_return_pcs_nonempty   = pcsInt(row.expected_return_shell_nonempty * contentNo);
     } else if (field === "expected_return_pcs_nonempty") {
       row.expected_return_pcs_nonempty   = pcsInt(value);
-      row.expected_return_shell_nonempty = shellInt(row.expected_return_shell_nonempty); // keep shell as is
+      row.expected_return_shell_nonempty = shellInt(row.expected_return_shell_nonempty);
     } else {
-      // If user is NOT editing expected fields, default expected = dispatched − sold
-      if (field !== "expected_return_pcs_nonempty" && field !== "expected_return_shell_nonempty") {
-        row.expected_return_pcs_nonempty   = Math.max(0, dispatchedPcs   - soldPcs);
-        row.expected_return_shell_nonempty = Math.max(0, dispatchedShell - soldShell);
-      } else {
-        // normalize
-        row.expected_return_pcs_nonempty   = pcsInt(row.expected_return_pcs_nonempty);
-        row.expected_return_shell_nonempty = shellInt(row.expected_return_shell_nonempty);
-      }
+      row.expected_return_pcs_nonempty   = Math.max(0, dispatchedPcs   - soldPcs);
+      row.expected_return_shell_nonempty = Math.max(0, dispatchedShell - soldShell);
     }
 
-    // ACTUAL (editable both directions)
     if (field === "actual_return_shell") {
       row.actual_return_shell = shellInt(value);
       row.actual_return_pcs   = pcsInt(row.actual_return_shell * contentNo);
     } else if (field === "actual_return_pcs") {
       row.actual_return_pcs   = pcsInt(value);
-      row.actual_return_shell = shellInt(row.actual_return_shell); // keep shell as is
+      row.actual_return_shell = shellInt(row.actual_return_shell);
     } else {
       row.actual_return_pcs   = pcsInt(row.actual_return_pcs);
       row.actual_return_shell = shellInt(row.actual_return_shell);
@@ -443,21 +397,19 @@ const VanLoadUpdate = () => {
     const actualPcs     = pcsInt(row.actual_return_pcs);
     const actualShell   = shellInt(row.actual_return_shell);
 
-    // Non-empty discrepancy = expected − actual
     row.discrepancy_full_pcs   = expectedPcs   - actualPcs;
     row.discrepancy_full_shell = expectedShell - actualShell;
 
-    // ---------- Sales totals (Warehouse style) ----------
-    // Expected sale uses dispatched; Actual sale uses sold; discount applied on sold
-    row.expected_sale = Number((price * dispatchedPcs * (1 - dPct / 100)).toFixed(2));
+    // Totals -- expected = NET (dispatched, minus discount); actual = sold - discount
+    row.expected_sale = Number(
+      (price * dispatchedPcs * (1 - dPct / 100)).toFixed(2)
+    );
     const discountAmt = (price * soldPcs * dPct) / 100;
     row.actual_sale   = Number(((price * soldPcs) - discountAmt).toFixed(2));
 
-    // ---------- Finalize ----------
     updated[index] = row;
     setRows(updated);
   };
-
 
   /* -------------------- Totals -------------------- */
   const emptiesPriceTotal = useMemo(() => {
@@ -592,6 +544,8 @@ const VanLoadUpdate = () => {
         actual_return_pcs: iz(row.actual_return_pcs),
         discrepancy_full_shell: iz(row.discrepancy_full_shell),
         discrepancy_full_pcs: iz(row.discrepancy_full_pcs),
+        empties_price_total: emptiesPriceTotal,
+        empty_returns: refundablesTotal,
       })),
       remarks,
       discrepancy_empty_total: Number(totalDiscrepancyEmpty.toFixed(2)),
@@ -606,9 +560,11 @@ const VanLoadUpdate = () => {
         console.log('🚛 Van Load return submitted successfully:', response.data);
         showAlert('Van Load return successfully submitted.');
         
-        // ✅ IMMEDIATE: Add notification directly using context
+        // ✅ FIXED: Use same warehouse context as notification filtering
         const user = JSON.parse(localStorage.getItem("user") || "{}");
-        const warehouseId = user.warehouse_id;
+        const warehouseId = getCurrentWarehouseId();
+        
+        console.log('🚛 Creating notification with warehouse ID:', warehouseId, 'for user role:', user.role);
         
         addNotification('warehouse_msp_updated', {
           id: saleId,
@@ -657,7 +613,7 @@ const VanLoadUpdate = () => {
       });
   };
 
-  // ✅ ENHANCED: Van Load payment success with notification trigger
+  // ✅ ENHANCED: Van Load payment success with notification trigger - FIXED
   const handleVanLoadPaymentSuccess = async (paymentData) => {
     try {
       const misc = (miscItems || [])
@@ -705,6 +661,11 @@ const VanLoadUpdate = () => {
         misc_items: misc,
         discrepancy_empty_total: Number(totalDiscrepancyEmpty.toFixed(2)),
         discrepancy_non_empty_total: Number(totalDiscrepancyNonEmpty.toFixed(2)),
+
+         // Include empties price total and empty returns
+        empties_price_total: emptiesPriceTotal,
+        empty_returns: refundablesTotal,
+
       };
 
       console.log('🚛 Processing Van Load payment...', payload);
@@ -736,9 +697,11 @@ const VanLoadUpdate = () => {
 
       console.log('🚛 Van Load completed with payment:', patchResponse.data);
 
-      // ✅ IMMEDIATE: Add notification directly using context
+      // ✅ FIXED: Use same warehouse context as notification filtering
       const user = JSON.parse(localStorage.getItem("user") || "{}");
-      const warehouseId = user.warehouse_id;
+      const warehouseId = getCurrentWarehouseId();
+      
+      console.log('🚛 Creating payment completion notification with warehouse ID:', warehouseId, 'for user role:', user.role);
       
       addNotification('warehouse_msp_updated', {
         id: saleId,
@@ -777,12 +740,8 @@ const VanLoadUpdate = () => {
       console.log('🚛 Dispatching vanLoadCompleted event:', eventDetail);
       window.dispatchEvent(new CustomEvent('vanLoadUpdated', { detail: eventDetail }));
 
+      // ✅ Show success message but don't navigate immediately - let PaymentModal show invoice first
       showAlert('Van Load completed successfully with payment!');
-      
-      // Small delay before navigation to ensure notification is visible
-      setTimeout(() => {
-        navigate('/trading');
-      }, 1000);
       
     } catch (err) {
       console.error('Failed to save Van Load payment:', err);
