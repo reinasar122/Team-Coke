@@ -277,10 +277,11 @@ const VanLoadTable = ({
       row.dispatchedShell = shellQty;
       row.dispatchedPcs = shellQty * conversion;
     } else if (field === "dispatchedPcs") {
-      const pcsQty = n(value);
-      row.dispatchedPcs = pcsQty;
-      if (pcsQty >= conversion) row.dispatchedShell = Math.floor(pcsQty / conversion);
-    }
+        const pcsQty = n(value);
+        row.dispatchedPcs = pcsQty;
+        // 🚫 Do not auto-change Shell when PCS changes
+      }
+
   }
 
   // ✅ Stock availability check (same as ProductTable)
