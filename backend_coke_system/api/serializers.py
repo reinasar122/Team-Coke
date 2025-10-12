@@ -829,14 +829,63 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
         print(">>> SERIALIZER.create created Misc IDs:", created_ids)
 
-        if merchandising.miscellaneous != total_misc:
-            merchandising.miscellaneous = total_misc
-            merchandising.save(update_fields=["miscellaneous"])
-
+        # --- PAYMENTS ---
+        # --- PAYMENTS ---
         for payment_data in payments_data:
             Payment.objects.create(merchandising=merchandising, **payment_data)
 
+        # ✅ Refresh instance so reverse relations (payments) are loaded
+        merchandising.refresh_from_db()
+
+        # ✅ Compute method accurately based on paid amounts
+        if merchandising.payments.exists():
+            total_paid = Decimal("0.00")
+            total_cash = Decimal("0.00")
+            total_credit = Decimal("0.00")
+
+            for p in merchandising.payments.all():
+                amt = Decimal(str(p.amount or 0))
+                total_paid += amt
+                if p.method.lower() == "cash":
+                    total_cash += amt
+                elif p.method.lower() == "credit":
+                    total_credit += amt
+
+            sale_total = Decimal(str(merchandising.actual_sale or merchandising.expected_sale or 0))
+
+            if total_credit == 0 and total_cash > 0 and total_cash >= sale_total:
+                merchandising.payment_method = "cash"
+            elif total_cash > 0 and total_credit > 0:
+                merchandising.payment_method = "cash+credit"
+            elif total_credit > 0 and total_cash == 0:
+                merchandising.payment_method = "credit"
+            else:
+                merchandising.payment_method = None
+
+            merchandising.save(update_fields=["payment_method"])
+
+        # ✅ Van Load fallback
+        # ✅ Van Load fallback (only if truly no payment data)
+        if merchandising.transaction_type and merchandising.transaction_type.name.lower() == "van load":
+            if not merchandising.payment_method:
+                if merchandising.payments.exists():
+                    # derive from payments instead
+                    cash_exists = merchandising.payments.filter(method__iexact="cash").exists()
+                    credit_exists = merchandising.payments.filter(method__iexact="credit").exists()
+                    if cash_exists and credit_exists:
+                        merchandising.payment_method = "cash+credit"
+                    elif credit_exists:
+                        merchandising.payment_method = "credit"
+                    elif cash_exists:
+                        merchandising.payment_method = "cash"
+                else:
+                    merchandising.payment_method = "cash"
+                merchandising.save(update_fields=["payment_method"])
+
+        print(">>> payment_method finally set to:", merchandising.payment_method)
         return merchandising
+
+
 
     @transaction.atomic
     def update(self, instance, validated_data):

@@ -134,6 +134,8 @@ const PaymentModal = ({
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  const [customerInput, setCustomerInput] = useState(customerName || "Walk-in");
+
 
   // ------------ helpers ------------
   const n = (v) => Number(v || 0);
@@ -1075,8 +1077,25 @@ const PaymentModal = ({
                     <div className="bg-blue-100 border border-blue-300 p-4 rounded">
                       <div className="font-semibold text-blue-700">Credit Amount:</div>
                       <div className="flex justify-between items-center mt-1 text-sm">
-                        <div>
-                          <div><strong>Customer:</strong> {customerName || "Walk-in"}</div>
+                        <div className="flex flex-col gap-2">
+                          {isVanLoad ? (
+                            // 👇 Allow typing customer name ONLY for Van Load + Credit
+                            <div>
+                              <label className="font-semibold mr-2">Customer:</label>
+                              <input
+                                type="text"
+                                className="border border-blue-300 rounded px-2 py-1 w-48"
+                                placeholder="Enter customer name"
+                                value={customerInput}
+                                onChange={(e) => setCustomerInput(e.target.value)}
+                              />
+                            </div>
+                          ) : (
+                            // 👇 For Warehouse, keep it fixed as Walk-in
+                            <div>
+                              <strong>Customer:</strong> {customerName || "Walk-in"}
+                            </div>
+                          )}
                           <div><strong>Due:</strong> {formattedDueDate}</div>
                         </div>
                         <div className="text-2xl font-bold text-blue-800">
@@ -1084,6 +1103,7 @@ const PaymentModal = ({
                         </div>
                       </div>
                     </div>
+
 
                     {/* 📅 Credit Terms & Notes */}
                     <div className="p-4 border-[2px] border-slate-200 rounded space-y-4">
@@ -1142,24 +1162,22 @@ const PaymentModal = ({
           <button
             className="btn btn-primary"
             disabled={submitting}
-            onClick={async () => {
-              // ✅ More robust warehouse extraction
+           onClick={async () => {
               console.log("🏪 Button clicked - warehouse:", warehouse);
-             
-              // Try to get warehouse ID from multiple sources
+
               let warehouseId = null;
               let warehouseName = null;
-             
+
               if (warehouse) {
                 warehouseId = warehouse.id || warehouse.warehouse_id;
                 warehouseName = warehouse.name || warehouse.warehouse_name || warehouse.warehouse;
               }
-             
+
               // Fallback: try to get from localStorage
               if (!warehouseId) {
                 const user = JSON.parse(localStorage.getItem("user") || "{}");
                 const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-               
+
                 if (selectedWarehouse?.id) {
                   warehouseId = selectedWarehouse.id;
                   warehouseName = selectedWarehouse.name;
@@ -1168,24 +1186,22 @@ const PaymentModal = ({
                   warehouseName = user.warehouse;
                 }
               }
-             
+
               console.log("🏪 Final warehouse ID:", warehouseId);
               console.log("🏪 Final warehouse name:", warehouseName);
-             
+
               if (!warehouseId && paymentMethod === "credit") {
                 showAlert("Warehouse is required for credit transactions. Please refresh the page and try again.");
                 return;
               }
 
-
+              // ✅ DEFINE DATA FIRST
               const data = {
-                // payment
                 paymentMethod,
                 amount: n(cashReceived || totalAmountFinal),
                 cashReceived: n(cashReceived),
                 change,
                 amountDue: amountDueFinal,
-
 
                 // breakdown
                 actualSales: n(actualSalesValue),
@@ -1195,26 +1211,22 @@ const PaymentModal = ({
                 expensesTotal: n(expensesTotal),
                 totalAmount: totalAmountFinal,
 
-
                 // rows + headers
                 rows,
                 mspNo,
-                customerName,
+                customerName: isVanLoad ? (customerInput || "Walk-in") : (customerName || "Walk-in"),
                 handledBy,
                 transactionDate,
-
 
                 // van load extras
                 transactionTypeName,
                 remarks,
                 miscItems,
 
-
                 // credit extras
                 paymentTermsDays: days,
                 dueDate: paymentDueDate.toISOString(),
                 creditNotes,
-
 
                 // carry these for invoice parity
                 expectedSale: n(expectedSale),
@@ -1223,7 +1235,6 @@ const PaymentModal = ({
                 totalActualRetrievedVL: n(totalActualRetrievedVL),
                 overallTotalVL: n(overallTotalVL),
                 grandTotalVL: n(grandTotalVL),
-
 
                 // final due used in the modal
                 amountDue: amountDueFinal,
@@ -1234,25 +1245,52 @@ const PaymentModal = ({
                 merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
               };
 
-
-
               console.log("💳 Complete payment data:", data);
 
-              const isPartialCash = data.paymentMethod === "cash" && n(cashReceived) > 0 && n(cashReceived) < amountDueFinal;
-              const isFullCash = data.paymentMethod === "cash" && n(cashReceived) >= amountDueFinal;
-
-              // ✅ treat both partial cash and full credit (0 cash) as credit
-              const isCredit = isPartialCash || (data.paymentMethod === "cash" && n(cashReceived) === 0 && amountDueFinal > 0);
-
-
-
-              // mark partial case
-              if (isPartialCash) {
-                data.paymentMethod = "cash+credit";
-                data.creditAmount = amountDueFinal - n(cashReceived);
+              // ✅ NOW SAFE TO USE data
+              if (!data.payments || data.payments.length === 0) {
+                if (n(cashReceived) >= amountDueFinal) {
+                  data.payments = [{ amount: n(cashReceived), method: "cash" }];
+                } else if (n(cashReceived) > 0 && n(cashReceived) < amountDueFinal) {
+                  data.payments = [
+                    { amount: n(cashReceived), method: "cash" },
+                    { amount: amountDueFinal - n(cashReceived), method: "credit" },
+                  ];
+                } else if (n(cashReceived) === 0) {
+                  data.payments = [{ amount: amountDueFinal, method: "credit" }];
+                }
               }
 
-              // this replaces the old "paymentOk"
+              // ✅ Determine payment types
+              // ✅ Corrected payment type detection
+                const received = n(cashReceived);
+                const due = n(amountDueFinal);
+
+                let paymentType = "cash";
+                let creditAmount = 0;
+
+                if (received === 0 && due > 0) {
+                  paymentType = "credit"; // full credit
+                  creditAmount = due;
+                } else if (received > 0 && received < due) {
+                  paymentType = "cash+credit"; // partial
+                  creditAmount = due - received;
+                } else {
+                  // received >= due → full cash
+                  paymentType = "cash";
+                  creditAmount = 0;
+                }
+
+                data.paymentMethod = paymentType;
+                data.creditAmount = creditAmount;
+
+                const isFullCash = paymentType === "cash";
+                const isPartialCash = paymentType === "cash+credit";
+                const isFullCredit = paymentType === "credit";
+                const isCredit = isPartialCash || isFullCredit;
+
+
+
               const paymentOk = isFullCash || isCredit;
 
 
@@ -1323,11 +1361,34 @@ const PaymentModal = ({
                   await onConfirm(data);
                 }
                 if (typeof onSave === "function") {
-                  const merchandising = await onSave(data);   // ✅ capture backend response
-                   if (merchandising?.id) {
-                     data.id = merchandising.id;               // ✅ attach saleId to invoiceData
-                   }
+                  // ✅ Ensure Van Load always saves payment method properly
+                  if (isVanLoad) {
+                    if (isPartialCash) {
+                      // Partial cash and credit mix
+                      data.payments = [
+                        { amount: n(cashReceived), method: "cash" },
+                        { amount: amountDueFinal - n(cashReceived), method: "credit" },
+                      ];
+                    } else if (isCredit) {
+                      // Pure credit (no cash)
+                      data.payments = [
+                        { amount: n(cashReceived || 0), method: "credit" },
+                      ];
+                    } else if (isFullCash) {
+                      // ✅ Full cash payment
+                      data.payments = [
+                        { amount: n(cashReceived || amountDueFinal), method: "cash" },
+                      ];
+                    }
+                  }
+
+
+                  const merchandising = await onSave(data);
+                  if (merchandising?.id) {
+                    data.id = merchandising.id;
+                  }
                 }
+
 
 
                 // 3) Show invoice
