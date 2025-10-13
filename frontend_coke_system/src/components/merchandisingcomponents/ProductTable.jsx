@@ -726,17 +726,23 @@ if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
                         ? "bg-red-100 text-red-700 font-semibold"
                         : ""}
                     `}
-                    value={row[field] === "" || row[field] === "0" || row[field] === null ? "" : row[field]}  // Handle empty and "0"
-                    onChange={(e) => handleRowChange(index, field, e.target.value === "" ? null : e.target.value)} // Handle empty input
-                    // onFocus={() => {
-                    //   // Reset to empty string to show placeholder when focused with "0"
-                    //   if (row[field] === "0" || row[field] === "") {
-                    //     handleRowChange(index, field, ""); // Show placeholder
-                    //   }
-                    // }}
+                    value={
+                      row[field] === "" || row[field] === "0" || row[field] === null
+                        ? ""
+                        : row[field]
+                    } // Handle empty and "0"
+                    onChange={(e) =>
+                      handleRowChange(
+                        index,
+                        field,
+                        e.target.value === "" ? null : e.target.value
+                      )
+                    }
+                    readOnly={["discrepancyShellEmpty", "discrepancyPcsEmpty"].includes(field)} // ⬅️ Make discrepancy fields non-editable
                   />
                 </td>
               ))}
+
 
 
 
