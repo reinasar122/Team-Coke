@@ -708,11 +708,13 @@ const VanLoadUpdate = () => {
           discrepancy_full_pcs: row.discrepancy_full_pcs,
           actual_return_shell: row.actual_return_shell,
           actual_return_pcs: row.actual_return_pcs,
+          
         })),
         misc_items: misc,
         discrepancy_empty_total: Number(totalDiscrepancyEmpty.toFixed(2)),
         discrepancy_non_empty_total: Number(totalDiscrepancyNonEmpty.toFixed(2)),
 
+        returned_with_content: Number(totalReturnedWithContent.toFixed(2)),
          // Include empties price total and empty returns
         empties_price_total: emptiesPriceTotal,
         empty_returns: refundablesTotal,
