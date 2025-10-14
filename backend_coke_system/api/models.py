@@ -540,6 +540,7 @@ class Merchandising(models.Model):
     status = models.CharField(max_length=50, default="PENDING")
     remarks = models.TextField(blank=True, null=True)
 
+    returned_with_content = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     empties_price_total = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     empty_returns = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -615,6 +616,7 @@ class Merchandising(models.Model):
                 self.msp_no = f'{prefix}-0001'
 
         super().save(*args, **kwargs)
+
 
 
 # ------------------------------------------------------------

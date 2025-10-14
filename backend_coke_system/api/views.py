@@ -1639,6 +1639,13 @@ class VanLoadReturnAPIView(APIView):
             fields_to_update.append('discrepancy_non_empty')
             print(f"Updating discrepancy_non_empty: {dne}")
 
+            # ✅ NEW: Capture Returned with Content total
+            returned_with_content = request.data.get('returned_with_content', 0)
+            merch.returned_with_content = dz(returned_with_content)
+            fields_to_update.append('returned_with_content')
+            print(f"Updating returned_with_content: {returned_with_content}")
+
+
 
         # Log the fields to update
         print(">>> Fields to update:", fields_to_update)
@@ -1657,6 +1664,8 @@ class VanLoadReturnAPIView(APIView):
             # return the stored totals for confirmation
             'discrepancy_empty': str(merch.discrepancy_empty),
             'discrepancy_non_empty': str(merch.discrepancy_non_empty),
+            "returned_with_content": str(merch.returned_with_content),
+
         }, status=status.HTTP_200_OK)
 
 
@@ -1852,6 +1861,13 @@ class VanLoadReturnUpdateAPIView(APIView):
                 fields_to_update.append('empties_price_total')
                 fields_to_update.append('empty_returns')
 
+                # ✅ NEW: Capture Returned with Content total
+                returned_with_content = request.data.get('returned_with_content', 0)
+                sale.returned_with_content = to_decimal(returned_with_content)
+                fields_to_update.append('returned_with_content')
+                print(f"Updating returned_with_content: {returned_with_content}")
+
+
                 # Log the fields to update
                 print(">>> DEBUG Fields to update:", fields_to_update)
 
@@ -1933,6 +1949,8 @@ class VanLoadReturnUpdateAPIView(APIView):
                     "discrepancy_non_empty": str(sale.discrepancy_non_empty),
                     "empties_price_total": str(sale.empties_price_total),  # Include the stored value
                     "empty_returns": str(sale.empty_returns),  # Include the stored value
+                    "returned_with_content": str(sale.returned_with_content),
+
                 },
                 status=status.HTTP_200_OK,
             )
