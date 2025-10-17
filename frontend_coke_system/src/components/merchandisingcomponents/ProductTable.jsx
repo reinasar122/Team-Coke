@@ -278,6 +278,24 @@ const ProductTable = ({
     row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));  // Discrepancy between expected and actual
   }
 
+  
+// New changes Karen
+    if (isReturnable) {
+    const dispatchedShell = n(row.dispatchedShell);
+    const dispatchedPcs   = n(row.dispatchedPcs);
+    const returnedShell   = n(row.expectedReturnShellEmpty);
+    const returnedPcs     = n(row.expectedReturnPcsEmpty);
+
+    // Compute discrepancy Empty even when user just entered Dispatched
+    row.discrepancyPcsEmpty   = dispatchedPcs   - returnedPcs;
+    row.discrepancyShellEmpty = dispatchedShell - returnedShell;
+  } else {
+    row.discrepancyPcsEmpty   = 0;
+    row.discrepancyShellEmpty = 0;
+  }
+//.......
+
+
   // --- DISCOUNT FIELD CHANGE ---
   if (field === "discount") {
     const discountAmt = (price * row.soldPcs * discountPercent) / 100;
