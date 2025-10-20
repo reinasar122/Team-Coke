@@ -63,6 +63,8 @@ const MerchandisingSale = () => {
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]); // [{ product_id, delta: -pcs }]
   const [vanLoadDiscount, setVanLoadDiscount] = useState("");
   
+  const [discrepancyEmptyTotal, setDiscrepancyEmptyTotal] = useState(0);
+
 
   // at top of component
   const editingExistingRef = useRef(false);
@@ -800,6 +802,12 @@ const mapped = items.map((it, idx) => {
 
       // 🔧 REMOVED: payment_method since payments are handled separately
 
+       // ✅ Save these only for Warehouse
+      discrepancy_empty: (selectedTransactionTypeName === "Warehouse" ? Number(discrepancyEmptyTotal || 0) : 0),
+      empties_price_total: (selectedTransactionTypeName === "Warehouse" ? Number(emptiesPriceTotal || 0) : 0),
+      empty_returns: (selectedTransactionTypeName === "Warehouse" ? Number(refundablesTotal || 0) : 0),
+
+
       invoice_no: "",
       status: (selectedTransactionTypeName === "Van Load") ? "Pending" : "Complete",
       remarks: "",
@@ -1361,6 +1369,7 @@ const handleSaveVanLoadEdit = async () => {
           setEmptiesPriceTotal={setEmptiesPriceTotal}
           setRefundablesTotal={setRefundablesTotal}
           setDiscrepancy={setDiscrepancy}
+          setDiscrepancyEmptyTotal={setDiscrepancyEmptyTotal}
           setTotalAmount={setTotalAmount}
           totalAmount={totalAmount}
           emptiesPriceTotal={emptiesPriceTotal}
@@ -1412,7 +1421,11 @@ const handleSaveVanLoadEdit = async () => {
         actualSales={totalActualSale}
         emptyReturns={refundablesTotal}
         emptiesPriceTotal={emptiesPriceTotal}
-        emptyDiscrepancies={discrepancy}
+        emptyDiscrepancies={
+          selectedTransactionTypeName === "Warehouse"
+            ? discrepancyEmptyTotal
+            : discrepancy
+          }
         totalAdjustments
         mspNo={mspNo}
         customerName={customerName} // ✅ Calculated customer name

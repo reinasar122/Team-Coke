@@ -1208,6 +1208,7 @@ const PaymentModal = ({
                 emptiesPriceTotal: n(emptiesPriceTotal),
                 emptyReturns: n(emptyReturns),
                 emptyDiscrepancies: n(emptyDiscrepancies),
+                discrepancy_empty: isWarehouse ? n(emptyDiscrepancies || 0) : undefined,
                 expensesTotal: n(expensesTotal),
                 totalAmount: totalAmountFinal,
 
