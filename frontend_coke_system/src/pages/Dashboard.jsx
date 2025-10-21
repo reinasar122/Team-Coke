@@ -650,6 +650,8 @@ const getCurrentWarehouseId = () => {
   if ((user.role || "").toLowerCase() === "admin") {
     return selectedWarehouse?.id || user.warehouse_id;
   }
+  // 🔧 For supervisors, warehouse_id might not exist, but warehouse name might
+  // This function will return undefined for now, and the dashboard will handle warehouse matching by name
   return user.warehouse_id;
 };
 const axiosCfgForWarehouse = (wid) => (wid ? { headers: { "X-Warehouse-ID": wid } } : {});
@@ -1512,7 +1514,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   };
 }
 
-/* -------------------- Dashboard Component (unchanged) -------------------- */
+/* -------------------- Dashboard Component (Fixed initialization) -------------------- */
 const Dashboard = () => {
   const location = useLocation();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -1665,26 +1667,99 @@ const Dashboard = () => {
     [period, customStartDate, customEndDate] // Include period dependencies
   );
 
-  // 🔧 FIXED: Initial data load - only once
+  // 🔧 FIXED: Initial data load with warehouse loading
   useEffect(() => {
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    const headerSelectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    const initializeDashboard = async () => {
+      console.log('🚀 Initializing dashboard...');
+      
+      const userData = JSON.parse(localStorage.getItem("user") || "{}");
+      const headerSelectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      
+      console.log('👤 User data:', userData);
+      console.log('🏢 Header selected warehouse:', headerSelectedWarehouse);
+      
+      let warehouseIds = [];
+      
+      if (userData.role?.toLowerCase() === "admin" && headerSelectedWarehouse) {
+        warehouseIds = [headerSelectedWarehouse.id];
+        console.log('👑 Admin using header warehouse:', warehouseIds);
+      } else if (userData.warehouse_id) {
+        warehouseIds = [userData.warehouse_id];
+        console.log('🏭 Using user warehouse_id:', warehouseIds);
+      } else {
+        // Load warehouses to find matching one
+        console.log('🔍 Loading warehouses to find match...');
+        try {
+          const warehousesRes = await axios.get("http://127.0.0.1:8080/api/warehouses/");
+          const warehouses = warehousesRes.data;
+          setAvailableWarehouses(warehouses);
+          
+          if (userData.warehouse) {
+            // Find warehouse by name
+            const matchingWarehouse = warehouses.find(w => 
+              w.name === userData.warehouse || 
+              w.name.toLowerCase() === userData.warehouse.toLowerCase()
+            );
+            
+            if (matchingWarehouse) {
+              warehouseIds = [matchingWarehouse.id];
+              console.log('🎯 Found warehouse by name:', userData.warehouse, '→', warehouseIds);
+            } else {
+              warehouseIds = [warehouses[0]?.id].filter(Boolean);
+              console.log('🔄 Using first warehouse as fallback:', warehouseIds);
+            }
+          } else {
+            warehouseIds = [warehouses[0]?.id].filter(Boolean);
+            console.log('🌐 No warehouse info, using first warehouse:', warehouseIds);
+          }
+        } catch (error) {
+          console.error('❌ Error loading warehouses:', error);
+        }
+      }
+      
+      if (warehouseIds.length > 0) {
+        console.log('✅ Setting warehouse IDs and loading data:', warehouseIds);
+        setSelectedWarehouseIds(warehouseIds);
+        loadData(warehouseIds);
+      } else {
+        console.log('⚠️ No warehouse IDs found');
+      }
+    };
     
-    let initialWarehouseIds = [];
-    
-    if (userData.role?.toLowerCase() === "admin" && headerSelectedWarehouse) {
-      initialWarehouseIds = [headerSelectedWarehouse.id];
-    } else if (userData.warehouse_id) {
-      initialWarehouseIds = [userData.warehouse_id];
-    }
-    
-    if (initialWarehouseIds.length > 0) {
-      setSelectedWarehouseIds(initialWarehouseIds);
-      loadData(initialWarehouseIds);
-    }
+    initializeDashboard();
   }, []); // Only run once on mount
 
-  // 🔧 FIXED: Warehouse change event listener - separated from loadData
+  // 🔧 COMMENTED OUT: Old warehouse change event listener - kept for reference
+  // useEffect(() => {
+  //   const handleWarehouseChange = (event) => {
+  //     const { warehouse, action, source } = event.detail || {};
+      
+  //     console.log('🏭 Warehouse change detected:', { warehouse, action, source });
+      
+  //     if (source === 'header') {
+  //       if (action === 'select' && warehouse) {
+  //         console.log('📍 Syncing dashboard to warehouse:', warehouse.name);
+  //         const newIds = [warehouse.id];
+  //         setSelectedWarehouseIds(newIds);
+  //         loadData(newIds, period, customStartDate, customEndDate);
+  //       } else if (action === 'reset') {
+  //         console.log('🔄 Resetting to enrolled warehouse');
+  //         const userData = JSON.parse(localStorage.getItem("user") || "{}");
+  //         const userWarehouseId = userData.warehouse_id;
+  //         if (userWarehouseId) {
+  //           const newIds = [userWarehouseId];
+  //           setSelectedWarehouseIds(newIds);
+  //           loadData(newIds, period, customStartDate, customEndDate);
+  //         }
+  //       }
+  //     }
+  //   };
+    
+  //   window.addEventListener("warehouseChanged", handleWarehouseChange);
+  //   return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
+  // }, [loadData, period, customStartDate, customEndDate]);
+
+  // 🔧 NEW: Warehouse change event listener with better handling
   useEffect(() => {
     const handleWarehouseChange = (event) => {
       const { warehouse, action, source } = event.detail || {};
@@ -1700,9 +1775,21 @@ const Dashboard = () => {
         } else if (action === 'reset') {
           console.log('🔄 Resetting to enrolled warehouse');
           const userData = JSON.parse(localStorage.getItem("user") || "{}");
-          const userWarehouseId = userData.warehouse_id;
-          if (userWarehouseId) {
-            const newIds = [userWarehouseId];
+          
+          // Try to find warehouse by name if warehouse_id doesn't exist
+          if (userData.warehouse && availableWarehouses.length > 0) {
+            const matchingWarehouse = availableWarehouses.find(w => 
+              w.name === userData.warehouse || 
+              w.name.toLowerCase() === userData.warehouse.toLowerCase()
+            );
+            
+            if (matchingWarehouse) {
+              const newIds = [matchingWarehouse.id];
+              setSelectedWarehouseIds(newIds);
+              loadData(newIds, period, customStartDate, customEndDate);
+            }
+          } else if (userData.warehouse_id) {
+            const newIds = [userData.warehouse_id];
             setSelectedWarehouseIds(newIds);
             loadData(newIds, period, customStartDate, customEndDate);
           }
@@ -1712,23 +1799,50 @@ const Dashboard = () => {
     
     window.addEventListener("warehouseChanged", handleWarehouseChange);
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
-  }, [loadData, period, customStartDate, customEndDate]);
+  }, [loadData, period, customStartDate, customEndDate, availableWarehouses]);
 
-  // 🔧 FIXED: Auto-populate available warehouses (only when needed)
-  useEffect(() => {
-    if (availableWarehouses.length > 0 && selectedWarehouseIds.length === 0) {
-      const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      if (userData.warehouse_id) {
-        const newIds = [userData.warehouse_id];
-        setSelectedWarehouseIds(newIds);
-        loadData(newIds, period, customStartDate, customEndDate);
-      } else {
-        const allIds = availableWarehouses.map(w => w.id);
-        setSelectedWarehouseIds(allIds);
-        loadData(allIds, period, customStartDate, customEndDate);
-      }
-    }
-  }, [availableWarehouses, loadData, period, customStartDate, customEndDate]);
+  // 🔧 COMMENTED OUT: Auto-populate available warehouses - no longer needed with new initialization
+  // useEffect(() => {
+  //   if (availableWarehouses.length > 0 && selectedWarehouseIds.length === 0) {
+  //     const userData = JSON.parse(localStorage.getItem("user") || "{}");
+  //     
+  //     console.log('🏗️ Auto-populating warehouses:', { availableWarehouses, userData });
+      
+  //     if (userData.warehouse_id) {
+  //       // User has numeric warehouse_id
+  //       const newIds = [userData.warehouse_id];
+  //       console.log('✅ Using userData.warehouse_id:', newIds);
+  //       setSelectedWarehouseIds(newIds);
+  //       loadData(newIds, period, customStartDate, customEndDate);
+  //     } else if (userData.warehouse) {
+  //       // 🔧 NEW: User has warehouse name, find matching ID
+  //       const matchingWarehouse = availableWarehouses.find(w => 
+  //         w.name === userData.warehouse || 
+  //         w.name.toLowerCase() === userData.warehouse.toLowerCase()
+  //       );
+        
+  //       if (matchingWarehouse) {
+  //         const newIds = [matchingWarehouse.id];
+  //         console.log('🎯 Found matching warehouse by name:', userData.warehouse, '→', newIds);
+  //         setSelectedWarehouseIds(newIds);
+  //         loadData(newIds, period, customStartDate, customEndDate);
+  //       } else {
+  //         console.log('❌ No warehouse found matching name:', userData.warehouse);
+  //         // Fallback to first warehouse
+  //         const fallbackIds = [availableWarehouses[0].id];
+  //         console.log('🔄 Using fallback warehouse:', fallbackIds);
+  //         setSelectedWarehouseIds(fallbackIds);
+  //         loadData(fallbackIds, period, customStartDate, customEndDate);
+  //       }
+  //     } else {
+  //       // No warehouse info, use all available
+  //       const allIds = availableWarehouses.map(w => w.id);
+  //       console.log('🌐 No warehouse info, using all warehouses:', allIds);
+  //       setSelectedWarehouseIds(allIds);
+  //       loadData(allIds, period, customStartDate, customEndDate);
+  //     }
+  //   }
+  // }, [availableWarehouses, loadData, period, customStartDate, customEndDate]);
 
   const removeWidget = useCallback((id) => setSelectedIds((prev) => prev.filter((x) => x !== id)), []);
 

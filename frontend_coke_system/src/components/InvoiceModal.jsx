@@ -900,10 +900,14 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                             <span className="tabular-nums">- ₱{fmt(expensesTotal)}</span>
                           </div>
 
-                          <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-                            <span>Grand Total:</span>
-                            <span className="tabular-nums">₱{fmt(vl_grandTotal_final)}</span>
-                          </div>
+                          <div className="border-t border-gray-300 my-2"></div>
+
+                          {(paymentMethod === "cash" || paymentMethod === "credit") && (
+                        <div className="flex justify-between font-bold text-gray-800">
+                          <span>Grand Total</span>
+                          <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
+                        </div>
+                      )}
                         </div>
                       </div>
                     </div>
@@ -938,30 +942,69 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                         <span className="tabular-nums">+ ₱{fmt(actualSales)}</span>
                       </div>
 
-                      <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-                        <span>Total Amount Due:</span>
-                        <span className="tabular-nums">₱{fmt(totalAmount)}</span>
-                      </div>
+                      {/* 🔹 Add a divider after Actual Sales */}
+                      <div className="border-t border-gray-300 my-2"></div>
+
+                      {(paymentMethod === "cash" || paymentMethod === "credit") && (
+                        <div className="flex justify-between font-bold text-gray-800">
+                          <span>Amount Due:</span>
+                          <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
+                        </div>
+                      )}
+
                     </div>
                   )}
 
                   {/* Cash details (always shown if available) */}
-                  <div className="pt-4 grid grid-cols-2 gap-2">
-                    <div>
-                      <strong>Amount Due:</strong> ₱{fmt(n(amountDue) || n(totalAmount))}
+                  {/* Payment Summary (dynamic based on payment method) */}
+                    {/* 💰 Payment Summary (dynamic layout) */}
+                    <div className="pt-4">
+                      {paymentMethod === "cash+credit" ? (
+                        // 🟦 Cash + Credit layout
+                        <div className="bg-blue-50 border border-blue-300 rounded p-4 space-y-2">
+                          <div className="flex justify-between font-semibold text-gray-800">
+                            <span>Total Amount Due:</span>
+                            <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
+                          </div>
+
+                          <div className="flex justify-between text-red-600 font-medium">
+                            <span>Cash Received:</span>
+                            <span>- ₱{fmt(cashReceived)}</span>
+                          </div>
+
+                          <div className="flex justify-between border-t border-blue-300 pt-2 font-bold text-blue-700">
+                            <span>Total Amount Credit:</span>
+                            <span>₱{fmt((n(amountDue) || n(totalAmount)) - n(cashReceived))}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        // 🟩 Cash or Credit layout
+                        <div className="">
+                          <div className="pt-2 grid grid-cols-2 gap-2 text-sm">
+                            <div className="flex flex-col">
+                              <div>
+                                <strong>Cash Received:</strong> ₱{fmt(cashReceived)}
+                              </div>
+                              <div className="mt-1">
+                                <strong>Change:</strong> ₱{fmt(change)}
+                              </div>
+                            </div>
+                            
+                            {isVanLoad && remarks && (
+                              <div className="col-span-2">
+                                <strong>Remarks:</strong> {remarks}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {isVanLoad && remarks && (
+                        <div className="mt-3">
+                          <strong>Remarks:</strong> {remarks}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <strong>Cash Received:</strong> ₱{fmt(cashReceived)}
-                    </div>
-                    <div>
-                      <strong>Change:</strong> ₱{fmt(change)}
-                    </div>
-                    {isVanLoad && remarks && (
-                      <div className="col-span-2">
-                        <strong>Remarks:</strong> {remarks}
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             </>

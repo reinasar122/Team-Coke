@@ -90,6 +90,9 @@ const Login = () => {
       // Store user data and access permissions in localStorage
       localStorage.setItem("user", JSON.stringify(res.data)); // Store user info
       localStorage.setItem("access", JSON.stringify(res.data.accessibilities)); // Store accessibilities
+      
+      // ✅ IMPORTANT: Store login timestamp for notification system
+      localStorage.setItem("loginTime", Date.now().toString());
 
       // ✅ IMPORTANT: Dispatch login event to trigger notifications
       console.log("🔐 Dispatching userLoggedIn event...");
@@ -107,6 +110,28 @@ const Login = () => {
         await fetchWarehouses();
         setShowWarehouseModal(true);
       } else {
+        // ✅ IMPORTANT: For non-admin users, dispatch warehouse-related events to trigger notifications
+        setTimeout(() => {
+          console.log("🔐 Non-admin user login - triggering notification events...");
+          
+          // Dispatch warehouse change event for non-admin users
+          const warehouseInfo = {
+            id: res.data.warehouse_id,
+            name: res.data.warehouse || 'User Warehouse'
+          };
+          
+          if (res.data.warehouse_id) {
+            window.dispatchEvent(
+              new CustomEvent("warehouseChanged", {
+                detail: { warehouse: warehouseInfo, action: "login", source: "non-admin-login" },
+              })
+            );
+          }
+          
+          // Dispatch session restore event to trigger notification check
+          window.dispatchEvent(new CustomEvent('userSessionRestored'));
+        }, 1000);
+        
         // ✅ Use routeMap to find the first accessible route for non-admin users
         const firstRoute = getFirstAccessibleRoute();
         console.log("➡️ Redirecting to:", firstRoute);

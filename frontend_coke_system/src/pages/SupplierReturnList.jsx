@@ -33,7 +33,6 @@ const SupplierReturnList = () => {
     try {
       const warehouseParam = warehouseId ? `?warehouse_id=${warehouseId}` : '';
       const response = await axios.get(`http://localhost:8080/api/supplier-return-form/${warehouseParam}`);
-      console.log("📦 Supplier returns loaded for warehouse:", warehouseId, response.data.length);
       return response.data;
     } catch (err) {
       console.error("Error fetching supplier returns:", err);
@@ -49,7 +48,6 @@ const SupplierReturnList = () => {
     // Listen for warehouse changes
     const handleWarehouseChange = (event) => {
       const newWarehouse = event.detail.warehouse || getCurrentWarehouse();
-      console.log("🏭 Warehouse changed in supplier returns:", newWarehouse);
       setCurrentWarehouse(newWarehouse);
       
       // Refetch data for new warehouse
@@ -70,16 +68,6 @@ const SupplierReturnList = () => {
       setReturns(returnsData);
       setProducts(productsRes.data);
       setPricingData(pricingRes.data);
-      
-      console.log("Returns data loaded:", returnsData.length);
-      console.log("Products data loaded:", productsRes.data.length);
-      console.log("Pricing data loaded:", pricingRes.data.length);
-      
-      // Log the structure of pricing data to help debugging
-      if (pricingRes.data.length > 0) {
-        console.log("Sample pricing data structure:", pricingRes.data[0]);
-        console.log("All pricing data IDs:", pricingRes.data.map(p => p.id));
-      }
     })
     .catch(err => {
       console.error("Error fetching initial data:", err);
@@ -96,8 +84,6 @@ const SupplierReturnList = () => {
     if (!dateString) return "N/A";
     
     try {
-      console.log("Original date string from server:", dateString);
-      
       // Create date object from the string
       const date = new Date(dateString);
       
@@ -106,8 +92,6 @@ const SupplierReturnList = () => {
         console.error("Invalid date string:", dateString);
         return "Invalid Date";
       }
-      
-      console.log("Parsed date object:", date);
       
       // Format using Philippine locale and timezone
       const formattedDate = date.toLocaleString("en-PH", {
@@ -120,7 +104,6 @@ const SupplierReturnList = () => {
         timeZone: "Asia/Manila" // Explicitly set Philippine timezone
       });
       
-      console.log("Formatted date:", formattedDate);
       return formattedDate;
       
     } catch (error) {
@@ -198,22 +181,11 @@ const SupplierReturnList = () => {
 
   // Enhanced helper function to find the correct pricing for a product
   const findProductPricing = (productId, productName) => {
-    // Log the lookup parameters
-    console.log(`Looking up pricing for productId=${productId}, productName=${productName}`);
-    console.log("Available pricing records:", pricingData.map(p => ({ 
-      id: p.id, 
-      product_id: p.product_id, 
-      product_name: p.product_name,
-      bottle_price: p.bottle_price,
-      shell_price: p.shell_price
-    })));
-    
     // If we have a specific product name like "Red Horse", look for its exact pricing
     if (productName === "Red Horse") {
       // For Red Horse, we want ID 14 based on the screenshot
       const redHorsePricing = pricingData.find(p => p.id === 14);
       if (redHorsePricing) {
-        console.log("Found specific pricing for Red Horse:", redHorsePricing);
         return redHorsePricing;
       }
     }
@@ -226,7 +198,6 @@ const SupplierReturnList = () => {
       );
       
       if (pricing) {
-        console.log(`Found pricing by product name "${productName}":`, pricing);
         return pricing;
       }
     }
@@ -239,12 +210,8 @@ const SupplierReturnList = () => {
     );
     
     if (pricing) {
-      console.log(`Found pricing by ID for product ${productId}:`, pricing);
       return pricing;
     }
-    
-    // If still not found, log the issue
-    console.warn(`No pricing found for product ${productName || productId}. Using default prices.`);
     
     return null;
   };
@@ -272,17 +239,11 @@ const SupplierReturnList = () => {
           if (pricing) {
             bottlePrice = Number(pricing.bottle_price || 0);
             shellPrice = Number(pricing.shell_price || 0);
-            
-            console.log(`Using API pricing for ${productName}:`, { bottlePrice, shellPrice });
           } else {
             // If pricing not found, try to get it from the product's nested price object
             if (product && product.price) {
               bottlePrice = Number(product.price.bottle_price || 0);
               shellPrice = Number(product.price.shell_price || 0);
-              
-              console.log(`Using product's nested price for ${productName}:`, { bottlePrice, shellPrice });
-            } else {
-              console.warn(`No pricing found for ${productName}. Will display 0.00.`);
             }
           }
           

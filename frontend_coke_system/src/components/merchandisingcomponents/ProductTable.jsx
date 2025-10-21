@@ -219,7 +219,12 @@ const ProductTable = ({
   const productId = Number(row.productId);
   const product = products.find(p => p.id === productId);
   const conversion = n(product?.unit_type?.content_no || 1); // This is the content_no (how many PCS in one Shell)
-  const price = n(row.unitPrice || product?.price?.selling_price);
+  const price =
+    n(row.unitPrice) ||
+    n(product?.price?.selling_price) ||
+    n(pricingMap[row.priceId]?.selling_price) ||
+    0;
+
 
   row.unitPrice = price;
   row.conversion = conversion;
@@ -272,11 +277,16 @@ const ProductTable = ({
     row.soldPcs = row.dispatchedPcs;
     row.soldShell = row.dispatchedShell;
 
-    // Recalculate expected/actual sales
-    row.expectedSale = Number((price * row.dispatchedPcs).toFixed(2));  // Expected sale based on dispatched PCS
-    row.actualSale = Number((price * row.soldPcs - discountAmt).toFixed(2));  // Actual sale based on sold PCS
-    row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));  // Discrepancy between expected and actual
-  }
+  const dispatchedNow = n(row.dispatchedPcs);
+  const soldNow = n(row.soldPcs);
+  const discountNow = n(row.discount);
+
+  const discountAmtNow = (price * soldNow * discountNow) / 100;
+
+  row.expectedSale = Number((price * dispatchedNow).toFixed(2));
+  row.actualSale = Number((price * soldNow - discountAmtNow).toFixed(2));
+  row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
+}
 
   
 // New changes Karen
@@ -565,6 +575,40 @@ if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
   }, [rows, products]);
   // Kath: This facility is used to check console.logs in table area
 
+
+  // 🩵 FIX: Recalculate actualSale when pricing data becomes available
+useEffect(() => {
+  if (!pricingMap || !Object.keys(pricingMap).length) return;
+
+  setRows(prev => {
+    const next = prev.map(r => {
+      if (!r.productId || !r.dispatchedPcs) return r;
+
+      const pm = pricingMap[r.priceId];
+      if (!pm) return r;
+
+      const price = n(pm.selling_price);
+      const discountPercent = n(r.discount);
+      const discountAmt = (price * n(r.soldPcs) * discountPercent) / 100;
+
+      const expectedSale = price * n(r.dispatchedPcs);
+      const actualSale = price * n(r.soldPcs) - discountAmt;
+      const discrepancy = expectedSale - actualSale;
+
+      return {
+        ...r,
+        unitPrice: price,
+        expectedSale: Number(expectedSale.toFixed(2)),
+        actualSale: Number(actualSale.toFixed(2)),
+        discrepancy: Number(discrepancy.toFixed(2)),
+      };
+    });
+    return next;
+  });
+}, [pricingMap]);
+
+
+  
   // -------------------- Render --------------------
   return (
     <div className="table-wrapper">
