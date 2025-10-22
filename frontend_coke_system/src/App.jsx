@@ -284,7 +284,13 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 </>
               }
             />
-            <Route path="/merchandising-sale" element={<MerchandisingSale />} />
+            <Route
+  path="/merchandising-sale"
+  element={
+    <MerchandisingSale key={window.location.key || Date.now()} />
+  }
+/>
+
             <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
 
             {/* Profile & Expenses */}

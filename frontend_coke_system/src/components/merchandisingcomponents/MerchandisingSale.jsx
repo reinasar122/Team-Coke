@@ -48,6 +48,14 @@ const MerchandisingSale = () => {
   const [transactionType, setTransactionType] = useState(
       location.state?.transactionTypeId || "" // auto-set Warehouse if passed
     );
+    // ✅ Detect and clear persisted form data when starting a new sale
+  const isResetSession = location.state?.reset === true;
+  if (isResetSession) {
+    localStorage.removeItem("merchForm");
+    localStorage.removeItem("rows");
+    sessionStorage.clear();
+    console.log("🧹 Cleared localStorage/sessionStorage before component hydration");
+  }
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
   const [transactionTypes, setTransactionTypes] = useState([]);
   const [mspNo, setMspNo] = useState("");
@@ -70,6 +78,7 @@ const MerchandisingSale = () => {
   const editingExistingRef = useRef(false);
 
   const [allProductsRaw, setAllProductsRaw] = useState([]);
+  
 
 
   // Converts local date to UTC (ISO format)
@@ -99,67 +108,67 @@ const MerchandisingSale = () => {
   };
 
 
-  useEffect(() => {
-  // Fetch the logged-in user from localStorage
+ useEffect(() => {
   const userData = JSON.parse(localStorage.getItem("user") || "{}");
-
-  // Check if the user data exists, and set the selected user automatically
   if (userData && userData.id) {
-    setSelectedUser(userData.id); // Automatically select the logged-in user
+    setSelectedUser(userData.id);
   }
-}, []);
+}, [location.key]); // 👈 re-runs every time you navigate (new sale)
+
+
 
 
 
 
   // ✅ IMPROVED: Complete form reset when reset state is passed
   useEffect(() => {
-    if (location.state?.reset === true) {
-      console.log("🔄 Resetting form to initial state...");
-      
-      // Reset all form state to initial values
-      setRows([
-        {
-          id: 1,
-          productId: "",
-          priceId: null,
-          dispatched: 0,
-          sold: 0,
-          expected_sale: 0,
-          actual_sale: 0,
-          discrepancy: 0,
-        },
-      ]);
-      //setMspNo(""); Commented By Kath || Do not reset MSP and Transaction Type 
-      //setTransactionType(""); Commented By Kath
-      //setSelectedTransactionTypeName(""); Commented By Kath
-      setSelectedUser(null);
-      setSelectedCustomerId("");
-      setRoute("");
-      setSelectedVan("");
-      setMiscItems([]);
-      setTotalExpectedSale(0);
-      setTotalActualSale(0);
-      setEmptiesPriceTotal(0);
-      setRefundablesTotal(0);
-      setDiscrepancy(0);
-      setTotalAmount(0);
-      setIsAddingRoute(false);
-      setIsAddingCustomer(false);
-      setEditMode(false);
-      
-      // Reset date/time to current
-      setTransactionDate(toDatetimeLocalValue());
-      
-      // Clear any localStorage data
-      localStorage.removeItem("merchForm");
-      
-      // Clear the location state to prevent repeated resets
-      window.history.replaceState({}, document.title);
-      
-      console.log("✅ Form reset completed");
-    }
-  }, [location.state]);
+  if (location.state?.reset === true) {
+    console.log("🔄 Resetting form to initial state...");
+
+    // reset all form state
+    setRows([
+      {
+        id: 1,
+        productId: "",
+        priceId: null,
+        dispatched: 0,
+        sold: 0,
+        expected_sale: 0,
+        actual_sale: 0,
+        discrepancy: 0,
+      },
+    ]);
+    setSelectedUser(null);
+    setSelectedCustomerId("");
+    setRoute("");
+    setSelectedVan("");
+    setMiscItems([]);
+    setTotalExpectedSale(0);
+    setTotalActualSale(0);
+    setEmptiesPriceTotal(0);
+    setRefundablesTotal(0);
+    setDiscrepancy(0);
+    setTotalAmount(0);
+    setIsAddingRoute(false);
+    setIsAddingCustomer(false);
+    setEditMode(false);
+    setTransactionDate(toDatetimeLocalValue());
+
+    // ✅ Clear any locally saved data that may rehydrate old rows
+    localStorage.removeItem("merchForm");
+    localStorage.removeItem("rows");
+    sessionStorage.clear();
+
+    // ✅ Also clear leftover sale/edit state
+    delete location.state.sale;
+    delete location.state.editMode;
+
+    // ✅ Prevent browser history restore
+    window.history.replaceState({}, document.title);
+
+    console.log("✅ Form reset completed — everything cleared");
+  }
+}, [location.state]);
 
   const getCurrentWarehouse = () => {
     const userData = JSON.parse(localStorage.getItem("user") || "{}");
@@ -476,10 +485,24 @@ const loadStocksAndProducts = async () => {
 
   // ✅ Fetch users when currentWarehouse is set
   useEffect(() => {
-    if (currentWarehouse?.id) {
-      fetchUsers();
+  if (currentWarehouse?.id) {
+    fetchUsers();
+  }
+}, [currentWarehouse, fetchUsers]);
+
+// ✅ INSERT HERE
+useEffect(() => {
+  const userData = JSON.parse(localStorage.getItem("user") || "{}");
+
+  if (!selectedUser && userData?.id && users.length > 0) {
+    const exists = users.some(u => String(u.id) === String(userData.id));
+    if (exists) {
+      setSelectedUser(userData.id);
+      console.log("✅ Handled By auto-filled:", userData.id);
     }
-  }, [currentWarehouse, fetchUsers]);
+  }
+}, [users, selectedUser]);
+
 
   const [rows, setRows] = useState([
     {
