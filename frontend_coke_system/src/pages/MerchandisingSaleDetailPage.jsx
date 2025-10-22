@@ -290,8 +290,12 @@ export default function MerchandisingSaleDetailPage() {
         bottlePrice: Number(price.bottle_price || 0),
         dispatchedPcs,
         dispatchedShell,   // now integer
+        discount: Number(it.discount || 0), // ✅ add this line
         expectedSale: Number(
-          (Number(price.selling_price || 0) * dispatchedPcs).toFixed(2)
+          (Number(price.selling_price || 0) *
+            dispatchedPcs *
+            (1 - Number(it.discount || 0) / 100)
+          ).toFixed(2)
         ),
       };
 
@@ -312,6 +316,7 @@ export default function MerchandisingSaleDetailPage() {
         sellingPrice: m.sellingPricePc,
         shellPrice: m.shellPrice,
         bottlePrice: m.bottlePrice,
+        discount: m.discount || 0,
         expectedSale: m.expectedSale,
       })),
       {
@@ -420,6 +425,7 @@ export default function MerchandisingSaleDetailPage() {
           dispatched_shell: Number.isFinite(Number(r.dispatchedShell))
             ? Number(r.dispatchedShell)   // ✅ keep the original shell
             : 0,
+          discount: Number(r.discount) || 0, 
         };
       });
 
@@ -488,6 +494,7 @@ export default function MerchandisingSaleDetailPage() {
               <th className="border px-2 py-2 text-center" colSpan={2}>Dispatched</th>
               <th className="border px-2 py-2 text-center">Selling Price</th>
               <th className="border px-2 py-2 text-center" colSpan={2}>Empty Price</th>
+              <th className="border px-2 py-2 text-center">Discount (%)</th>
               <th className="border px-2 py-2 text-center">Expected Sale</th>
               <th className="border px-2 py-2 text-center">Available</th>
             </tr>
@@ -498,7 +505,8 @@ export default function MerchandisingSaleDetailPage() {
               <td className="border px-2 py-1"></td>
               <td className="border px-2 py-1 text-center">Shell</td>
               <td className="border px-2 py-1 text-center">PCS</td>
-              <td className="border px-2 py-1"></td>
+              <td className="border px-2 py-1 text-center">%</td> {/* ✅ clearer indicator */}
+              <td className="border px-2 py-1 text-center">PCS</td>
               <td className="border px-2 py-1 text-center">PCS</td>
             </tr>
           </thead>
@@ -588,6 +596,21 @@ export default function MerchandisingSaleDetailPage() {
                           : ""}
                       />
                     </td>
+
+
+                    {/* DISCOUNT (%) */}
+                    <td className="border border-gray-200 py-1 px-1">
+                      <input
+                        readOnly
+                        className="w-full p-1 text-sm text-center bg-gray-100 border rounded"
+                        value={
+                          it.discount !== undefined && it.discount !== null
+                            ? `${parseFloat(it.discount).toFixed(2)}%`
+                            : ""
+                        }
+                      />
+                    </td>
+
 
 
                     {/* EXPECTED SALE */}

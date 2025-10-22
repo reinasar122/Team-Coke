@@ -5,7 +5,8 @@ import {
   FaCheckCircle,
   FaMinusCircle,
   FaCubes,
-  FaWarehouse,
+  FaWarehouse, // eslint-disable-line no-unused-vars
+  FaBell, // eslint-disable-line no-unused-vars
 } from "react-icons/fa";
 
 import "../styles/pages/stocks.scss";
@@ -23,7 +24,7 @@ const getBadgeClass = (s) => {
     case "High": return "badge badge--high";
     case "Moderate": return "badge badge--moderate";
     case "Low": return "badge badge--low";
-    case "Out of Stock": return "badge bade--outofstock";
+    case "Out of Stock": return "badge badge--outofstock";
     default: return "badge";
   }
 };
@@ -36,6 +37,77 @@ const getStatusIcon = (s) => {
     case "Low": return <FaExclamationTriangle />;
     case "Out of Stock": return <FaMinusCircle />;
     default: return null;
+  }
+};
+
+// Utility function to check and store low stock notifications
+const checkAndStoreNotifications = async (warehouseId) => {
+  try {
+    const response = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
+    const stocks = response.data;
+    
+    const criticalStocks = stocks.filter(item => 
+      item.stock_status === "Low" || item.stock_status === "Out of Stock"
+    );
+    
+    if (criticalStocks.length > 0) {
+      // Store in localStorage for notifications
+      const existingNotifications = JSON.parse(localStorage.getItem("stockNotifications") || "[]");
+      const newNotifications = criticalStocks.map(item => ({
+        id: `stock-${item.id}-${Date.now()}`,
+        type: "stock",
+        productName: item.product_name,
+        status: item.stock_status,
+        quantity: item.quantity_available,
+        timestamp: new Date().toISOString(),
+        read: false
+      }));
+      
+      // Avoid duplicate notifications
+      const uniqueNotifications = newNotifications.filter(newNotif => 
+        !existingNotifications.some(existing => 
+          existing.productName === newNotif.productName && 
+          existing.status === newNotif.status &&
+          !existing.read
+        )
+      );
+      
+      if (uniqueNotifications.length > 0) {
+        localStorage.setItem("stockNotifications", JSON.stringify([
+          ...existingNotifications,
+          ...uniqueNotifications
+        ]));
+        
+        // Dispatch event for notification system
+        window.dispatchEvent(new CustomEvent('newStockNotification', { 
+          detail: { notifications: uniqueNotifications }
+        }));
+      }
+    }
+  } catch (error) {
+    console.error("Error checking stock notifications:", error);
+  }
+};
+
+// Export function to be called after transactions
+export const checkStockAfterTransaction = async (warehouseId) => {
+  await checkAndStoreNotifications(warehouseId);
+};
+
+// Export function to be called on login
+export const checkStockOnLogin = async () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+  
+  let warehouseId;
+  if ((user.role || "").toLowerCase() === "admin") {
+    warehouseId = selectedWarehouse?.id || user.warehouse_id;
+  } else {
+    warehouseId = user.warehouse_id;
+  }
+  
+  if (warehouseId) {
+    await checkAndStoreNotifications(warehouseId);
   }
 };
 
@@ -64,7 +136,8 @@ const Stocks = () => {
       }
 
       const response = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
-      setStocks(response.data);
+      const stockData = response.data;
+      setStocks(stockData);
 
       const user = JSON.parse(localStorage.getItem("user") || "{}");
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
@@ -74,6 +147,9 @@ const Stocks = () => {
       } else {
         setCurrentWarehouse(user.warehouse || "Unknown Warehouse");
       }
+
+      // Check for notifications when stocks are loaded
+      await checkAndStoreNotifications(warehouseId);
     } catch (err) {
       console.error("Failed to load stocks:", err);
       setStocks([]);
@@ -84,9 +160,6 @@ const Stocks = () => {
 
   useEffect(() => {
     fetchStocks();
-    
-    // ✅ Dispatch event when stocks page is visited (for notifications)
-    window.dispatchEvent(new CustomEvent('stocksPageVisited'));
     
     const handleWarehouseChange = () => fetchStocks();
     window.addEventListener("warehouseChanged", handleWarehouseChange);
@@ -111,7 +184,9 @@ const Stocks = () => {
   return (
     <div className="stocks-container">
       <div>
-        <h2 className="page-title mb-5" style={{ marginRight: 'auto' }}>🧾 Stocks Table</h2>
+        <h2 className="page-title mb-5" style={{ marginRight: 'auto' }}>
+          🧾 Stocks Table
+        </h2>
       </div>
     
       <div className="table-wrapper">
@@ -136,9 +211,21 @@ const Stocks = () => {
               </tr>
             ) : (
               sortedStocks.map((item) => (
-                <tr key={item.id}>
-                  <td className="cell-left nowrap">{item.product_name}</td>
-                  <td className="text-center">{item.quantity_available}</td>
+                <tr 
+                  key={item.id}
+                  className={
+                    item.stock_status === "Out of Stock" ? "row--critical" :
+                    item.stock_status === "Low" ? "row--warning" : ""
+                  }
+                >
+                  <td className="cell-left nowrap">
+                    {item.product_name}
+                  </td>
+                  <td className="text-center">
+                    <span className={item.quantity_available === 0 ? "quantity--zero" : ""}>
+                      {item.quantity_available}
+                    </span>
+                  </td>
                   <td className="text-center nowrap">
                     {new Date(item.last_updated).toLocaleString("en-US", {
                       month: "short",

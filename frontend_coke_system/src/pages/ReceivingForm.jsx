@@ -1,4 +1,4 @@
-// Updated ReceivingForm.jsx - Fixed warehouse filtering logic + single return refactor
+// Updated ReceivingForm.jsx - Fixed warehouse filtering logic + single return refactor + receipt number validation + removed unused users state + fixed mouse wheel scroll issue
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -11,7 +11,6 @@ const ReceivingForm = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [users, setUsers] = useState([]);
   const [receiveNo, setReceiveNo] = useState("");
   const [supplierReturns, setSupplierReturns] = useState([]);
   const [isLoadingReturns, setIsLoadingReturns] = useState(false);
@@ -30,7 +29,6 @@ const ReceivingForm = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
 
   const [receivedByName, setReceivedByName] = useState("");
-
 
   // Use ref to track if we've already fetched for this supplier
   const lastFetchedSupplier = useRef(null);
@@ -87,7 +85,6 @@ const ReceivingForm = () => {
     });
     setSuppliers([]);
     setProducts([]);
-    setUsers([]);
     setSupplierReturns([]);
     setFilteredProducts([]);
     lastFetchedSupplier.current = null;
@@ -276,15 +273,6 @@ const ReceivingForm = () => {
         setProducts(res.data);
       })
       .catch((err) => console.error("❌ Error loading products:", err));
-
-    // Load users
-    axios
-      .get("http://localhost:8080/api/users/", config)
-      .then((res) => {
-        console.log(`✅ Loaded ${res.data.length} users for warehouse ${currentWarehouse.id}`);
-        setUsers(res.data);
-      })
-      .catch((err) => console.error("❌ Error loading users:", err));
 
     const generateJumbledCode = () => {
       const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -607,7 +595,6 @@ const ReceivingForm = () => {
     }));
   };
 
-
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     if (user?.id) {
@@ -631,13 +618,6 @@ const ReceivingForm = () => {
       }
     }
   }, []);
-
-
-
-
-
-
-
 
   const handleRowChange = (index, field, value) => {
     const newRows = [...form.details];
@@ -710,6 +690,12 @@ const ReceivingForm = () => {
 
     if (!form.received_by) {
       showNotice("❌ Please select who received the items.", "error");
+      return;
+    }
+
+    // FIXED: Add validation for receipt number (invoice_no)
+    if (!form.invoice_no || form.invoice_no.trim() === "") {
+      showNotice("❌ Please enter the receipt number.", "error");
       return;
     }
 
@@ -829,12 +815,14 @@ const ReceivingForm = () => {
             )}
           </div>
           <div>
-            <label className="form-label">Receipt No:</label>
+            <label className="form-label">Receipt No: <span className="text-red-500">*</span></label>
             <input
               type="text"
               value={form.invoice_no}
               onChange={(e) => setForm({ ...form, invoice_no: e.target.value })}
               className="form-input"
+              placeholder="Enter receipt number"
+              required
             />
           </div>
         </div>
@@ -975,6 +963,7 @@ const ReceivingForm = () => {
                         }
                         placeholder={row.shell_qty ? String(row.shell_qty) : "0"}
                         onChange={(e) => handleRowChange(index, "shell_qty", e.target.value)}
+                        onWheel={(e) => e.target.blur()} // Prevent scroll wheel changes
                         className="form-input text-center"
                       />
                     </td>
@@ -988,21 +977,22 @@ const ReceivingForm = () => {
                         className="form-input text-center"
                       />
                     </td>
-                  <td>
-                    <input
-                      type="number"
-                      disabled={!row.product_id}
-                      value={
-                        row.bad_order_pcs === "" || row.bad_order_pcs === 0
-                          ? ""                       // show placeholder when empty or zero
-                          : row.bad_order_pcs
-                      }
-                      placeholder={row.bad_order_pcs ? String(row.bad_order_pcs) : "0"}
-                      onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
-                      className="form-input text-center"
-                      min="0"
-                    />
-                  </td>
+                    <td>
+                      <input
+                        type="number"
+                        disabled={!row.product_id}
+                        value={
+                          row.bad_order_pcs === "" || row.bad_order_pcs === 0
+                            ? ""                       // show placeholder when empty or zero
+                            : row.bad_order_pcs
+                        }
+                        placeholder={row.bad_order_pcs ? String(row.bad_order_pcs) : "0"}
+                        onChange={(e) => handleRowChange(index, "bad_order_pcs", e.target.value)}
+                        onWheel={(e) => e.target.blur()} // Prevent scroll wheel changes
+                        className="form-input text-center"
+                        min="0"
+                      />
+                    </td>
 
                     <td className="text-center">₱{parseFloat(row.unit_cost || 0).toFixed(2)}</td>
                     <td className="text-center font-bold">₱{parseFloat(row.total || 0).toFixed(2)}</td>
@@ -1024,8 +1014,6 @@ const ReceivingForm = () => {
               className="form-input font-semibold bg-gray-100 cursor-not-allowed"
             />
           </div>
-
-
 
           <div>
             <label className="form-label">Remarks:</label>

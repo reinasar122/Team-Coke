@@ -1,17 +1,13 @@
-// src/contexts/NotificationContext.jsx - COMPLETE UPDATED VERSION WITH PRODUCTS & RETURNS NOTIFICATIONS
+// src/contexts/NotificationContext.jsx - COMPLETE FIXED VERSION
 import React, { createContext, useContext, useReducer } from 'react';
 
 const NotificationContext = createContext();
 
 const notificationReducer = (state, action) => {
-  console.log("🔧 REDUCER ACTION:", action.type, action.payload);
-  console.log("🔧 CURRENT STATE:", state);
-  
   switch (action.type) {
     case 'ADD_NOTIFICATION':
       // Check for duplicates
       if (state.notifications.some(n => n.id === action.payload.id)) {
-        console.log("🔧 DUPLICATE NOTIFICATION BLOCKED:", action.payload.id);
         return state;
       }
       
@@ -21,18 +17,18 @@ const notificationReducer = (state, action) => {
         unreadCount: state.unreadCount + 1
       };
       
-      console.log("🔧 NEW STATE AFTER ADD:", newState);
       return newState;
       
     case 'MARK_AS_READ':
+      const newNotifications = state.notifications.map(notif =>
+        notif.id === action.payload ? { ...notif, is_read: true } : notif
+      );
+      
       const readState = {
         ...state,
-        notifications: state.notifications.map(notif =>
-          notif.id === action.payload ? { ...notif, is_read: true } : notif
-        ),
-        unreadCount: Math.max(0, state.unreadCount - 1)
+        notifications: newNotifications,
+        unreadCount: newNotifications.filter(n => !n.is_read).length
       };
-      console.log("🔧 NEW STATE AFTER MARK_AS_READ:", readState);
       return readState;
       
     case 'MARK_ALL_AS_READ':
@@ -41,17 +37,15 @@ const notificationReducer = (state, action) => {
         notifications: state.notifications.map(notif => ({ ...notif, is_read: true })),
         unreadCount: 0
       };
-      console.log("🔧 NEW STATE AFTER MARK_ALL_AS_READ:", allReadState);
       return allReadState;
       
     case 'REMOVE_NOTIFICATION':
-      const notification = state.notifications.find(n => n.id === action.payload);
+      const removedNotification = state.notifications.find(n => n.id === action.payload);
       const removeState = {
         ...state,
         notifications: state.notifications.filter(notif => notif.id !== action.payload),
-        unreadCount: notification && !notification.is_read ? Math.max(0, state.unreadCount - 1) : state.unreadCount
+        unreadCount: removedNotification && !removedNotification.is_read ? Math.max(0, state.unreadCount - 1) : state.unreadCount
       };
-      console.log("🔧 NEW STATE AFTER REMOVE:", removeState);
       return removeState;
       
     case 'CLEAR_ALL':
@@ -60,7 +54,6 @@ const notificationReducer = (state, action) => {
         notifications: [],
         unreadCount: 0
       };
-      console.log("🔧 NEW STATE AFTER CLEAR_ALL:", clearState);
       return clearState;
       
     case 'SET_NOTIFICATIONS':
@@ -70,7 +63,6 @@ const notificationReducer = (state, action) => {
         notifications: action.payload,
         unreadCount: unread
       };
-      console.log("🔧 NEW STATE AFTER SET_NOTIFICATIONS:", setState);
       return setState;
       
     case 'UPDATE_NOTIFICATION':
@@ -80,7 +72,6 @@ const notificationReducer = (state, action) => {
           notif.id === action.payload.id ? { ...notif, ...action.payload.updates } : notif
         )
       };
-      console.log("🔧 NEW STATE AFTER UPDATE_NOTIFICATION:", updateState);
       return updateState;
       
     case 'SET_PROCESSED_IDS':
@@ -88,11 +79,9 @@ const notificationReducer = (state, action) => {
         ...state,
         processedIds: action.payload
       };
-      console.log("🔧 NEW STATE AFTER SET_PROCESSED_IDS:", processedState);
       return processedState;
       
     default:
-      console.log("🔧 UNKNOWN ACTION TYPE:", action.type);
       return state;
   }
 };
@@ -105,18 +94,13 @@ export const NotificationProvider = ({ children }) => {
     lastChecked: new Date().toISOString()
   });
 
-  console.log("🔧 NOTIFICATION PROVIDER - Current state:", state);
-
   // Notification factory for different types
   const createNotification = (type, data, userRole) => {
-    console.log("🔧 CREATE_NOTIFICATION CALLED:", { type, data, userRole });
-    
     const timestamp = new Date().toISOString();
     const baseId = `${type}-${data.id || Date.now()}`;
     
     // Check role permissions
     if (!hasNotificationPermission(type, userRole)) {
-      console.log("🔧 PERMISSION DENIED for type:", type, "role:", userRole);
       return null;
     }
 
@@ -695,11 +679,9 @@ export const NotificationProvider = ({ children }) => {
         break;
 
       default:
-        console.log("🔧 UNKNOWN NOTIFICATION TYPE:", type);
         return null;
     }
 
-    console.log("🔧 CREATED NOTIFICATION RESULT:", notification);
     return notification;
   };
 
@@ -749,19 +731,14 @@ export const NotificationProvider = ({ children }) => {
     const allowedCategories = rolePermissions[userRole?.toLowerCase()] || [];
     
     const hasPermission = allowedCategories.includes(category);
-    console.log("🔧 PERMISSION CHECK:", { type, category, userRole, allowedCategories, hasPermission });
     
     return hasPermission;
   };
 
   const addNotification = (type, data, userRole) => {
-    console.log("🔧 ADD_NOTIFICATION CALLED:", { type, data, userRole });
-    
     const notification = createNotification(type, data, userRole);
-    console.log("🔧 CREATED NOTIFICATION:", notification);
     
     if (notification) {
-      console.log("🔧 DISPATCHING ADD_NOTIFICATION:", notification);
       dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
       
       // Show browser notification if permission granted
@@ -772,11 +749,9 @@ export const NotificationProvider = ({ children }) => {
             icon: '/favicon.ico'
           });
         } catch (error) {
-          console.warn("Browser notification failed:", error);
+          // Browser notification failed - permission may be denied
         }
       }
-    } else {
-      console.log("🔧 NOTIFICATION NOT CREATED - Permission denied or invalid data");
     }
   };
 

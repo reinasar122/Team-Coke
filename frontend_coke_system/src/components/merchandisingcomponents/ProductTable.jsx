@@ -218,8 +218,13 @@ const ProductTable = ({
 
   const productId = Number(row.productId);
   const product = products.find(p => p.id === productId);
-  const conversion = n(product?.unit_type?.content_no || 1);
-  const price = n(row.unitPrice || product?.price?.selling_price);
+  const conversion = n(product?.unit_type?.content_no || 1); // This is the content_no (how many PCS in one Shell)
+  const price =
+    n(row.unitPrice) ||
+    n(product?.price?.selling_price) ||
+    n(pricingMap[row.priceId]?.selling_price) ||
+    0;
+
 
   row.unitPrice = price;
   row.conversion = conversion;
@@ -253,13 +258,27 @@ const ProductTable = ({
       row.actualSale = 0;
       row.discrepancy = 0;
     } else {
-      row.soldPcs = row.dispatchedPcs;
-      row.soldShell = row.dispatchedShell;
+      console.warn(`Stock not yet loaded for product ${productId}`);
     }
-  }
 
-  // --- RETURNED EMPTY (adjust discrepancies) ---
-  if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
+
+    // Sync sold fields with dispatched
+    row.soldPcs = row.dispatchedPcs;
+    row.soldShell = row.dispatchedShell;
+
+  const dispatchedNow = n(row.dispatchedPcs);
+  const soldNow = n(row.soldPcs);
+  const discountNow = n(row.discount);
+
+  const discountAmtNow = (price * soldNow * discountNow) / 100;
+
+  row.expectedSale = Number((price * dispatchedNow).toFixed(2));
+  row.actualSale = Number((price * soldNow - discountAmtNow).toFixed(2));
+  row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
+}
+
+  
+// New changes Karen
     if (isReturnable) {
       const dispatchedShell = n(row.dispatchedShell);
       const dispatchedPcs = n(row.dispatchedPcs);
@@ -506,6 +525,40 @@ if (isReturnable) {
   }, [rows, products]);
   // Kath: This facility is used to check console.logs in table area
 
+
+  // 🩵 FIX: Recalculate actualSale when pricing data becomes available
+useEffect(() => {
+  if (!pricingMap || !Object.keys(pricingMap).length) return;
+
+  setRows(prev => {
+    const next = prev.map(r => {
+      if (!r.productId || !r.dispatchedPcs) return r;
+
+      const pm = pricingMap[r.priceId];
+      if (!pm) return r;
+
+      const price = n(pm.selling_price);
+      const discountPercent = n(r.discount);
+      const discountAmt = (price * n(r.soldPcs) * discountPercent) / 100;
+
+      const expectedSale = price * n(r.dispatchedPcs);
+      const actualSale = price * n(r.soldPcs) - discountAmt;
+      const discrepancy = expectedSale - actualSale;
+
+      return {
+        ...r,
+        unitPrice: price,
+        expectedSale: Number(expectedSale.toFixed(2)),
+        actualSale: Number(actualSale.toFixed(2)),
+        discrepancy: Number(discrepancy.toFixed(2)),
+      };
+    });
+    return next;
+  });
+}, [pricingMap]);
+
+
+  
   // -------------------- Render --------------------
   return (
     <div className="table-wrapper">
