@@ -309,7 +309,10 @@ export default function CreditDetail() {
                     >
                       ₱{fmt(merch?.discrepancy_empty ?? discAmount)}
                     </td>
-                    <td className="p-2 border">{r.returnedWithContent || 0}</td>
+                    <td className="p-2 border font-semibold text-blue-600">
+                      ₱{fmt(merch?.returned_with_content ?? r.returnedWithContent ?? 0)}
+                    </td>
+
 
                   <td className="p-2 border font-semibold text-red-600">
                     ₱{fmt(merch?.discrepancy_non_empty ?? discNonEmpty)}

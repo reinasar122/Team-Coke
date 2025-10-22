@@ -371,7 +371,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
   if (!saleId) {
     console.warn("⚠️ InvoiceModal: no saleId provided.");
-    onClose?.(); // just close, skip saving
+    onClose?.();
     navigate("/trading", { replace: true });
     return;
   }
@@ -418,9 +418,28 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
     console.log("✅ Invoice saved:", responseBody);
 
-    // success → close modal + redirect
+    // ✅ Logic after saving invoice
+    const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
+
+    if (isWarehouse) {
+      // Only Warehouse → go back to Merchandising Sale and open new transaction
+      const warehouseType = Array.isArray(transactionTypes)
+        ? transactionTypes.find(tt => tt.name === "Warehouse")
+        : null;
+
+      navigate("/merchandising-sale", {
+        replace: true,
+        state: {
+          reset: true,
+          transactionTypeId: warehouseType?.id || "",
+        },
+      });
+    } else {
+      // Van Load → go back to trading list
+      navigate("/trading", { replace: true, state: { reset: true } });
+    }
+
     onClose?.();
-    navigate("/trading", { replace: true, state: { reset: true } });
   } catch (err) {
     console.error("🔥 Network error saving invoice:", err);
     showAlert("Network error while saving invoice. Check console.");
