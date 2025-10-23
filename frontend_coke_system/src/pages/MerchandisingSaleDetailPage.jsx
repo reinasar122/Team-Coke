@@ -2,9 +2,10 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import VanLoadTable from "../components/merchandisingcomponents/VanLoadTable";
+import api from "../api"; // ✅ correct
 
 
-const API = "http://localhost:8080/api";
+//const API = "http://localhost:8080/api";
 
 // format to <input type="datetime-local">
 const toDatetimeLocalValue = (date = new Date()) => {
@@ -218,7 +219,7 @@ export default function MerchandisingSaleDetailPage() {
   --------------------------*/
   const loadProducts = useCallback(async () => {
   try {
-    const res = await axios.get(`${API}/products/`);
+    const res = await api.get(`/products/`);
     const list = Array.isArray(res.data) ? res.data : [];
     setProducts(list);
     return list;                     // <-- add this
@@ -236,11 +237,11 @@ export default function MerchandisingSaleDetailPage() {
   const loadMerchandisingDetail = useCallback(
     async (id, prodListParam) => {
       if (!id) return;
-      const urls = [`${API}/merchandisings/${id}/`, `${API}/merchandising/${id}/`];
+      const urls = [`/merchandisings/${id}/`, `/merchandising/${id}/`];
       let data = null;
       for (const url of urls) {
         try {
-          const r = await axios.get(url);
+          const r = await api.get(url);
           data = r.data;
           break;
         } catch {}
@@ -346,7 +347,7 @@ export default function MerchandisingSaleDetailPage() {
     async (warehouseId) => {
       if (!warehouseId) return setAvailableStock({});
       try {
-        const { data } = await axios.get(`${API}/stocks/`, {
+        const { data } = await api.get(`/stocks/`, {
           params: { warehouse: warehouseId },
         });
         const map = {};
@@ -364,7 +365,7 @@ export default function MerchandisingSaleDetailPage() {
   );
 
   useEffect(() => {
-    axios.get(`${API}/users/`)
+    api.get(`/users/`)
       .then(res => setUsers(res.data))
       .catch(err => console.error("Error fetching users:", err));
   }, []);
@@ -382,13 +383,13 @@ export default function MerchandisingSaleDetailPage() {
   // vans & routes for edit header
   useEffect(() => {
     if (!isVanLoad || !currentWarehouse?.id) return;
-    axios
-      .get(`${API}/vans/`)
+    api
+      .get(`/vans/`)
       .then((res) => setVans(res.data || []))
       .catch(() => setVans([]));
 
-    axios
-      .get(`${API}/routes/`, { params: { warehouse: currentWarehouse.id } })
+    api
+      .get(`/routes/`, { params: { warehouse: currentWarehouse.id } })
       .then((res) => setRoutes(res.data || []))
       .catch(() => setRoutes([]));
   }, [isVanLoad, currentWarehouse?.id]);
@@ -441,7 +442,7 @@ export default function MerchandisingSaleDetailPage() {
     };
 
     try {
-      await axios.patch(`${API}/merchandisings/${sale.id}/`, payload, {
+      await api.patch(`/merchandisings/${sale.id}/`, payload, {
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${localStorage.getItem("token")}`,

@@ -2,6 +2,8 @@
 import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useParams, Link, useSearchParams } from "react-router-dom";
+import api from "../api"; // ✅ correct
+
 
 const API = "http://localhost:8080";
 
@@ -61,7 +63,7 @@ export default function CreditDetail() {
     try {
       setError("");
       const warehouseParam = searchParams.get("warehouse") || currentWarehouse.id;
-      const { data } = await axios.get(`${API}/api/credits/${id}/?warehouse=${warehouseParam}`);
+      const { data } = await api.get(`/credits/${id}/?warehouse=${warehouseParam}`);
       setLedger(data);
     } catch (e) {
       console.error(e);
@@ -73,7 +75,7 @@ export default function CreditDetail() {
   const loadMerch = async () => {
     if (!ledger?.msp_no) return;
     try {
-      const { data } = await axios.get(`${API}/api/merchandisings/?msp_no=${ledger.msp_no}`);
+      const { data } = await api.get(`/merchandisings/?msp_no=${ledger.msp_no}`);
       if (Array.isArray(data) && data.length > 0) {
         // Find the record that exactly matches the current MSP No (case-insensitive)
         const match = data.find(
@@ -120,7 +122,7 @@ export default function CreditDetail() {
       if (!toPost || toPost <= 0) return;
 
       const warehouseParam = searchParams.get("warehouse") || currentWarehouse.id;
-      await axios.post(`${API}/api/credits/${id}/payments/?warehouse=${warehouseParam}`, {
+      await api.post(`/credits/${id}/payments/?warehouse=${warehouseParam}`, {
         amount: toPost,
         method,
         note,

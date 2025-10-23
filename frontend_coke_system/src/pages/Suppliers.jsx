@@ -14,8 +14,9 @@ import { toast } from "react-toastify";
 import { errorStyle } from "../utils/toastStyles";
 import SupplierRegistrationForm from "./SupplierRegistrationForm";
 import SupplierEditForm from "./SupplierEditForm";
+import api from "../api"; // ✅ correct
 
-const API = "http://localhost:8080/api";
+//const API = "http://localhost:8080/api";
 
 /* tiny helper for key:value rows */
 function Detail({ label, value, className = "" }) {
@@ -64,7 +65,7 @@ const Suppliers = () => {
   const fetchSuppliers = async () => {
     try {
       setLoading(true);
-      const { data } = await axios.get(`${API}/suppliers/`);
+      const { data } = await api.get("/suppliers/");
       setSuppliers(data || []);
     } catch (error) {
       console.error("Error fetching suppliers:", error);
@@ -84,7 +85,7 @@ const Suppliers = () => {
 
   const handleDelete = async () => {
     try {
-      await axios.delete(`${API}/suppliers/${supplierToDelete.id}/`);
+      await api.delete(`/suppliers/${supplierToDelete.id}/`);
       setSuppliers((prev) => prev.filter((x) => x.id !== supplierToDelete.id));
       toast.error(
         `Supplier ${supplierToDelete.company_name} has been deleted.`,

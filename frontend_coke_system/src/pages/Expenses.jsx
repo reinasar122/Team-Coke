@@ -2,6 +2,8 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
+import api from "../api"; // ✅ correct
+
 
 /* ------------------ helpers ------------------ */
 const peso = (n) =>
@@ -200,8 +202,8 @@ export default function Expenses() {
         console.log(`🔄 Fetching expenses for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
 
         const [miscRes, merchRes] = await Promise.allSettled([
-          axios.get(`${API}/miscellaneous-items/?warehouse=${currentWarehouse.id}`, authHeaders()),
-          axios.get(`${API}/merchandisings/?warehouse=${currentWarehouse.id}`, authHeaders()),
+          api.get(`/miscellaneous-items/?warehouse=${currentWarehouse.id}`, authHeaders()),
+          api.get(`/merchandisings/?warehouse=${currentWarehouse.id}`, authHeaders()),
         ]);
 
         const miscData = miscRes.status === 'fulfilled' ? (miscRes.value?.data || []) : [];
@@ -315,7 +317,7 @@ export default function Expenses() {
         merchandising: warehouseMSP.id, // Always use warehouse MSP
       };
 
-      const response = await axios.post(`${API}/miscellaneous-items/`, payload, authHeaders());
+      const response = await api.post(`/miscellaneous-items/`, payload, authHeaders());
 
       setItems((prev) => sortLatest([response.data, ...prev]));
       setOpen(false);
@@ -362,7 +364,7 @@ export default function Expenses() {
         
         await Promise.all(
           expenseIds.map(id => 
-            axios.delete(`${API}/miscellaneous-items/${id}/`, authHeaders())
+            api.delete(`/miscellaneous-items/${id}/`, authHeaders())
           )
         );
         

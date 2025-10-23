@@ -3,6 +3,7 @@ import axios from "axios";
 import psgcData from "../data/psgc_output.json";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles"; // Import custom styles
+import api from "../api"; // ✅ correct
 
 const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -34,8 +35,8 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   useEffect(() => {
     const loadSupplier = async () => {
       try {
-        const { data } = await axios.get(
-          `http://localhost:8080/api/suppliers/${supplierId}/`
+        const { data } = await api.get(
+          `/suppliers/${supplierId}/`
         );
         setFormData({
           ...data,
@@ -126,8 +127,8 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     };
 
     try {
-      await axios.put(
-        `http://localhost:8080/api/suppliers/${supplierId}/`,
+      await api.put(
+        `/suppliers/${supplierId}/`,
         payload
       );
       toast.success(

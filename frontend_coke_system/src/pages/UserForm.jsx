@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { successStyle } from "../utils/toastStyles";
+import api from "../api"; // ✅ correct
+import WifiLoader from "../components/WifiLoader";
 
 const UserForm = ({ onUserAdded, onClose }) => {
   const [formData, setFormData] = useState({
@@ -25,10 +27,9 @@ const UserForm = ({ onUserAdded, onClose }) => {
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8080/api/roles/");
-        if (!response.ok) throw new Error('Failed to fetch roles');
-        const data = await response.json();
-        setRoles(data);
+        const { data } = await api.get("/roles/");
+      setRoles(data);
+
       } catch (error) {
         console.error("Error fetching roles:", error);
         toast.error("Failed to load roles. Please refresh the page.");
@@ -37,10 +38,9 @@ const UserForm = ({ onUserAdded, onClose }) => {
 
     const fetchWarehouses = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8080/api/warehouses/");
-        if (!response.ok) throw new Error('Failed to fetch warehouses');
-        const data = await response.json();
-        setWarehouses(data);
+        const { data } = await api.get("/warehouses/");
+setWarehouses(data);
+
       } catch (error) {
         console.error("Error fetching warehouses:", error);
         toast.error("Failed to load warehouses. Please refresh the page.");
@@ -178,78 +178,81 @@ const UserForm = ({ onUserAdded, onClose }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrors({});
+      e.preventDefault();
+      setIsSubmitting(true);
+      setErrors({});
 
-    try {
-      // Validate email before submission
-      if (formData.email) {
-        const emailError = validateEmail(formData.email);
-        if (emailError) {
-          setErrors({ email: emailError });
-          toast.error("Please fix the email format before submitting");
-          return;
-        }
-
-        // Verify Gmail exists if it's a Gmail address
-        if (formData.email.endsWith('@gmail.com')) {
-          try {
-            await verifyGmailExists(formData.email);
-          } catch (verifyError) {
-            setErrors({ email: verifyError.message });
-            toast.error("Gmail verification failed: " + verifyError.message);
+      try {
+        // ✅ Email validation
+        if (formData.email) {
+          const emailError = validateEmail(formData.email);
+          if (emailError) {
+            setErrors({ email: emailError });
+            toast.error("Please fix the email format before submitting");
+            setIsSubmitting(false);
             return;
           }
+
+          if (formData.email.endsWith('@gmail.com')) {
+            try {
+              await verifyGmailExists(formData.email);
+            } catch (verifyError) {
+              setErrors({ email: verifyError.message });
+              toast.error("Gmail verification failed: " + verifyError.message);
+              setIsSubmitting(false);
+              return;
+            }
+          }
         }
-      }
 
-      const userPayload = {
-        ...formData,
-        role_id: Number(formData.role_id) || null,
-        warehouse_id: Number(formData.warehouse_id) || null,
-        is_active: Boolean(formData.is_active),
-      };
+        // ✅ Prepare payload
+        const userPayload = {
+          ...formData,
+          role_id: Number(formData.role_id) || null,
+          warehouse_id: Number(formData.warehouse_id) || null,
+          is_active: Boolean(formData.is_active),
+        };
 
-      const response = await fetch("http://127.0.0.1:8080/api/users/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userPayload),
-      });
+        // ✅ Create user
+        const { data } = await api.post("/users/", userPayload);
 
-      const data = await response.json();
-
-      if (response.ok) {
         toast.success(`User '${data.username}' has been created successfully!`, { style: successStyle });
+
+        // ✅ Refresh user list and close modal
         onUserAdded(data);
         onClose();
-      } else {
-        // Handle backend validation errors
-        if (data.email && data.email[0]) {
-          if (data.email[0].includes('already exists')) {
+      } catch (error) {
+        const data = error.response?.data;
+        if (data?.email?.[0]) {
+          if (data.email[0].includes("already exists")) {
             toast.error("This email address is already registered. Please use a different email.");
-          } else if (data.email[0].includes('invalid') || data.email[0].includes('Enter a valid')) {
-            toast.error("Please enter a valid active email address in lowercase format.");
           } else {
             toast.error(`Email error: ${data.email[0]}`);
           }
-        } else if (data.username && data.username[0]) {
+        } else if (data?.username?.[0]) {
           toast.error(`Username error: ${data.username[0]}`);
         } else {
           toast.error("Failed to create user. Please check the form.");
         }
+      } finally {
+        // ✅ Hide loader
+        setIsSubmitting(false);
       }
-    } catch (error) {
-      console.error("Error creating user:", error);
-      toast.error("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    };
+
+
+
 
   return (
-    <div className="modal-overlay bg-gray-900 bg-opacity-50">
-      <div className="w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
+    <div className="modal-overlay bg-gray-900 bg-opacity-50 relative">
+    <div className="w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg relative">
+
+      {/* ✅ Add loader overlay */}
+      {isSubmitting && (
+        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-40 rounded-lg z-50">
+          <WifiLoader text="Creating user..." />
+        </div>
+      )}
         <h2 className="text-2xl font-semibold mb-4">New User</h2>
         <form onSubmit={handleSubmit}>
           {/* Name Fields */}

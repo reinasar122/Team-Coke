@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import axios from "axios";
 // import "../../styles/pages/receivinglist.scss"; // reuse your existing styles
+import api from "../api"; // ✅ correct
 
 const peso = (v) => `₱${Number(v || 0).toFixed(2)}`;
 
@@ -44,7 +45,7 @@ export default function ReceivingDetails() {
     const fetchUsers = async () => {
       try {
         const cfg = getAxiosConfig();
-        const res = await axios.get("http://localhost:8080/api/users/", cfg);
+        const res = await api.get("/users/", cfg);
         setUsers(res.data || []);
       } catch (e) {
         console.error("[ReceivingDetails] Error fetching users:", e);
@@ -62,7 +63,7 @@ export default function ReceivingDetails() {
       setLoading(true);
       try {
         const cfg = getAxiosConfig();
-        const res = await axios.get(`http://localhost:8080/api/receiving/${id}/`, cfg);
+        const res = await api.get(`/receiving/${id}/`, cfg);
         setReceipt(res.data);
       } catch (e) {
         console.error("[ReceivingDetails] Error fetching receipt:", e);

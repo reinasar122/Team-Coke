@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaChevronDown } from 'react-icons/fa';
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
 import { notifyProductChange } from '../utils/productNotifier'; // ✅ NEW IMPORT
+import api from "../api"; // ✅ correct
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -84,7 +85,7 @@ const ProductList = () => {
         return;
       }
 
-      const res = await axios.get(`http://localhost:8080/api/products/?warehouse_id=${warehouseId}`);
+      const res = await api.get(`/products/?warehouse_id=${warehouseId}`);
       setProducts(res.data);
     } catch (err) {
       console.error("Error fetching products:", err);
@@ -284,7 +285,7 @@ const ProductList = () => {
     showConfirmDialog("Are you sure you want to delete this product?", async () => {
       try {
         const warehouseId = getCurrentWarehouse();
-        await axios.delete(`http://localhost:8080/api/products/${id}/?warehouse_id=${warehouseId}`);
+        await api.delete(`/products/${id}/?warehouse_id=${warehouseId}`);
         
         // Update state to remove deleted product
         setProducts(prev => prev.filter(prod => prod.id !== id));

@@ -5,6 +5,7 @@ import UserForm from "./UserForm";
 import EditUser from "./EditUser";
 import { canCreate, canEdit, canDelete } from "../utils/accessControl";
 import { FaEdit, FaTrash, FaUsers } from "react-icons/fa";
+import api from "../api"; // ✅ correct
 
 // Search Icon Component
 const SearchIcon = () => (
@@ -77,9 +78,9 @@ const UserList = () => {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8080/api/users/");
-      const data = await response.json();
-      setUsers(data);
+      const { data } = await api.get("/users/");
+    setUsers(data);
+
     } catch (error) {
       console.error("Error fetching users:", error);
     }
@@ -87,9 +88,9 @@ const UserList = () => {
 
   const fetchRoles = async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8080/api/roles/");
-      const data = await response.json();
-      setRoles(data);
+      const { data } = await api.get("/roles/");
+setRoles(data);
+
     } catch (error) {
       console.error("Error fetching roles:", error);
     }
@@ -106,14 +107,8 @@ const UserList = () => {
     if (!deleteModal.user) return;
 
     try {
-      const response = await fetch(
-        `http://127.0.0.1:8080/api/users/${deleteModal.user.id}/`,
-        {
-          method: "DELETE",
-        }
-      );
+      await api.delete(`/users/${deleteModal.user.id}/`);
 
-      if (!response.ok) throw new Error("Failed to delete user");
 
       setUsers((prevUsers) =>
         prevUsers.filter((user) => user.id !== deleteModal.user.id)

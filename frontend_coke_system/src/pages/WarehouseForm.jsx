@@ -2,6 +2,8 @@ import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { successStyle } from "../utils/toastStyles";
 import psgcData from "../data/psgc_output.json"; 
+import api from "../api";
+
 
 const WarehouseForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -61,23 +63,16 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch("http://127.0.0.1:8080/api/warehouses/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+          await api.post("/warehouses/", formData);
 
-      if (response.ok) {
-        toast.success(
-          `Warehouse '${formData.name}' has been saved successfully!`,
-          { style: successStyle }
-        );
-        onSuccess();
-      } else {
-        console.error("Failed to create warehouse");
-      }
+      toast.success(
+        `Warehouse '${formData.name}' has been saved successfully!`,
+        { style: successStyle }
+      );
+      onSuccess?.();
     } catch (error) {
       console.error("Error creating warehouse:", error);
+      toast.error("Failed to create warehouse. Please try again.", { style: successStyle });
     }
   };
 

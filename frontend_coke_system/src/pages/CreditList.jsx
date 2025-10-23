@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { FaEye } from "react-icons/fa";
+import api from "../api"; // ✅ correct
 
 export default function CreditList() {
   const [rows, setRows] = useState([]);
@@ -56,7 +57,7 @@ export default function CreditList() {
       try {
         setLoading(true);
         setError("");
-        const { data } = await axios.get(`http://127.0.0.1:8080/api/credits/?warehouse=${currentWarehouse.id}`);
+        const { data } = await api.get(`/credits/?warehouse=${currentWarehouse.id}`);
         setRows(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error(e);

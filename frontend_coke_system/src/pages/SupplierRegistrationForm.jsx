@@ -3,6 +3,7 @@ import axios from "axios";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
 import psgcData from "../data/psgc_output.json";
+import api from "../api"; // ✅ correct
 
 const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -110,7 +111,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     };
 
     try {
-      await axios.post("http://localhost:8080/api/suppliers/", payload);
+      await api.post("/suppliers/", payload);
 
       toast.success(
         `Supplier '${formData.company_name || "New Supplier"}' has been registered successfully!`,

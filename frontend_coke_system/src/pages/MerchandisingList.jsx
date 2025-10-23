@@ -3,6 +3,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { FaChartLine} from "react-icons/fa";
 import "../styles/pages/merchandisinglist.scss";  // Import the custom styles
+import api from "../api"; // ✅ correct
 
 // Date formatting for Manila timezone
 const formatToManila = (isoString) => {
@@ -94,8 +95,8 @@ const MerchandisingList = () => {
     setLoading(true);
     console.log(`🏪 Fetching transactions for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
     
-    axios
-      .get("http://localhost:8080/api/merchandisings/", {
+    api
+      .get("/merchandisings/", {
         params: { warehouse: currentWarehouse.id },
         headers: {
           'Authorization': `Bearer ${localStorage.getItem("token")}`,

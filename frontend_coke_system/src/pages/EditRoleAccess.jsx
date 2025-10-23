@@ -3,6 +3,8 @@ import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
 import PermissionTable from "../components/roles/PermissionTable";
 import { MODULES } from "../components/roles/constants/modules";
+import api from "../api"; // ✅ correct
+
 
 const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
   const [roleName, setRoleName] = useState("");
@@ -14,8 +16,8 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
     const fetchRoleAndPermissions = async () => {
       try {
         const [roleRes, accessRes] = await Promise.all([
-          fetch(`http://127.0.0.1:8080/api/roles/${roleId}/`),
-          fetch(`http://127.0.0.1:8080/api/role-access/?role_id=${roleId}`),
+          fetch(`/roles/${roleId}/`),
+          fetch(`/role-access/?role_id=${roleId}`),
         ]);
 
         if (!roleRes.ok) throw new Error("Failed to load role");
@@ -98,7 +100,7 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
     }));
 
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/role-access/bulk-upsert/", {
+      const res = await fetch("/role-access/bulk-upsert/", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

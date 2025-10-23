@@ -16,6 +16,7 @@ import WidgetPickerModal, { SECTIONS, CATALOG_MAP } from "../components/WidgetPi
 import MetricsCards from "../components/MetricsCards";
 import ProductPerformance from "../components/ProductPerformance";
 import TopSellingProductsWidget from "../components/TopSellingProductsWidget";
+import api from "../api"; // ✅ correct
 
 /* -------------------- Skeleton Component -------------------- */
 const Skeleton = ({ className = "" }) => (
@@ -654,7 +655,7 @@ const getCurrentWarehouseId = () => {
   // This function will return undefined for now, and the dashboard will handle warehouse matching by name
   return user.warehouse_id;
 };
-const axiosCfgForWarehouse = (wid) => (wid ? { headers: { "X-Warehouse-ID": wid } } : {});
+const apiCfgForWarehouse = (wid) => (wid ? { headers: { "X-Warehouse-ID": wid } } : {});
 
 /* -------------------- Helper function to check data availability -------------------- */
 const getDataAvailability = (lists) => {
@@ -767,25 +768,25 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
         rolesRes,
         vansRes,
       ] = await Promise.all([
-        axios.get(`http://localhost:8080/api/stocks/${qsWid}`),
-        axios.get(`http://localhost:8080/api/products/${qsWidId}`),
-        axios.get(`http://localhost:8080/api/receiving/`, axiosCfgForWarehouse(wid)),
-        axios.get(`http://localhost:8080/api/merchandising-set/`, { params: { warehouse: wid } }),
-        axios.get(`http://localhost:8080/api/credits/`, axiosCfgForWarehouse(wid)),
-        axios.get(`http://localhost:8080/api/supplier-return-form/${qsWidId}`),
-        axios.get(`http://localhost:8080/api/merchandisings/${qsWid}`),
-        axios.get(`http://localhost:8080/api/suppliers/${qsWid}`),
-        axios.get(`http://localhost:8080/api/users/`, axiosCfgForWarehouse(wid)),
-        axios.get(`http://localhost:8080/api/roles/`),
-        axios.get(`http://localhost:8080/api/vans/${qsWid}`),
+        api.get(`/stocks/${qsWid}`),
+        api.get(`/products/${qsWidId}`),
+        api.get(`/receiving/`, apiCfgForWarehouse(wid)),
+        api.get(`/merchandising-set/`, { params: { warehouse: wid } }),
+        api.get(`/credits/`, apiCfgForWarehouse(wid)),
+        api.get(`/supplier-return-form/${qsWidId}`),
+        api.get(`/merchandisings/${qsWid}`),
+        api.get(`/suppliers/${qsWid}`),
+        api.get(`/users/`, apiCfgForWarehouse(wid)),
+        api.get(`/roles/`),
+        api.get(`/vans/${qsWid}`),
       ]);
 
       // 🔧 ENHANCED CREDIT DEBUG
       const creditsData = Array.isArray(creditsRes.data) ? creditsRes.data : creditsRes.data?.results || creditsRes.data?.data || [];
       console.log(`🏦 CREDITS DEBUG for warehouse ${wid}:`, {
         totalCredits: creditsData.length,
-        apiUrl: `http://localhost:8080/api/credits/`,
-        headers: axiosCfgForWarehouse(wid),
+        apiUrl: `/credits/`,
+        headers: apiCfgForWarehouse(wid),
         rawResponse: creditsRes.data,
         creditSample: creditsData.slice(0, 3).map(c => ({
           id: c.id,
@@ -841,7 +842,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   });
 
   // Get warehouses list
-  const warehousesRes = await axios.get(`http://127.0.0.1:8080/api/warehouses/`);
+  const warehousesRes = await api.get(`/warehouses/`);
   const warehousesData = warehousesRes.data;
 
   // Wait for all warehouse requests
@@ -1690,7 +1691,7 @@ const Dashboard = () => {
         // Load warehouses to find matching one
         console.log('🔍 Loading warehouses to find match...');
         try {
-          const warehousesRes = await axios.get("http://127.0.0.1:8080/api/warehouses/");
+          const warehousesRes = await api.get("/warehouses/");
           const warehouses = warehousesRes.data;
           setAvailableWarehouses(warehouses);
           

@@ -10,6 +10,7 @@ import {
 } from "react-icons/fa";
 
 import "../styles/pages/stocks.scss";
+import api from "../api"; // ✅ correct
 
 const statusOrder = {
   "Out of Stock": 0,
@@ -43,7 +44,7 @@ const getStatusIcon = (s) => {
 // Utility function to check and store low stock notifications
 const checkAndStoreNotifications = async (warehouseId) => {
   try {
-    const response = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
+    const response = await api.get(`/api/stocks/?warehouse=${warehouseId}`);
     const stocks = response.data;
     
     const criticalStocks = stocks.filter(item => 
@@ -135,7 +136,7 @@ const Stocks = () => {
         return;
       }
 
-      const response = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`);
+      const response = await api.get(`/stocks/?warehouse=${warehouseId}`);
       const stockData = response.data;
       setStocks(stockData);
 

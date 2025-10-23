@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import ProductBreakdownTable from "../components/tables/ProductBreakdownTable";
+import api from "../api"; // ensure api is imported so env vars are loaded import ".";
 
 const SORTERS = {
   revenue: (r) => Number(r.revenue ?? 0),
@@ -60,7 +61,7 @@ export default function ProductBreakdownContainer({
           try {
             // eslint-disable-next-line no-console
             console.log("[ProductBreakdown] GET:", url, params);
-            const res = await axios.get(url, { params, headers, timeout: 15000 });
+            const res = await api.get(url, { params, headers, timeout: 15000 });
             data = res.data;
             break;
           } catch (e) {

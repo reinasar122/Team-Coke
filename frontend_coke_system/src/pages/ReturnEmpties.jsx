@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
+import api from "../api"; // ✅ correct
 
 const ReturnEmpties = () => {
   const [suppliers, setSuppliers] = useState([]);
@@ -54,7 +55,7 @@ const ReturnEmpties = () => {
     if (!currentWarehouse) return;
     
     try {
-      const response = await axios.get(`http://localhost:8080/api/suppliers/?warehouse=${currentWarehouse.id}`);
+      const response = await api.get(`/suppliers/?warehouse=${currentWarehouse.id}`);
       let suppliersData = response.data;
       if (suppliersData.results) suppliersData = suppliersData.results;
       if (suppliersData.data) suppliersData = suppliersData.data;
@@ -71,7 +72,7 @@ const ReturnEmpties = () => {
     if (!currentWarehouse) return;
     
     try {
-      const response = await axios.get(`http://localhost:8080/api/products/?warehouse=${currentWarehouse.id}`);
+      const response = await api.get(`/products/?warehouse=${currentWarehouse.id}`);
       let productsData = response.data;
       if (productsData.results) productsData = productsData.results;
       if (productsData.data) productsData = productsData.data;
@@ -88,7 +89,7 @@ const ReturnEmpties = () => {
     if (!currentWarehouse) return;
     
     try {
-      const response = await axios.get(`http://localhost:8080/api/pricing/?warehouse=${currentWarehouse.id}`);
+      const response = await api.get(`/pricing/?warehouse=${currentWarehouse.id}`);
       let pricingData = response.data;
       if (pricingData.results) pricingData = pricingData.results;
       if (pricingData.data) pricingData = pricingData.data;
@@ -110,7 +111,7 @@ const ReturnEmpties = () => {
     
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:8080/api/merchandisings/?warehouse=${currentWarehouse.id}`);
+      const response = await api.get(`/merchandisings/?warehouse=${currentWarehouse.id}`);
       let merchandisingData = response.data;
       if (merchandisingData.results) merchandisingData = merchandisingData.results;
       if (merchandisingData.data) merchandisingData = merchandisingData.data;

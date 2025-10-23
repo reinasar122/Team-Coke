@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import axios from "axios";
 import WifiLoader from "../components/WifiLoader"; // keep your loader
+import api from "../api"; // ✅ correct
 
 const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
   const [email, setEmail] = useState("");
@@ -15,7 +16,7 @@ const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
     setLoading(true);
 
     try {
-      await axios.post("http://localhost:8080/api/forgot-password/send-otp/", { email });
+      await api.post("/forgot-password/send-otp/", { email });
       localStorage.setItem("resetEmail", email);
       setSuccess(true);
       setMessage("OTP sent successfully. Please check your email.");

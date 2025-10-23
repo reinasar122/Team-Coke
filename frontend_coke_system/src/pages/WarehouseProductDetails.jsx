@@ -1,13 +1,8 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import axios from "axios";
+import api from "../api"; // adjust path if needed
 
 // Access API base URL using process.env for compatibility
-const API_BASE =
-  (import.meta && import.meta.env && import.meta.env.VITE_API_BASE) ||
-  process.env.REACT_APP_API_BASE ||
-  "http://localhost:8080"; // Default fallback
-
 const Peso = (n) => `₱${Number(n || 0).toFixed(2)}`;
 
 export default function WarehouseProductDetails() {
@@ -55,27 +50,24 @@ export default function WarehouseProductDetails() {
 
     setLoading(true);
     setErrorMsg("");
-    const url = `${API_BASE}/api/warehouse-details/`;
-    const params = {
+    api
+  .get("/warehouse-details/", {
+    params: {
       msp_no: mspNo,
       warehouse: currentWarehouse.id,
-      // date, // add back later if you want strict same‑day results
-    };
-    // quick visibility while debugging:
-    console.log("GET", url, params);
-
-    axios
-      .get(url, { params })
-      .then((res) => setData(res.data || { items: [], overall_total: 0 }))
-      .catch((err) => {
-        console.error("Error loading details:", err);
-        setErrorMsg(
-          err?.response?.status === 404
-            ? "No records found for that MSP No (route working but no matches)."
-            : `Request failed: ${err?.response?.status || ""}`
-        );
-      })
-      .finally(() => setLoading(false));
+    },
+  })
+  .then((res) => setData(res.data || { items: [], overall_total: 0 }))
+  .catch((err) => {
+    console.error("Error loading details:", err);
+    setErrorMsg(
+      err?.response?.status === 404
+        ? "No records found for that MSP No (route working but no matches)."
+        : `Request failed: ${err?.response?.status || ""}`
+    );
+  })
+  .finally(() => setLoading(false));
+  
   }, [mspNo, currentWarehouse?.id]); // ← remove "date" for now
 
   // ——— Button handlers ———

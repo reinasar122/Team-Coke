@@ -5,6 +5,8 @@ import { FaWarehouse, FaEdit, FaTrash, FaEnvelope, FaPhone, FaMapMarkerAlt } fro
 import { canCreate, canEdit, canDelete, canView } from "../utils/accessControl";
 import WarehouseForm from "./WarehouseForm";
 import EditWarehouse from "./EditWarehouse";
+import api from "../api"; // adjust path if needed
+
 
 
 
@@ -25,10 +27,9 @@ const Warehouses = () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://127.0.0.1:8080/api/warehouses/");
-      if (!response.ok) throw new Error("Failed to fetch warehouses.");
-      const data = await response.json();
-      setWarehouses(data);
+      const { data } = await api.get("/warehouses/");
+  setWarehouses(data);
+
     } catch (error) {
       setError(error.message);
     } finally {
@@ -39,11 +40,10 @@ const Warehouses = () => {
 
   const handleDelete = async () => {
     try {
-      await fetch(`http://127.0.0.1:8080/api/warehouses/${warehouseToDelete.id}/`, {
-        method: "DELETE",
-      });
+      await api.delete(`/warehouses/${warehouseToDelete.id}/`);
       setWarehouses((prev) => prev.filter((w) => w.id !== warehouseToDelete.id));
-      toast.error(`Warehouse '${warehouseToDelete.name}' has been deleted.`, { style: errorStyle, });
+      toast.error(`Warehouse '${warehouseToDelete.name}' has been deleted.`, { style: errorStyle });
+
     } catch (error) {
       console.error("Error deleting warehouse:", error);
       toast.error("Failed to delete warehouse.", { style: errorStyle });

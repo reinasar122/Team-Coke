@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import axios from "axios";
 import Notification from "./Notification"; // Import the notification component
 import Profile from "../pages/Profile"; // 👈 import your Profile.jsx
+import api from "../api"; // ensure api is imported so env vars are loaded import ".";
 
 const Header = ({ toggleSidebar }) => {
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
@@ -45,7 +46,7 @@ const Header = ({ toggleSidebar }) => {
   const fetchWarehouses = async () => {
     setLoadingWarehouses(true);
     try {
-      const res = await axios.get("http://localhost:8080/api/warehouses/");
+      const res = await api.get("/warehouses/");
       setWarehouses(res.data);
     } catch (err) {
       console.error("Failed to fetch warehouses:", err);

@@ -5,6 +5,7 @@ import { FaEye, FaEyeSlash } from "react-icons/fa";
 import ForgotPasswordModal from "./ForgotPassword";
 import VerifyOTPModal from "./VerifyOTP";
 import { routeMap, routeOrder } from "../utils/routeMap";
+import api from "../api"; // ✅ correct
 
 // Spinner component
 const Spinner = ({ size = 5 }) => (
@@ -64,7 +65,7 @@ const Login = () => {
   const fetchWarehouses = async () => {
     setLoadingWarehouses(true);
     try {
-      const res = await axios.get("http://localhost:8080/api/warehouses/");
+      const res = await api.get("/warehouses/");
       setWarehouses(res.data);
       if (res.data.length > 0) setSelectedWarehouse(res.data[0]);
     } catch (err) {
@@ -80,7 +81,7 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await axios.post("http://localhost:8080/api/login/", { username, password });
+      const res = await api.post("/login/", { username, password });
 
       // Log the response data to check if it's structured as expected
       console.log("Login successful, response:", res.data);

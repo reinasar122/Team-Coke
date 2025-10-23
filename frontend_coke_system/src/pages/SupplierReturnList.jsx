@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { FaTrash, FaEye, FaSearch } from "react-icons/fa";
+import api from "../api"; // ✅ correct
 
 const SupplierReturnList = () => {
   const [returns, setReturns] = useState([]);
@@ -32,7 +33,7 @@ const SupplierReturnList = () => {
   const fetchSupplierReturns = async (warehouseId) => {
     try {
       const warehouseParam = warehouseId ? `?warehouse_id=${warehouseId}` : '';
-      const response = await axios.get(`http://localhost:8080/api/supplier-return-form/${warehouseParam}`);
+      const response = await api.get(`/supplier-return-form/${warehouseParam}`);
       return response.data;
     } catch (err) {
       console.error("Error fetching supplier returns:", err);
@@ -61,8 +62,8 @@ const SupplierReturnList = () => {
     // Fetch all data in parallel for better performance
     Promise.all([
       fetchSupplierReturns(warehouse?.id),
-      axios.get("http://localhost:8080/api/products/"),
-      axios.get("http://localhost:8080/api/pricing/")
+      api.get("/products/"),
+      api.get("/pricing/")
     ])
     .then(([returnsData, productsRes, pricingRes]) => {
       setReturns(returnsData);
@@ -118,7 +119,7 @@ const SupplierReturnList = () => {
     if (!confirmDelete) return;
 
     try {
-      await axios.delete(`http://localhost:8080/api/supplier-return-form/${id}/`);
+      await api.delete(`/supplier-return-form/${id}/`);
       setReturns((prev) => prev.filter((r) => r.id !== id));
     } catch (error) {
       console.error("Delete failed:", error);
@@ -219,7 +220,7 @@ const SupplierReturnList = () => {
   const handleView = async (id) => {
     try {
       // First get the supplier return details
-      const returnResponse = await axios.get(`http://localhost:8080/api/supplier-return-form/${id}/`);
+      const returnResponse = await api.get(`/supplier-return-form/${id}/`);
       setSelectedReturn(returnResponse.data);
       
       // If there are items in the return, process them

@@ -1,6 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useParams } from "react-router-dom";
 import axios from "axios";
+import api from "../api";
+
 
 /* ---------------- Helpers ---------------- */
 const formatPhp = (n) =>
@@ -176,8 +178,8 @@ const VanLoadProductDetails = () => {
     if (passedSale) return;
     let alive = true;
     setLoading(true);
-    axios
-      .get(`http://localhost:8080/api/merchandisings/${id}/`)
+    api
+      .get(`/merchandisings/${id}/`)
       .then((res) => alive && setSale(res.data || null))
       .catch((err) => console.error("Failed to load sale:", err))
       .finally(() => alive && setLoading(false));
@@ -212,8 +214,8 @@ const VanLoadProductDetails = () => {
     let alive = true;
 
     const tryDetail = () =>
-      axios
-        .get(`http://localhost:8080/api/routes/${routeId}/`, cfg)
+      api
+        .get(`/routes/${routeId}/`, cfg)
         .then((res) => {
           if (!alive) return false;
           const name = pickRouteLabel(res.data);
@@ -228,8 +230,8 @@ const VanLoadProductDetails = () => {
     const tryListFallback = () => {
       const wid = sale?.warehouse;
       if (!wid) return Promise.resolve(false);
-      return axios
-        .get(`http://localhost:8080/api/routes/?warehouse=${wid}`, cfg)
+      return api
+        .get(`/routes/?warehouse=${wid}`, cfg)
         .then((res) => {
           if (!alive) return false;
           const found = (Array.isArray(res.data) ? res.data : []).find((r) => String(r.id) === String(routeId));

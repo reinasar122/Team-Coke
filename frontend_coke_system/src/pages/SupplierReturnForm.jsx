@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useNotifications } from '../contexts/NotificationContext';
+import api from "../api"; // ✅ correct
 
 const SupplierReturnForm = () => {
   const navigate = useNavigate();
@@ -83,7 +84,7 @@ const SupplierReturnForm = () => {
   const fetchReturnEmpties = useCallback(async (supplierId) => {
     try {
       const warehouseParam = currentWarehouse?.id ? `?warehouse_id=${currentWarehouse.id}` : '';
-      const response = await axios.get(`http://localhost:8080/api/merchandisings/${warehouseParam}`);
+      const response = await api.get(`/merchandisings/${warehouseParam}`);
       
       let merchandisingData = response.data;
       if (merchandisingData.results) merchandisingData = merchandisingData.results;
@@ -318,9 +319,9 @@ const SupplierReturnForm = () => {
 
     // Fetch all data in parallel
     Promise.all([
-      axios.get("http://localhost:8080/api/suppliers/"),
-      axios.get("http://localhost:8080/api/pricing/"),
-      axios.get("http://localhost:8080/api/products/")
+      api.get("/suppliers/"),
+      api.get("/pricing/"),
+      api.get("/products/")
     ])
     .then(([suppliersRes, pricingRes, productsRes]) => {
       // Set suppliers
@@ -435,8 +436,8 @@ const SupplierReturnForm = () => {
       
       for (const item of merchandisingItemsToClean) {
         try {
-          await axios.patch(
-            `http://localhost:8080/api/merchandising-items/${item.item_id}/`,
+          await api.patch(
+            `/merchandising-items/${item.item_id}/`,
             {
               empty_return_shell: 0,
               empty_return_pcs: 0
@@ -468,7 +469,7 @@ const SupplierReturnForm = () => {
       
       // Get all returnable stock data for this warehouse
       const warehouseParam = `?warehouse_id=${currentWarehouse.id}`;
-      const response = await axios.get(`http://localhost:8080/api/returnable-stocks/${warehouseParam}`);
+      const response = await api.get(`/returnable-stocks/${warehouseParam}`);
       const returnableStocks = response.data;
       
       let removedCount = 0;
@@ -505,7 +506,7 @@ const SupplierReturnForm = () => {
             try {
               if (newShells <= 0 && newPcs <= 0) {
                 // Delete the entire entry
-                await axios.delete(`http://localhost:8080/api/returnable-stocks/${stock.id}/`);
+                await api.delete(`/returnable-stocks/${stock.id}/`);
                 removedCount++;
               } else {
                 // Update with new quantities
@@ -515,7 +516,7 @@ const SupplierReturnForm = () => {
                   last_updated: new Date().toISOString()
                 };
                 
-                await axios.patch(`http://localhost:8080/api/returnable-stocks/${stock.id}/`, updateData);
+                await api.patch(`/returnable-stocks/${stock.id}/`, updateData);
                 updatedCount++;
               }
               
@@ -578,7 +579,7 @@ const SupplierReturnForm = () => {
       const formattedDate = form.date ? new Date(form.date).toISOString() : new Date().toISOString();
       
       // Save the supplier return form
-      const response = await axios.post("http://localhost:8080/api/supplier-return-form/", {
+      const response = await api.post("/supplier-return-form/", {
         sup_no: form.sup_no,
         supplier: form.supplier,
         warehouse: currentWarehouse.id,

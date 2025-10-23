@@ -1,9 +1,9 @@
 // ProductForm.jsx - COMPLETE UPDATED VERSION WITH NOTIFICATIONS
 import React, { useEffect, useState, useRef } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { notifyProductChange } from "../utils/productNotifier"; // ✅ NEW IMPORT
 import "../styles/pages/productform.scss";
+import api from "../api"; // ✅ correct
 
 const ProductForm = () => {
   const navigate = useNavigate();
@@ -77,10 +77,10 @@ const ProductForm = () => {
   }, []);
 
   const fetchDropdowns = () => {
-    axios.get("http://localhost:8080/api/product-categories/").then((res) => setCategories(res.data));
-    axios.get("http://localhost:8080/api/shelltypes/").then((res) => setShellTypes(res.data));
-    axios.get("http://localhost:8080/api/contenttypes/").then((res) => setContentTypes(res.data));
-    axios.get("http://localhost:8080/api/suppliers/").then((res) => setSuppliers(res.data));
+    api.get("/product-categories/").then((res) => setCategories(res.data));
+    api.get("/shelltypes/").then((res) => setShellTypes(res.data));
+    api.get("/contenttypes/").then((res) => setContentTypes(res.data));
+    api.get("/suppliers/").then((res) => setSuppliers(res.data));
   };
 
   const generateSystemCode = (index) => {
@@ -182,7 +182,7 @@ const ProductForm = () => {
     }
 
     try {
-      const res = await axios.post(`http://localhost:8080/api/${endpoint}`, payload);
+      const res = await api.post(`/${endpoint}`, payload);
       fetchDropdowns();
       setRows((prev) => {
         const newRows = [...prev];
@@ -347,7 +347,7 @@ const ProductForm = () => {
       
       for (let formData of filledRows) {
         // Create pricing
-        const pricingRes = await axios.post("http://localhost:8080/api/pricing/", {
+        const pricingRes = await api.post("/pricing/", {
           purchase_price: parseFloat(formData.purchase_price) || 0,
           selling_price: parseFloat(formData.selling_price) || 0,
           shell_price: parseFloat(formData.shell_price) || 0,
@@ -355,7 +355,7 @@ const ProductForm = () => {
         });
 
         // Create unit type
-        const unitTypeRes = await axios.post("http://localhost:8080/api/unit-types/", {
+        const unitTypeRes = await api.post("/unit-types/", {
           content_no: parseInt(formData.content_no) || 0,
           returnable: formData.returnable,
           shell_type: formData.shell_type,
@@ -379,7 +379,7 @@ const ProductForm = () => {
           productData.append('image', formData.image);
         }
 
-        const productResponse = await axios.post("http://localhost:8080/api/products/", productData, {
+        const productResponse = await api.post("/products/", productData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },

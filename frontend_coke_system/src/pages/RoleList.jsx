@@ -4,6 +4,7 @@ import { errorStyle } from "../utils/toastStyles";
 import RoleForm from "./RoleForm";
 import EditRoleAccess from "./EditRoleAccess";
 import { FaEdit, FaTrash, FaUserShield } from "react-icons/fa";
+import api from "../api"; // ✅ correct
 
 const RoleList = () => {
   const [roles, setRoles] = useState([]);
@@ -27,16 +28,14 @@ const RoleList = () => {
   const fetchRoles = async () => {
     try {
       setLoading(true);
-      const response = await fetch("http://127.0.0.1:8080/api/roles/");
-      if (!response.ok) throw new Error("Failed to fetch roles");
-      const data = await response.json();
+      const { data } = await api.get("/roles/");
       setRoles(data);
 
       // Fetch access lists for summaries (best-effort; ignore errors)
       try {
         const results = await Promise.all(
           data.map((r) =>
-            fetch(`http://127.0.0.1:8080/api/role-access/?role_id=${r.id}`)
+            fetch(`/role-access/?role_id=${r.id}`)
               .then((res) => (res.ok ? res.json() : null))
               .catch(() => null)
           )
@@ -88,7 +87,7 @@ const RoleList = () => {
   const handleDelete = async () => {
     if (!roleToDelete) return;
     try {
-      const response = await fetch(`http://127.0.0.1:8080/api/roles/${roleToDelete.id}/`, {
+      const response = await fetch(`/roles/${roleToDelete.id}/`, {
         method: "DELETE",
       });
       if (!response.ok) throw new Error("Failed to delete role");

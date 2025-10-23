@@ -4,6 +4,7 @@ import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { notifyProductChange } from "../utils/productNotifier"; // ✅ NEW IMPORT
+import api from "../api"; // ✅ correct
 
 import "../styles/pages/productedit.scss";
 
@@ -121,10 +122,10 @@ const ProductEdit = () => {
   const fetchDropdowns = async () => {
     try {
       const [categoriesRes, shellTypesRes, contentTypesRes, suppliersRes] = await Promise.all([
-        axios.get("http://localhost:8080/api/product-categories/"),
-        axios.get("http://localhost:8080/api/shelltypes/"),
-        axios.get("http://localhost:8080/api/contenttypes/"),
-        axios.get("http://localhost:8080/api/suppliers/"),
+        api.get("/product-categories/"),
+        api.get("/shelltypes/"),
+        api.get("/contenttypes/"),
+        api.get("/suppliers/"),
       ]);
       setCategories(categoriesRes.data);
       setShellTypes(shellTypesRes.data);
@@ -142,7 +143,7 @@ const ProductEdit = () => {
 
       try {
         const warehouseId = getCurrentWarehouse();
-        const res = await axios.get(`http://localhost:8080/api/products/${id}/?warehouse_id=${warehouseId}`);
+        const res = await api.get(`/products/${id}/?warehouse_id=${warehouseId}`);
         const product = res.data;
 
         // Guard: product must belong to current warehouse
@@ -340,7 +341,7 @@ const ProductEdit = () => {
 
     try {
       // 1) Pricing
-      await axios.put(`http://localhost:8080/api/pricing/${formData.price_id}/`, {
+      await api.put(`/pricing/${formData.price_id}/`, {
         purchase_price: parseFloat(formData.purchase_price) || 0,
         selling_price: parseFloat(formData.selling_price) || 0,
         shell_price: parseFloat(formData.shell_price) || 0,
@@ -348,7 +349,7 @@ const ProductEdit = () => {
       });
 
       // 2) Unit type
-      await axios.put(`http://localhost:8080/api/unit-types/${formData.unit_type_id}/`, {
+      await api.put(`/unit-types/${formData.unit_type_id}/`, {
         content_no: formData.content_no,
         returnable: formData.returnable,
         shell_type: formData.shell_type,
@@ -376,7 +377,7 @@ const ProductEdit = () => {
         productFormData.append('image', formData.image);
       }
 
-      await axios.put(`http://localhost:8080/api/products/${id}/`, productFormData, {
+      await api.put(`/products/${id}/`, productFormData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -462,7 +463,7 @@ const ProductEdit = () => {
     }
 
     try {
-      const res = await axios.post(`http://localhost:8080/api/${endpoint}`, payload);
+      const res = await api.post(`/${endpoint}`, payload);
       await fetchDropdowns();
       setFormData((prev) => ({ ...prev, [fieldName]: res.data.id }));
       setShowModal({ type: null });

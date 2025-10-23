@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
 import PermissionTable from "../components/roles/PermissionTable";
 import { MODULES } from "../components/roles/constants/modules";
+import api from "../api"; // ✅ correct
 
 const normalizeError = (err, fallback = "Role already exists.") => {
   if (!err) return fallback;
@@ -150,107 +151,70 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (saving) return;
+  e.preventDefault();
+  if (saving) return;
 
-    const trimmed = (roleName || "").trim();
-    if (!trimmed) {
-      toast.dismiss();
-      toast.error("Role name is required.", { style: errorStyle });
-      return;
-    }
+  const trimmed = (roleName || "").trim();
+  if (!trimmed) {
+    toast.dismiss();
+    toast.error("Role name is required.", { style: errorStyle });
+    return;
+  }
 
-    setSaving(true);
-    try {
-      const roleRes = await fetch("http://127.0.0.1:8080/api/roles/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
+  setSaving(true);
+  try {
+    // ✅ Create role
+    const roleRes = await api.post("/roles/", { name: trimmed });
+    const newRole = roleRes.data;
 
-      if (roleRes.status === 400 || roleRes.status === 409) {
-        let msg = `Role "${trimmed}" already exists.`;
-        try {
-          const errJson = await roleRes.json();
-          const normalized = normalizeError(errJson, "Role already exists.");
-          // Force final format: Role "<name>" already exists.
-          if (/exists/i.test(normalized)) {
-            msg = `Role "${trimmed}" already exists.`;
-          } else {
-            msg = `Role "${trimmed}" ${normalized}`;
-          }
-        } catch (_) {
-          // keep default msg
-        }
+    // ✅ Create role-access entries
+    const accessList = Object.entries(permissions).map(([submenu, perms]) => ({
+      role: newRole.id,
+      submenu,
+      full: perms.full_access,
+      view: perms.view,
+      create: perms.create,
+      edit: perms.edit,
+      delete: perms.delete,
+    }));
 
-        toast.dismiss();
-        toast.error(dedupeMessage(msg), { style: errorStyle });
+    await api.post("/role-access/bulk-create/", accessList);
 
-        onClose?.(); 
-        setSaving(false);
-        return;
-      }
+    toast.dismiss();
+    toast.success(`Role '${newRole.name}' has been created successfully!`, { style: successStyle });
 
-      if (!roleRes.ok) {
-        toast.dismiss();
-        toast.error("Failed to create role.", { style: errorStyle });
-        setSaving(false);
-        return;
-      }
+    // ✅ Dispatch rolePermissionsUpdated event
+    const roleEvent = new CustomEvent("rolePermissionsUpdated", {
+      detail: {
+        action: "created",
+        roleId: newRole.id,
+        roleName: newRole.name,
+        permissions,
+        timestamp: new Date().toISOString(),
+        summary: `New role '${newRole.name}' created with permissions`,
+        permissionsCount: Object.keys(permissions).length,
+        fullAccessCount: Object.values(permissions).filter((p) => p.full_access).length,
+      },
+    });
+    window.dispatchEvent(roleEvent);
 
-      const newRole = await roleRes.json();
+    onRoleAdded?.(newRole);
+    onClose?.();
+  } catch (error) {
+    console.error("Error saving role or permissions:", error);
 
-      const accessList = Object.entries(permissions).map(([submenu, perms]) => ({
-        role: newRole.id,
-        submenu,
-        full: perms.full_access,
-        view: perms.view,
-        create: perms.create,
-        edit: perms.edit,
-        delete: perms.delete,
-      }));
-
-      const accessRes = await fetch("http://127.0.0.1:8080/api/role-access/bulk-create/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(accessList),
-      });
-
-      if (!accessRes.ok) {
-        toast.dismiss();
-        toast.error("Permissions were not saved. Please try again.", { style: errorStyle });
-        setSaving(false);
-        return;
-      }
-
-      toast.dismiss();
-      toast.success(`Role '${newRole.name}' has been created successfully!`, { style: successStyle });
-      
-      // ✅ Dispatch role permissions updated event for notifications
-      const roleEvent = new CustomEvent('rolePermissionsUpdated', {
-        detail: {
-          action: 'created',
-          roleId: newRole.id,
-          roleName: newRole.name,
-          permissions: permissions,
-          timestamp: new Date().toISOString(),
-          summary: `New role '${newRole.name}' created with permissions`,
-          permissionsCount: Object.keys(permissions).length,
-          fullAccessCount: Object.values(permissions).filter(p => p.full_access).length
-        }
-      });
-      window.dispatchEvent(roleEvent);
-      
-      onRoleAdded?.(newRole);
-      onClose?.();
-    } catch (error) {
-      console.error("Error saving role or permissions:", error);
-      toast.dismiss();
+    // ✅ Handle duplicate or other backend errors cleanly
+    if (error.response?.data) {
+      const msg = normalizeError(error.response.data, "Role already exists.");
+      toast.error(dedupeMessage(msg), { style: errorStyle });
+    } else {
       toast.error("Could not save role. Please try again.", { style: errorStyle });
-    } finally {
-      setSaving(false);
     }
-  };
+  } finally {
+    setSaving(false);
+  }
+};
+
 
   return (
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">

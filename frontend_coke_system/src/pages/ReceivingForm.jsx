@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
+import api from "../api"; // ✅ correct
 
 import "../styles/global.scss";
 import "../styles/pages/receivingform.scss";
@@ -138,7 +139,7 @@ const ReceivingForm = () => {
     // Function to fetch warehouse ID by name
     const fetchWarehouseByName = async (warehouseName) => {
       try {
-        const response = await axios.get("http://localhost:8080/api/warehouses/");
+        const response = await api.get("/warehouses/");
         const warehouse = response.data.find((w) => w.name === warehouseName);
         return warehouse || null;
       } catch (error) {
@@ -245,8 +246,8 @@ const ReceivingForm = () => {
     console.log(`🔄 Loading data for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
 
     // Load suppliers for this warehouse
-    axios
-      .get("http://localhost:8080/api/suppliers/", config)
+    api
+      .get("/suppliers/", config)
       .then((res) => {
         console.log(`✅ Loaded ${res.data.length} suppliers for warehouse ${currentWarehouse.id}`);
         console.log("🔍 Sample suppliers:", res.data.slice(0, 3).map((s) => ({ id: s.id, name: s.company_name })));
@@ -255,8 +256,8 @@ const ReceivingForm = () => {
       .catch((err) => console.error("❌ Error loading suppliers:", err));
 
     // Load products for this warehouse
-    axios
-      .get("http://localhost:8080/api/products/", config)
+    api
+      .get("/products/", config)
       .then((res) => {
         console.log(`✅ Loaded ${res.data.length} products for warehouse ${currentWarehouse.id}`);
         console.log(
@@ -452,7 +453,7 @@ const ReceivingForm = () => {
         );
 
         const config = getAxiosConfig();
-        const response = await axios.get("http://localhost:8080/api/supplier-return-form/", config);
+        const response = await api.get("/supplier-return-form/", config);
         console.log("📊 All supplier returns received:", response.data);
 
         // FIXED: Filter by BOTH supplier AND warehouse
@@ -530,7 +531,7 @@ const ReceivingForm = () => {
         );
 
         const config = getAxiosConfig();
-        const response = await axios.get("http://localhost:8080/api/supplier-return-form/", config);
+        const response = await api.get("/supplier-return-form/", config);
 
         // FIXED: Filter by BOTH supplier AND warehouse before removing
         const supplierReturns = response.data.filter((returnItem) => {
@@ -554,7 +555,7 @@ const ReceivingForm = () => {
             console.log(
               `🗑️ Removing processed supplier return: ${returnItem.sup_no} (ID: ${returnItem.id}) from warehouse ${currentWarehouse.name}`
             );
-            await axios.delete(`http://localhost:8080/api/supplier-return-form/${returnItem.id}/`, config);
+            await api.delete(`/supplier-return-form/${returnItem.id}/`, config);
             console.log(`✅ Successfully removed return: ${returnItem.sup_no}`);
             deletedCount++;
           } catch (error) {
@@ -608,7 +609,7 @@ const ReceivingForm = () => {
         setReceivedByName(`${user.first_name || ""} ${user.last_name || ""}`.trim());
       } else {
         // fetch from API
-        axios.get(`http://localhost:8080/api/users/${user.id}/`)
+        api.get(`/users/${user.id}/`)
           .then((res) => {
             setReceivedByName(`${res.data.first_name || ""} ${res.data.last_name || ""}`.trim() || res.data.username);
           })
@@ -712,7 +713,7 @@ const ReceivingForm = () => {
       const config = getAxiosConfig();
       console.log("💾 Config headers:", config.headers);
 
-      const response = await axios.post("http://localhost:8080/api/receiving/", dataToSubmit, config);
+      const response = await api.post("/receiving/", dataToSubmit, config);
       console.log("✅ Receiving saved successfully", response.data);
 
       console.log("🧹 Starting removal of processed supplier returns...");

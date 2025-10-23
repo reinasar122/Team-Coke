@@ -5,6 +5,7 @@ import VanForm from "./VanForm";
 import { errorStyle, successStyle } from "../utils/toastStyles";
 import { canCreate, canEdit, canDelete, canView } from "../utils/accessControl";
 import "../styles/pages/vanlist.scss";
+import api from "../api";
 
 const VanList = () => {
   const [vans, setVans] = useState([]);
@@ -52,11 +53,9 @@ const VanList = () => {
         return;
       }
 
-      const response = await fetch(`http://127.0.0.1:8080/api/vans/?warehouse=${warehouseId}`);
-      if (!response.ok) throw new Error("Failed to fetch vans");
-
-      const data = await response.json();
+      const { data } = await api.get(`/vans/?warehouse=${warehouseId}`);
       setVans(data);
+
     } catch (error) {
       console.error("Error fetching vans:", error);
     }
@@ -108,11 +107,7 @@ const VanList = () => {
   const handleDelete = async (id) => {
     showConfirmDialog("Are you sure you want to delete this van?", async () => {
       try {
-        const response = await fetch(`http://127.0.0.1:8080/api/vans/${id}/`, {
-          method: "DELETE",
-        });
-
-        if (!response.ok) throw new Error("Failed to delete van");
+        await api.delete(`/vans/${id}/`);
 
         setVans((prev) => prev.filter((v) => v.id !== id));
         toast.error("Van has been deleted successfully.", { style: errorStyle });

@@ -1,5 +1,7 @@
 import { useState, useRef } from "react";
 import axios from "axios";
+import api from "../api";
+
 
 const VerifyOTPModal = ({ onClose, onVerified }) => {
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
@@ -56,8 +58,8 @@ const VerifyOTPModal = ({ onClose, onVerified }) => {
     }
 
     try {
-      const response = await axios.post(
-        "http://localhost:8080/api/forgot-password/verify-otp/",
+      const response = await api.post(
+        "/forgot-password/verify-otp/",
         { email, otp }
       );
 

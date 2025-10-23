@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
+import api from "../api"; // ✅ correct
 
-const API = "http://127.0.0.1:8080/api";
+
 
 const VanForm = ({ vanToEdit, onSuccess, onClose }) => {
   const [vanId, setVanId] = useState("");
@@ -37,29 +38,15 @@ const VanForm = ({ vanToEdit, onSuccess, onClose }) => {
       warehouse: warehouseId,
     };
 
-    const method = vanToEdit ? "PUT" : "POST";
-    const url = vanToEdit
-      ? `${API}/vans/${vanToEdit.id}/`
-      : `${API}/vans/`;
-
     try {
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+  let res;
+  if (vanToEdit) {
+    res = await api.put(`/vans/${vanToEdit.id}/`, payload);
+  } else {
+    res = await api.post(`/vans/`, payload);
+  }
 
-      if (!res.ok) {
-        const data = await res.json();
-        if (data.plate_number) {
-          toast.error(`Plate Number: ${data.plate_number[0]}`, { style: errorStyle });
-        } else {
-          toast.error("Failed to save van.", { style: errorStyle });
-        }
-        return;
-      }
-
-      const newVan = await res.json();
+  const newVan = res.data;
       toast.success(
         `Van '${newVan.plate_number}' ${vanToEdit ? "updated" : "registered"} successfully!`,
         { style: successStyle }

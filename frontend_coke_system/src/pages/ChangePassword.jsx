@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";
+import axios from "axios";  
+import api from "../api"; // ✅ correct
 
 const isStrongPassword = (password) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
@@ -47,7 +48,7 @@ const ChangePassword = () => {
         token: decodeURIComponent(token),
         new_password: newPassword,
       };
-      await axios.post("http://localhost:8080/api/change-password/", payload);
+      await api.post("/change-password/", payload);
 
       setSuccess("✅ Password changed successfully! Redirecting...");
       setTimeout(() => navigate("/login"), 2000);

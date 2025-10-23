@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { FaTrashAlt, FaEye,FaClipboardCheck } from "react-icons/fa";
+import api from "../api"; // ✅ correct
 import "../styles/pages/receivinglist.scss"; // page-specific extras only
 
 const ReceiptModal = ({ isOpen, onClose, receipt }) => {
@@ -182,7 +183,7 @@ const ReceivingList = () => {
   useEffect(() => {
     const fetchWarehouseByName = async (warehouseName) => {
       try {
-        const res = await axios.get("http://localhost:8080/api/warehouses/");
+        const res = await api.get("/warehouses/");
         return res.data.find((w) => w.name === warehouseName) || null;
       } catch (e) {
         console.error("[ReceivingList] Error fetching warehouses:", e);
@@ -242,8 +243,8 @@ const ReceivingList = () => {
   const fetchReceivings = useCallback(() => {
     if (!currentWarehouse?.id) return;
     const cfg = getAxiosConfig();
-    axios
-      .get("http://localhost:8080/api/receiving/", cfg)
+    api
+      .get("/receiving/", cfg)
       .then((res) => setReceivings(res.data))
       .catch((err) => console.error("[ReceivingList] Error fetching receivings:", err));
   }, [currentWarehouse?.id, getAxiosConfig]);
@@ -257,8 +258,8 @@ const ReceivingList = () => {
   const handleDeleteReceiving = async () => {
     try {
       const cfg = getAxiosConfig();
-      await axios.delete(
-        `http://localhost:8080/api/receiving/${deleteModal.id}/`,
+      await api.delete(
+        `/receiving/${deleteModal.id}/`,
         cfg
       );
       fetchReceivings();
@@ -364,8 +365,8 @@ const ReceivingList = () => {
                                 onClick={async () => {
                                   try {
                                     const cfg = getAxiosConfig();
-                                    await axios.delete(
-                                      `http://localhost:8080/api/receiving/${deleteModal.id}/`,
+                                    await api.delete(
+                                      `/receiving/${deleteModal.id}/`,
                                       cfg
                                     );
                                     fetchReceivings();

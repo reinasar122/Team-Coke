@@ -1,6 +1,7 @@
 {
   "name": "frontend_coke_system",
   "version": "0.1.0",
+  "homepage": "/coke", 
   "private": true,
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",

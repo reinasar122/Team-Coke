@@ -9,6 +9,7 @@ import {
   FaUserShield,
   FaSignOutAlt,
 } from "react-icons/fa";
+import api from "../api";
 
 const Profile = () => {
   const [userData, setUserData] = useState(null);
@@ -27,13 +28,9 @@ const Profile = () => {
         }
 
         // ✅ Fetch that user’s full data
-        const response = await fetch(`http://127.0.0.1:8080/api/users/${storedUser.id}/`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch user data");
-        }
-
-        const data = await response.json();
+        const { data } = await api.get(`/users/${storedUser.id}/`);
         setUserData(data);
+
       } catch (err) {
         setError(err.message);
       } finally {

@@ -11,7 +11,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8080/api/roles/");
+        const res = await fetch("/roles/");
         const data = await res.json();
         setRoles(data);
       } catch (err) {
@@ -21,7 +21,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
     const fetchWarehouses = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8080/api/warehouses/");
+        const res = await fetch("/warehouses/");
         const data = await res.json();
         setWarehouses(data);
       } catch (err) {
@@ -31,7 +31,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
     const fetchUser = async () => {
   try {
-    const response = await fetch(`http://127.0.0.1:8080/api/users/${userId}/`);
+    const response = await fetch(`/users/${userId}/`);
     const data = await response.json();
 
     console.log("Fetched user:", data);
@@ -101,7 +101,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
         is_active: user.is_active === "true" || user.is_active === true,
       };
 
-      const res = await fetch(`http://127.0.0.1:8080/api/users/${userId}/`, {
+      const res = await fetch(`/users/${userId}/`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(updatedUser),

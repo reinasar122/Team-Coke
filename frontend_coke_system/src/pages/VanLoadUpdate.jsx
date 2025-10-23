@@ -6,6 +6,8 @@ import axios from 'axios';
 import ExpensesSection from '../components/merchandisingcomponents/ExpensesSection';
 import PaymentModal from '../components/PaymentModal';
 import { useNotifications } from '../contexts/NotificationContext';
+import api from "../api";
+
 
 /* --------------------------- tiny UI helpers --------------------------- */
 const z = (v) =>
@@ -139,7 +141,7 @@ const VanLoadUpdate = () => {
   useEffect(() => {
     const fetchUnitTypes = async () => {
       try {
-        const res = await axios.get('http://localhost:8080/api/unit-types/');
+        const res = await api.get('/unit-types/');
         setUnitTypes(res.data || []);
       } catch (err) {
         console.error('Failed to fetch unit types:', err);
@@ -157,8 +159,8 @@ const VanLoadUpdate = () => {
   // Fetch sale
   useEffect(() => {
     if (!saleId) return;
-    axios
-      .get(`http://localhost:8080/api/merchandising-set/${saleId}/`)
+    api
+      .get(`/merchandising-set/${saleId}/`)
       .then((res) => setSale(res.data))
       .catch((err) => {
         console.error(err);
@@ -605,8 +607,8 @@ const VanLoadUpdate = () => {
 
     console.log('🚛 Submitting Van Load return...', payload);
 
-    axios
-      .post('http://localhost:8080/api/van-load-return/', payload)
+    api
+      .post('/van-load-return/', payload)
       .then((response) => {
         console.log('🚛 Van Load return submitted successfully:', response.data);
         showAlert('Van Load return successfully submitted.');
@@ -723,13 +725,13 @@ const VanLoadUpdate = () => {
 
       console.log('🚛 Processing Van Load payment...', payload);
 
-      await axios.post('http://localhost:8080/api/van-load-return/', payload);
+      await api.post('/van-load-return/', payload);
 
       // persist misc rows
       if (misc.length > 0) {
         await Promise.all(
           misc.map((item) =>
-            axios.post('http://localhost:8080/api/miscellaneous-items/', {
+            api.post('/miscellaneous-items/', {
               merchandising: saleId,
               description: item.description,
               amount: item.amount,
@@ -739,8 +741,8 @@ const VanLoadUpdate = () => {
       }
 
       // patch merchandising header
-      const patchResponse = await axios.patch(
-        `http://localhost:8080/api/merchandising-set/${saleId}/`,
+      const patchResponse = await api.patch(
+        `/merchandising-set/${saleId}/`,
         {
           status: 'Complete',
           miscellaneous: miscTotal,

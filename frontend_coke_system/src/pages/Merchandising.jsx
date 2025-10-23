@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { useLocation } from "react-router-dom";
+import api from "../api"; // ✅ correct
 
 const Merchandising = () => {
   const [mspNo, setMspNo] = useState("");
@@ -64,7 +65,7 @@ const Merchandising = () => {
   // Memoized functions to fix ESLint warnings
   const fetchStockQuantity = useCallback(async (productId) => {
     try {
-      const response = await axios.get(`http://localhost:8080/api/stocks/${productId}/`, {
+      const response = await api.get(`/stocks/${productId}/`, {
         params: { warehouse: currentWarehouse?.id }
       });
       setAvailableStock((prevState) => ({
@@ -78,7 +79,7 @@ const Merchandising = () => {
 
   const fetchMspNo = useCallback(async (transactionType) => {
     try {
-      const response = await axios.get("http://localhost:8080/api/merchandisings/msp-next/", {
+      const response = await api.get("/merchandisings/msp-next/", {
         params: { 
           transaction_type: transactionType,
           warehouse: currentWarehouse?.id 
@@ -150,26 +151,26 @@ const Merchandising = () => {
 
     const warehouseId = currentWarehouse.id;
 
-    axios.get(`http://localhost:8080/api/users/?warehouse=${warehouseId}`)
+    api.get(`/users/?warehouse=${warehouseId}`)
       .then(res => setUsers(res.data))
       .catch(err => console.error("Failed to fetch users:", err));
 
-    axios.get(`http://localhost:8080/api/products/?warehouse=${warehouseId}`)
+    api.get(`/products/?warehouse=${warehouseId}`)
       .then(res => setProducts(res.data))
       .catch(err => console.error("Failed to fetch products:", err));
 
-    axios.get(`http://localhost:8080/api/routes/?warehouse=${warehouseId}`)
+    api.get(`/routes/?warehouse=${warehouseId}`)
       .then(res => setRoutes(res.data))
       .catch(err => console.error("Failed to fetch routes:", err));
 
-    axios.get(`http://localhost:8080/api/customers/?warehouse=${warehouseId}`)
+    api.get(`/customers/?warehouse=${warehouseId}`)
       .then(res => setCustomers(res.data))
       .catch(err => console.error("Failed to fetch customers:", err));
   }, [currentWarehouse]);
 
   useEffect(() => {
     if (transactionType === "Van Load" && currentWarehouse?.id) {
-      axios.get(`http://localhost:8080/api/vans/?warehouse=${currentWarehouse.id}`)
+      api.get(`/vans/?warehouse=${currentWarehouse.id}`)
         .then(res => setVans(res.data))
         .catch(err => console.error("Failed to fetch vans:", err));
     }
@@ -420,7 +421,7 @@ const Merchandising = () => {
                       }
 
                       try {
-                        const res = await axios.post("http://localhost:8080/api/customers/", {
+                        const res = await api.post("/customers/", {
                           name: newCustomer,
                         }, {
                           params: { warehouse: currentWarehouse?.id }
@@ -502,7 +503,7 @@ const Merchandising = () => {
                         }
                         
                         try {
-                          const res = await axios.post("http://localhost:8080/api/routes/", {
+                          const res = await api.post("/routes/", {
                             route_name: newRoute,
                           }, {
                             params: { warehouse: currentWarehouse?.id }

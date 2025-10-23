@@ -24,7 +24,7 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
   useEffect(() => {
     const fetchWarehouse = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`);
+        const res = await fetch(`/warehouses/${id}/`);
         const data = await res.json();
         setFormData(data);
       } catch (error) {
@@ -67,7 +67,7 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`, {
+      const res = await fetch(`/warehouses/${id}/`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),

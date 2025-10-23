@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import InvoiceModal from "./InvoiceModal";
 import axios from "axios";
+import api from "../api"; // ensure api is imported so env vars are loaded import ".";
 
 
 // ---- Helper to create a Credit Ledger on the backend (POST /api/credits/) ----
@@ -58,7 +59,7 @@ async function createCreditLedgerFromModalPayload(payload) {
 
 
   try {
-    const res = await axios.post("http://127.0.0.1:8080/api/credits/", body);
+    const res = await api.post("/credits/", body);
     console.log("✅ Credit created successfully:", res.data);
     return res.data;
   } catch (err) {

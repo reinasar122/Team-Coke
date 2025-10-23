@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import InvoiceModal from "../components/InvoiceModal"; // Reuse your existing InvoiceModal
 import { FaEye } from "react-icons/fa";
+import api from "../api"; // ✅ correct
 
 const InvoiceList = () => {
   const [invoices, setInvoices] = useState([]);
@@ -49,7 +50,7 @@ const InvoiceList = () => {
       const token = localStorage.getItem("authToken");
       const headers = token ? { Authorization: `Token ${token}` } : {};
 
-      const response = await axios.get("http://localhost:8080/api/merchandisings/", {
+      const response = await api.get("/merchandisings/", {
         headers,
         params: {
           warehouse: warehouse.id
@@ -102,8 +103,8 @@ const InvoiceList = () => {
       const headers = token ? { Authorization: `Token ${token}` } : {};
       
       // ✅ Use the correct endpoint
-      const res = await axios.get(
-        `http://localhost:8080/api/merchandisings/${id}/`,
+      const res = await api.get(
+        `/merchandisings/${id}/`,
         { headers }
       );
       console.log("Invoice Data: ", res.data);
