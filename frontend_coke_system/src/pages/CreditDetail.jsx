@@ -221,7 +221,30 @@ export default function CreditDetail() {
       {/* HEADER */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Credit Receipt - {ledger.warehouse_name}</h1>
-        <span className={`px-3 py-1 rounded-full text-sm font-medium ${isPaid ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>{ledger.status}</span>
+        <span
+          className={`px-3 py-1 rounded-full text-sm font-medium ${
+            ledger.status?.toLowerCase().includes("fully paid") ||
+            ledger.status?.toLowerCase().includes("paid") ||
+            ledger.status?.toLowerCase().includes("settled")
+              ? "bg-green-100 text-green-700" // 🟢 Fully Paid
+              : ledger.status?.toLowerCase().includes("partial") ||
+                ledger.status?.toLowerCase().includes("partially")
+              ? "bg-yellow-100 text-yellow-700" // 🟡 Partially Paid
+              : "bg-red-100 text-red-700" // 🔴 Unpaid
+          }`}
+        >
+          {ledger.status?.toLowerCase().includes("pending")
+            ? "Unpaid"
+            : ledger.status?.toLowerCase().includes("partial") ||
+              ledger.status?.toLowerCase().includes("partially")
+            ? "Partially Paid"
+            : ledger.status?.toLowerCase().includes("paid") ||
+              ledger.status?.toLowerCase().includes("settled")
+            ? "Fully Paid"
+            : ledger.status}
+        </span>
+
+
       </div>
 
       {/* META */}

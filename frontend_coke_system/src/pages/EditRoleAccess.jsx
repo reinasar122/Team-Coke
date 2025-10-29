@@ -3,34 +3,30 @@ import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
 import PermissionTable from "../components/roles/PermissionTable";
 import { MODULES } from "../components/roles/constants/modules";
-import api from "../api"; // ✅ correct
-
+import api from "../api"; // ✅ your Axios instance
 
 const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
   const [roleName, setRoleName] = useState("");
   const [permissions, setPermissions] = useState({});
   const [loading, setLoading] = useState(true);
 
-  // Fetch role and permissions when the component mounts
+  // ✅ Fetch role + permissions from backend using axios
   useEffect(() => {
     const fetchRoleAndPermissions = async () => {
       try {
         const [roleRes, accessRes] = await Promise.all([
-          fetch(`/roles/${roleId}/`),
-          fetch(`/role-access/?role_id=${roleId}`),
+          api.get(`/roles/${roleId}/`),
+          api.get(`/role-access/?role_id=${roleId}`),
         ]);
 
-        if (!roleRes.ok) throw new Error("Failed to load role");
-        if (!accessRes.ok) throw new Error("Failed to load access");
-
-        const roleData = await roleRes.json();
-        const accessData = await accessRes.json(); // Object keyed by submenu
+        const roleData = roleRes.data;
+        const accessData = accessRes.data; // your backend should return an object or list
 
         setRoleName(roleData.name);
 
         const permMap = {};
         Object.values(MODULES).flat().forEach((submenu) => {
-          const found = accessData[submenu]; // Read directly by key
+          const found = accessData[submenu]; // object keyed by submenu
           permMap[submenu] = found
             ? {
                 full_access: !!found.full,
@@ -49,9 +45,10 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
         });
 
         setPermissions(permMap);
-        setLoading(false);
-      } catch (e) {
-        console.error("Error loading role access:", e);
+      } catch (error) {
+        console.error("Error loading role access:", error);
+        toast.error("Failed to load role or permissions.", { style: errorStyle });
+      } finally {
         setLoading(false);
       }
     };
@@ -59,18 +56,15 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
     fetchRoleAndPermissions();
   }, [roleId]);
 
-  // Toggle individual permission (view, create, edit, delete)
+  // Toggle individual permission
   const handleToggle = (submenu, type) => {
     setPermissions((prev) => ({
       ...prev,
-      [submenu]: {
-        ...prev[submenu],
-        [type]: !prev[submenu][type],
-      },
+      [submenu]: { ...prev[submenu], [type]: !prev[submenu][type] },
     }));
   };
 
-  // Toggle all permissions (full access)
+  // Toggle full access (select all)
   const handleFullToggle = (submenu) => {
     setPermissions((prev) => {
       const full = !prev[submenu].full_access;
@@ -87,7 +81,7 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
     });
   };
 
-  // Save the updated permissions to the backend
+  // ✅ Save using your axios instance
   const handleSave = async () => {
     const payload = Object.entries(permissions).map(([submenu, perms]) => ({
       role: roleId,
@@ -100,81 +94,40 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
     }));
 
     try {
-      const res = await fetch("/role-access/bulk-upsert/", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      const res = await api.put("/role-access/bulk-upsert/", payload);
 
-      if (!res.ok) throw new Error("Bulk upsert failed");
+      if (res.status >= 200 && res.status < 300) {
+        toast.success(`✅ Permissions for role '${roleName}' updated successfully!`, { style: successStyle });
 
-      toast.success(`✅ Permissions for role '${roleName}' updated successfully!`, { style: successStyle });
-      
-      // ✅ NEW: Trigger notification for submenu access changes
-      console.log('🔔 Triggering submenu access change notification...');
-      
-      // Call the callback to update parent component
-      if (onRoleUpdated) {
-        onRoleUpdated(roleId, roleName, permissions);
+        // Dispatch notifications (optional)
+        const roleEvent = new CustomEvent("rolePermissionsUpdated", {
+          detail: {
+            action: "updated",
+            roleId,
+            roleName,
+            permissions,
+            timestamp: new Date().toISOString(),
+          },
+        });
+        window.dispatchEvent(roleEvent);
+
+        if (onRoleUpdated) onRoleUpdated(roleId, roleName, permissions);
+        onClose?.();
+      } else {
+        throw new Error("Bulk upsert failed");
       }
-      
-      // ✅ Dispatch event for notification system
-      const roleEvent = new CustomEvent('rolePermissionsUpdated', {
-        detail: {
-          action: 'updated',
-          roleId: roleId,
-          roleName: roleName,
-          permissions: permissions,
-          timestamp: new Date().toISOString(),
-          summary: `Submenu access updated for role '${roleName}'`,
-          permissionsCount: Object.keys(permissions).length,
-          fullAccessCount: Object.values(permissions).filter(p => p.full_access).length,
-          // ✅ NEW: Add detailed change information
-          changedMenus: Object.entries(permissions).map(([submenu, perms]) => ({
-            menu: submenu,
-            hasAccess: perms.view || perms.create || perms.edit || perms.delete || perms.full_access,
-            permissions: perms
-          }))
-        }
-      });
-      
-      console.log('🔔 Dispatching rolePermissionsUpdated event:', roleEvent.detail);
-      window.dispatchEvent(roleEvent);
-      
-      // ✅ Also dispatch a more specific menu access event
-      const menuAccessEvent = new CustomEvent('menuAccessChanged', {
-        detail: {
-          roleId: roleId,
-          roleName: roleName,
-          timestamp: new Date().toISOString(),
-          changes: Object.entries(permissions).map(([submenu, perms]) => ({
-            menu_name: submenu,
-            role_name: roleName,
-            access_granted: perms.view || perms.create || perms.edit || perms.delete || perms.full_access,
-            permissions: perms,
-            updated_by: 'Admin' // You can get this from user context if available
-          }))
-        }
-      });
-      
-      console.log('🔔 Dispatching menuAccessChanged event:', menuAccessEvent.detail);
-      window.dispatchEvent(menuAccessEvent);
-      
-      onClose?.();
     } catch (error) {
       console.error("Error saving permissions:", error);
       toast.error("Failed to update permissions. Please try again.", { style: errorStyle });
     }
   };
 
-  // Loading state while data is being fetched
-  if (loading) {
+  if (loading)
     return (
       <div className="text-center p-6 bg-white rounded shadow">
         Loading role access...
       </div>
     );
-  }
 
   return (
     <div>

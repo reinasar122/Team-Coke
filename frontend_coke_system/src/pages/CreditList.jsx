@@ -84,7 +84,7 @@ export default function CreditList() {
   const isPartial = (s) => ["PARTIAL", "PARTIALLY PAID"].includes(norm(s));
 
   const statusLabel = (s) => {
-    if (isPending(s)) return "Pending";
+    if (isPending(s)) return "Unpaid";
     if (isPartial(s)) return "Partially Paid";
     if (isPaid(s)) return "Fully Paid";
     return String(s || "").toString();
@@ -93,8 +93,8 @@ export default function CreditList() {
   const getStatusStyle = (s) => {
     if (isPending(s)) {
       return { 
-        background: '#fef3c7', 
-        color: '#d97706', 
+       background: '#fee2e2',  // 🔴 light red background
+        color: '#b91c1c',  
         padding: '4px 8px', 
         borderRadius: '6px', 
         fontSize: '0.875rem',
@@ -132,15 +132,26 @@ export default function CreditList() {
   };
 
   // --- sort: unpaid first (Pending/Partial), paid at bottom; each group by Date desc ---
-  const sortedRows = [...rows].sort((a, b) => {
-    const aPaid = isPaid(a.status) ? 1 : 0;
-    const bPaid = isPaid(b.status) ? 1 : 0;
-    if (aPaid !== bPaid) return aPaid - bPaid;
+  // --- sort: Unpaid first, then Partially Paid, then Fully Paid; each group by latest date ---
+const sortedRows = [...rows].sort((a, b) => {
+  const order = (status) => {
+    const s = norm(status);
+    if (isPending(s)) return 0;              // 🔴 Unpaid first
+    if (isPartial(s)) return 1;              // 🟡 Partially Paid second
+    if (isPaid(s)) return 2;                 // 🟢 Fully Paid last
+    return 3;                                // Others (if any)
+  };
 
-    const at = a.created_at ? new Date(a.created_at).getTime() : 0;
-    const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
-    return bt - at;
-  });
+  const aOrder = order(a.status);
+  const bOrder = order(b.status);
+  if (aOrder !== bOrder) return aOrder - bOrder;
+
+  // within same status → latest first
+  const at = a.created_at ? new Date(a.created_at).getTime() : 0;
+  const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
+  return bt - at;
+});
+
 
   if (!currentWarehouse) {
     return (
