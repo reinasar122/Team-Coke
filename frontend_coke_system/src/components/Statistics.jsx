@@ -320,8 +320,8 @@ export default function Statistics({
                 <defs>
                   {/* Revenue fill */}
                   <linearGradient id="moneyRed" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                    <stop offset="0%" stopColor="#4488efff" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="#4488efff" stopOpacity={0} />
                   </linearGradient>
 
                   {/* Profit soft glow under the line */}
@@ -362,10 +362,10 @@ export default function Statistics({
                   type="monotone"
                   name="Revenue"
                   dataKey="revenue"
-                  stroke="#ef4444"
+                  stroke="#4488efff"
                   fill="url(#moneyRed)"
                   strokeWidth={2}
-                  dot={<Dot r={3} stroke="#ef4444" fill="#ef4444" />}
+                  dot={<Dot r={3} stroke="#4488efff" fill="#4488efff" />}
                   activeDot={{ r: 5 }}
                 />
 
@@ -441,17 +441,6 @@ export default function Statistics({
             </ResponsiveContainer>
           </div>
 
-          {/* Total Revenue Display */}
-          <div className="mt-4 text-[14px] text-slate-600">
-            <strong>Total Revenue: {peso(revenue)}</strong> {/* Display total revenue */}
-          </div>
-
-          <div className="mt-2 text-[11px] text-slate-500 flex items-center justify-end gap-2">
-            <span className="inline-flex items-center gap-1">
-              <Icon.Warehouse /> Last updated:
-            </span>
-            <time>{lastUpdated ? new Date(lastUpdated).toLocaleString() : "--"}</time>
-          </div>
         </div>
       )}
     </GlassCard>
