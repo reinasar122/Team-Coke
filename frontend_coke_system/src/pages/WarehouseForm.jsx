@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { successStyle } from "../utils/toastStyles";
-import psgcData from "../data/psgc_output.json"; 
-import api from "../api";
-
+import { successStyle, errorStyle } from "../utils/toastStyles";
+import psgcData from "../data/psgc_output.json";
+import { validatePhoneNumber, validateZipCode } from "../utils/validators";
 
 const WarehouseForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -13,7 +12,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     province: "",
     city: "",
     barangay: "",
-    street_address: "",   
+    street_address: "",
     zip_code: "",
     phone_number: "",
     email: "",
@@ -23,56 +22,118 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
   const [cities, setCities] = useState([]);
   const [barangays, setBarangays] = useState([]);
 
+  // ✅ Error state for live validation
+  const [errors, setErrors] = useState({
+    phone_number: null,
+    zip_code: null,
+    email: null,
+  });
+
+  // ✅ Cascading PSGC dropdowns
   useEffect(() => {
-    const selectedRegion = psgcData.find(
-      (region) => region.region_name === formData.region
-    );
+    const selectedRegion = psgcData.find((r) => r.region_name === formData.region);
     setProvinces(selectedRegion ? selectedRegion.provinces : []);
-    setFormData((prev) => ({
-      ...prev,
-      province: "",
-      city: "",
-      barangay: "",
-    }));
+    setFormData((prev) => ({ ...prev, province: "", city: "", barangay: "" }));
     setCities([]);
     setBarangays([]);
   }, [formData.region]);
 
-  // Province -> Cities
   useEffect(() => {
-    const selectedProvince = provinces.find(
-      (p) => p.province_name === formData.province
-    );
+    const selectedProvince = provinces.find((p) => p.province_name === formData.province);
     setCities(selectedProvince ? selectedProvince.cities || [] : []);
     setFormData((prev) => ({ ...prev, city: "", barangay: "" }));
     setBarangays([]);
   }, [formData.province, provinces]);
 
-  // City -> Barangays
   useEffect(() => {
     const selectedCity = cities.find((c) => c.city_name === formData.city);
     setBarangays(selectedCity ? selectedCity.barangays || [] : []);
     setFormData((prev) => ({ ...prev, barangay: "" }));
   }, [formData.city, cities]);
 
+  // ✅ Handle change with live validation
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+
+    if (name === "phone_number") {
+      const err = validatePhoneNumber(value);
+      setErrors((prev) => ({ ...prev, phone_number: err }));
+    }
+
+    if (name === "zip_code") {
+      const err = validateZipCode(value);
+      setErrors((prev) => ({ ...prev, zip_code: err }));
+    }
+
+    if (name === "email") {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      const err = !emailRegex.test(value)
+        ? "Please enter a valid email address."
+        : null;
+      setErrors((prev) => ({ ...prev, email: err }));
+    }
+  };
+
+  const validateInputs = () => {
+    const phoneError = validatePhoneNumber(formData.phone_number);
+    const zipError = validateZipCode(formData.zip_code);
+
+    if (phoneError) {
+      toast.error(phoneError, { style: errorStyle });
+      return false;
+    }
+
+    if (zipError) {
+      toast.error(zipError, { style: errorStyle });
+      return false;
+    }
+
+    if (errors.email) {
+      toast.error(errors.email, { style: errorStyle });
+      return false;
+    }
+
+    return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-          await api.post("/warehouses/", formData);
 
-      toast.success(
-        `Warehouse '${formData.name}' has been saved successfully!`,
-        { style: successStyle }
-      );
-      onSuccess?.();
+    if (!validateInputs()) return;
+
+    try {
+      const res = await fetch("http://127.0.0.1:8080/api/warehouses/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      if (res.ok) {
+        toast.success(`Warehouse '${formData.name}' has been saved successfully!`, {
+          style: successStyle,
+        });
+        onSuccess?.();
+        onClose?.();
+      } else {
+        const data = await res.json();
+        if (data && typeof data === "object") {
+          const firstKey = Object.keys(data)[0];
+          const firstErr = Array.isArray(data[firstKey])
+            ? data[firstKey][0]
+            : data[firstKey];
+          toast.error(`${firstKey}: ${firstErr}`, { style: errorStyle });
+        } else {
+          toast.error("Failed to create warehouse. Please check the fields.", {
+            style: errorStyle,
+          });
+        }
+      }
     } catch (error) {
       console.error("Error creating warehouse:", error);
-      toast.error("Failed to create warehouse. Please try again.", { style: successStyle });
+      toast.error("Failed to create warehouse. Please check the fields.", {
+        style: errorStyle,
+      });
     }
   };
 
@@ -80,7 +141,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     <div>
       <h2 className="text-2xl font-semibold mb-4">New Warehouse</h2>
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Warehouse Name */}
+        {/* Name */}
         <div className="md:col-span-2">
           <label className="block font-medium">Name of Warehouse</label>
           <input
@@ -143,7 +204,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
           </select>
         </div>
 
-        {/* Municipality/City */}
+        {/* City */}
         <div>
           <label className="block font-medium">City/Municipality</label>
           <select
@@ -189,10 +250,15 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
           <input
             type="text"
             name="zip_code"
-            className="w-full border p-2 rounded"
+            className={`w-full border p-2 rounded ${
+              errors.zip_code ? "border-red-500" : ""
+            }`}
             required
             onChange={handleChange}
           />
+          {errors.zip_code && (
+            <p className="text-red-500 text-sm mt-1">{errors.zip_code}</p>
+          )}
         </div>
 
         {/* Street Address */}
@@ -213,10 +279,15 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
           <input
             type="text"
             name="phone_number"
-            className="w-full border p-2 rounded"
+            className={`w-full border p-2 rounded ${
+              errors.phone_number ? "border-red-500" : ""
+            }`}
             required
             onChange={handleChange}
           />
+          {errors.phone_number && (
+            <p className="text-red-500 text-sm mt-1">{errors.phone_number}</p>
+          )}
         </div>
 
         {/* Email */}
@@ -225,25 +296,23 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
           <input
             type="email"
             name="email"
-            className="w-full border p-2 rounded"
+            className={`w-full border p-2 rounded ${
+              errors.email ? "border-red-500" : ""
+            }`}
             required
             onChange={handleChange}
           />
+          {errors.email && (
+            <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+          )}
         </div>
 
         {/* Buttons */}
         <div className="md:col-span-2 flex justify-between mt-4">
-          <button
-            type="button"
-            className="btn btn-cancel py-2 px-4"
-            onClick={onClose}
-          >
+          <button type="button" className="btn btn-cancel py-2 px-4" onClick={onClose}>
             Cancel
           </button>
-          <button
-            type="submit"
-            className="btn btn-primary py-2 px-4"
-          >
+          <button type="submit" className="btn btn-primary py-2 px-4">
             Save
           </button>
         </div>

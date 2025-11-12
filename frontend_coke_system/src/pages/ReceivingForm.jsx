@@ -933,25 +933,34 @@ const ReceivingForm = () => {
                 {form.details.map((row, index) => (
                   <tr key={index}>
                     <td>
-                      <select
-                        value={row.product_id || ""}
-                        onChange={(e) => handleRowChange(index, "product_id", e.target.value)}
-                        className="form-input"
-                        disabled={!form.supplier}
-                      >
-                        <option value="">
-                          {!form.supplier
-                            ? "Select Supplier First"
-                            : filteredProducts.length === 0
-                            ? `No products from this supplier in ${currentWarehouse.name}`
-                            : `Select Product (${filteredProducts.length} available)`}
-                        </option>
-                        {filteredProducts.map((p) => (
+                     <select
+                      value={row.product_id || ""}
+                      onChange={(e) => handleRowChange(index, "product_id", e.target.value)}
+                      className="form-input"
+                      disabled={!form.supplier}
+                    >
+                      <option value="">
+                        {!form.supplier
+                          ? "Select Supplier First"
+                          : filteredProducts.length === 0
+                          ? `No products from this supplier in ${currentWarehouse.name}`
+                          : `Select Product (${filteredProducts.length} available)` }
+                      </option>
+
+                      {filteredProducts
+                        .filter(
+                          (p) =>
+                            // Hide if already selected in another row
+                            !(form.details || []).some(
+                              (item, i) => i !== index && String(item.product_id) === String(p.id)
+                            )
+                        )
+                        .map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.product_name}
                           </option>
                         ))}
-                      </select>
+                    </select>
                     </td>
                     <td>
                       <input

@@ -83,24 +83,21 @@ const Header = ({ toggleSidebar }) => {
 
   return (
     <>
-      <header className="bg-gray-900 text-white px-6 py-3 flex justify-between items-center shadow-md fixed w-full mb-10 top-0 z-10">
-        {/* Left - Sidebar toggle + title */}
+       <header className="bg-gray-900 text-white px-6 py-3 flex justify-between items-center shadow-md fixed w-full top-0 z-40">
+        {/* Left: Sidebar toggle + title */}
         <div className="flex items-center">
-          <button
-            onClick={toggleSidebar}
-            className="text-xl mr-4 focus:outline-none"
-          >
+          <button onClick={toggleSidebar} className="text-xl mr-4 focus:outline-none">
             <FontAwesomeIcon icon={faBars} />
           </button>
           <h1 className="text-xl font-bold hidden sm:block">Coke Sales and Inventory System</h1>
           <h1 className="text-lg font-bold sm:hidden">Coke POS</h1>
         </div>
 
-        {/* Center - Warehouse Display */}
+        {/* Center: Warehouse Display */}
         <div className="hidden md:block">
           <button
             onClick={isAdmin ? handleOpenWarehouseModal : undefined}
-            className={`px-4 py-2 rounded-lg flex items-center space-x-2 transition-colors focus:outline-none border ${
+            className={`px-4 py-2 rounded-lg flex items-center space-x-2 border transition-colors ${
               isAdmin
                 ? "bg-gray-700 hover:bg-gray-600 border-gray-600 cursor-pointer"
                 : "bg-gray-800 border-gray-700 cursor-default"
@@ -109,27 +106,20 @@ const Header = ({ toggleSidebar }) => {
           >
             <FontAwesomeIcon icon={faWarehouse} />
             <span className="font-medium truncate max-w-48">{getDisplayWarehouse()}</span>
-            {isAdmin && (
-              <FontAwesomeIcon icon={faExchangeAlt} className="text-sm" />
-            )}
+            {isAdmin && <FontAwesomeIcon icon={faExchangeAlt} className="text-sm" />}
           </button>
         </div>
 
-        {/* Right - Profile Dropdown */}
+        {/* Right: Notifications + Profile */}
         <div className="flex items-center space-x-4 relative" ref={dropdownRef}>
-          {/* Notification Component */}
           <Notification />
-          <button
-            onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="focus:outline-none"
-          >
+          <button onClick={() => setIsProfileOpen(!isProfileOpen)} className="focus:outline-none">
             <FontAwesomeIcon icon={faUser} className="cursor-pointer text-xl" />
           </button>
 
-          {/* Profile Dropdown - Fixed positioning */}
           {isProfileOpen && (
             <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] sm:max-w-sm bg-white text-gray-800 rounded-lg shadow-xl z-50 max-h-[calc(100vh-6rem)] overflow-y-auto border border-gray-200">
-              <Profile/> {/* compact version */}
+              <Profile />
             </div>
           )}
         </div>

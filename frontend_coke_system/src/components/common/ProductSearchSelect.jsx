@@ -34,30 +34,35 @@ const ProductSearchSelect = ({
   );
 
   const updateMenuPosition = () => {
-    const inputEl = inputRef.current;
-    if (!inputEl) return;
+  const inputEl = inputRef.current;
+  if (!inputEl) return;
 
-    const rect = inputEl.getBoundingClientRect();
-    const viewportHeight = window.innerHeight;
-    const spaceBelow = viewportHeight - rect.bottom;
-    const spaceAbove = rect.top;
+  const rect = inputEl.getBoundingClientRect();
+  const viewportHeight = window.innerHeight;
+  const spaceBelow = viewportHeight - rect.bottom;
+  const spaceAbove = rect.top;
 
-    const isAbove = spaceBelow < 160 && spaceAbove > spaceBelow;
+  const dropdownHeight = Math.min(200, filtered.length * 32 + 8); // estimate height
+  const shouldOpenUpward = spaceBelow < dropdownHeight && spaceAbove > spaceBelow;
 
-    const top = isAbove ? Math.max(8, rect.top - 200) : rect.bottom + 4;
-    const left = Math.max(8, rect.left);
-    const width = Math.max(200, rect.width);
-    const maxHeight = Math.min(240, spaceBelow - 16);
+  const top = shouldOpenUpward
+    ? rect.top - dropdownHeight - 4 // open upward
+    : rect.bottom + 4;              // open downward
 
-    setMenuStyle({
-      position: "fixed",
-      top: Math.round(top),
-      left: Math.round(left),
-      width: Math.round(width),
-      maxHeight: Math.round(maxHeight),
-      zIndex: 9999,
-    });
-  };
+  const left = rect.left;
+  const width = rect.width;
+
+  setMenuStyle({
+    position: "fixed",
+    top: Math.max(8, Math.round(top)),
+    left: Math.round(left),
+    width: Math.round(width),
+    maxHeight: 240,
+    overflowY: "auto",
+    zIndex: 9999,
+  });
+};
+
 
   useEffect(() => {
     if (!open) return;

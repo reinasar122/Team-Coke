@@ -22,30 +22,22 @@ from django.dispatch import receiver
 
 
 class CreditLedger(models.Model):
-    STATUS_PENDING = "PENDING"
+    STATUS_UNPAID = "UNPAID"
     STATUS_PARTIAL = "PARTIAL"
     STATUS_PAID = "PAID"
     STATUS_CHOICES = [
-        (STATUS_PENDING, "Pending"),
+        (STATUS_UNPAID, "Unpaid"),
         (STATUS_PARTIAL, "Partially Paid"),
         (STATUS_PAID, "Fully Paid"),
     ]
 
     # ADD WAREHOUSE FIELD
     warehouse = models.ForeignKey(
-        "api.Warehouse",  # Assuming you have a Warehouse model
+        "api.Warehouse",
         on_delete=models.CASCADE,
         related_name="credit_ledgers"
     )
 
-    # Link to your real Merchandising model in the SAME app
-    merchandising = models.ForeignKey(
-        "api.Merchandising",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="credit_ledgers",
-    )
 
     # header / identity
     msp_no = models.CharField(max_length=50, db_index=True)
@@ -60,9 +52,8 @@ class CreditLedger(models.Model):
     # money
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_UNPAID)
 
-    # optional raw rows snapshot (for the "receipt")
     rows_json = models.JSONField(default=list, blank=True)
 
     class Meta:
@@ -73,16 +64,18 @@ class CreditLedger(models.Model):
         return max(self.total_amount - self.amount_paid, 0)
 
     def recalc_status(self, save=True):
+        """Recalculate payment status based on amount paid."""
         if self.amount_paid <= 0:
-            self.status = self.STATUS_PENDING
+            self.status = self.STATUS_UNPAID  # 🔴 changed from PENDING → UNPAID
         elif self.amount_paid < self.total_amount:
-            self.status = self.STATUS_PARTIAL
+            self.status = self.STATUS_PARTIAL  # 🟡 Partially Paid
         else:
-            self.status = self.STATUS_PAID
+            self.status = self.STATUS_PAID     # 🟢 Fully Paid
         if save:
             self.save(update_fields=["status"])
 
     def apply_payment(self, amount: float):
+        """Add payment and auto-update status."""
         self.amount_paid = (self.amount_paid or 0) + amount
         self.recalc_status(save=False)
         self.save(update_fields=["amount_paid", "status"])
@@ -118,11 +111,30 @@ class Warehouse(models.Model):
     city = models.CharField(max_length=100, default="", blank=True)
     barangay = models.CharField(max_length=255, default="", blank=True)
     street_address = models.CharField(max_length=255, default="", blank=True)
-    zip_code = models.CharField(max_length=10, default="", blank=True)
-    phone_number = models.CharField(max_length=20, default="", blank=True)
+    zip_code = models.CharField(max_length=4, blank=True, null=True)
+    phone_number = models.CharField(max_length=11, blank=True, null=True)
+
     email = models.EmailField(default="", blank=True)
     def __str__(self):
         return self.name
+    def clean(self):
+        if self.phone_number:
+            if not self.phone_number.isdigit():
+                raise ValidationError("Phone number must contain only numbers.")
+            if len(self.phone_number) != 11:
+                raise ValidationError("Phone number must be exactly 11 digits.")
+            
+        if self.zip_code:
+            if not self.zip_code.isdigit():
+                raise ValidationError("Zip code must contain only numbers.")
+            if len(self.zip_code) != 4:
+                raise ValidationError("Zip code must be exactly 4 digits.")
+
+        super().clean()
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 class Supplier(models.Model):
     company_name = models.CharField(max_length=255, unique=True)
@@ -130,31 +142,61 @@ class Supplier(models.Model):
     bir_no = models.CharField(max_length=100, blank=True, null=True)
     contact_person = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
-    phone_number = models.CharField(max_length=50)
+    phone_number = models.CharField(max_length=11, blank=True, null=True)
     country = models.CharField(max_length=100, default="Philippines")
     region = models.CharField(max_length=100, default="", blank=True)
     province = models.CharField(max_length=100, default="", blank=True)
     city = models.CharField(max_length=100, default="", blank=True)
     barangay = models.CharField(max_length=255, default="", blank=True)
     street_address = models.CharField(max_length=255, default="", blank=True)
-    zip_code = models.CharField(max_length=10, default="", blank=True)
+    zip_code = models.CharField(max_length=4, blank=True, null=True)
+
+    def __str__(self):
+        return self.company_name
+
+    def clean(self):
+        if self.phone_number:
+            if not self.phone_number.isdigit():
+                raise ValidationError("Phone number must contain only numbers.")
+            if len(self.phone_number) != 11:
+                raise ValidationError("Phone number must be exactly 11 digits.")
+
+        if self.zip_code:
+            if not self.zip_code.isdigit():
+                raise ValidationError("Zip code must contain only numbers.")
+            if len(self.zip_code) != 4:
+                raise ValidationError("Zip code must be exactly 4 digits.")
+
+        super().clean()
 
     def save(self, *args, **kwargs):
         if not self.registration_number:
             self.registration_number = f"SUP-{uuid.uuid4().hex[:6].upper()}"
+        self.full_clean()
         super().save(*args, **kwargs)
-
-    def __str__(self):
-        return self.company_name
 
 class SupplierContact(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="contacts")
     contact_person = models.CharField(max_length=255)
     email = models.EmailField()
-    phone_number = models.CharField(max_length=50)
+    phone_number = models.CharField(max_length=11, blank=True, null=True)
 
     def __str__(self):
         return f"{self.contact_person} ({self.supplier.company_name})"
+
+    def clean(self):
+        if self.phone_number:
+            if not self.phone_number.isdigit():
+                raise ValidationError("Phone number must contain only numbers.")
+            if len(self.phone_number) != 11:
+                raise ValidationError("Phone number must be exactly 11 digits.")
+
+        super().clean()
+
+    def save(self, *args, **kwargs):
+        # Always validate before saving
+        self.full_clean()
+        super().save(*args, **kwargs)
 
 class Role(models.Model):
     name = models.CharField(max_length=50, unique=True)

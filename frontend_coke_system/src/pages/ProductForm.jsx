@@ -42,7 +42,7 @@ const ProductForm = () => {
     text: "",
   });
 
-    useEffect(() => {
+    /*useEffect(() => {
       // Add event listener for the Enter key when the modal is open
       const handleEnterKey = (e) => {
         if (e.key === "Enter") {
@@ -58,7 +58,7 @@ const ProductForm = () => {
       return () => {
         window.removeEventListener("keydown", handleEnterKey);
       };
-    }, [showModal, newValue]);  // Re-run when showModal or newValue changes
+    }, [showModal, newValue]);  // Re-run when showModal or newValue changes*/
 
 
   // Get current warehouse from user session
@@ -721,13 +721,18 @@ const ProductForm = () => {
             <h3 className="pf-modal-title">Add New {showModal.type.toUpperCase()}</h3>
 
             <input
-              type="text"
-              value={newValue}
-              onChange={(e) => setNewValue(e.target.value)}
-              className="pf-input mb-4 w-full"
-              placeholder={`Enter ${showModal.type} value`}
-              onKeyDown={(e) => e.key === 'Enter' && handleAddNew()} // Manually handling Enter here
-            />
+            type="text"
+            value={newValue}
+            onChange={(e) => setNewValue(e.target.value)}
+            className="pf-input mb-4 w-full"
+            placeholder={`Enter ${showModal.type} value`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault(); // prevent form submit
+                handleAddNew();     // add category once
+              }
+            }}
+          />
 
             <div className="pf-actions">
               <button

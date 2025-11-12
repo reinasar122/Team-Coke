@@ -96,6 +96,22 @@ body {
 .app-content.lock-scroll { overflow: hidden; }   /* hide universal scrollbar */
 .app-content.allow-page-scroll { overflow: auto; } /* default */
 
+/* ✅ FIXED HEADER SPACING */
+.app-content,
+.page,
+main {
+  padding-top: 4rem; /* Header height (≈64px) */
+}
+
+/* ✅ Extra offset for mobile fixed warehouse bar */
+@media (max-width: 768px) {
+  .app-content,
+  .page,
+  main {
+    padding-top: 7rem; /* Header + mobile warehouse bar */
+  }
+}
+
 .receiving-container,
 .warehousedetails-container,
 .vanlist-container,

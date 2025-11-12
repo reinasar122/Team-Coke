@@ -291,11 +291,11 @@ export default function MerchandisingSaleDetailPage() {
         bottlePrice: Number(price.bottle_price || 0),
         dispatchedPcs,
         dispatchedShell,   // now integer
-        discount: Number(it.discount || 0), // ✅ add this line
+        discount: Number(it.discount_percent || 0),  // ✅ pull the right field
         expectedSale: Number(
           (Number(price.selling_price || 0) *
             dispatchedPcs *
-            (1 - Number(it.discount || 0) / 100)
+            (1 - Number(it.discount_percent || 0) / 100)
           ).toFixed(2)
         ),
       };
@@ -426,7 +426,7 @@ export default function MerchandisingSaleDetailPage() {
           dispatched_shell: Number.isFinite(Number(r.dispatchedShell))
             ? Number(r.dispatchedShell)   // ✅ keep the original shell
             : 0,
-          discount: Number(r.discount) || 0, 
+         discount_percent: Number(r.discount) || 0, 
         };
       });
 

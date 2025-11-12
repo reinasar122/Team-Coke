@@ -94,7 +94,7 @@ const VanLoadTable = ({
     };
   }, [fetchAllStocks]);
 
-  // ---------- Pricing ----------
+   // ---------- Pricing ----------
   useEffect(() => {
     (async () => {
       try {
@@ -105,6 +105,35 @@ const VanLoadTable = ({
       }
     })();
   }, []);
+
+
+
+  // 🩵 FIX: Rehydrate selling, shell, and bottle prices when switching from Warehouse to Van Load
+  useEffect(() => {
+    if (!pricingData.length || !rows.length) return;
+
+    setRows(prevRows =>
+      prevRows.map(r => {
+        // Only update rows that have priceId but missing selling price
+        if (!r.priceId || (r.sellingPrice && r.sellingPrice !== "")) return r;
+
+        const p = pricingData.find(p => p.id === r.priceId);
+        if (!p) return r;
+
+        return {
+          ...r,
+          sellingPrice: p.selling_price ?? r.sellingPrice,
+          shellPrice: p.shell_price ?? r.shellPrice,
+          bottlePrice: p.bottle_price ?? r.bottlePrice,
+        };
+      })
+    );
+  }, [pricingData, rows.length]);
+
+  
+  useEffect(() => {
+    localStorage.setItem("rows", JSON.stringify(rows));
+  }, [rows]);
 
   // ---------- Prevent duplicate product selections ----------
   const pickedIds = useMemo(() => {

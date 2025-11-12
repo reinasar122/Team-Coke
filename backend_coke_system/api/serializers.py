@@ -251,25 +251,49 @@ class WarehouseSerializer(serializers.ModelSerializer):
         model = Warehouse
         fields = '__all__'
 
+    def validate_phone_number(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Phone number must contain only numbers.")
+        if len(value) != 11:
+            raise serializers.ValidationError("Phone number must be exactly 11 digits long.")
+        return value
+
+    def validate_zip_code(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Zip code must contain only numbers.")
+        if len(value) != 4:
+            raise serializers.ValidationError("Zip code must be exactly 4 digits long.")
+        return value
+
 
 class SupplierContactSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(required=False)
+
     class Meta:
         model = SupplierContact
-        fields = '__all__'
+        fields = ['id', 'supplier', 'contact_person', 'email', 'phone_number']
+        extra_kwargs = {
+            'supplier': {'read_only': True},  # supplier auto-linked
+            'email': {'required': True},      # ensure required
+            'contact_person': {'required': True},
+        }
 
 
 class SupplierSerializer(serializers.ModelSerializer):
     contacts = SupplierContactSerializer(many=True, required=False)
-    can_delete = serializers.SerializerMethodField()  # ✅ still here
+    can_delete = serializers.SerializerMethodField()
 
     class Meta:
         model = Supplier
         fields = '__all__'
 
-    # ✅ Fix duplicate check: ignore self when editing
     def validate_company_name(self, value):
         qs = Supplier.objects.filter(company_name__iexact=value.strip())
-        if self.instance:  # Editing case
+        if self.instance:
             qs = qs.exclude(id=self.instance.id)
         if qs.exists():
             raise serializers.ValidationError(
@@ -292,30 +316,31 @@ class SupplierSerializer(serializers.ModelSerializer):
         return supplier
 
     def update(self, instance, validated_data):
-        contacts_data = validated_data.pop("contacts", [])
+        contacts_data = validated_data.pop('contacts', [])
 
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
-        existing_ids = [c.id for c in instance.contacts.all()]
-        incoming_ids = [c.get("id") for c in contacts_data if c.get("id")]
+        existing_contacts = {c.id: c for c in instance.contacts.all()}
+        incoming_ids = []
 
-        # Remove deleted contacts
-        for contact in instance.contacts.all():
-            if contact.id not in incoming_ids:
-                contact.delete()
-
-        # Update or create contacts
         for contact_data in contacts_data:
-            contact_id = contact_data.get("id")
-            if contact_id and contact_id in existing_ids:
-                contact = SupplierContact.objects.get(id=contact_id, supplier=instance)
-                for attr, value in contact_data.items():
-                    setattr(contact, attr, value)
+            contact_id = contact_data.get('id')
+            if contact_id and contact_id in existing_contacts:
+                contact = existing_contacts[contact_id]
+                for attr, val in contact_data.items():
+                    if attr != 'id':
+                        setattr(contact, attr, val)
                 contact.save()
+                incoming_ids.append(contact_id)
             else:
-                SupplierContact.objects.create(supplier=instance, **contact_data)
+                new_contact = SupplierContact.objects.create(supplier=instance, **contact_data)
+                incoming_ids.append(new_contact.id)
+
+        for contact_id, contact in existing_contacts.items():
+            if contact_id not in incoming_ids:
+                contact.delete()
 
         return instance
 
@@ -1025,7 +1050,7 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("User not found.")
 
         if not user.check_password(password):
-            raise serializers.ValidationError("Incorrect password.")
+            raise serializers.ValidationError("Incorrect username or password.")
 
         access_list = RoleAccessibility.objects.filter(role=user.role).values(
             'submenu', 'full', 'view', 'create', 'edit', 'delete'

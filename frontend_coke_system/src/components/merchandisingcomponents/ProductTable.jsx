@@ -389,6 +389,19 @@ if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
     setRows(updatedRows);
   };
 
+  const productHasEmptyPrice = (row) => {
+  const n = (v) => parseFloat(v) || 0;
+  // If the product or pricing exists, check any shell/bottle/empty price > 0
+  const candidates = [
+    row?.product?.empty_price,
+    row?.product?.price?.shell_price,
+    row?.product?.price?.bottle_price,
+    row?.shellPrice,
+    row?.bottlePrice,
+  ];
+  return candidates.some((v) => n(v) > 0);
+};
+
   // -------------------- Totals (memo + push up) --------------------
 
   // Empties (sold * empty prices)
@@ -658,8 +671,14 @@ useEffect(() => {
             return (
             <tr key={row.id ?? index} className="bg-white hover:bg-slate-100 transition duration-150">
               {/* PRODUCT SELECT */}
-              <td className="border border-gray-200 py-1 px-1 w-[180px] relative">
+             <td className="border border-gray-200 py-1 px-1 w-[180px] relative overflow-visible">
                 <ProductSearchSelect
+                  menuPortalTarget={document.body}   // ✅ renders dropdown outside the table
+                  menuPosition="fixed"  
+                  menuPlacement="auto"             // ✅ ensures proper positioning on scroll
+                  styles={{
+                    menuPortal: (base) => ({ ...base, zIndex: 9999 }), // ✅ keeps dropdown on top
+                  }}
                   products={products}
                   value={row.productName ?? ""}
                   onChange={(id) => handleProductChange(index, String(id))}
@@ -667,7 +686,6 @@ useEffect(() => {
                   placeholder="Search product…"
                 />
               </td>
-
               {/* DISPATCHED */}
              <td className="border border-gray-200 py-1 px-1">
                 <input
@@ -769,13 +787,24 @@ useEffect(() => {
               </td>
 
 
-              {/* RETURN & DISCREPANCY FIELDS */}
-              {[
+            {[
+              "expectedReturnShellEmpty",
+              "expectedReturnPcsEmpty",
+              "discrepancyShellEmpty",
+              "discrepancyPcsEmpty",
+            ].map((field, i) => {
+              const isEmptyField = [
                 "expectedReturnShellEmpty",
                 "expectedReturnPcsEmpty",
                 "discrepancyShellEmpty",
                 "discrepancyPcsEmpty",
-              ].map((field, i) => (
+              ].includes(field);
+
+              const isDiscrepancyField = field.includes("discrepancy");
+              const hasEmptyPrice = productHasEmptyPrice(row);
+              const shouldDisable = isEmptyField && !hasEmptyPrice; // <-- core logic
+
+              return (
                 <td key={i} className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
@@ -784,15 +813,16 @@ useEffect(() => {
                       ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)
                         ? "input-always-spinner bg-yellow-50"
                         : "bg-gray-100"}
-                      ${field.includes("discrepancy") && parseFloat(row[field]) !== 0
+                      ${isDiscrepancyField && parseFloat(row[field]) !== 0
                         ? "bg-red-100 text-red-700 font-semibold"
                         : ""}
+                      ${shouldDisable ? "cursor-not-allowed opacity-60" : ""}
                     `}
                     value={
                       row[field] === "" || row[field] === "0" || row[field] === null
                         ? ""
                         : row[field]
-                    } // Handle empty and "0"
+                    }
                     onChange={(e) =>
                       handleRowChange(
                         index,
@@ -800,10 +830,13 @@ useEffect(() => {
                         e.target.value === "" ? null : e.target.value
                       )
                     }
-                    readOnly={["discrepancyShellEmpty", "discrepancyPcsEmpty"].includes(field)} // ⬅️ Make discrepancy fields non-editable
+                    readOnly={isDiscrepancyField}    // discrepancy stays computed & non-editable
+                    disabled={shouldDisable}         // disable ONLY when no empty price
                   />
                 </td>
-              ))}
+              );
+            })}
+
 
 
 

@@ -1001,7 +1001,7 @@ const PaymentModal = ({
                   <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
                     <span>Total:</span>
                     <span className="tabular-nums">
-                      ₱{fmt(n(emptiesPriceTotal) - n(emptyReturns) - n(emptyDiscrepancies))}
+                      ₱{fmt(n(emptiesPriceTotal) - n(emptyReturns))}
                     </span>
                   </div>
 

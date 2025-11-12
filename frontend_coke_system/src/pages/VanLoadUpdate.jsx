@@ -1075,6 +1075,12 @@ const VanLoadUpdate = () => {
 
       {/* Actions */}
       <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
+        <button 
+          className='btn btn-back'
+           onClick={() => navigate("/trading")}
+          >
+          Back
+        </button>
         <button
           className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
           onClick={() => setShowPaymentModal(true)}
