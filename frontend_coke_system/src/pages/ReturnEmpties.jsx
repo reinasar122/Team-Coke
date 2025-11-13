@@ -1,6 +1,7 @@
+// ReturnEmpties.jsx - COMPLETE INTEGRATION WITH ALL OLD VERSION FEATURES
 import React, { useState, useEffect, useCallback } from "react";
-import axios from "axios";
-import api from "../api"; // ✅ correct
+import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
+import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
 
 const ReturnEmpties = () => {
   const [suppliers, setSuppliers] = useState([]);
@@ -14,111 +15,275 @@ const ReturnEmpties = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
-  // Get current warehouse information
-  const getCurrentWarehouse = useCallback(() => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+  // ✅ KEPT: Proper warehouse setup using utilities (from old version)
+  const setupWarehouse = useCallback(async () => {
+    console.log('🏭 Setting up warehouse for ReturnEmpties...');
     
-    if (user.role?.toLowerCase() === "admin") {
-      if (selectedWarehouse) {
-        return { id: selectedWarehouse.id, name: selectedWarehouse.name };
-      }
+    const warehouse = getCurrentWarehouse();
+    
+    if (!warehouse) {
+      console.warn('⚠️ No warehouse found for user');
+      setCurrentWarehouse(null);
+      setLoading(false);
+      return;
     }
     
-    if (user.warehouse_id && user.warehouse) {
-      return { id: user.warehouse_id, name: user.warehouse };
+    // If warehouse needs ID lookup, find it by name
+    if (warehouse.needsIdLookup) {
+      const foundWarehouse = await findWarehouseByName(warehouse.name);
+      setCurrentWarehouse(foundWarehouse);
+    } else {
+      setCurrentWarehouse(warehouse);
     }
     
-    return null;
+    setLoading(false);
   }, []);
 
   useEffect(() => {
-    const updateWarehouse = () => {
-      const warehouse = getCurrentWarehouse();
-      setCurrentWarehouse(warehouse);
-    };
-    
-    updateWarehouse();
-    
-    const handleWarehouseChange = () => {
-      updateWarehouse();
+    setupWarehouse();
+  }, [setupWarehouse]);
+
+  useEffect(() => {
+    const handleWarehouseChange = (event) => {
+      console.log('🏭 Warehouse change detected in ReturnEmpties:', event.detail);
+      setupWarehouse();
     };
     
     window.addEventListener('warehouseChanged', handleWarehouseChange);
-    
-    return () => {
-      window.removeEventListener('warehouseChanged', handleWarehouseChange);
-    };
-  }, [getCurrentWarehouse]);
+    return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
+  }, [setupWarehouse]);
 
+  // ✅ KEPT: Better error handling for suppliers API with proper filtering (from old version)
   const fetchSuppliers = useCallback(async () => {
-    if (!currentWarehouse) return;
+    if (!currentWarehouse?.id) return;
     
     try {
-      const response = await api.get(`/suppliers/?warehouse=${currentWarehouse.id}`);
+      console.log('🏭 Fetching suppliers for warehouse:', currentWarehouse);
+      
+      // ✅ Try different API endpoint patterns
+      let response;
+      let serverFilterWorked = false;
+      
+      try {
+        // ✅ NEW: Use api.get() instead of axios.get() (from new version)
+        // First try with warehouse parameter
+        response = await api.get(`/suppliers/?warehouse=${currentWarehouse.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem("token")}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        serverFilterWorked = true;
+        console.log('✅ Server-side warehouse filtering worked');
+      } catch (error) {
+        console.warn('⚠️ Warehouse-filtered suppliers failed, trying warehouse_id parameter:', error.message);
+        
+        try {
+          // Try with warehouse_id parameter
+          response = await api.get(`/suppliers/?warehouse_id=${currentWarehouse.id}`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem("token")}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          serverFilterWorked = true;
+          console.log('✅ Server-side warehouse_id filtering worked');
+        } catch (error2) {
+          console.warn('⚠️ warehouse_id parameter also failed, getting all suppliers:', error2.message);
+          
+          // Final fallback: Get all suppliers and filter client-side
+          response = await api.get(`/suppliers/`, {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem("token")}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          serverFilterWorked = false;
+        }
+      }
+      
       let suppliersData = response.data;
       if (suppliersData.results) suppliersData = suppliersData.results;
       if (suppliersData.data) suppliersData = suppliersData.data;
       
-      setSuppliers(Array.isArray(suppliersData) ? suppliersData : []);
+      // Ensure we have an array
+      if (!Array.isArray(suppliersData)) {
+        console.warn('⚠️ Suppliers data is not an array:', suppliersData);
+        suppliersData = [];
+      }
+      
+      let finalSuppliers = suppliersData;
+      
+      // ✅ Enhanced client-side filtering if server-side filtering failed
+      if (!serverFilterWorked && suppliersData.length > 0) {
+        console.log('🔍 Applying client-side warehouse filtering...');
+        console.log('📊 Sample supplier structure:', JSON.stringify(suppliersData[0], null, 2));
+        
+        // Convert warehouse ID to both string and number for comparison
+        const warehouseIdStr = String(currentWarehouse.id);
+        const warehouseIdNum = Number(currentWarehouse.id);
+        
+        finalSuppliers = suppliersData.filter(supplier => {
+          // Check multiple possible warehouse field structures
+          const matches = (
+            // Direct warehouse ID comparison
+            supplier.warehouse === warehouseIdNum || 
+            supplier.warehouse === warehouseIdStr ||
+            supplier.warehouse_id === warehouseIdNum ||
+            supplier.warehouse_id === warehouseIdStr ||
+            // Nested warehouse object
+            (supplier.warehouse && supplier.warehouse.id === warehouseIdNum) ||
+            (supplier.warehouse && supplier.warehouse.id === warehouseIdStr) ||
+            // Warehouse name comparison as fallback
+            (supplier.warehouse && supplier.warehouse.name === currentWarehouse.name) ||
+            (supplier.warehouse_name === currentWarehouse.name)
+          );
+          
+          if (matches) {
+            console.log(`✅ Supplier "${supplier.company_name || supplier.name}" matches warehouse ${currentWarehouse.name}`);
+          }
+          
+          return matches;
+        });
+        
+        console.log(`🔍 Client-side filtering: ${finalSuppliers.length} suppliers match warehouse ${currentWarehouse.name} (from ${suppliersData.length} total)`);
+        
+        // If no suppliers match, log the warehouse structure of first supplier for debugging
+        if (finalSuppliers.length === 0 && suppliersData.length > 0) {
+          console.warn('⚠️ No suppliers matched warehouse filter. First supplier warehouse field:', {
+            warehouse: suppliersData[0].warehouse,
+            warehouse_id: suppliersData[0].warehouse_id,
+            warehouse_name: suppliersData[0].warehouse_name,
+            currentWarehouseId: currentWarehouse.id,
+            currentWarehouseName: currentWarehouse.name
+          });
+        }
+      }
+      
+      console.log(`✅ Final result: ${finalSuppliers.length} suppliers for warehouse ${currentWarehouse.name}`);
+      setSuppliers(finalSuppliers);
+      
     } catch (error) {
-      console.error("Error fetching suppliers:", error);
-      setError("Failed to load suppliers");
+      console.error("❌ Error fetching suppliers:", error);
+      setError("Failed to load suppliers: " + (error.response?.data?.detail || error.message));
       setSuppliers([]);
     }
   }, [currentWarehouse]);
 
+  // ✅ KEPT: Better error handling for products API (from old version)
   const fetchProducts = useCallback(async () => {
-    if (!currentWarehouse) return;
+    if (!currentWarehouse?.id) return;
     
     try {
-      const response = await api.get(`/products/?warehouse=${currentWarehouse.id}`);
+      console.log('📦 Fetching products for warehouse:', currentWarehouse);
+      
+      // ✅ Try different API endpoint patterns
+      let response;
+      try {
+        // ✅ NEW: Use api.get() instead of axios.get() (from new version)
+        // First try with warehouse_id parameter (as used in ProductList)
+        response = await api.get(`/products/?warehouse_id=${currentWarehouse.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem("token")}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      } catch (error) {
+        console.warn('⚠️ Warehouse-filtered products failed, trying warehouse parameter:', error.message);
+        
+        // Fallback: Try with warehouse parameter
+        response = await api.get(`/products/?warehouse=${currentWarehouse.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem("token")}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+      
       let productsData = response.data;
       if (productsData.results) productsData = productsData.results;
       if (productsData.data) productsData = productsData.data;
       
+      console.log(`✅ Loaded ${productsData.length || 0} products for warehouse ${currentWarehouse.name}`);
       setProducts(Array.isArray(productsData) ? productsData : []);
     } catch (error) {
-      console.error("Error fetching products:", error);
-      setError("Failed to load products");
+      console.error("❌ Error fetching products:", error);
+      setError("Failed to load products: " + (error.response?.data?.detail || error.message));
       setProducts([]);
     }
   }, [currentWarehouse]);
 
+  // ✅ KEPT: Better error handling for pricing API (from old version)
   const fetchPricing = useCallback(async () => {
-    if (!currentWarehouse) return;
+    if (!currentWarehouse?.id) return;
     
     try {
-      const response = await api.get(`/pricing/?warehouse=${currentWarehouse.id}`);
+      console.log('💰 Fetching pricing for warehouse:', currentWarehouse);
+      
+      // ✅ Try different API endpoint patterns
+      let response;
+      try {
+        // ✅ NEW: Use api.get() instead of axios.get() (from new version)
+        // First try with warehouse parameter
+        response = await api.get(`/pricing/?warehouse=${currentWarehouse.id}`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem("token")}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      } catch (error) {
+        console.warn('⚠️ Warehouse-filtered pricing failed, trying all pricing:', error.message);
+        
+        // Fallback: Get all pricing (pricing might not be warehouse-specific)
+        response = await api.get(`/pricing/`, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem("token")}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      }
+      
       let pricingData = response.data;
       if (pricingData.results) pricingData = pricingData.results;
       if (pricingData.data) pricingData = pricingData.data;
       
+      console.log(`✅ Loaded ${pricingData.length || 0} pricing records for warehouse ${currentWarehouse.name}`);
       setPricing(Array.isArray(pricingData) ? pricingData : []);
     } catch (error) {
-      console.error("Error fetching pricing:", error);
-      setError("Failed to load pricing data");
+      console.error("❌ Error fetching pricing:", error);
+      setError("Failed to load pricing data: " + (error.response?.data?.detail || error.message));
       setPricing([]);
     }
   }, [currentWarehouse]);
 
-  // FIXED: Enhanced empty returns processing - ONLY empty containers (no products with contents)
+  // ✅ KEPT: Enhanced empty returns processing - ONLY empty containers (no products with contents) (from old version)
   const fetchReturnedEmptiesFromMerchandising = useCallback(async () => {
-    if (!currentWarehouse) {
+    if (!currentWarehouse?.id) {
       setLoading(false);
       return;
     }
     
     setLoading(true);
     try {
-      const response = await api.get(`/merchandisings/?warehouse=${currentWarehouse.id}`);
+      console.log('📦 Fetching merchandising data for empty returns from warehouse:', currentWarehouse);
+      
+      // ✅ NEW: Use api.get() instead of axios.get() (from new version)
+      const response = await api.get(`/merchandisings/?warehouse=${currentWarehouse.id}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem("token")}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
       let merchandisingData = response.data;
       if (merchandisingData.results) merchandisingData = merchandisingData.results;
       if (merchandisingData.data) merchandisingData = merchandisingData.data;
       
+      console.log(`📊 Processing ${merchandisingData.length || 0} merchandising records for empty returns`);
+      
       const emptyReturns = [];
       
-      if (Array.isArray(merchandisingData)) {
+      if (Array.isArray(merchandisingData) && merchandisingData.length > 0) {
         merchandisingData.forEach(merchandising => {
           // Process both Warehouse and Van Load transactions
           if ((merchandising.transaction_type_name === "Warehouse" || merchandising.transaction_type_name === "Van Load") && merchandising.items) {
@@ -239,15 +404,15 @@ const ReturnEmpties = () => {
       setReturnedEmpties(aggregatedReturns);
       setError(null);
     } catch (error) {
-      console.error("Error fetching merchandising returns:", error);
-      setError("Failed to load merchandising data");
+      console.error("❌ Error fetching merchandising returns:", error);
+      setError("Failed to load merchandising data: " + (error.response?.data?.detail || error.message));
       setReturnedEmpties([]);
     }
     setLoading(false);
   }, [products, suppliers, pricing, currentWarehouse]);
 
   useEffect(() => {
-    if (currentWarehouse) {
+    if (currentWarehouse?.id) {
       fetchSuppliers();
       fetchProducts();
       fetchPricing();
@@ -255,7 +420,8 @@ const ReturnEmpties = () => {
   }, [currentWarehouse, fetchSuppliers, fetchProducts, fetchPricing]);
 
   useEffect(() => {
-    if (currentWarehouse && suppliers.length > 0 && products.length > 0 && pricing.length > 0) {
+    if (currentWarehouse?.id && suppliers.length >= 0 && products.length > 0 && pricing.length >= 0) {
+      // ✅ Allow fetching even if suppliers is empty (might be no suppliers for this warehouse)
       fetchReturnedEmptiesFromMerchandising();
     }
   }, [currentWarehouse, suppliers, products, pricing, fetchReturnedEmptiesFromMerchandising]);
@@ -270,6 +436,16 @@ const ReturnEmpties = () => {
       setFilteredEmpties(returnedEmpties);
     }
   }, [selectedSupplier, returnedEmpties]);
+
+  // ✅ KEPT: Show loading state while setting up warehouse (from old version)
+  if (!currentWarehouse && loading) {
+    return (
+      <div className="loading">
+        <div className="spinner" />
+        <div className="loading-text">Setting up warehouse...</div>
+      </div>
+    );
+  }
 
   if (!currentWarehouse) {
     return (
@@ -298,15 +474,35 @@ const ReturnEmpties = () => {
           background: '#fee2e2', 
           border: '1px solid #fca5a5', 
           color: '#b91c1c', 
-          borderRadius: 'var(--r-md)' 
+          borderRadius: 'var(--r-md)',
+          fontSize: '14px'
         }}>
-          {error}
+          <strong>⚠️ {error}</strong>
+          <br />
+          <small style={{ marginTop: '4px', display: 'block', opacity: 0.8 }}>
+            Some data might be incomplete. Please check your network connection and try refreshing the page.
+          </small>
         </div>
       )}
       
       {/* Header */}
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          {/* ✅ KEPT: Show current warehouse (from old version) */}
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            📦 Return Empties
+            <span style={{ 
+              padding: '4px 8px', 
+              background: '#f3f4f6', 
+              borderRadius: '6px', 
+              fontSize: '12px',
+              color: '#6b7280',
+              fontWeight: 'normal'
+            }}>
+              {currentWarehouse.name}
+            </span>
+          </h2>
+          
           {/* Supplier dropdown */}
           <div style={{ position: 'relative' }}>
             <button
@@ -385,20 +581,18 @@ const ReturnEmpties = () => {
                     {supplier.company_name || supplier.name}
                   </button>
                 ))}
+                {suppliers.length === 0 && (
+                  <div style={{
+                    padding: '8px 12px',
+                    fontSize: '0.875rem',
+                    color: 'var(--text-muted)',
+                    fontStyle: 'italic'
+                  }}>
+                    No suppliers available
+                  </div>
+                )}
               </div>
             )}
-          </div>
-        </div>
-
-        <div className="actions">
-          <div style={{ 
-            padding: '8px 12px', 
-            background: 'var(--table-head)', 
-            borderRadius: 'var(--r-sm)', 
-            fontSize: '0.875rem',
-            color: 'var(--text-muted)'
-          }}>
-            {currentWarehouse.name}
           </div>
         </div>
       </div>

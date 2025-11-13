@@ -1,4 +1,4 @@
-// src/contexts/NotificationContext.jsx - COMPLETE FIXED VERSION
+// src/contexts/NotificationContext.jsx - COMPLETE FIXED VERSION WITH CREDIT NOTIFICATIONS
 import React, { createContext, useContext, useReducer } from 'react';
 
 const NotificationContext = createContext();
@@ -6,14 +6,14 @@ const NotificationContext = createContext();
 const notificationReducer = (state, action) => {
   switch (action.type) {
     case 'ADD_NOTIFICATION':
-      // Check for duplicates
+      // Check for duplicates based on notification ID
       if (state.notifications.some(n => n.id === action.payload.id)) {
         return state;
       }
       
       const newState = {
         ...state,
-        notifications: [action.payload, ...state.notifications].slice(0, 50), // Keep max 50
+        notifications: [action.payload, ...state.notifications].slice(0, 100), // Keep max 100 notifications
         unreadCount: state.unreadCount + 1
       };
       
@@ -114,7 +114,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'inventory',
           title: 'Low Stock Alert',
           message: `${data.product_name || 'Unknown Product'} is running low`,
-          details: `Current quantity: ${data.quantity_available || 0} PCS - Threshold: ${data.reorder_level || 'N/A'}`,
+          details: `Current quantity: ${data.quantity_available || 0} PCS - Threshold: ${data.reorder_level || data.minimum_stock || 'N/A'}`,
           timestamp,
           is_read: false,
           priority: 'high',
@@ -227,7 +227,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'expenses',
           title: 'Expense Updated',
           message: `Expense modified: ${data.description || 'Expense updated'}`,
-          details: `New Amount: ₱${Number(data.amount || 0).toLocaleString()}`,
+          details: `New Amount: ₱${Number(data.amount || 0).toLocaleString()}${data.old_amount ? ` (was ₱${Number(data.old_amount).toLocaleString()})` : ''}`,
           timestamp: data.updated_at || timestamp,
           is_read: false,
           priority: 'medium',
@@ -259,7 +259,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'expenses',
           title: 'Large Expense Alert',
           message: `High-value expense flagged: ${data.description || 'Large expense'}`,
-          details: `Amount: ₱${Number(data.amount || 0).toLocaleString()} - Requires attention`,
+          details: `Amount: ₱${Number(data.amount || 0).toLocaleString()} - Exceeds threshold of ₱${Number(data.threshold || 0).toLocaleString()}`,
           timestamp: data.created_at || timestamp,
           is_read: false,
           priority: 'high',
@@ -275,7 +275,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'suppliers',
           title: 'New Supplier Added',
           message: `New supplier: ${data.company_name || data.supplier_name || data.name || 'Unknown Supplier'}`,
-          details: `Contact: ${data.phone_number || data.contact_number || data.phone || 'N/A'}`,
+          details: `Contact: ${data.phone_number || data.contact_number || data.phone || 'N/A'}${data.address ? ` - Address: ${data.address}` : ''}`,
           timestamp: data.created_at || timestamp,
           is_read: false,
           priority: 'low',
@@ -291,7 +291,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'suppliers',
           title: 'Supplier Information Updated',
           message: `Supplier updated: ${data.company_name || data.supplier_name || data.name || 'Unknown Supplier'}`,
-          details: `Changes made to supplier profile`,
+          details: `Changes made to supplier profile - Contact: ${data.contact_number || data.phone_number || 'N/A'}`,
           timestamp: data.updated_at || timestamp,
           is_read: false,
           priority: 'low',
@@ -306,8 +306,8 @@ export const NotificationProvider = ({ children }) => {
           type: 'supplier_return_processed',
           category: 'suppliers',
           title: 'Supplier Return Processed',
-          message: `Return processed: ${data.sup_no || `Return #${data.id}`}`,
-          details: `Supplier: ${data.supplier_name || data.company_name || 'Unknown Supplier'} - Amount: ₱${Number(data.total_amount || data.amount || 0).toLocaleString()} - Items: ${data.items_count || 0}`,
+          message: `Return processed: ${data.sup_no || data.return_no || `Return #${data.id}`}`,
+          details: `Supplier: ${data.supplier_name || data.company_name || 'Unknown Supplier'} - Amount: ₱${Number(data.total_amount || data.amount || 0).toLocaleString()}${data.quantity_returned ? ` - Qty: ${data.quantity_returned}` : ''}`,
           timestamp: data.created_at || data.date || timestamp,
           is_read: false,
           priority: 'medium',
@@ -350,8 +350,8 @@ export const NotificationProvider = ({ children }) => {
           type: 'warehouse_msp_created',
           category: 'warehouse',
           title: `New ${creationType} Created`,
-          message: `${creationType} created: ${data.msp_no || `MSP #${data.id}`}`,
-          details: `Type: ${data.transaction_type_name || data.transaction_type || 'Unknown'} - Handler: ${data.handled_by || 'Unknown'} - Expected Sale: ₱${finalExpectedSale.toLocaleString()}`,
+          message: `${creationType} created: ${data.msp_no || data.msp_number || `MSP #${data.id}`}`,
+          details: `Type: ${data.transaction_type_name || data.transaction_type || 'Unknown'} - Handler: ${data.handled_by || 'Unknown'} - Expected Sale: ₱${finalExpectedSale.toLocaleString()}${isVanLoadCreated && data.route ? ` - Route: ${typeof data.route === 'object' ? data.route.name : data.route}` : ''}`,
           timestamp: data.created_at || data.date_time || timestamp,
           is_read: false,
           priority: finalExpectedSale > 1000 ? 'medium' : 'low',
@@ -398,7 +398,7 @@ export const NotificationProvider = ({ children }) => {
           type: 'warehouse_msp_updated',
           category: 'warehouse',
           title: updateTypeTitle,
-          message: `${isVanLoadUpdate ? 'Van Load' : 'MSP'} updated: ${data.msp_no || `MSP #${data.id}`}`,
+          message: `${isVanLoadUpdate ? 'Van Load' : 'MSP'} updated: ${data.msp_no || data.msp_number || `MSP #${data.id}`}`,
           details: updateDetails,
           timestamp: data.updated_at || data.date_time || timestamp,
           is_read: false,
@@ -427,6 +427,56 @@ export const NotificationProvider = ({ children }) => {
         };
         break;
 
+      // ✅ NEW: Credit Notification Types
+      case 'credit_created':
+        notification = {
+          id: baseId,
+          type: 'credit_created',
+          category: 'payments',
+          title: 'New Credit Sale Created',
+          message: `Credit sale created for ${data.customer_name || 'Unknown Customer'}`,
+          details: `MSP: ${data.msp_no || `Credit #${data.id}`} - Amount: ₱${Number(data.balance || data.amount || 0).toLocaleString()}${data.due_date ? ` - Due: ${new Date(data.due_date).toLocaleDateString()}` : ''}${data.credit_terms ? ` - Terms: ${data.credit_terms} days` : ''}`,
+          timestamp: data.created_at || timestamp,
+          is_read: false,
+          priority: 'medium',
+          data,
+          allowedRoles: ['admin', 'supervisor', 'cashier']
+        };
+        break;
+
+      case 'credit_overdue':
+        const daysOverdue = data.days_overdue || 0;
+        notification = {
+          id: baseId,
+          type: 'credit_overdue',
+          category: 'payments',
+          title: 'Credit Payment Overdue',
+          message: `Overdue payment: ${data.customer_name || 'Unknown Customer'} - ${daysOverdue} days late`,
+          details: `MSP: ${data.msp_no || `Credit #${data.id}`} - Outstanding: ₱${Number(data.balance || data.amount || 0).toLocaleString()}${data.due_date ? ` - Due Date: ${new Date(data.due_date).toLocaleDateString()}` : ''}${data.original_amount ? ` - Original: ₱${Number(data.original_amount).toLocaleString()}` : ''}`,
+          timestamp: data.updated_at || data.created_at || timestamp,
+          is_read: false,
+          priority: daysOverdue > 30 ? 'high' : 'medium',
+          data,
+          allowedRoles: ['admin', 'supervisor', 'cashier']
+        };
+        break;
+
+      case 'paid_credit':
+        notification = {
+          id: baseId,
+          type: 'paid_credit',
+          category: 'payments',
+          title: 'Credit Payment Received',
+          message: `Payment received for ${data.msp_no || `Credit #${data.id}`}`,
+          details: `Customer: ${data.customer_name || 'Unknown'} - Amount: ₱${Number(data.balance || data.payment_amount || data.amount || 0).toLocaleString()}${data.payment_method ? ` - Method: ${data.payment_method}` : ''}${data.payment_date ? ` - Date: ${new Date(data.payment_date).toLocaleDateString()}` : ''}`,
+          timestamp: data.updated_at || data.payment_date || data.created_at || timestamp,
+          is_read: false,
+          priority: 'low',
+          data,
+          allowedRoles: ['admin', 'supervisor', 'cashier']
+        };
+        break;
+
       case 'role_updated':
         notification = {
           id: baseId,
@@ -434,7 +484,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'system',
           title: 'Role Permissions Updated',
           message: `Role permissions changed for ${data.user_name || data.role_name || 'user'}`,
-          details: `New role: ${data.new_role || 'N/A'} - Updated by: ${data.updated_by || 'System'}`,
+          details: `New role: ${data.new_role || data.role_name || 'N/A'} - Updated by: ${data.updated_by || 'System'}${data.permissions_count ? ` - Permissions: ${data.permissions_count}` : ''}`,
           timestamp: data.updated_at || timestamp,
           is_read: false,
           priority: 'high',
@@ -466,7 +516,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'system',
           title: 'Admin Settings Modified',
           message: `System settings updated: ${data.setting_name || 'Configuration changed'}`,
-          details: `Changed by: ${data.changed_by || 'Admin'} - Value: ${data.new_value || 'Updated'}`,
+          details: `Changed by: ${data.changed_by || 'Admin'}${data.old_value ? ` - Previous: ${data.old_value}` : ''}${data.new_value ? ` - New: ${data.new_value}` : ''}`,
           timestamp: data.updated_at || timestamp,
           is_read: false,
           priority: 'high',
@@ -482,7 +532,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'sales',
           title: 'New Sale Recorded',
           message: `Sale completed: ${data.transaction_no || `Sale #${data.id}`}`,
-          details: `Amount: ₱${Number(data.total_amount || 0).toLocaleString()} - Customer: ${data.customer_name || 'Walk-in'}`,
+          details: `Amount: ₱${Number(data.total_amount || 0).toLocaleString()} - Customer: ${data.customer_name || 'Walk-in'}${data.cashier_name ? ` - Cashier: ${data.cashier_name}` : ''}`,
           timestamp: data.created_at || timestamp,
           is_read: false,
           priority: 'low',
@@ -498,7 +548,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'sales',
           title: 'Sale Voided/Canceled',
           message: `Sale voided: ${data.transaction_no || `Sale #${data.id}`}`,
-          details: `Amount: ₱${Number(data.total_amount || 0).toLocaleString()} - Reason: ${data.void_reason || 'N/A'}`,
+          details: `Amount: ₱${Number(data.total_amount || 0).toLocaleString()}${data.void_reason ? ` - Reason: ${data.void_reason}` : ''}`,
           timestamp: data.voided_at || timestamp,
           is_read: false,
           priority: 'high',
@@ -530,28 +580,12 @@ export const NotificationProvider = ({ children }) => {
           category: 'sales',
           title: 'Return/Refund Processed',
           message: `Return processed: ${data.return_no || `Return #${data.id}`}`,
-          details: `Amount: ₱${Number(data.refund_amount || 0).toLocaleString()} - Reason: ${data.return_reason || 'N/A'}`,
+          details: `Amount: ₱${Number(data.refund_amount || 0).toLocaleString()}${data.return_reason ? ` - Reason: ${data.return_reason}` : ''}`,
           timestamp: data.created_at || timestamp,
           is_read: false,
           priority: 'medium',
           data,
           allowedRoles: ['admin']
-        };
-        break;
-
-      case 'paid_credit':
-        notification = {
-          id: baseId,
-          type: 'paid_credit',
-          category: 'payments',
-          title: 'Credit Payment Received',
-          message: `Payment received for ${data.msp_no || `Credit #${data.id}`}`,
-          details: `Customer: ${data.customer_name || 'Unknown'} - Amount: ₱${Number(data.balance || 0).toLocaleString()}`,
-          timestamp: data.updated_at || data.created_at || timestamp,
-          is_read: false,
-          priority: 'low',
-          data,
-          allowedRoles: ['admin', 'supervisor', 'cashier']
         };
         break;
 
@@ -588,7 +622,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'products',
           title: 'Product Information Updated',
           message: `Product modified: ${data.product_name || data.name || 'Unknown Product'}`,
-          details: productChanges.length > 0 ? productChanges.join(' • ') : `Code: ${data.product_code || data.code || 'N/A'} - Updated by: ${data.updated_by || 'Admin'}`,
+          details: productChanges.length > 0 ? productChanges.join(' • ') : `Code: ${data.product_code || data.code || 'N/A'}${data.updated_by ? ` - Updated by: ${data.updated_by}` : ''}`,
           timestamp: data.updated_at || timestamp,
           is_read: false,
           priority: 'medium',
@@ -604,7 +638,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'products',
           title: 'Product Removed',
           message: `Product deleted: ${data.product_name || data.name || 'Unknown Product'}`,
-          details: `Code: ${data.product_code || data.code || 'N/A'} - Deleted by: ${data.deleted_by || 'Admin'}`,
+          details: `Code: ${data.product_code || data.code || 'N/A'}${data.deleted_by ? ` - Deleted by: ${data.deleted_by}` : ''}`,
           timestamp: data.deleted_at || timestamp,
           is_read: false,
           priority: 'high',
@@ -621,7 +655,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'returns',
           title: 'Customer Return Processed',
           message: `Return completed: ${data.return_no || data.transaction_no || `Return #${data.id}`}`,
-          details: `Customer: ${data.customer_name || 'Walk-in'} - Amount: ₱${Number(data.refund_amount || data.total_amount || 0).toLocaleString()} - Items: ${data.items_count || data.quantity || 0}`,
+          details: `Customer: ${data.customer_name || 'Walk-in'} - Amount: ₱${Number(data.refund_amount || data.total_amount || 0).toLocaleString()}${data.items_count || data.quantity ? ` - Items: ${data.items_count || data.quantity}` : ''}`,
           timestamp: data.processed_at || data.created_at || timestamp,
           is_read: false,
           priority: 'medium',
@@ -637,7 +671,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'returns',
           title: 'Refund Processed',
           message: `Refund issued: ${data.refund_no || data.return_no || `Refund #${data.id}`}`,
-          details: `Customer: ${data.customer_name || 'Unknown'} - Amount: ₱${Number(data.refund_amount || 0).toLocaleString()} - Method: ${data.refund_method || 'Cash'} - Reason: ${data.return_reason || 'N/A'}`,
+          details: `Customer: ${data.customer_name || 'Unknown'} - Amount: ₱${Number(data.refund_amount || 0).toLocaleString()}${data.refund_method ? ` - Method: ${data.refund_method}` : ''}${data.return_reason ? ` - Reason: ${data.return_reason}` : ''}`,
           timestamp: data.refund_date || data.processed_at || timestamp,
           is_read: false,
           priority: 'high',
@@ -653,7 +687,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'returns',
           title: 'Return Request Rejected',
           message: `Return denied: ${data.return_no || `Return #${data.id}`}`,
-          details: `Customer: ${data.customer_name || 'Unknown'} - Reason: ${data.rejection_reason || 'Policy violation'} - Items: ${data.items_count || 0}`,
+          details: `Customer: ${data.customer_name || 'Unknown'}${data.rejection_reason ? ` - Reason: ${data.rejection_reason}` : ''}${data.items_count ? ` - Items: ${data.items_count}` : ''}`,
           timestamp: data.rejected_at || timestamp,
           is_read: false,
           priority: 'medium',
@@ -669,7 +703,7 @@ export const NotificationProvider = ({ children }) => {
           category: 'returns',
           title: 'Product Exchange Completed',
           message: `Exchange processed: ${data.exchange_no || `Exchange #${data.id}`}`,
-          details: `Customer: ${data.customer_name || 'Unknown'} - Old Product: ${data.old_product_name || 'N/A'} - New Product: ${data.new_product_name || 'N/A'}`,
+          details: `Customer: ${data.customer_name || 'Unknown'}${data.old_product_name ? ` - Old: ${data.old_product_name}` : ''}${data.new_product_name ? ` - New: ${data.new_product_name}` : ''}`,
           timestamp: data.exchanged_at || data.processed_at || timestamp,
           is_read: false,
           priority: 'medium',
@@ -679,18 +713,20 @@ export const NotificationProvider = ({ children }) => {
         break;
 
       default:
+        console.warn(`Unknown notification type: ${type}`);
         return null;
     }
 
     return notification;
   };
 
-  // Check if user role has permission for notification type
+  // ✅ ENHANCED: Check if user role has permission for notification type with credit support
   const hasNotificationPermission = (type, userRole) => {
     const rolePermissions = {
       'admin': ['inventory', 'expenses', 'suppliers', 'warehouse', 'system', 'sales', 'payments', 'products', 'returns'],
       'supervisor': ['inventory', 'expenses', 'suppliers', 'warehouse', 'payments'],
-      'cashier': ['inventory', 'payments']
+      'cashier': ['inventory', 'payments'],
+      'staff': ['inventory', 'payments']
     };
 
     const notificationCategories = {
@@ -716,8 +752,11 @@ export const NotificationProvider = ({ children }) => {
       'sale_voided': 'sales',
       'draft_transaction': 'sales',
       'return_refund': 'sales',
+      // ✅ Credit notifications - all users can see their own credits
+      'credit_created': 'payments',
+      'credit_overdue': 'payments',
       'paid_credit': 'payments',
-      // ✅ NEW: Product and Returns categories
+      // ✅ Product and Returns categories
       'product_created': 'products',
       'product_updated': 'products',
       'product_deleted': 'products',
@@ -728,11 +767,14 @@ export const NotificationProvider = ({ children }) => {
     };
 
     const category = notificationCategories[type];
+    if (!category) {
+      console.warn(`Unknown notification category for type: ${type}`);
+      return false;
+    }
+
     const allowedCategories = rolePermissions[userRole?.toLowerCase()] || [];
     
-    const hasPermission = allowedCategories.includes(category);
-    
-    return hasPermission;
+    return allowedCategories.includes(category);
   };
 
   const addNotification = (type, data, userRole) => {
@@ -741,18 +783,24 @@ export const NotificationProvider = ({ children }) => {
     if (notification) {
       dispatch({ type: 'ADD_NOTIFICATION', payload: notification });
       
-      // Show browser notification if permission granted
-      if (Notification.permission === "granted") {
+      // Show browser notification if permission granted (only for high priority notifications)
+      if (Notification.permission === "granted" && notification.priority === 'high') {
         try {
           new Notification(notification.title, {
             body: notification.message,
-            icon: '/favicon.ico'
+            icon: '/favicon.ico',
+            tag: notification.id,
+            requireInteraction: false
           });
         } catch (error) {
-          // Browser notification failed - permission may be denied
+          console.warn('Browser notification failed:', error.message);
         }
       }
+      
+      return notification;
     }
+    
+    return null;
   };
 
   return (

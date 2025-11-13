@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx - COMPLETE FIXED VERSION WITH STRICT CREDIT FILTERING AND DEDUPLICATION
+// src/pages/Dashboard.jsx - COMPLETE INTEGRATED VERSION WITH ALL FUNCTIONS FROM BOTH VERSIONS (FULL 2210+ LINES)
 import React, {
   useEffect,
   useMemo,
@@ -16,6 +16,12 @@ import WidgetPickerModal, { SECTIONS, CATALOG_MAP } from "../components/WidgetPi
 import MetricsCards from "../components/MetricsCards";
 import ProductPerformance from "../components/ProductPerformance";
 import TopSellingProductsWidget from "../components/TopSellingProductsWidget";
+import { 
+  getCurrentWarehouse, 
+  getWarehouseAxiosConfig, 
+  getWarehouseQueryParam,
+  findWarehouseByName 
+} from "../utils/warehouseUtils";
 import api from "../api"; // ✅ correct
 
 /* -------------------- Skeleton Component -------------------- */
@@ -47,7 +53,6 @@ const IconSales = (props) => (
     <path d="M16 20v-8" fill="none" stroke="#3b82f6" strokeWidth="3" />
   </svg>
 );
-
 
 const IconCalendar = (props) => (
   <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" {...props}>
@@ -702,7 +707,16 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   
   console.log('📊 Date range for filtering:', { startDate, endDate });
   
-  const warehouseIds = selectedWarehouseIds.length > 0 ? selectedWarehouseIds : [getCurrentWarehouseId()];
+  // 🔧 INTEGRATED: Use both approaches - try warehouse utils first, then getCurrentWarehouseId
+  const warehouseIds = selectedWarehouseIds.length > 0 ? selectedWarehouseIds : (() => {
+    const currentWarehouse = getCurrentWarehouse();
+    if (currentWarehouse?.id) {
+      return [currentWarehouse.id];
+    }
+    // Fallback to the new version's approach
+    const fallbackId = getCurrentWarehouseId();
+    return fallbackId ? [fallbackId] : [];
+  })();
   
   console.log('🎯 Strictly filtering for warehouse IDs:', warehouseIds);
   
@@ -745,12 +759,15 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     };
   }
 
-  // Create parallel requests for each warehouse
+  // Create parallel requests for each warehouse using integrated approach
   const warehouseRequests = warehouseIds.map(async (wid) => {
     if (!wid) return null;
     
     console.log(`🔄 Fetching data for warehouse ID: ${wid}`);
     
+    // 🔧 INTEGRATED: Use both new and old approach for API calls
+    const warehouseConfig = getWarehouseAxiosConfig({ id: wid });
+    const warehouseParam = getWarehouseQueryParam({ id: wid });
     const qsWid = `?warehouse=${wid}`;
     const qsWidId = `?warehouse_id=${wid}`;
 
@@ -763,7 +780,6 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
         creditsRes,
         supplierReturnsRes,
         merchRes,
-        suppliersRes,
         usersRes,
         rolesRes,
         vansRes,
@@ -775,13 +791,22 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
         api.get(`/credits/`, apiCfgForWarehouse(wid)),
         api.get(`/supplier-return-form/${qsWidId}`),
         api.get(`/merchandisings/${qsWid}`),
-        api.get(`/suppliers/${qsWid}`),
         api.get(`/users/`, apiCfgForWarehouse(wid)),
         api.get(`/roles/`),
         api.get(`/vans/${qsWid}`),
       ]);
 
-      // 🔧 ENHANCED CREDIT DEBUG
+      // Handle suppliers separately with better error handling (preserved from old version)
+      let suppliersRes;
+      try {
+        suppliersRes = await api.get(`/suppliers/${qsWid}`);
+        console.log(`✅ Suppliers loaded for warehouse ${wid}:`, suppliersRes.data?.length || 0);
+      } catch (supplierError) {
+        console.warn(`⚠️ Suppliers endpoint failed for warehouse ${wid}:`, supplierError.response?.status, supplierError.message);
+        suppliersRes = { data: [] }; // Fallback to empty array
+      }
+
+      // 🔧 ENHANCED CREDIT DEBUG from new version
       const creditsData = Array.isArray(creditsRes.data) ? creditsRes.data : creditsRes.data?.results || creditsRes.data?.data || [];
       console.log(`🏦 CREDITS DEBUG for warehouse ${wid}:`, {
         totalCredits: creditsData.length,
@@ -1550,12 +1575,16 @@ const Dashboard = () => {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [availableWarehouses, setAvailableWarehouses] = useState([]);
 
-  // Add this updateRevenueAndProfit function here
+  // 🔧 OLD: Preserved from old version - warehouse utils integration
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
+  const [hasInitialized, setHasInitialized] = useState(false);
+
+  // 🔧 NEW: Add this updateRevenueAndProfit function here
   const updateRevenueAndProfit = (totalRevenue, profit) => {
       setMetrics((prevMetrics) => ({
         ...prevMetrics,
         totalRevenue: prevMetrics.totalRevenue + totalRevenue, // Add the new total revenue
-        profit: prevMetrics.profit + profit, // Update profit (set to 0 for now)
+        profit: prevMetrics.profit + profit, // Update profit 
       }));
     };
 
@@ -1592,7 +1621,7 @@ const Dashboard = () => {
 
   useEffect(() => saveSelection(selectedIds), [selectedIds]);
 
-  // Fetch the revenue from localStorage (or global state)
+  // 🔧 OLD: Fetch the revenue from localStorage (or global state) (preserved from old version)
   useEffect(() => {
     const savedRevenue = localStorage.getItem('totalRevenue');
     setMetrics((prevMetrics) => ({
@@ -1606,7 +1635,7 @@ const Dashboard = () => {
     [selectedIds]
   );
 
-  // 🔧 FIXED: loadData function with strict warehouse filtering
+  // 🔧 INTEGRATED: loadData function with warehouse utils integration + new API
   const loadData = useCallback(
     async (warehouseIds, periodParam = period, customStart = customStartDate, customEnd = customEndDate) => {
       try {
@@ -1668,99 +1697,65 @@ const Dashboard = () => {
     [period, customStartDate, customEndDate] // Include period dependencies
   );
 
-  // 🔧 FIXED: Initial data load with warehouse loading
+  // 🔧 OLD: Initial data load with warehouse utils (preserved from old version with additional integration)
   useEffect(() => {
+    if (hasInitialized) return; // Prevent multiple initializations
+    
     const initializeDashboard = async () => {
-      console.log('🚀 Initializing dashboard...');
+      console.log('🚀 Initializing dashboard with integrated warehouse utils + new enhancements...');
       
-      const userData = JSON.parse(localStorage.getItem("user") || "{}");
-      const headerSelectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      const warehouse = getCurrentWarehouse();
+      console.log('🏭 Current warehouse from utils:', warehouse);
       
-      console.log('👤 User data:', userData);
-      console.log('🏢 Header selected warehouse:', headerSelectedWarehouse);
-      
-      let warehouseIds = [];
-      
-      if (userData.role?.toLowerCase() === "admin" && headerSelectedWarehouse) {
-        warehouseIds = [headerSelectedWarehouse.id];
-        console.log('👑 Admin using header warehouse:', warehouseIds);
-      } else if (userData.warehouse_id) {
-        warehouseIds = [userData.warehouse_id];
-        console.log('🏭 Using user warehouse_id:', warehouseIds);
+      if (warehouse?.needsIdLookup) {
+        // Need to find warehouse by name
+        const foundWarehouse = await findWarehouseByName(warehouse.name);
+        if (foundWarehouse) {
+          setCurrentWarehouse(foundWarehouse);
+          setSelectedWarehouseIds([foundWarehouse.id]);
+          loadData([foundWarehouse.id]);
+        } else {
+          console.warn('⚠️ Could not find warehouse by name, loading all warehouses');
+          try {
+            const warehousesRes = await api.get("/warehouses/");
+            const warehouses = warehousesRes.data;
+            setAvailableWarehouses(warehouses);
+            if (warehouses.length > 0) {
+              setSelectedWarehouseIds([warehouses[0].id]);
+              loadData([warehouses[0].id]);
+            }
+          } catch (error) {
+            console.error('❌ Error loading warehouses:', error);
+          }
+        }
+      } else if (warehouse?.id) {
+        // Have warehouse ID, use it directly
+        setCurrentWarehouse(warehouse);
+        setSelectedWarehouseIds([warehouse.id]);
+        loadData([warehouse.id]);
       } else {
-        // Load warehouses to find matching one
-        console.log('🔍 Loading warehouses to find match...');
+        // No warehouse found, load all warehouses
+        console.warn('⚠️ No warehouse found, loading all warehouses');
         try {
           const warehousesRes = await api.get("/warehouses/");
           const warehouses = warehousesRes.data;
           setAvailableWarehouses(warehouses);
-          
-          if (userData.warehouse) {
-            // Find warehouse by name
-            const matchingWarehouse = warehouses.find(w => 
-              w.name === userData.warehouse || 
-              w.name.toLowerCase() === userData.warehouse.toLowerCase()
-            );
-            
-            if (matchingWarehouse) {
-              warehouseIds = [matchingWarehouse.id];
-              console.log('🎯 Found warehouse by name:', userData.warehouse, '→', warehouseIds);
-            } else {
-              warehouseIds = [warehouses[0]?.id].filter(Boolean);
-              console.log('🔄 Using first warehouse as fallback:', warehouseIds);
-            }
-          } else {
-            warehouseIds = [warehouses[0]?.id].filter(Boolean);
-            console.log('🌐 No warehouse info, using first warehouse:', warehouseIds);
+          if (warehouses.length > 0) {
+            setSelectedWarehouseIds([warehouses[0].id]);
+            loadData([warehouses[0].id]);
           }
         } catch (error) {
           console.error('❌ Error loading warehouses:', error);
         }
       }
       
-      if (warehouseIds.length > 0) {
-        console.log('✅ Setting warehouse IDs and loading data:', warehouseIds);
-        setSelectedWarehouseIds(warehouseIds);
-        loadData(warehouseIds);
-      } else {
-        console.log('⚠️ No warehouse IDs found');
-      }
+      setHasInitialized(true);
     };
     
     initializeDashboard();
-  }, []); // Only run once on mount
+  }, [hasInitialized, loadData]);
 
-  // 🔧 COMMENTED OUT: Old warehouse change event listener - kept for reference
-  // useEffect(() => {
-  //   const handleWarehouseChange = (event) => {
-  //     const { warehouse, action, source } = event.detail || {};
-      
-  //     console.log('🏭 Warehouse change detected:', { warehouse, action, source });
-      
-  //     if (source === 'header') {
-  //       if (action === 'select' && warehouse) {
-  //         console.log('📍 Syncing dashboard to warehouse:', warehouse.name);
-  //         const newIds = [warehouse.id];
-  //         setSelectedWarehouseIds(newIds);
-  //         loadData(newIds, period, customStartDate, customEndDate);
-  //       } else if (action === 'reset') {
-  //         console.log('🔄 Resetting to enrolled warehouse');
-  //         const userData = JSON.parse(localStorage.getItem("user") || "{}");
-  //         const userWarehouseId = userData.warehouse_id;
-  //         if (userWarehouseId) {
-  //           const newIds = [userWarehouseId];
-  //           setSelectedWarehouseIds(newIds);
-  //           loadData(newIds, period, customStartDate, customEndDate);
-  //         }
-  //       }
-  //     }
-  //   };
-    
-  //   window.addEventListener("warehouseChanged", handleWarehouseChange);
-  //   return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
-  // }, [loadData, period, customStartDate, customEndDate]);
-
-  // 🔧 NEW: Warehouse change event listener with better handling
+  // 🔧 NEW: Enhanced warehouse change event listener from new version with warehouse utils integration
   useEffect(() => {
     const handleWarehouseChange = (event) => {
       const { warehouse, action, source } = event.detail || {};
@@ -1772,26 +1767,29 @@ const Dashboard = () => {
           console.log('📍 Syncing dashboard to warehouse:', warehouse.name);
           const newIds = [warehouse.id];
           setSelectedWarehouseIds(newIds);
+          setCurrentWarehouse(warehouse);
           loadData(newIds, period, customStartDate, customEndDate);
         } else if (action === 'reset') {
           console.log('🔄 Resetting to enrolled warehouse');
-          const userData = JSON.parse(localStorage.getItem("user") || "{}");
+          const resetWarehouse = getCurrentWarehouse();
           
           // Try to find warehouse by name if warehouse_id doesn't exist
-          if (userData.warehouse && availableWarehouses.length > 0) {
+          if (resetWarehouse?.warehouse && availableWarehouses.length > 0) {
             const matchingWarehouse = availableWarehouses.find(w => 
-              w.name === userData.warehouse || 
-              w.name.toLowerCase() === userData.warehouse.toLowerCase()
+              w.name === resetWarehouse.warehouse || 
+              w.name.toLowerCase() === resetWarehouse.warehouse.toLowerCase()
             );
             
             if (matchingWarehouse) {
               const newIds = [matchingWarehouse.id];
               setSelectedWarehouseIds(newIds);
+              setCurrentWarehouse(matchingWarehouse);
               loadData(newIds, period, customStartDate, customEndDate);
             }
-          } else if (userData.warehouse_id) {
-            const newIds = [userData.warehouse_id];
+          } else if (resetWarehouse?.id) {
+            const newIds = [resetWarehouse.id];
             setSelectedWarehouseIds(newIds);
+            setCurrentWarehouse(resetWarehouse);
             loadData(newIds, period, customStartDate, customEndDate);
           }
         }
@@ -1801,49 +1799,6 @@ const Dashboard = () => {
     window.addEventListener("warehouseChanged", handleWarehouseChange);
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, [loadData, period, customStartDate, customEndDate, availableWarehouses]);
-
-  // 🔧 COMMENTED OUT: Auto-populate available warehouses - no longer needed with new initialization
-  // useEffect(() => {
-  //   if (availableWarehouses.length > 0 && selectedWarehouseIds.length === 0) {
-  //     const userData = JSON.parse(localStorage.getItem("user") || "{}");
-  //     
-  //     console.log('🏗️ Auto-populating warehouses:', { availableWarehouses, userData });
-      
-  //     if (userData.warehouse_id) {
-  //       // User has numeric warehouse_id
-  //       const newIds = [userData.warehouse_id];
-  //       console.log('✅ Using userData.warehouse_id:', newIds);
-  //       setSelectedWarehouseIds(newIds);
-  //       loadData(newIds, period, customStartDate, customEndDate);
-  //     } else if (userData.warehouse) {
-  //       // 🔧 NEW: User has warehouse name, find matching ID
-  //       const matchingWarehouse = availableWarehouses.find(w => 
-  //         w.name === userData.warehouse || 
-  //         w.name.toLowerCase() === userData.warehouse.toLowerCase()
-  //       );
-        
-  //       if (matchingWarehouse) {
-  //         const newIds = [matchingWarehouse.id];
-  //         console.log('🎯 Found matching warehouse by name:', userData.warehouse, '→', newIds);
-  //         setSelectedWarehouseIds(newIds);
-  //         loadData(newIds, period, customStartDate, customEndDate);
-  //       } else {
-  //         console.log('❌ No warehouse found matching name:', userData.warehouse);
-  //         // Fallback to first warehouse
-  //         const fallbackIds = [availableWarehouses[0].id];
-  //         console.log('🔄 Using fallback warehouse:', fallbackIds);
-  //         setSelectedWarehouseIds(fallbackIds);
-  //         loadData(fallbackIds, period, customStartDate, customEndDate);
-  //       }
-  //     } else {
-  //       // No warehouse info, use all available
-  //       const allIds = availableWarehouses.map(w => w.id);
-  //       console.log('🌐 No warehouse info, using all warehouses:', allIds);
-  //       setSelectedWarehouseIds(allIds);
-  //       loadData(allIds, period, customStartDate, customEndDate);
-  //     }
-  //   }
-  // }, [availableWarehouses, loadData, period, customStartDate, customEndDate]);
 
   const removeWidget = useCallback((id) => setSelectedIds((prev) => prev.filter((x) => x !== id)), []);
 
@@ -1902,27 +1857,32 @@ const Dashboard = () => {
   }, [lists, period, customStartDate, customEndDate]);
 
   // Debug logging
-  console.log('📊 Dashboard Debug:', {
+  console.log('📊 Dashboard Debug (INTEGRATED):', {
     totalProducts: metrics?.totalProducts,
     creditList: lists.creditList,
     selectedWarehouses: selectedWarehouseIds,
     period,
     customStartDate,
     customEndDate,
-    loading
+    loading,
+    currentWarehouse, // OLD version state preserved
+    hasInitialized // OLD version state preserved
   });
 
   return (
     <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-100px,rgba(99,102,241,0.10),transparent)]">
-      {/* Loading overlay */}
-      {/* {loading && (
-        <div className="fixed inset-0 bg-black/10 backdrop-blur-sm z-40 flex items-center justify-center">
+      {/* Loading overlay - Enhanced with more detailed loading state */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center">
           <div className="bg-white rounded-lg shadow-lg p-6 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-brand-600"></div>
-            <span className="text-sm text-gray-600">Loading dashboard...</span>
+            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+            <div className="text-sm text-gray-700">
+              <div className="font-medium">Loading dashboard data...</div>
+              <div className="text-xs text-gray-500">Processing warehouse data and metrics</div>
+            </div>
           </div>
         </div>
-      )} */}
+      )}
 
       {/* Header */}
       <div className="px-4 pt-4">

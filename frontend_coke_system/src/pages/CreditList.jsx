@@ -131,7 +131,6 @@ export default function CreditList() {
     };
   };
 
-  // --- sort: unpaid first (Pending/Partial), paid at bottom; each group by Date desc ---
   // --- sort: Unpaid first, then Partially Paid, then Fully Paid; each group by latest date ---
 const sortedRows = [...rows].sort((a, b) => {
   const order = (status) => {
@@ -151,7 +150,6 @@ const sortedRows = [...rows].sort((a, b) => {
   const bt = b.created_at ? new Date(b.created_at).getTime() : 0;
   return bt - at;
 });
-
 
   if (!currentWarehouse) {
     return (

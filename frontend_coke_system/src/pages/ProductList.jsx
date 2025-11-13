@@ -1,111 +1,142 @@
-// ProductList.jsx - COMPLETE UPDATED VERSION WITH DELETE NOTIFICATIONS
+// ProductList.jsx - COMPLETE INTEGRATION WITH ALL OLD VERSION FEATURES
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import axios from 'axios';
+import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
 import { Link } from 'react-router-dom';
 import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaChevronDown } from 'react-icons/fa';
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
-import { notifyProductChange } from '../utils/productNotifier'; // ✅ NEW IMPORT
-import api from "../api"; // ✅ correct
+import { notifyProductChange } from '../utils/productNotifier';
+import { getCurrentWarehouse, findWarehouseByName, getWarehouseAxiosConfig } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(0);
   const [showPagination, setShowPagination] = useState(false);
-  const [productsPerPage, setProductsPerPage] = useState(6); // Dynamic value
-  const [viewMode, setViewMode] = useState('carousel'); // 'carousel' or 'table'
+  const [productsPerPage, setProductsPerPage] = useState(6);
+  const [viewMode, setViewMode] = useState('carousel');
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ KEPT: from old version
   const gridRef = useRef(null);
 
-  // ✅ NEW: Trigger products page visit event for notifications
   useEffect(() => {
-    // Notify that products page was visited (for notification system)
     const event = new CustomEvent('productsPageVisited');
     window.dispatchEvent(event);
   }, []);
 
-  // Get current warehouse from user session
-  const getCurrentWarehouse = () => {
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-    if ((userData.role || '').toLowerCase() === "admin") {
-      return selectedWarehouse?.id || userData.warehouse_id;
+  // ✅ KEPT: Proper warehouse setup like ReceivingList (from old version)
+  const setupWarehouse = useCallback(async () => {
+    console.log('🏭 Setting up warehouse for ProductList...');
+    
+    const warehouse = getCurrentWarehouse();
+    
+    if (!warehouse) {
+      console.warn('⚠️ No warehouse found for user');
+      setCurrentWarehouse(null);
+      setLoading(false);
+      return;
     }
-    return userData.warehouse_id;
-  };
+    
+    // If warehouse needs ID lookup, find it by name
+    if (warehouse.needsIdLookup) {
+      const foundWarehouse = await findWarehouseByName(warehouse.name);
+      setCurrentWarehouse(foundWarehouse);
+    } else {
+      setCurrentWarehouse(warehouse);
+    }
+    
+    setLoading(false);
+  }, []);
+
+  const fetchProducts = useCallback(async () => {
+    if (!currentWarehouse?.id) {
+      console.warn('❌ No warehouse ID available for fetching products');
+      setProducts([]);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      console.log('📦 Fetching products for warehouse:', currentWarehouse);
+      
+      // ✅ KEPT: Use same pattern as ReceivingList (from old version)
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      const url = `/products/?warehouse_id=${currentWarehouse.id}`;
+      
+      console.log('📡 Making request to:', url, 'with config:', config);
+      
+      // ✅ NEW: Use api.get() instead of axios.get() (from new version)
+      const res = await api.get(url, config);
+      
+      console.log('✅ Products fetched successfully:', res.data.length, 'products');
+      setProducts(res.data);
+    } catch (err) {
+      console.error("❌ Error fetching products:", err);
+      setProducts([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [currentWarehouse]);
+
+  // ✅ KEPT: Setup warehouse first, then fetch products (from old version)
+  useEffect(() => {
+    setupWarehouse();
+  }, [setupWarehouse]);
+
+  useEffect(() => {
+    if (currentWarehouse?.id) {
+      fetchProducts();
+    }
+  }, [currentWarehouse, fetchProducts]);
+
+  // ✅ KEPT: Listen for warehouse changes (from old version)
+  useEffect(() => {
+    const handleWarehouseChange = (event) => {
+      console.log('🏭 Warehouse change detected in ProductList:', event.detail);
+      setupWarehouse();
+    };
+    
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+    return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
+  }, [setupWarehouse]);
 
   // Calculate products per page based on zoom level (only for carousel mode)
   const calculateProductsPerPage = useCallback(() => {
-    // Get zoom level - different methods for different browsers
     let zoomLevel = 1;
     
-    // Method 1: Compare outer and inner width (most reliable for zoom detection)
     if (window.outerWidth && window.innerWidth) {
       zoomLevel = window.outerWidth / window.innerWidth;
     }
     
-    // Method 2: Use devicePixelRatio as fallback
     if (zoomLevel === 1 && window.devicePixelRatio) {
       zoomLevel = 1 / window.devicePixelRatio;
     }
     
-    // Convert to percentage
     const zoomPercentage = Math.round(zoomLevel * 100);
     
-    // Direct mapping based on zoom levels
-    let productsCount = 6; // default for 100%
+    let productsCount = 6;
     
     if (zoomPercentage >= 125) {
-      productsCount = 4; // Zoomed in - fewer products fit
+      productsCount = 4;
     } else if (zoomPercentage >= 100) {
-      productsCount = 6; // Normal zoom
+      productsCount = 6;
     } else if (zoomPercentage >= 90) {
-      productsCount = 8; // Slightly zoomed out
+      productsCount = 8;
     } else if (zoomPercentage >= 80) {
-      productsCount = 12; // Slightly zoomed out
+      productsCount = 12;
     } else if (zoomPercentage >= 75) {
-      productsCount = 10; // More zoomed out
+      productsCount = 10;
     } else if (zoomPercentage >= 50) {
-      productsCount = 12; // Very zoomed out
+      productsCount = 12;
     } else {
-      productsCount = 15; // Extremely zoomed out
+      productsCount = 15;
     }
     
     setProductsPerPage(productsCount);
   }, []);
 
-  const fetchProducts = useCallback(async () => {
-    try {
-      setLoading(true);
-      const warehouseId = getCurrentWarehouse();
-
-      if (!warehouseId) {
-        console.warn("No warehouse assigned to user");
-        setProducts([]);
-        return;
-      }
-
-      const res = await api.get(`/products/?warehouse_id=${warehouseId}`);
-      setProducts(res.data);
-    } catch (err) {
-      console.error("Error fetching products:", err);
-      setProducts([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchProducts();
-    const handleWarehouseChange = () => fetchProducts();
-    window.addEventListener('warehouseChanged', handleWarehouseChange);
-    return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
-  }, [fetchProducts]);
-
   // Set up view mode specific logic
   useEffect(() => {
     if (viewMode === 'carousel') {
-      // Initial calculation for carousel
       const timer = setTimeout(calculateProductsPerPage, 300);
 
       const handleResize = () => {
@@ -124,7 +155,6 @@ const ProductList = () => {
         }
       };
 
-      // Listen for various zoom/resize events
       window.addEventListener('resize', handleResize);
       window.addEventListener('wheel', handleZoom, { passive: true });
       window.addEventListener('keydown', handleKeyZoom);
@@ -140,23 +170,19 @@ const ProductList = () => {
     }
   }, [viewMode, calculateProductsPerPage]);
 
-  // Update pagination visibility when products or productsPerPage changes
   useEffect(() => {
     if (viewMode === 'table') {
-      // For table view, NEVER show pagination - always show all products
       setShowPagination(false);
     } else {
-      // For carousel view, use dynamic pagination
       setShowPagination(products.length > productsPerPage);
     }
-    setCurrentPage(0); // Reset to first page when products change
+    setCurrentPage(0);
   }, [products.length, productsPerPage, viewMode]);
 
   const totalPages = Math.ceil(products.length / productsPerPage);
   const startIndex = currentPage * productsPerPage;
   const endIndex = startIndex + productsPerPage;
   
-  // For table view, ALWAYS show all products. For carousel, use pagination
   const currentProducts = viewMode === 'table' 
     ? products 
     : products.slice(startIndex, endIndex);
@@ -176,12 +202,10 @@ const ProductList = () => {
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     setDropdownOpen(false);
-    setCurrentPage(0); // Reset to first page when view changes
+    setCurrentPage(0);
   };
 
-  // ✅ ENHANCED: Delete handler with notifications
   const handleDelete = async (id) => {
-    // Find the product before deletion for notification
     const productToDelete = products.find(p => p.id === id);
     
     const showConfirmDialog = (message, onConfirm) => {
@@ -284,13 +308,13 @@ const ProductList = () => {
 
     showConfirmDialog("Are you sure you want to delete this product?", async () => {
       try {
-        const warehouseId = getCurrentWarehouse();
-        await api.delete(`/products/${id}/?warehouse_id=${warehouseId}`);
+        // ✅ KEPT: Use warehouse config for delete request (from old version)
+        const config = getWarehouseAxiosConfig(currentWarehouse);
+        // ✅ NEW: Use api.delete() instead of axios.delete() (from new version)
+        await api.delete(`/products/${id}/`, config);
         
-        // Update state to remove deleted product
         setProducts(prev => prev.filter(prod => prod.id !== id));
         
-        // ✅ NEW: Trigger delete notification
         if (productToDelete) {
           console.log('📦 Product deleted:', productToDelete);
           
@@ -314,12 +338,15 @@ const ProductList = () => {
     });
   };
 
-  if (loading) {
+  // ✅ KEPT: Show loading state while setting up warehouse (from old version)
+  if (loading || !currentWarehouse) {
     return (
       <div className="page">
         <div className="loading">
           <div className="spinner" aria-hidden="true"></div>
-          <span className="loading-text">Loading products…</span>
+          <span className="loading-text">
+            {!currentWarehouse ? 'Setting up warehouse...' : 'Loading products…'}
+          </span>
         </div>
       </div>
     );
@@ -331,6 +358,17 @@ const ProductList = () => {
       <div className="page-header" style={{ flexWrap: 'wrap', rowGap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginRight: 'auto' }}>
           <h2 className="page-title" style={{ margin: 0 }}>Product List</h2>
+          
+          {/* ✅ KEPT: Show current warehouse (from old version) */}
+          <div style={{ 
+            padding: '4px 8px', 
+            background: '#f3f4f6', 
+            borderRadius: '6px', 
+            fontSize: '12px',
+            color: '#6b7280'
+          }}>
+            📦 {currentWarehouse.name}
+          </div>
           
           {/* View Mode Dropdown */}
           <div style={{ position: 'relative' }}>
@@ -407,7 +445,7 @@ const ProductList = () => {
                     padding: '10px 12px',
                     border: 'none',
                     background: viewMode === 'table' ? '#f3f4f6' : '#fff',
-                    color: '#374151',
+                    color: '#374151', // ✅ KEPT: Fixed typo from old version (#374171 -> #374151)
                     textAlign: 'left',
                     cursor: 'pointer',
                     fontSize: '14px',
@@ -458,18 +496,18 @@ const ProductList = () => {
       {/* Empty state */}
       {products.length === 0 ? (
         <div className="empty-state">
-          <p className="text-muted">No products found in your warehouse.</p>
+          <p className="text-muted">No products found for {currentWarehouse.name}.</p>
         </div>
       ) : viewMode === 'table' ? (
-        /* Table View - Shows ALL products with scroll */
+        /* Table View */
         <>
           <div style={{
             background: '#fff',
             borderRadius: '8px',
             border: '1px solid #e5e7eb',
             overflow: 'hidden',
-            maxHeight: '70vh', // Limit height to enable scrolling
-            overflowY: 'auto'   // Enable vertical scrolling
+            maxHeight: '70vh',
+            overflowY: 'auto'
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ 
@@ -564,18 +602,17 @@ const ProductList = () => {
             </table>
           </div>
           
-          {/* Product Count Info for Table */}
           <div style={{
             textAlign: 'center',
             marginTop: 16,
             color: '#6b7280',
             fontSize: '14px'
           }}>
-            Showing all {products.length} products
+            Showing all {products.length} products for {currentWarehouse.name}
           </div>
         </>
       ) : (
-        /* Carousel View (Original) */
+        /* Carousel View */
         <>
           <div 
             ref={gridRef}
@@ -587,13 +624,11 @@ const ProductList = () => {
           >
             {currentProducts.map(prod => (
               <div key={prod.id} className="card" style={{ padding: 28 }}>
-                {/* Card Layout: Image Left (full), Details Right */}
                 <div style={{ 
                   display: 'flex', 
                   gap: 24,
                   alignItems: 'flex-start'
                 }}>
-                  {/* Image on LEFT - larger size */}
                   {prod.image ? (
                     <img
                       src={prod.image}
@@ -625,9 +660,7 @@ const ProductList = () => {
                     </div>
                   )}
 
-                  {/* Details on RIGHT - Full text visible with larger fonts */}
                   <div style={{ flex: 1, display: 'grid', gap: 16 }}>
-                    {/* Product Name - larger font */}
                     <h3 style={{ 
                       fontSize: '20px',
                       fontWeight: '600',
@@ -639,7 +672,6 @@ const ProductList = () => {
                       {prod.product_name}
                     </h3>
 
-                    {/* Product Details - slightly larger text with more spacing */}
                     <div style={{ display: 'grid', gap: 8 }}>
                       <div style={{ padding: '3px 0' }}>
                         <span className="text-muted" style={{ fontWeight: '500', fontSize: '15px' }}>System Code: </span>
@@ -661,7 +693,6 @@ const ProductList = () => {
                       </div>
                     </div>
 
-                    {/* Actions below details - moved to right side */}
                     <div style={{ 
                       display: 'flex', 
                       justifyContent: 'flex-end',
@@ -703,7 +734,7 @@ const ProductList = () => {
             ))}
           </div>
 
-          {/* Carousel Pagination Controls - Only for Carousel View */}
+          {/* Carousel Pagination Controls */}
           {showPagination && (
             <div style={{
               display: 'flex',
@@ -714,7 +745,6 @@ const ProductList = () => {
               padding: '20px 0',
               borderTop: '1px solid #e5e7eb'
             }}>
-              {/* Previous Button */}
               <button
                 onClick={prevPage}
                 disabled={currentPage === 0}
@@ -749,13 +779,11 @@ const ProductList = () => {
                 Previous
               </button>
 
-              {/* Page Indicators */}
               <div style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 12
               }}>
-                {/* Page Dots */}
                 <div style={{ display: 'flex', gap: 6 }}>
                   {Array.from({ length: totalPages }).map((_, index) => (
                     <button
@@ -784,7 +812,6 @@ const ProductList = () => {
                   ))}
                 </div>
 
-                {/* Page Numbers */}
                 <span style={{ 
                   color: '#6b7280', 
                   fontSize: '14px',
@@ -794,7 +821,6 @@ const ProductList = () => {
                 </span>
               </div>
 
-              {/* Next Button */}
               <button
                 onClick={nextPage}
                 disabled={currentPage >= totalPages - 1}
@@ -831,7 +857,6 @@ const ProductList = () => {
             </div>
           )}
 
-          {/* Product Count Info - Only for Carousel View */}
           {showPagination && (
             <div style={{
               textAlign: 'center',
@@ -839,7 +864,7 @@ const ProductList = () => {
               color: '#6b7280',
               fontSize: '14px'
             }}>
-              Showing {startIndex + 1}-{Math.min(endIndex, products.length)} of {products.length} products
+              Showing {startIndex + 1}-{Math.min(endIndex, products.length)} of {products.length} products for {currentWarehouse.name}
               <span style={{ marginLeft: '8px', fontSize: '12px', opacity: 0.8 }}>
                 ({productsPerPage} per page)
               </span>

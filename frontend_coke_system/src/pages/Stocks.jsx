@@ -1,5 +1,6 @@
+// Stocks.jsx - INTEGRATED VERSION WITH API IMPROVEMENTS
 import React, { useEffect, useState, useCallback } from "react";
-import axios from "axios";
+import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -8,9 +9,9 @@ import {
   FaWarehouse, // eslint-disable-line no-unused-vars
   FaBell, // eslint-disable-line no-unused-vars
 } from "react-icons/fa";
+import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
 
 import "../styles/pages/stocks.scss";
-import api from "../api"; // ✅ correct
 
 const statusOrder = {
   "Out of Stock": 0,
@@ -41,10 +42,11 @@ const getStatusIcon = (s) => {
   }
 };
 
-// Utility function to check and store low stock notifications
+// ✅ UPDATED: Utility function to check and store low stock notifications (use api.get)
 const checkAndStoreNotifications = async (warehouseId) => {
   try {
-    const response = await api.get(`/api/stocks/?warehouse=${warehouseId}`);
+    // ✅ NEW: Use api.get() instead of axios.get() (from new version)
+    const response = await api.get(`/stocks/?warehouse=${warehouseId}`);
     const stocks = response.data;
     
     const criticalStocks = stocks.filter(item => 
@@ -95,81 +97,109 @@ export const checkStockAfterTransaction = async (warehouseId) => {
   await checkAndStoreNotifications(warehouseId);
 };
 
-// Export function to be called on login
+// ✅ KEPT: Export function to be called on login (from old version - better warehouse handling)
 export const checkStockOnLogin = async () => {
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+  const warehouse = getCurrentWarehouse();
   
-  let warehouseId;
-  if ((user.role || "").toLowerCase() === "admin") {
-    warehouseId = selectedWarehouse?.id || user.warehouse_id;
-  } else {
-    warehouseId = user.warehouse_id;
-  }
-  
-  if (warehouseId) {
-    await checkAndStoreNotifications(warehouseId);
+  if (warehouse?.id) {
+    await checkAndStoreNotifications(warehouse.id);
   }
 };
 
 const Stocks = () => {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentWarehouse, setCurrentWarehouse] = useState(null);
+  const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ KEPT: from old version
 
-  const getCurrentWarehouseId = () => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-    if ((user.role || "").toLowerCase() === "admin") {
-      return selectedWarehouse?.id || user.warehouse_id;
+  // ✅ KEPT: Proper warehouse setup using utilities (from old version)
+  const setupWarehouse = useCallback(async () => {
+    console.log('🏭 Setting up warehouse for Stocks...');
+    
+    const warehouse = getCurrentWarehouse();
+    
+    if (!warehouse) {
+      console.warn('⚠️ No warehouse found for user');
+      setCurrentWarehouse(null);
+      setLoading(false);
+      return;
     }
-    return user.warehouse_id;
-  };
+    
+    // If warehouse needs ID lookup, find it by name
+    if (warehouse.needsIdLookup) {
+      const foundWarehouse = await findWarehouseByName(warehouse.name);
+      setCurrentWarehouse(foundWarehouse);
+    } else {
+      setCurrentWarehouse(warehouse);
+    }
+    
+    setLoading(false);
+  }, []);
 
   const fetchStocks = useCallback(async () => {
-    setLoading(true);
-    try {
-      const warehouseId = getCurrentWarehouseId();
-      if (!warehouseId) {
-        console.error("No warehouse ID found");
-        setStocks([]);
-        return;
-      }
+    if (!currentWarehouse?.id) {
+      console.warn('❌ No warehouse ID available for fetching stocks');
+      setStocks([]);
+      return;
+    }
 
-      const response = await api.get(`/stocks/?warehouse=${warehouseId}`);
+    try {
+      setLoading(true);
+      console.log('📦 Fetching stocks for warehouse:', currentWarehouse);
+
+      // ✅ NEW: Use api.get() instead of axios.get() (from new version)
+      const response = await api.get(`/stocks/?warehouse=${currentWarehouse.id}`);
       const stockData = response.data;
+      
+      console.log(`✅ Loaded ${stockData.length} stock items for warehouse ${currentWarehouse.name}`);
       setStocks(stockData);
 
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-
-      if ((user.role || "").toLowerCase() === "admin" && selectedWarehouse) {
-        setCurrentWarehouse(selectedWarehouse.name);
-      } else {
-        setCurrentWarehouse(user.warehouse || "Unknown Warehouse");
-      }
-
       // Check for notifications when stocks are loaded
-      await checkAndStoreNotifications(warehouseId);
+      await checkAndStoreNotifications(currentWarehouse.id);
     } catch (err) {
-      console.error("Failed to load stocks:", err);
+      console.error("❌ Failed to load stocks:", err);
       setStocks([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [currentWarehouse]);
+
+  // ✅ KEPT: Setup warehouse first, then fetch stocks (from old version)
+  useEffect(() => {
+    setupWarehouse();
+  }, [setupWarehouse]);
 
   useEffect(() => {
-    fetchStocks();
+    if (currentWarehouse?.id) {
+      fetchStocks();
+    }
+  }, [currentWarehouse, fetchStocks]);
+
+  // ✅ KEPT: Listen for warehouse changes (from old version)
+  useEffect(() => {
+    const handleWarehouseChange = (event) => {
+      console.log('🏭 Warehouse change detected in Stocks:', event.detail);
+      setupWarehouse();
+    };
     
-    const handleWarehouseChange = () => fetchStocks();
     window.addEventListener("warehouseChanged", handleWarehouseChange);
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
-  }, [fetchStocks]);
+  }, [setupWarehouse]);
 
   const sortedStocks = [...stocks].sort(
     (a, b) => statusOrder[a.stock_status] - statusOrder[b.stock_status]
   );
+
+  // ✅ KEPT: Show loading state while setting up warehouse (from old version)
+  if (loading && !currentWarehouse) {
+    return (
+      <div className="stocks-container">
+        <div className="loading">
+          <div className="spinner" />
+          <span className="loading-text">Setting up warehouse...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
@@ -184,10 +214,23 @@ const Stocks = () => {
 
   return (
     <div className="stocks-container">
-      <div>
-        <h2 className="page-title mb-5" style={{ marginRight: 'auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
+        <h2 className="page-title" style={{ margin: 0 }}>
           🧾 Stocks Table
         </h2>
+        
+        {/* ✅ KEPT: Show current warehouse (from old version) */}
+        {currentWarehouse && (
+          <div style={{ 
+            padding: '4px 8px', 
+            background: '#f3f4f6', 
+            borderRadius: '6px', 
+            fontSize: '12px',
+            color: '#6b7280'
+          }}>
+            📦 {currentWarehouse.name}
+          </div>
+        )}
       </div>
     
       <div className="table-wrapper">
@@ -206,8 +249,8 @@ const Stocks = () => {
               <tr>
                 <td colSpan="4" className="empty">
                   {currentWarehouse
-                    ? `No stock data available for ${currentWarehouse}.`
-                    : "No warehouse assigned or no stock data available."}
+                    ? `No stock data available for ${currentWarehouse.name}.`
+                    : "No warehouse selected. Please select a warehouse to view stocks."}
                 </td>
               </tr>
             ) : (

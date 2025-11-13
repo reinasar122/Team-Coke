@@ -1,11 +1,10 @@
+// VanForm.jsx - INTEGRATED VERSION WITH API IMPROVEMENTS
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
-import api from "../api"; // ✅ correct
+import api from "../api"; // ✅ NEW: from new version (was: const API = "http://127.0.0.1:8080/api")
 
-
-
-const VanForm = ({ vanToEdit, onSuccess, onClose }) => {
+const VanForm = ({ vanToEdit, onVanAdded, onClose }) => { // ✅ KEPT: onVanAdded from old version
   const [vanId, setVanId] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
 
@@ -39,23 +38,35 @@ const VanForm = ({ vanToEdit, onSuccess, onClose }) => {
     };
 
     try {
-  let res;
-  if (vanToEdit) {
-    res = await api.put(`/vans/${vanToEdit.id}/`, payload);
-  } else {
-    res = await api.post(`/vans/`, payload);
-  }
+      // ✅ NEW: Use api.put() and api.post() instead of fetch() (from new version)
+      let res;
+      if (vanToEdit) {
+        res = await api.put(`/vans/${vanToEdit.id}/`, payload);
+      } else {
+        res = await api.post(`/vans/`, payload);
+      }
 
-  const newVan = res.data;
+      const newVan = res.data;
       toast.success(
         `Van '${newVan.plate_number}' ${vanToEdit ? "updated" : "registered"} successfully!`,
         { style: successStyle }
       );
 
-      onSuccess?.();
+      // ✅ KEPT: Pass the new van data to the callback (from old version)
+      onVanAdded?.(newVan);
       onClose?.();
     } catch (error) {
-      toast.error("Error saving van.", { style: errorStyle });
+      // ✅ KEPT: Better error handling from old version
+      if (error.response?.data) {
+        const data = error.response.data;
+        if (data.plate_number) {
+          toast.error(`Plate Number: ${data.plate_number[0]}`, { style: errorStyle });
+        } else {
+          toast.error("Failed to save van.", { style: errorStyle });
+        }
+      } else {
+        toast.error("Error saving van.", { style: errorStyle });
+      }
       console.error("Save van error:", error);
     }
   };

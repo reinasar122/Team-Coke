@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+// SupplierReturnList.jsx - INTEGRATED VERSION WITH API IMPROVEMENTS
+import React, { useEffect, useState, useCallback } from "react";
+import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
 import { useNavigate } from "react-router-dom";
 import { FaTrash, FaEye, FaSearch } from "react-icons/fa";
-import api from "../api"; // ✅ correct
+import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
 
 const SupplierReturnList = () => {
   const [returns, setReturns] = useState([]);
@@ -13,72 +14,94 @@ const SupplierReturnList = () => {
   const [products, setProducts] = useState([]);
   const [pricingData, setPricingData] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
+  const [loading, setLoading] = useState(true); // ✅ KEPT: from old version
   const navigate = useNavigate();
 
-  // Function to get current warehouse
-  const getCurrentWarehouse = () => {
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+  // ✅ KEPT: Proper warehouse setup using utilities (from old version)
+  const setupWarehouse = useCallback(async () => {
+    console.log('🏭 Setting up warehouse for SupplierReturnList...');
     
-    // For admin users, use selected warehouse or their enrolled warehouse
-    if (userData.role?.toLowerCase() === "admin") {
-      return selectedWarehouse || { id: userData.warehouse_id, name: userData.warehouse };
+    const warehouse = getCurrentWarehouse();
+    
+    if (!warehouse) {
+      console.warn('⚠️ No warehouse found for user');
+      setCurrentWarehouse(null);
+      setLoading(false);
+      return;
     }
     
-    // For non-admin users, always use their enrolled warehouse
-    return { id: userData.warehouse_id, name: userData.warehouse };
-  };
+    // If warehouse needs ID lookup, find it by name
+    if (warehouse.needsIdLookup) {
+      const foundWarehouse = await findWarehouseByName(warehouse.name);
+      setCurrentWarehouse(foundWarehouse);
+    } else {
+      setCurrentWarehouse(warehouse);
+    }
+    
+    setLoading(false);
+  }, []);
 
   // Function to fetch supplier returns for current warehouse
-  const fetchSupplierReturns = async (warehouseId) => {
+  const fetchSupplierReturns = useCallback(async (warehouseId) => {
+    if (!warehouseId) {
+      console.warn('❌ No warehouse ID provided for fetching supplier returns');
+      return [];
+    }
+
     try {
-      const warehouseParam = warehouseId ? `?warehouse_id=${warehouseId}` : '';
+      console.log('📋 Fetching supplier returns for warehouse ID:', warehouseId);
+      const warehouseParam = `?warehouse_id=${warehouseId}`;
+      // ✅ NEW: Use api.get() instead of axios.get() (from new version)
       const response = await api.get(`/supplier-return-form/${warehouseParam}`);
+      console.log(`✅ Loaded ${response.data.length} supplier returns`);
       return response.data;
     } catch (err) {
       console.error("Error fetching supplier returns:", err);
       return [];
     }
-  };
-
-  useEffect(() => {
-    // Get current warehouse on component mount
-    const warehouse = getCurrentWarehouse();
-    setCurrentWarehouse(warehouse);
-
-    // Listen for warehouse changes
-    const handleWarehouseChange = (event) => {
-      const newWarehouse = event.detail.warehouse || getCurrentWarehouse();
-      setCurrentWarehouse(newWarehouse);
-      
-      // Refetch data for new warehouse
-      if (newWarehouse?.id) {
-        fetchSupplierReturns(newWarehouse.id).then(setReturns);
-      }
-    };
-
-    window.addEventListener('warehouseChanged', handleWarehouseChange);
-    
-    // Fetch all data in parallel for better performance
-    Promise.all([
-      fetchSupplierReturns(warehouse?.id),
-      api.get("/products/"),
-      api.get("/pricing/")
-    ])
-    .then(([returnsData, productsRes, pricingRes]) => {
-      setReturns(returnsData);
-      setProducts(productsRes.data);
-      setPricingData(pricingRes.data);
-    })
-    .catch(err => {
-      console.error("Error fetching initial data:", err);
-    });
-
-    // Cleanup event listener
-    return () => {
-      window.removeEventListener('warehouseChanged', handleWarehouseChange);
-    };
   }, []);
+
+  // ✅ KEPT: Setup warehouse first (from old version)
+  useEffect(() => {
+    setupWarehouse();
+  }, [setupWarehouse]);
+
+  // ✅ KEPT: Listen for warehouse changes (from old version)
+  useEffect(() => {
+    const handleWarehouseChange = (event) => {
+      console.log('🏭 Warehouse change detected in SupplierReturnList:', event.detail);
+      setupWarehouse();
+    };
+    
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+    return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
+  }, [setupWarehouse]);
+
+  // ✅ KEPT: Fetch data when warehouse is available (from old version)
+  useEffect(() => {
+    if (currentWarehouse?.id) {
+      // Fetch all data in parallel for better performance
+      Promise.all([
+        fetchSupplierReturns(currentWarehouse.id),
+        // ✅ NEW: Use api.get() instead of axios.get() (from new version)
+        api.get(`/products/?warehouse=${currentWarehouse.id}`),
+        api.get("/pricing/")
+      ])
+      .then(([returnsData, productsRes, pricingRes]) => {
+        console.log(`📊 Loaded data for ${currentWarehouse.name}:`, {
+          returns: returnsData.length,
+          products: productsRes.data.length,
+          pricing: pricingRes.data.length
+        });
+        setReturns(returnsData);
+        setProducts(productsRes.data);
+        setPricingData(pricingRes.data);
+      })
+      .catch(err => {
+        console.error("Error fetching initial data:", err);
+      });
+    }
+  }, [currentWarehouse, fetchSupplierReturns]);
 
   // ✅ FIXED helper function to format date correctly
   const formatDate = (dateString) => {
@@ -119,6 +142,7 @@ const SupplierReturnList = () => {
     if (!confirmDelete) return;
 
     try {
+      // ✅ NEW: Use api.delete() instead of axios.delete() (from new version)
       await api.delete(`/supplier-return-form/${id}/`);
       setReturns((prev) => prev.filter((r) => r.id !== id));
     } catch (error) {
@@ -219,6 +243,7 @@ const SupplierReturnList = () => {
 
   const handleView = async (id) => {
     try {
+      // ✅ NEW: Use api.get() instead of axios.get() (from new version)
       // First get the supplier return details
       const returnResponse = await api.get(`/supplier-return-form/${id}/`);
       setSelectedReturn(returnResponse.data);
@@ -280,29 +305,59 @@ const SupplierReturnList = () => {
     return supNo.includes(search.toLowerCase()) || supplier.includes(search.toLowerCase());
   });
 
+  // ✅ KEPT: Show loading state while setting up warehouse (from old version)
+  if (loading && !currentWarehouse) {
+    return (
+      <div className="page">
+        <div className="loading">
+          <div className="spinner" />
+          <div className="loading-text">Setting up warehouse...</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       {/* Header section with styled search bar */}
       <div className="page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div className="relative w-72 mr-4">
-          <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search supplier"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-          />
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            📋 Supplier Returns
+            {/* ✅ KEPT: Show current warehouse (from old version) */}
+            {currentWarehouse && (
+              <span style={{ 
+                padding: '4px 8px', 
+                background: '#f3f4f6', 
+                borderRadius: '6px', 
+                fontSize: '12px',
+                color: '#6b7280',
+                fontWeight: 'normal'
+              }}>
+                {currentWarehouse.name}
+              </span>
+            )}
+          </h2>
+          
+          <div className="relative w-72 mr-4">
+            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search supplier"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            />
+          </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <button
-            onClick={() => navigate("/supplier-returns/new")}
-            className="btn btn-add"
-          >
-            <span>+</span> New Supplier Return
-          </button>
-        </div>
+        <button
+          onClick={() => navigate("/supplier-returns/new")}
+          className="btn btn-add"
+          disabled={!currentWarehouse?.id} // ✅ KEPT: from old version
+        >
+          <span>+</span> New Supplier Return
+        </button>
       </div>
 
       {/* Table - Removed double container */}

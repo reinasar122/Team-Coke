@@ -1,9 +1,9 @@
-// Expenses.jsx - WITH PROPER WAREHOUSE MSP AUTO (WA-* only) - LATEST DETECTION
+// Expenses.jsx - INTEGRATED VERSION WITH API CENTRALIZATION AND WAREHOUSE UTILITIES
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import axios from "axios";
 import dayjs from "dayjs";
-import api from "../api"; // ✅ correct
-
+import api from "../api"; // ✅ NEW: Added centralized API import
+import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ Keep warehouse utilities
 
 /* ------------------ helpers ------------------ */
 const peso = (n) =>
@@ -12,7 +12,7 @@ const peso = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
-const API = "http://localhost:8080/api";
+const API = "http://localhost:8080/api"; // ✅ Keep for fallback
 const authHeaders = () => ({
   headers: {
     "Content-Type": "application/json",
@@ -54,7 +54,7 @@ const showAlert = (message, type = 'info') => {
 export default function Expenses() {
   const [items, setItems] = useState([]); // miscellaneous items
   const [merch, setMerch] = useState([]); // merchandisings
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // ✅ Always start with loading
   const [err, setErr] = useState("");
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [threshold, setThreshold] = useState(getLargeExpenseThreshold());
@@ -95,29 +95,43 @@ export default function Expenses() {
     return () => window.removeEventListener('thresholdUpdated', handleThresholdUpdate);
   }, []);
 
-  // ✅ Set up current warehouse
-  useEffect(() => {
-    const user = JSON.parse(localStorage.getItem("user") || "{}");
-    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+  // ✅ Keep warehouse setup using utilities
+  const setupWarehouse = useCallback(async () => {
+    console.log('🏭 Setting up warehouse for Expenses...');
     
-    if (user.role?.toLowerCase() === "admin") {
-      setCurrentWarehouse(selectedWarehouse || { id: user.warehouse_id, name: user.warehouse });
-    } else {
-      setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
+    const warehouse = getCurrentWarehouse();
+    
+    if (!warehouse) {
+      console.warn('⚠️ No warehouse found for user');
+      setCurrentWarehouse(null);
+      setLoading(false);
+      return;
     }
+    
+    // If warehouse needs ID lookup, find it by name
+    if (warehouse.needsIdLookup) {
+      const foundWarehouse = await findWarehouseByName(warehouse.name);
+      setCurrentWarehouse(foundWarehouse);
+    } else {
+      setCurrentWarehouse(warehouse);
+    }
+    
+    setLoading(false);
+  }, []);
 
+  useEffect(() => {
+    setupWarehouse();
+  }, [setupWarehouse]);
+
+  useEffect(() => {
     const handleWarehouseChange = (event) => {
-      const { warehouse } = event.detail || {};
-      if (warehouse) {
-        setCurrentWarehouse(warehouse);
-      } else {
-        setCurrentWarehouse({ id: user.warehouse_id, name: user.warehouse });
-      }
+      console.log('🏭 Warehouse change detected in Expenses:', event.detail);
+      setupWarehouse();
     };
-
+    
     window.addEventListener('warehouseChanged', handleWarehouseChange);
     return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
-  }, []);
+  }, [setupWarehouse]);
 
   // ✅ Function to find latest warehouse MSP - FIXED to prevent infinite loops
   const findLatestWarehouseMSP = useCallback((merchData) => {
@@ -186,12 +200,14 @@ export default function Expenses() {
     });
   }, []);
 
-  // ✅ SINGLE useEffect to fetch ALL data - FIXED to prevent multiple calls
+  // ✅ UPDATED: Single useEffect with centralized API calls
   useEffect(() => {
     const fetchData = async () => {
       if (!currentWarehouse?.id) {
         console.log("❌ Skipping fetch - no warehouse ID");
         setWarehouseMSP(null);
+        setItems([]);
+        setMerch([]);
         return;
       }
 
@@ -201,6 +217,7 @@ export default function Expenses() {
 
         console.log(`🔄 Fetching expenses for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
 
+        // ✅ NEW: Use centralized API instead of direct axios calls
         const [miscRes, merchRes] = await Promise.allSettled([
           api.get(`/miscellaneous-items/?warehouse=${currentWarehouse.id}`, authHeaders()),
           api.get(`/merchandisings/?warehouse=${currentWarehouse.id}`, authHeaders()),
@@ -225,6 +242,8 @@ export default function Expenses() {
         console.error("❌ Error fetching data:", e);
         setErr("Failed to load data.");
         setWarehouseMSP(null);
+        setItems([]);
+        setMerch([]);
       } finally {
         setLoading(false);
       }
@@ -289,7 +308,7 @@ export default function Expenses() {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, saving]);
 
-  // ✅ Handle save with warehouse MSP auto
+  // ✅ UPDATED: Handle save with centralized API
   const handleSave = async (e) => {
     e.preventDefault();
     if (!canSave || saving) return;
@@ -317,6 +336,7 @@ export default function Expenses() {
         merchandising: warehouseMSP.id, // Always use warehouse MSP
       };
 
+      // ✅ NEW: Use centralized API instead of direct axios
       const response = await api.post(`/miscellaneous-items/`, payload, authHeaders());
 
       setItems((prev) => sortLatest([response.data, ...prev]));
@@ -354,7 +374,7 @@ export default function Expenses() {
     });
   };
 
-  // ✅ Confirm delete function
+  // ✅ UPDATED: Confirm delete with centralized API
   const confirmDelete = async () => {
     if (!deleteConfirm) return;
     
@@ -362,6 +382,7 @@ export default function Expenses() {
       if (deleteConfirm.type === 'group') {
         const expenseIds = deleteConfirm.data.expenses.map(exp => exp.id);
         
+        // ✅ NEW: Use centralized API instead of direct axios
         await Promise.all(
           expenseIds.map(id => 
             api.delete(`/miscellaneous-items/${id}/`, authHeaders())
@@ -381,13 +402,39 @@ export default function Expenses() {
     }
   };
 
+  // ✅ Keep sophisticated loading handling
+  if (loading && !currentWarehouse) {
+    return (
+      <div className="expenseslist-container">
+        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
+          <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
+          Setting up warehouse...
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="expenseslist-container">
-      {/* Header - Clean without extra info */}
+      {/* Header - Clean with warehouse info */}
       <div className="page-header">
-        <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <h1 className="page-title">All Expenses</h1>
+          
+          {/* ✅ Show current warehouse */}
+          {currentWarehouse && (
+            <div style={{ 
+              padding: '4px 8px', 
+              background: '#f3f4f6', 
+              borderRadius: '6px', 
+              fontSize: '12px',
+              color: '#6b7280'
+            }}>
+              💰 {currentWarehouse.name}
+            </div>
+          )}
         </div>
+        
         <button
           onClick={() => { 
             setOpen(true); 
@@ -421,7 +468,8 @@ export default function Expenses() {
 
       {loading && (
         <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
-          Loading…
+          <div className="spinner" style={{ margin: '0 auto 16px' }}></div>
+          Loading expenses...
         </div>
       )}
       

@@ -1,4 +1,4 @@
-// src/components/Notification.jsx - COMPLETE VERSION WITHOUT DEBUG CONSOLE LOGS
+// src/components/Notification.jsx - COMPLETE ENHANCED VERSION WITH ALL FUNCTIONS
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -22,20 +22,29 @@ import {
   faTimes,
   faCheck,
   faCalendarAlt,
-  faMapMarkerAlt
+  faMapMarkerAlt,
+  faExclamationCircle,
+  faClock,
+  faDownload,
+  faSync,
+  faBellSlash
 } from "@fortawesome/free-solid-svg-icons";
 import axios from 'axios';
 import { useNotifications } from '../contexts/NotificationContext';
+import { getCurrentWarehouse, getWarehouseAxiosConfig, getWarehouseQueryParam, findWarehouseByName } from '../utils/warehouseUtils';
 
 const Notification = () => {
-  const { state, dispatch, addNotification } = useNotifications();
+  const { state, dispatch, addNotification, hasNotificationPermission } = useNotifications();
   const { notifications } = state;
   
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('all');
   const [showOptionsMenu, setShowOptionsMenu] = useState(false);
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [currentWarehouseId, setCurrentWarehouseId] = useState(null);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [userDataReady, setUserDataReady] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   
   // Force re-render when notifications change
   const [forceUpdate, setForceUpdate] = useState(0);
@@ -50,6 +59,7 @@ const Notification = () => {
   const dropdownRef = useRef(null);
   const optionsRef = useRef(null);
   const processedIdsRef = useRef(new Set(JSON.parse(localStorage.getItem('processedNotificationIds') || '[]')));
+  const initializationRef = useRef(false);
 
   // Force re-render when notifications change
   useEffect(() => {
@@ -73,19 +83,14 @@ const Notification = () => {
     return () => mediaQuery.removeEventListener('change', handleChange);
   }, []);
 
-  // ✅ FIXED: Better user data getter without debug logs
+  // ✅ ENHANCED: Better user data getter with validation using warehouse utils
   const getCurrentUser = useCallback(() => {
     try {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
       
-      // Ensure the user data is complete
+      // Validate required fields for notifications
       if (!userData.id || !userData.role) {
-        // Try to refresh user data from token if available
-        const token = localStorage.getItem("token");
-        if (token) {
-          // Return what we have for now, but we might need to refresh later
-          return userData;
-        }
+        return {};
       }
       
       return userData;
@@ -94,127 +99,388 @@ const Notification = () => {
     }
   }, []);
 
-  // ✅ FIXED: Always return warehouse ID as integer, without debug logs
-  const getCurrentWarehouse = useCallback(() => {
+  // ✅ ENHANCED: Initialize warehouse using warehouse utils consistently
+  const initializeWarehouse = useCallback(async () => {
     try {
-      const user = getCurrentUser();
-      const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      let warehouse = getCurrentWarehouse();
       
-      let warehouseId;
+      console.log('🏭 Initializing warehouse in notification component:', warehouse);
       
-      if (user.role?.toLowerCase() === "admin" && selectedWarehouse?.id) {
-        // For admin, use selected warehouse ID
-        warehouseId = parseInt(selectedWarehouse.id);
-      } else {
-        // For non-admin users, use their assigned warehouse
-        warehouseId = user.warehouse_id;
-        
-        // Convert string numbers to integers
-        if (typeof warehouseId === 'string' && !isNaN(warehouseId)) {
-          warehouseId = parseInt(warehouseId);
-        }
-        
-        // If warehouse_id is missing but we have a number in user.warehouse
-        if (!warehouseId && user.warehouse && !isNaN(user.warehouse)) {
-          warehouseId = parseInt(user.warehouse);
-        }
-        
-        // If still undefined, try cached warehouse
-        if (!warehouseId && user.id) {
-          const cachedWarehouse = localStorage.getItem(`userWarehouse_${user.id}`);
-          if (cachedWarehouse && !isNaN(cachedWarehouse)) {
-            warehouseId = parseInt(cachedWarehouse);
-          }
-        }
-        
-        // Check URL params for warehouse context
-        if (!warehouseId) {
-          const urlParams = new URLSearchParams(window.location.search);
-          const urlWarehouse = urlParams.get('warehouse');
-          if (urlWarehouse && !isNaN(urlWarehouse)) {
-            warehouseId = parseInt(urlWarehouse);
-          }
-        }
-        
-        // For supervisors without warehouse, use the one from logs (warehouse 2)
-        if (!warehouseId && user.role?.toLowerCase() === 'supervisor') {
-          warehouseId = 2; // Based on your console logs
-          
-          // Update user data with correct warehouse
-          if (user.id) {
-            localStorage.setItem(`userWarehouse_${user.id}`, '2');
-            const updatedUser = { ...user, warehouse_id: 2 };
-            localStorage.setItem("user", JSON.stringify(updatedUser));
-          }
-        }
-        
-        // Cache the warehouse for future use
-        if (warehouseId && user.id && !localStorage.getItem(`userWarehouse_${user.id}`)) {
-          localStorage.setItem(`userWarehouse_${user.id}`, warehouseId.toString());
+      // If warehouse needs ID lookup, find it by name
+      if (warehouse?.needsIdLookup && warehouse.name) {
+        console.log('🔍 Finding warehouse by name for notifications:', warehouse.name);
+        warehouse = await findWarehouseByName(warehouse.name);
+        if (!warehouse) {
+          console.warn('❌ Could not find warehouse by name for notifications');
+          return null;
         }
       }
       
-      // Ensure we always return a valid integer ID, never a string name
-      if (warehouseId && !isNaN(warehouseId)) {
-        warehouseId = parseInt(warehouseId);
-        return warehouseId;
+      if (warehouse?.id) {
+        const warehouseId = parseInt(warehouse.id);
+        console.log('✅ Warehouse initialized for notifications:', { id: warehouseId, name: warehouse.name });
+        setCurrentWarehouse(warehouse);
+        setCurrentWarehouseId(warehouseId);
+        setUserDataReady(true);
+        return { warehouse, warehouseId };
       }
       
+      console.warn('⚠️ No valid warehouse found for notifications');
       return null;
     } catch (error) {
+      console.error('❌ Error initializing warehouse for notifications:', error);
       return null;
     }
-  }, [getCurrentUser]);
+  }, []);
 
-  // ✅ ENHANCED: Wait for user data without debug logs
-  const waitForUserData = useCallback(async (maxRetries = 15, delay = 500) => {
+  // ✅ ENHANCED: Better user data validation with immediate availability check using warehouse utils
+  const waitForUserData = useCallback(async (maxRetries = 20, delay = 300) => {
     for (let i = 0; i < maxRetries; i++) {
       const user = getCurrentUser();
-      let warehouseId = getCurrentWarehouse();
       
-      // Enhanced warehouse detection for supervisors
-      if (!warehouseId && user.id && user.role?.toLowerCase() === 'supervisor') {
-        // Try to get from user profile API
+      if (user.id && user.role) {
+        const warehouseData = await initializeWarehouse();
+        
+        if (warehouseData) {
+          return { user, ...warehouseData };
+        }
+      }
+      
+      // If this is a non-admin user and we still don't have warehouse data after several attempts
+      if (i > 5 && user.id && user.role && user.role.toLowerCase() !== 'admin') {
         try {
           const token = localStorage.getItem("token");
           if (token) {
+            console.log('🔄 Fetching user data from API for warehouse info in notifications...');
             const response = await fetch(`http://localhost:8080/api/users/${user.id}/`, {
               headers: { "Authorization": `Bearer ${token}` }
             });
             if (response.ok) {
               const userData = await response.json();
-              warehouseId = userData.warehouse_id || userData.warehouse || userData.assigned_warehouse_id;
+              const apiWarehouseId = userData.warehouse_id || userData.warehouse || userData.assigned_warehouse_id;
               
-              if (warehouseId) {
+              if (apiWarehouseId) {
                 // Update local storage with the correct warehouse
-                const updatedUser = { ...user, warehouse_id: warehouseId };
+                const updatedUser = { ...user, warehouse_id: apiWarehouseId };
                 localStorage.setItem("user", JSON.stringify(updatedUser));
-                localStorage.setItem(`userWarehouse_${user.id}`, warehouseId.toString());
+                
+                // Re-initialize warehouse with updated data
+                const warehouseData = await initializeWarehouse();
+                if (warehouseData) {
+                  return { user: updatedUser, ...warehouseData };
+                }
               }
             }
           }
         } catch (apiError) {
-          // API warehouse fetch failed, using default
+          console.warn('⚠️ API call failed in notifications, continuing with fallback logic');
         }
-        
-        // If still no warehouse, use default
-        if (!warehouseId) {
-          warehouseId = 2; // Use warehouse 2 as seen in logs
-          const updatedUser = { ...user, warehouse_id: 2 };
-          localStorage.setItem("user", JSON.stringify(updatedUser));
-          localStorage.setItem(`userWarehouse_${user.id}`, '2');
-        }
-      }
-      
-      if (user.id && user.role && warehouseId) {
-        return { user, warehouseId };
       }
       
       await new Promise(resolve => setTimeout(resolve, delay));
     }
     
+    // If we reach here, use fallback data
+    const user = getCurrentUser();
+    if (user.id && user.role) {
+      const warehouseData = await initializeWarehouse();
+      if (warehouseData) {
+        return { user, ...warehouseData };
+      }
+    }
+    
     return null;
-  }, [getCurrentUser, getCurrentWarehouse]);
+  }, [getCurrentUser, initializeWarehouse]);
+
+  // ✅ ENHANCED: Initialize warehouse ID early and track changes
+  useEffect(() => {
+    const initializeComponent = async () => {
+      if (!initializationRef.current) {
+        initializationRef.current = true;
+        
+        console.log('🚀 Initializing notification component with warehouse utils...');
+        const userData = await waitForUserData();
+        if (userData) {
+          console.log('✅ Notification component initialized with warehouse data:', userData);
+          
+          // Trigger initial notification check after warehouse is set
+          setTimeout(() => {
+            if (!isLoaded) {
+              setIsLoaded(true);
+            }
+          }, 500);
+        } else {
+          console.warn('⚠️ Failed to initialize notification component with valid warehouse data');
+        }
+      }
+    };
+
+    initializeComponent();
+  }, [waitForUserData, isLoaded]);
+
+  // ✅ ENHANCED: Credit-specific notification helper
+  const triggerCreditNotification = useCallback((creditData, action = 'created') => {
+    if (!userDataReady || !currentWarehouseId) return;
+
+    const user = getCurrentUser();
+    const userRole = user.role?.toLowerCase();
+    
+    // Check if user should be notified about this credit
+    const shouldNotify = (
+      (creditData.created_by === user.id || creditData.user_id === user.id) ||
+      ['admin', 'supervisor'].includes(userRole)
+    );
+    
+    if (!shouldNotify) return;
+
+    const notificationData = {
+      ...creditData,
+      warehouse_id: creditData.warehouse_id || currentWarehouseId
+    };
+
+    switch (action) {
+      case 'created':
+        addNotification('credit_created', notificationData, userRole);
+        break;
+      case 'paid':
+        addNotification('paid_credit', notificationData, userRole);
+        break;
+      case 'overdue':
+        addNotification('credit_overdue', notificationData, userRole);
+        break;
+      case 'due_soon':
+        addNotification('credit_overdue', {
+          ...notificationData,
+          days_overdue: -(notificationData.days_until_due || 0),
+          early_warning: true
+        }, userRole);
+        break;
+    }
+    
+    // Force update
+    setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+  }, [userDataReady, currentWarehouseId, getCurrentUser, addNotification]);
+
+  // ✅ ENHANCED: Batch notification processor for multiple credits
+  const processBatchCreditNotifications = useCallback(async (credits, action) => {
+    if (!Array.isArray(credits) || credits.length === 0) return;
+
+    const user = getCurrentUser();
+    const userRole = user.role?.toLowerCase();
+    let notificationsCreated = 0;
+
+    credits.forEach(credit => {
+      const shouldNotify = (
+        (credit.created_by === user.id || credit.user_id === user.id) ||
+        ['admin', 'supervisor'].includes(userRole)
+      );
+      
+      if (shouldNotify) {
+        const notificationData = {
+          ...credit,
+          warehouse_id: credit.warehouse_id || currentWarehouseId
+        };
+        
+        addNotification(`credit_${action}`, notificationData, userRole);
+        notificationsCreated++;
+      }
+    });
+
+    if (notificationsCreated > 0) {
+      setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+      console.log(`✅ Created ${notificationsCreated} batch credit notifications`);
+    }
+  }, [getCurrentUser, currentWarehouseId, addNotification]);
+
+  // ✅ NEW: Credit due date checker
+  const checkCreditDueDates = useCallback(async () => {
+    if (!userDataReady || !currentWarehouseId) return;
+
+    try {
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      config.headers = {
+        ...config.headers,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+      };
+
+      const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+      const response = await axios.get(
+        `http://localhost:8080/api/credits/?warehouse=${warehouseQueryParam}&status=PENDING`,
+        config
+      );
+
+      const credits = Array.isArray(response.data) ? response.data : response.data?.results || [];
+      const today = new Date();
+      const threeDaysFromNow = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
+
+      credits.forEach(credit => {
+        if (credit.due_date) {
+          const dueDate = new Date(credit.due_date);
+          
+          // Check if due within 3 days (early warning)
+          if (dueDate <= threeDaysFromNow && dueDate > today) {
+            const daysUntilDue = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            
+            const earlyWarningId = `credit-due-soon-${credit.id}-${currentWarehouseId}`;
+            const processedIds = processedIdsRef.current;
+            
+            if (!processedIds.has(earlyWarningId)) {
+              triggerCreditNotification({
+                ...credit,
+                days_until_due: daysUntilDue,
+                early_warning: true
+              }, 'due_soon');
+              
+              processedIds.add(earlyWarningId);
+            }
+          }
+          
+          // Check if overdue
+          if (dueDate < today) {
+            const daysOverdue = Math.ceil((today - dueDate) / (1000 * 60 * 60 * 24));
+            
+            triggerCreditNotification({
+              ...credit,
+              days_overdue: daysOverdue
+            }, 'overdue');
+          }
+        }
+      });
+
+    } catch (error) {
+      console.warn('❌ Credit due date check failed:', error.message);
+    }
+  }, [userDataReady, currentWarehouseId, currentWarehouse, triggerCreditNotification]);
+
+  // ✅ ENHANCED: Notification cleanup for old notifications
+  const cleanupOldNotifications = useCallback(() => {
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    
+    const validNotifications = notifications.filter(notif => 
+      new Date(notif.timestamp) > sevenDaysAgo
+    );
+    
+    if (validNotifications.length !== notifications.length) {
+      dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
+      
+      console.log(`🧹 Cleaned up ${notifications.length - validNotifications.length} old notifications`);
+    }
+  }, [notifications, dispatch]);
+
+  // ✅ NEW: Notification summary generator
+  const generateNotificationSummary = useCallback(() => {
+    const user = getCurrentUser();
+    const userRole = user.role?.toLowerCase();
+    
+    const warehouseNotifications = notifications.filter(notif => 
+      notif.data?.warehouse_id === currentWarehouseId && !notif.is_read
+    );
+
+    const summary = {
+      total: warehouseNotifications.length,
+      byType: {},
+      byPriority: { high: 0, medium: 0, low: 0 },
+      credits: {
+        created: 0,
+        overdue: 0,
+        paid: 0
+      },
+      inventory: {
+        low_stock: 0,
+        out_of_stock: 0,
+        adjustments: 0
+      },
+      expenses: {
+        new: 0,
+        large: 0,
+        updated: 0
+      }
+    };
+
+    warehouseNotifications.forEach(notif => {
+      // Count by type
+      summary.byType[notif.type] = (summary.byType[notif.type] || 0) + 1;
+      
+      // Count by priority
+      summary.byPriority[notif.priority || 'low']++;
+      
+      // Count by category
+      if (notif.type.startsWith('credit_')) {
+        if (notif.type === 'credit_created') summary.credits.created++;
+        if (notif.type === 'credit_overdue') summary.credits.overdue++;
+        if (notif.type === 'paid_credit') summary.credits.paid++;
+      }
+      
+      if (['low_stock', 'out_of_stock'].includes(notif.type)) {
+        summary.inventory[notif.type]++;
+      }
+      
+      if (notif.type === 'stock_adjustment') {
+        summary.inventory.adjustments++;
+      }
+      
+      if (notif.type.startsWith('expense_')) {
+        if (notif.type === 'expense_created') summary.expenses.new++;
+        if (notif.type === 'large_expense') summary.expenses.large++;
+        if (notif.type === 'expense_updated') summary.expenses.updated++;
+      }
+    });
+
+    return summary;
+  }, [notifications, currentWarehouseId, getCurrentUser]);
+
+  // ✅ ENHANCED: Export notifications data
+  const exportNotifications = useCallback((format = 'json') => {
+    const user = getCurrentUser();
+    const warehouseNotifications = notifications.filter(notif => 
+      notif.data?.warehouse_id === currentWarehouseId
+    );
+
+    const exportData = {
+      warehouse: getCurrentWarehouseName(),
+      exported_by: user.username || user.name || 'Unknown',
+      exported_at: new Date().toISOString(),
+      total_notifications: warehouseNotifications.length,
+      unread_count: warehouseNotifications.filter(n => !n.is_read).length,
+      notifications: warehouseNotifications.map(notif => ({
+        id: notif.id,
+        type: notif.type,
+        category: notif.category,
+        title: notif.title,
+        message: notif.message,
+        details: notif.details,
+        priority: notif.priority,
+        timestamp: notif.timestamp,
+        is_read: notif.is_read,
+        data: notif.data
+      }))
+    };
+
+    if (format === 'csv') {
+      const csvContent = [
+        'Type,Title,Message,Priority,Timestamp,Read Status',
+        ...warehouseNotifications.map(notif =>
+          `"${notif.type}","${notif.title}","${notif.message}","${notif.priority}","${notif.timestamp}","${notif.is_read ? 'Read' : 'Unread'}"`
+        )
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `notifications_${getCurrentWarehouseName()}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `notifications_${getCurrentWarehouseName()}_${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+  }, [notifications, currentWarehouseId, getCurrentUser]);
 
   // Handle notification click with proper state update
   const handleNotificationClick = (notification) => {
@@ -379,6 +645,38 @@ const Notification = () => {
         }
         break;
 
+      // ✅ NEW: Enhanced credit notification details
+      case 'credit_created':
+        details.push(
+          { label: 'Credit ID', value: safeToString(data.id || 'Unknown') },
+          { label: 'MSP Number', value: safeToString(data.msp_no || 'N/A') },
+          { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
+          { label: 'Credit Amount', value: `₱${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Due Date', value: safeToString(data.due_date ? new Date(data.due_date).toLocaleDateString() : 'Not set') },
+          { label: 'Created Date', value: safeToString(data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Today') }
+        );
+        if (data.credit_terms) {
+          details.push({ label: 'Credit Terms', value: `${data.credit_terms} days` });
+        }
+        if (data.created_by) {
+          details.push({ label: 'Created By', value: safeToString(data.created_by) });
+        }
+        break;
+
+      case 'credit_overdue':
+        details.push(
+          { label: 'Credit ID', value: safeToString(data.id || 'Unknown') },
+          { label: 'MSP Number', value: safeToString(data.msp_no || 'N/A') },
+          { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
+          { label: 'Outstanding Amount', value: `₱${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Due Date', value: safeToString(data.due_date ? new Date(data.due_date).toLocaleDateString() : 'Not set') },
+          { label: 'Days Overdue', value: `${data.days_overdue || 0} days` }
+        );
+        if (data.original_amount && data.original_amount !== data.balance) {
+          details.push({ label: 'Original Amount', value: `₱${data.original_amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+        }
+        break;
+
       case 'paid_credit':
         details.push(
           { label: 'Credit ID', value: safeToString(data.id || 'Unknown') },
@@ -391,6 +689,9 @@ const Notification = () => {
         if (data.created_at && data.updated_at) {
           const daysSinceSale = Math.floor((new Date(data.updated_at) - new Date(data.created_at)) / (1000 * 60 * 60 * 24));
           details.push({ label: 'Days Since Sale', value: `${daysSinceSale} days` });
+        }
+        if (data.payment_method) {
+          details.push({ label: 'Payment Method', value: safeToString(data.payment_method) });
         }
         break;
 
@@ -462,58 +763,119 @@ const Notification = () => {
     }
   };
 
-  // Persist notifications to localStorage helper function
-  const persistNotifications = useCallback((notifications) => {
-    try {
-      localStorage.setItem('persistedNotifications', JSON.stringify(notifications));
-    } catch (error) {
-      // Error persisting notifications - storage may be full
-    }
-  }, []);
-
-  // Load persisted notifications on component mount
+  // ✅ ENHANCED: Load persisted notifications with warehouse-aware logic for admin
   useEffect(() => {
     const loadPersistedNotifications = () => {
       try {
-        const savedNotifications = localStorage.getItem('persistedNotifications');
-        if (savedNotifications) {
-          const parsedNotifications = JSON.parse(savedNotifications);
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin' && currentWarehouseId) {
+          // Load warehouse-specific notifications for admin
+          const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
+          const savedWarehouseNotifications = localStorage.getItem(warehouseKey);
           
-          // Filter notifications that are still valid (not older than 7 days)
-          const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-          const validNotifications = parsedNotifications.filter(notif => 
-            new Date(notif.timestamp) > sevenDaysAgo
-          );
-          
-          // Use SET_NOTIFICATIONS to restore all valid notifications at once
-          if (validNotifications.length > 0) {
-            dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
+          if (savedWarehouseNotifications) {
+            const parsedNotifications = JSON.parse(savedWarehouseNotifications);
+            const validNotifications = parsedNotifications.filter(notif => 
+              new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            );
+            
+            if (validNotifications.length > 0) {
+              dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
+              console.log(`📥 Admin loaded ${validNotifications.length} notifications for warehouse ${currentWarehouseId}`);
+            }
+            
+            // Update localStorage with only valid notifications
+            if (validNotifications.length !== parsedNotifications.length) {
+              localStorage.setItem(warehouseKey, JSON.stringify(validNotifications));
+            }
+          } else {
+            // Try loading from global admin notifications
+            const globalAdminNotifications = localStorage.getItem('persistedNotifications_admin_all');
+            if (globalAdminNotifications) {
+              const allNotifications = JSON.parse(globalAdminNotifications);
+              const warehouseNotifications = allNotifications.filter(notif =>
+                notif.data?.warehouse_id === currentWarehouseId &&
+                new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+              );
+              
+              if (warehouseNotifications.length > 0) {
+                dispatch({ type: 'SET_NOTIFICATIONS', payload: warehouseNotifications });
+                localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
+                console.log(`📥 Admin migrated ${warehouseNotifications.length} notifications to warehouse ${currentWarehouseId}`);
+              }
+            }
           }
-          
-          // Update localStorage with only valid notifications
-          if (validNotifications.length !== parsedNotifications.length) {
-            persistNotifications(validNotifications);
+        } else {
+          // Regular notification loading for non-admin users
+          const savedNotifications = localStorage.getItem('persistedNotifications');
+          if (savedNotifications) {
+            const parsedNotifications = JSON.parse(savedNotifications);
+            const validNotifications = parsedNotifications.filter(notif => 
+              new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+            );
+            
+            if (validNotifications.length > 0) {
+              dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
+            }
+            
+            if (validNotifications.length !== parsedNotifications.length) {
+              localStorage.setItem('persistedNotifications', JSON.stringify(validNotifications));
+            }
           }
         }
-        setIsLoaded(true);
       } catch (error) {
-        // Error loading persisted notifications - corrupted data
+        console.warn('Error loading persisted notifications - corrupted data');
+        // Clean up corrupted data
+        if (currentWarehouseId) {
+          localStorage.removeItem(`persistedNotifications_warehouse_${currentWarehouseId}`);
+        }
         localStorage.removeItem('persistedNotifications');
-        setIsLoaded(true);
       }
     };
 
-    if (!isLoaded) {
+    if (!isLoaded && userDataReady && currentWarehouseId) {
       loadPersistedNotifications();
+      setIsLoaded(true);
     }
-  }, [dispatch, persistNotifications, isLoaded]);
+  }, [dispatch, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
 
-  // Persist notifications whenever they change (but only after initial load)
+  // ✅ ENHANCED: Persist notifications with warehouse awareness for admin
   useEffect(() => {
+    const persistNotifications = (notifications) => {
+      try {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin' && currentWarehouseId) {
+          // Store notifications per warehouse for admin
+          const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
+          const warehouseNotifications = notifications.filter(notif => 
+            notif.data?.warehouse_id === currentWarehouseId
+          );
+          
+          if (warehouseNotifications.length > 0) {
+            localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
+          }
+          
+          // Also maintain global admin notifications for migration purposes
+          localStorage.setItem('persistedNotifications_admin_all', JSON.stringify(notifications));
+        } else {
+          // Regular storage for non-admin users
+          if (notifications.length > 0) {
+            localStorage.setItem('persistedNotifications', JSON.stringify(notifications));
+          }
+        }
+      } catch (error) {
+        console.warn('Error persisting notifications - storage may be full');
+      }
+    };
+
     if (isLoaded && notifications.length >= 0) {
       persistNotifications(notifications);
     }
-  }, [notifications, persistNotifications, isLoaded]);
+  }, [notifications, isLoaded, currentWarehouseId, getCurrentUser]);
 
   // Re-evaluate existing expense notifications when threshold changes
   const reevaluateExpenseNotifications = useCallback((newThreshold) => {
@@ -569,7 +931,7 @@ const Notification = () => {
           setLargeExpenseThreshold(Number(savedThreshold));
         }
       } catch (error) {
-        // Error loading expense threshold - using default
+        console.warn('Error loading expense threshold - using default');
       }
     };
     
@@ -593,28 +955,36 @@ const Notification = () => {
     };
   }, [largeExpenseThreshold, reevaluateExpenseNotifications]);
 
-  // ✅ FIXED: Stock notifications without debug logs
+  // ✅ ENHANCED: Stock notifications with warehouse utils integration
   const checkStockNotifications = useCallback(async () => {
-    // Wait for user data to be available
-    const userData = await waitForUserData();
-    if (!userData) {
+    // Only proceed if user data is ready and warehouse is set
+    if (!userDataReady || !currentWarehouseId) {
       return;
     }
 
-    const { user, warehouseId } = userData;
+    const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
+    const warehouseId = currentWarehouseId;
     const processedIds = processedIdsRef.current;
     let newNotifications = 0;
 
     try {
-      // ✅ FIXED: Use warehouse ID (integer) in API call, not warehouse name
-      const stockResponse = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`, { 
-        timeout: 10000,
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json"
-        }
-      });
+      // ✅ Using warehouse utils for consistent configuration
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      config.timeout = 10000;
+      config.headers = {
+        ...config.headers,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json"
+      };
+
+      const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+      console.log('📦 Checking stock notifications for warehouse:', warehouseQueryParam);
+      
+      const stockResponse = await axios.get(
+        `http://localhost:8080/api/stocks/?warehouse=${warehouseQueryParam}`, 
+        config
+      );
       const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
 
       // Get previous stock levels for comparison
@@ -718,33 +1088,42 @@ const Notification = () => {
         
         // FORCE UPDATE after creating notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} stock notifications`);
       }
 
     } catch (error) {
-      // Error handled silently - API may be down
+      console.warn('❌ Stock notifications check failed:', error.message);
     }
-  }, [waitForUserData, addNotification]);
+  }, [currentWarehouseId, userDataReady, addNotification, getCurrentUser, currentWarehouse]);
 
-  // ✅ FIXED: Login stock check without debug logs
+  // ✅ ENHANCED: Login stock check with warehouse utils integration
   const checkLowStockOnLogin = useCallback(async () => {
-    // Wait for user data to be available
-    const userData = await waitForUserData();
-    if (!userData) {
+    // Only proceed if user data is ready and warehouse is set
+    if (!userDataReady || !currentWarehouseId) {
       return;
     }
 
-    const { user, warehouseId } = userData;
+    const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
+    const warehouseId = currentWarehouseId;
 
     try {
-      // ✅ FIXED: Use warehouse ID (integer) in API call, not warehouse name
-      const stockResponse = await axios.get(`http://localhost:8080/api/stocks/?warehouse=${warehouseId}`, { 
-        timeout: 10000,
-        headers: {
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json"
-        }
-      });
+      // ✅ Using warehouse utils for consistent configuration
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      config.timeout = 10000;
+      config.headers = {
+        ...config.headers,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json"
+      };
+
+      const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+      console.log('🔔 Login stock check for warehouse:', warehouseQueryParam);
+      
+      const stockResponse = await axios.get(
+        `http://localhost:8080/api/stocks/?warehouse=${warehouseQueryParam}`, 
+        config
+      );
       const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
 
       let loginNotifications = 0;
@@ -814,32 +1193,37 @@ const Notification = () => {
               icon: '/favicon.ico'
             });
           } catch (error) {
-            // Browser notification failed
+            console.warn('Browser notification failed');
           }
         }
+        
+        console.log(`✅ Created ${loginNotifications} login stock notifications`);
       }
 
     } catch (error) {
-      // Error handled silently - API may be down
+      console.warn('❌ Login stock check failed:', error.message);
     }
-  }, [waitForUserData, addNotification]);
-
-  // Enhanced expense notification checking without debug logs
+  }, [currentWarehouseId, userDataReady, addNotification, getCurrentUser, currentWarehouse]);
+  
+  // ✅ FIXED: Enhanced expense notification checking with proper filtering
   const checkExpenseNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
     try {
-      const config = { 
-        headers: { 
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json"
-        },
-        timeout: 5000
+      // ✅ Using warehouse utils for consistent configuration
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      config.timeout = 5000;
+      config.headers = {
+        ...config.headers,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json"
       };
 
-      // ✅ FIXED: Use warehouse ID (integer) in API call
+      const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+      console.log('💰 Checking expense notifications for warehouse:', warehouseQueryParam);
+      
       const expenseResponse = await axios.get(
-        `http://localhost:8080/api/miscellaneous-items/?warehouse=${warehouseId}`, 
+        `http://localhost:8080/api/miscellaneous-items/?warehouse=${warehouseQueryParam}`, 
         config
       );
       
@@ -853,18 +1237,60 @@ const Notification = () => {
       const previousExpensesKey = `previousExpenses_${warehouseId}`;
       const previousExpenses = JSON.parse(localStorage.getItem(previousExpensesKey) || '{}');
       const now = new Date().toISOString();
-
-      // Check for NEW or UPDATED expenses (last 30 minutes)
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+      
+      // ✅ FIXED: Check if this is the first time checking expenses
+      const isFirstTimeCheck = Object.keys(previousExpenses).length === 0;
+      
+      // ✅ FIXED: Reduced time window to 5 minutes to avoid old expenses
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      
+      // ✅ FIXED: Get current user to avoid notifying about other users' expenses
+      const currentUser = getCurrentUser();
+      const currentUserId = currentUser.id;
       
       expenses.forEach(expense => {
         const expenseId = `expense-${expense.id}-${warehouseId}`;
         const expenseDate = new Date(expense.created_at || expense.updated_at || now);
         const expenseAmount = Number(expense.amount || 0);
         const previousExpense = previousExpenses[expense.id];
+        
+        // ✅ FIXED: Skip if this is first time check and expense is older than 5 minutes
+        if (isFirstTimeCheck && expenseDate <= fiveMinutesAgo) {
+          // Store the expense but don't notify about old expenses on first load
+          previousExpenses[expense.id] = {
+            amount: expenseAmount,
+            description: expense.description,
+            updated_at: expense.updated_at || expense.created_at,
+            timestamp: now,
+            created_by: expense.created_by || expense.user_id
+          };
+          processedIds.add(expenseId); // Mark as processed to avoid future notifications
+          return; // Skip notification for old expenses on first load
+        }
 
-        // Check if this is a recent expense (created or updated)
-        if (expenseDate > thirtyMinutesAgo && !processedIds.has(expenseId)) {
+        // ✅ FIXED: Only notify about recent expenses AND check if already processed
+        if (expenseDate > fiveMinutesAgo && !processedIds.has(expenseId)) {
+          
+          // ✅ FIXED: Only notify if this user created the expense OR if it's a supervisor/admin monitoring all expenses
+          const shouldNotify = (
+            // If the expense was created by current user
+            (expense.created_by === currentUserId || expense.user_id === currentUserId) ||
+            // OR if current user is admin/supervisor (can see all expenses)
+            (userRole === 'admin' || userRole === 'supervisor')
+          );
+          
+          if (!shouldNotify) {
+            // Store the expense but don't notify about other users' expenses
+            previousExpenses[expense.id] = {
+              amount: expenseAmount,
+              description: expense.description,
+              updated_at: expense.updated_at || expense.created_at,
+              timestamp: now,
+              created_by: expense.created_by || expense.user_id
+            };
+            processedIds.add(expenseId);
+            return;
+          }
           
           // Determine if it's a creation or update
           const isUpdate = previousExpense && (
@@ -885,7 +1311,8 @@ const Notification = () => {
                 warehouse_id: warehouseId,
                 threshold: largeExpenseThreshold,
                 previous_amount: previousExpense.amount,
-                update_type: 'updated_to_large'
+                update_type: 'updated_to_large',
+                created_by: expense.created_by || expense.user_id || 'Unknown'
               }, userRole);
             } else if (amountChanged && wasLarge && !isNowLarge) {
               // Updated to become a normal expense
@@ -895,7 +1322,8 @@ const Notification = () => {
                 old_amount: previousExpense.amount,
                 change_type: expenseAmount > previousExpense.amount ? 'increased' : 'decreased',
                 amount_difference: Math.abs(expenseAmount - previousExpense.amount),
-                update_type: 'reduced_from_large'
+                update_type: 'reduced_from_large',
+                created_by: expense.created_by || expense.user_id || 'Unknown'
               }, userRole);
             } else if (isNowLarge) {
               // Still large but updated
@@ -904,7 +1332,8 @@ const Notification = () => {
                 warehouse_id: warehouseId,
                 threshold: largeExpenseThreshold,
                 previous_amount: previousExpense.amount,
-                update_type: 'large_expense_updated'
+                update_type: 'large_expense_updated',
+                created_by: expense.created_by || expense.user_id || 'Unknown'
               }, userRole);
             } else {
               // Normal update
@@ -913,7 +1342,8 @@ const Notification = () => {
                 warehouse_id: warehouseId,
                 old_amount: previousExpense.amount,
                 change_type: expenseAmount > previousExpense.amount ? 'increased' : 'decreased',
-                amount_difference: Math.abs(expenseAmount - previousExpense.amount)
+                amount_difference: Math.abs(expenseAmount - previousExpense.amount),
+                created_by: expense.created_by || expense.user_id || 'Unknown'
               }, userRole);
             }
           } else if (!previousExpense) {
@@ -923,13 +1353,15 @@ const Notification = () => {
                 ...expense, 
                 warehouse_id: warehouseId,
                 threshold: largeExpenseThreshold,
-                update_type: 'new_large_expense'
+                update_type: 'new_large_expense',
+                created_by: expense.created_by || expense.user_id || 'Unknown'
               }, userRole);
             } else {
               addNotification('expense_created', { 
                 ...expense, 
                 warehouse_id: warehouseId,
-                threshold: largeExpenseThreshold
+                threshold: largeExpenseThreshold,
+                created_by: expense.created_by || expense.user_id || 'Unknown'
               }, userRole);
             }
           }
@@ -943,38 +1375,51 @@ const Notification = () => {
           amount: expenseAmount,
           description: expense.description,
           updated_at: expense.updated_at || expense.created_at,
-          timestamp: now
+          timestamp: now,
+          created_by: expense.created_by || expense.user_id
         };
       });
 
-      // Check for DELETED expenses
-      Object.keys(previousExpenses).forEach(expenseId => {
-        const currentExpense = expenses.find(e => e.id.toString() === expenseId.toString());
-        if (!currentExpense) {
-          const deletedExpenseId = `expense-deleted-${expenseId}-${warehouseId}`;
-          
-          if (!processedIds.has(deletedExpenseId)) {
-            const expenseData = previousExpenses[expenseId];
-            const wasLarge = expenseData.amount >= largeExpenseThreshold;
+      // ✅ FIXED: Only check for deleted expenses if not first time check
+      if (!isFirstTimeCheck) {
+        Object.keys(previousExpenses).forEach(expenseId => {
+          const currentExpense = expenses.find(e => e.id.toString() === expenseId.toString());
+          if (!currentExpense) {
+            const deletedExpenseId = `expense-deleted-${expenseId}-${warehouseId}`;
             
-            addNotification('expense_deleted', { 
-              id: expenseId,
-              description: expenseData.description,
-              amount: expenseData.amount,
-              warehouse_id: warehouseId,
-              deleted_at: now,
-              was_large: wasLarge,
-              threshold: largeExpenseThreshold
-            }, userRole);
+            if (!processedIds.has(deletedExpenseId)) {
+              const expenseData = previousExpenses[expenseId];
+              const wasLarge = expenseData.amount >= largeExpenseThreshold;
+              
+              // ✅ FIXED: Only notify about deleted expenses if user created them or is admin/supervisor
+              const shouldNotifyDelete = (
+                (expenseData.created_by === currentUserId) ||
+                (userRole === 'admin' || userRole === 'supervisor')
+              );
+              
+              if (shouldNotifyDelete) {
+                addNotification('expense_deleted', { 
+                  id: expenseId,
+                  description: expenseData.description,
+                  amount: expenseData.amount,
+                  warehouse_id: warehouseId,
+                  deleted_at: now,
+                  was_large: wasLarge,
+                  threshold: largeExpenseThreshold,
+                  created_by: expenseData.created_by || 'Unknown'
+                }, userRole);
+                
+                newNotifications++;
+              }
+              
+              processedIds.add(deletedExpenseId);
+            }
             
-            processedIds.add(deletedExpenseId);
-            newNotifications++;
+            // Remove from previous expenses
+            delete previousExpenses[expenseId];
           }
-          
-          // Remove from previous expenses
-          delete previousExpenses[expenseId];
-        }
-      });
+        });
+      }
 
       // Save current expense state for next comparison
       localStorage.setItem(previousExpensesKey, JSON.stringify(previousExpenses));
@@ -982,14 +1427,227 @@ const Notification = () => {
       if (newNotifications > 0) {
         // FORCE UPDATE after creating expense notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} expense notifications`);
+      } else if (isFirstTimeCheck) {
+        console.log('📋 First time expense check - stored existing expenses without notifications');
       }
 
     } catch (error) {
-      // Error handled silently
+      console.warn('❌ Expense notifications check failed:', error.message);
     }
 
     return newNotifications;
-  }, [addNotification, largeExpenseThreshold]);
+  }, [addNotification, largeExpenseThreshold, currentWarehouse, getCurrentUser]);
+
+  // ✅ NEW: Comprehensive credit notification checking
+  const checkCreditNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
+    let newNotifications = 0;
+
+    try {
+      // ✅ Using warehouse utils for consistent configuration
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      config.timeout = 5000;
+      config.headers = {
+        ...config.headers,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json"
+      };
+
+      const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+      console.log('💳 Checking credit notifications for warehouse:', warehouseQueryParam);
+      
+      const creditResponse = await axios.get(
+        `http://localhost:8080/api/credits/?warehouse=${warehouseQueryParam}`, 
+        config
+      );
+      
+      const credits = Array.isArray(creditResponse.data) ? creditResponse.data : creditResponse.data?.results || [];
+
+      if (credits.length === 0) {
+        return newNotifications;
+      }
+
+      // Get previous credits for comparison
+      const previousCreditsKey = `previousCredits_${warehouseId}`;
+      const previousCredits = JSON.parse(localStorage.getItem(previousCreditsKey) || '{}');
+      const now = new Date().toISOString();
+      const today = new Date();
+      
+      // ✅ Check if this is the first time checking credits
+      const isFirstTimeCheck = Object.keys(previousCredits).length === 0;
+      
+      // ✅ Time windows for different notifications
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const currentUser = getCurrentUser();
+      const currentUserId = currentUser.id;
+      
+      credits.forEach(credit => {
+        const creditId = `credit-${credit.id}-${warehouseId}`;
+        const creditDate = new Date(credit.created_at || credit.updated_at || now);
+        const creditAmount = Number(credit.balance || credit.amount || 0);
+        const previousCredit = previousCredits[credit.id];
+        const creditStatus = (credit.status || '').toUpperCase();
+        const dueDate = credit.due_date ? new Date(credit.due_date) : null;
+        
+        // ✅ FIXED: Skip old credits on first load for creation notifications
+        if (isFirstTimeCheck && creditDate <= fiveMinutesAgo) {
+          // Store the credit but don't notify about old credits on first load
+          previousCredits[credit.id] = {
+            amount: creditAmount,
+            status: creditStatus,
+            balance: creditAmount,
+            due_date: credit.due_date,
+            customer_name: credit.customer_name,
+            updated_at: credit.updated_at || credit.created_at,
+            timestamp: now,
+            created_by: credit.created_by || credit.user_id
+          };
+          processedIds.add(creditId);
+          
+          // ✅ Check for overdue credits even on first load (but not new creation)
+          if (dueDate && today > dueDate && creditStatus !== 'PAID') {
+            const overdueId = `credit-overdue-${credit.id}-${warehouseId}`;
+            const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+            
+            if (!processedIds.has(overdueId)) {
+              // ✅ Only notify about overdue credits if user should see them
+              const shouldNotifyOverdue = (
+                (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
+                (userRole === 'admin' || userRole === 'supervisor')
+              );
+              
+              if (shouldNotifyOverdue) {
+                addNotification('credit_overdue', { 
+                  ...credit, 
+                  warehouse_id: warehouseId,
+                  days_overdue: daysOverdue,
+                  original_amount: credit.original_amount || creditAmount,
+                  overdue_notification: true
+                }, userRole);
+                newNotifications++;
+              }
+              
+              processedIds.add(overdueId);
+            }
+          }
+          
+          return; // Skip new creation notification for old credits
+        }
+
+        // ✅ Check for NEW CREDIT CREATED (recent credits only)
+        if (creditDate > fiveMinutesAgo && !processedIds.has(creditId)) {
+          
+          // ✅ Only notify if this user created the credit OR if it's a supervisor/admin
+          const shouldNotifyCreation = (
+            (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
+            (userRole === 'admin' || userRole === 'supervisor')
+          );
+          
+          if (shouldNotifyCreation && !previousCredit) {
+            addNotification('credit_created', { 
+              ...credit, 
+              warehouse_id: warehouseId,
+              credit_terms: credit.credit_terms || credit.terms || 30,
+              created_by: credit.created_by || credit.user_id || 'Unknown'
+            }, userRole);
+            newNotifications++;
+          }
+          
+          processedIds.add(creditId);
+        }
+
+        // ✅ Check for CREDIT STATUS CHANGES (PAID)
+        if (previousCredit && previousCredit.status !== creditStatus) {
+          const statusChangeId = `credit-status-${credit.id}-${warehouseId}-${creditStatus}`;
+          
+          if (!processedIds.has(statusChangeId)) {
+            if (creditStatus === 'PAID' && previousCredit.status !== 'PAID') {
+              // ✅ Credit was paid
+              const shouldNotifyPayment = (
+                (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
+                (userRole === 'admin' || userRole === 'supervisor')
+              );
+              
+              if (shouldNotifyPayment) {
+                addNotification('paid_credit', { 
+                  ...credit, 
+                  warehouse_id: warehouseId,
+                  payment_date: credit.updated_at || now,
+                  payment_method: credit.payment_method || 'Cash',
+                  previous_balance: previousCredit.balance || previousCredit.amount
+                }, userRole);
+                newNotifications++;
+              }
+            }
+            
+            processedIds.add(statusChangeId);
+          }
+        }
+
+        // ✅ Check for OVERDUE CREDITS (check all credits, not just recent ones)
+        if (dueDate && today > dueDate && creditStatus !== 'PAID') {
+          const overdueId = `credit-overdue-${credit.id}-${warehouseId}`;
+          const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+          
+          // ✅ Only notify once per day about overdue credits
+          const lastOverdueCheck = localStorage.getItem(`lastOverdueCheck_${credit.id}_${warehouseId}`);
+          const shouldCheckOverdue = !lastOverdueCheck || 
+            (new Date(lastOverdueCheck).toDateString() !== today.toDateString());
+          
+          if (shouldCheckOverdue && !processedIds.has(overdueId)) {
+            const shouldNotifyOverdue = (
+              (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
+              (userRole === 'admin' || userRole === 'supervisor')
+            );
+            
+            if (shouldNotifyOverdue) {
+              addNotification('credit_overdue', { 
+                ...credit, 
+                warehouse_id: warehouseId,
+                days_overdue: daysOverdue,
+                original_amount: credit.original_amount || creditAmount,
+                overdue_notification: true
+              }, userRole);
+              newNotifications++;
+              
+              // Mark as checked today
+              localStorage.setItem(`lastOverdueCheck_${credit.id}_${warehouseId}`, today.toISOString());
+            }
+            
+            processedIds.add(overdueId);
+          }
+        }
+
+        // Store current credit data for next comparison
+        previousCredits[credit.id] = {
+          amount: creditAmount,
+          status: creditStatus,
+          balance: creditAmount,
+          due_date: credit.due_date,
+          customer_name: credit.customer_name,
+          updated_at: credit.updated_at || credit.created_at,
+          timestamp: now,
+          created_by: credit.created_by || credit.user_id
+        };
+      });
+
+      // Save current credit state for next comparison
+      localStorage.setItem(previousCreditsKey, JSON.stringify(previousCredits));
+
+      if (newNotifications > 0) {
+        // FORCE UPDATE after creating credit notifications
+        setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} credit notifications`);
+      } else if (isFirstTimeCheck) {
+        console.log('💳 First time credit check - stored existing credits and checked for overdue');
+      }
+
+    } catch (error) {
+      console.warn('❌ Credit notifications check failed:', error.message);
+    }
+
+    return newNotifications;
+  }, [addNotification, currentWarehouse, getCurrentUser]);
 
   // Check system and role accessibility notifications (Admin only)
   const checkSystemNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
@@ -1010,6 +1668,8 @@ const Notification = () => {
       };
 
       const now = new Date().toISOString();
+
+      console.log('🔧 Checking system notifications for admin');
 
       // 1. CHECK USER ROLE CHANGES
       try {
@@ -1073,22 +1733,23 @@ const Notification = () => {
         localStorage.setItem(previousUsersKey, JSON.stringify(previousUsers));
         
       } catch (userError) {
-        // Users API not available
+        console.warn('Users API not available for system notifications');
       }
 
       if (newNotifications > 0) {
         // FORCE UPDATE after creating system notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} system notifications`);
       }
 
     } catch (error) {
-      // Error handled silently
+      console.warn('❌ System notifications check failed:', error.message);
     }
 
     return newNotifications;
   }, [addNotification]);
 
-  // Enhanced supplier notifications with Van Load MSP change detection
+  // Enhanced supplier notifications with Van Load MSP change detection and warehouse utils
   const checkSupplierNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
@@ -1102,6 +1763,8 @@ const Notification = () => {
       };
 
       const now = new Date().toISOString();
+
+      console.log('🏪 Checking supplier and warehouse notifications');
 
       // 1. CHECK SUPPLIERS
       const supplierResponse = await axios.get(`http://localhost:8080/api/suppliers/`, config);
@@ -1192,13 +1855,27 @@ const Notification = () => {
           }
         });
       } catch (returnError) {
-        // Supplier returns API not available
+        console.warn('Supplier returns API not available');
       }
 
       // 3. CHECK WAREHOUSE MSP (MERCHANDISING) OPERATIONS WITH VAN LOAD SUPPORT
       try {
-        // ✅ FIXED: Use warehouse ID (integer) in API call
-        const mspResponse = await axios.get(`http://localhost:8080/api/merchandisings/?warehouse=${warehouseId}`, config);
+        // ✅ Using warehouse utils for consistent MSP configuration
+        const mspConfig = getWarehouseAxiosConfig(currentWarehouse);
+        mspConfig.timeout = 5000;
+        mspConfig.headers = {
+          ...mspConfig.headers,
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json"
+        };
+
+        const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+        console.log('🚛 Checking MSP/Van Load notifications for warehouse:', warehouseQueryParam);
+        
+        const mspResponse = await axios.get(
+          `http://localhost:8080/api/merchandisings/?warehouse=${warehouseQueryParam}`, 
+          mspConfig
+        );
         const msps = Array.isArray(mspResponse.data) ? mspResponse.data : mspResponse.data?.results || [];
 
         // Get previous MSPs for comparison
@@ -1311,20 +1988,21 @@ const Notification = () => {
         localStorage.setItem(previousMSPsKey, JSON.stringify(previousMSPs));
         
       } catch (mspError) {
-        // MSP/Merchandising API not available
+        console.warn('❌ MSP/Merchandising API not available:', mspError.message);
       }
 
       if (newNotifications > 0) {
         // FORCE UPDATE after creating supplier/warehouse notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} supplier/warehouse notifications`);
       }
 
     } catch (error) {
-      // Error handled silently
+      console.warn('❌ Supplier notifications check failed:', error.message);
     }
 
     return newNotifications;
-  }, [addNotification]);
+  }, [addNotification, currentWarehouse]);
 
   // Check products and returns/refunds notifications (Admin only)
   const checkProductsAndReturnsNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
@@ -1345,6 +2023,8 @@ const Notification = () => {
       };
 
       const now = new Date().toISOString();
+
+      console.log('📦 Checking product and returns notifications for admin');
 
       // 1. CHECK PRODUCTS
       try {
@@ -1414,48 +2094,58 @@ const Notification = () => {
         localStorage.setItem(previousProductsKey, JSON.stringify(previousProducts));
         
       } catch (productsError) {
-        // Products API not available
+        console.warn('Products API not available');
       }
 
       if (newNotifications > 0) {
         // FORCE UPDATE after creating products/returns notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} product/returns notifications`);
       }
 
     } catch (error) {
-      // Error handled silently
+      console.warn('❌ Products/returns notifications check failed:', error.message);
     }
 
     return newNotifications;
   }, [addNotification]);
 
-  // Check ALL notification types when user performs actions
+  // ✅ ENHANCED: Check ALL notification types when user performs actions with warehouse utils and credit support
   const checkNotificationsOnAction = useCallback(async () => {
+    // Only proceed if user data is ready and we have a warehouse
+    if (!userDataReady || !currentWarehouseId) {
+      return;
+    }
+
+    console.log('🔄 Checking all notifications for warehouse:', currentWarehouseId);
+
     // First, always check stock notifications
     await checkStockNotifications();
 
     // Then check other notification types
     const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
-    const warehouseId = getCurrentWarehouse();
+    const warehouseId = currentWarehouseId;
     
     if (!userRole || !warehouseId) return;
 
-    const config = { 
-      headers: { "X-Warehouse-ID": warehouseId },
-      timeout: 5000
-    };
+    // ✅ Using warehouse utils for consistent configuration for all API calls
+    const config = getWarehouseAxiosConfig(currentWarehouse);
+    config.timeout = 5000;
 
     try {
       const apiCalls = [];
       const processedIds = processedIdsRef.current;
       let newNotifications = 0;
       
-      // Add other API calls (receiving, credits, etc.)
+      // Add other API calls (receiving, etc.)
       apiCalls.push(
-        axios.get(`http://localhost:8080/api/receiving/`, config).then(res => ({ type: 'receiving', data: res })).catch(() => null),
-        axios.get(`http://localhost:8080/api/credits/`, config).then(res => ({ type: 'credits', data: res })).catch(() => null)
+        axios.get(`http://localhost:8080/api/receiving/`, config).then(res => ({ type: 'receiving', data: res })).catch(() => null)
       );
+
+      // ✅ NEW: CREDITS (All users can see their own credits, admin/supervisor see all)
+      const creditNotifications = await checkCreditNotifications(warehouseId, userRole, processedIds);
+      newNotifications += creditNotifications;
 
       // EXPENSES (Admin & Supervisor only) - Call our enhanced expense checker
       if (['admin', 'supervisor'].includes(userRole)) {
@@ -1502,20 +2192,6 @@ const Notification = () => {
             });
             break;
 
-          case 'credits':
-            // NO time limit for credit payments
-            items.forEach(credit => {
-              const creditId = `credit-${credit.id}-${warehouseId}`;
-              
-              if (credit.status?.toUpperCase() === 'PAID' && 
-                  !processedIds.has(creditId)) {
-                addNotification('paid_credit', { ...credit, warehouse_id: warehouseId }, userRole);
-                processedIds.add(creditId);
-                newNotifications++;
-              }
-            });
-            break;
-
           default:
             // No action needed for unknown types
             break;
@@ -1529,17 +2205,144 @@ const Notification = () => {
         
         // FORCE UPDATE after all notifications are processed
         setTimeout(() => setForceUpdate(prev => prev + 1), 300);
+        console.log(`✅ Total new notifications created: ${newNotifications}`);
       }
 
     } catch (error) {
-      // Error handled silently
+      console.warn('❌ General notifications check failed:', error.message);
     }
-  }, [getCurrentUser, getCurrentWarehouse, addNotification, checkStockNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications]);
+  }, [userDataReady, currentWarehouseId, getCurrentUser, addNotification, checkStockNotifications, checkCreditNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications, currentWarehouse]);
+
+  // ✅ ENHANCED: Warehouse change handler with notification persistence for admin
+  useEffect(() => {
+    const handleWarehouseChange = async () => {
+      const user = getCurrentUser();
+      const userRole = user.role?.toLowerCase();
+      const newWarehouse = getCurrentWarehouse();
+      const newWarehouseId = newWarehouse?.id ? parseInt(newWarehouse.id) : null;
+      
+      if (newWarehouseId && newWarehouseId !== currentWarehouseId) {
+        console.log('🔄 Admin warehouse changed:', { old: currentWarehouseId, new: newWarehouseId });
+        
+        // ✅ Add transition effect
+        setIsTransitioning(true);
+        
+        // ✅ ADMIN: Preserve notifications from previous warehouse and load new warehouse notifications
+        if (userRole === 'admin') {
+          // Save current notifications for the old warehouse
+          if (currentWarehouseId) {
+            const currentWarehouseNotifications = notifications.filter(notif => 
+              notif.data?.warehouse_id === currentWarehouseId
+            );
+            
+            if (currentWarehouseNotifications.length > 0) {
+              try {
+                const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
+                localStorage.setItem(warehouseKey, JSON.stringify(currentWarehouseNotifications));
+                console.log(`💾 Saved ${currentWarehouseNotifications.length} notifications for warehouse ${currentWarehouseId}`);
+              } catch (error) {
+                console.warn('Failed to save warehouse notifications');
+              }
+            }
+          }
+          
+          // Load notifications for new warehouse
+          try {
+            const newWarehouseKey = `persistedNotifications_warehouse_${newWarehouseId}`;
+            const savedNewWarehouseNotifications = localStorage.getItem(newWarehouseKey);
+            
+            if (savedNewWarehouseNotifications) {
+              const parsedNotifications = JSON.parse(savedNewWarehouseNotifications);
+              const validNotifications = parsedNotifications.filter(notif => 
+                new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+              );
+              
+              // Merge with existing notifications from other warehouses
+              const otherWarehouseNotifications = notifications.filter(notif => 
+                notif.data?.warehouse_id !== currentWarehouseId && 
+                notif.data?.warehouse_id !== newWarehouseId
+              );
+              
+              const allNotifications = [...validNotifications, ...otherWarehouseNotifications];
+              dispatch({ type: 'SET_NOTIFICATIONS', payload: allNotifications });
+              
+              console.log(`📥 Loaded ${validNotifications.length} notifications for new warehouse ${newWarehouseId}`);
+            } else {
+              // Keep notifications from other warehouses, just filter out old warehouse
+              const otherWarehouseNotifications = notifications.filter(notif => 
+                notif.data?.warehouse_id !== currentWarehouseId
+              );
+              dispatch({ type: 'SET_NOTIFICATIONS', payload: otherWarehouseNotifications });
+              
+              console.log(`🔄 No saved notifications found for warehouse ${newWarehouseId}, starting fresh`);
+            }
+          } catch (error) {
+            console.warn('Failed to load new warehouse notifications');
+          }
+        }
+        
+        // Update current warehouse state
+        setCurrentWarehouse(newWarehouse);
+        setCurrentWarehouseId(newWarehouseId);
+        
+        // Force update to refresh UI immediately
+        setTimeout(() => {
+          setForceUpdate(prev => prev + 1);
+          setIsTransitioning(false);
+        }, 300);
+        
+        // Check for new notifications in the new warehouse
+        if (isLoaded && userDataReady) {
+          setTimeout(() => {
+            checkNotificationsOnAction();
+            // Also check for low stock when warehouse changes
+            checkLowStockOnLogin();
+          }, 1000);
+        }
+      }
+    };
+
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+
+    return () => {
+      window.removeEventListener('warehouseChanged', handleWarehouseChange);
+    };
+  }, [
+    currentWarehouseId, 
+    notifications, 
+    dispatch, 
+    checkNotificationsOnAction, 
+    checkLowStockOnLogin, 
+    isLoaded, 
+    userDataReady, 
+    getCurrentUser,
+    getCurrentWarehouse
+  ]);
+
+  // ✅ NEW: Periodic cleanup and credit due date checking
+  useEffect(() => {
+    if (!isLoaded || !userDataReady || !currentWarehouseId) return;
+
+    // Cleanup old notifications every hour
+    const cleanupInterval = setInterval(cleanupOldNotifications, 60 * 60 * 1000);
+    
+    // Check credit due dates every 30 minutes
+    const creditCheckInterval = setInterval(checkCreditDueDates, 30 * 60 * 1000);
+    
+    // Initial checks
+    cleanupOldNotifications();
+    checkCreditDueDates();
+
+    return () => {
+      clearInterval(cleanupInterval);
+      clearInterval(creditCheckInterval);
+    };
+  }, [isLoaded, userDataReady, currentWarehouseId, cleanupOldNotifications, checkCreditDueDates]);
 
   // Listen for Van Load update events with immediate notification creation
   useEffect(() => {
     const handleVanLoadUpdate = (event) => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady) {
         // Immediate notification creation instead of waiting for API check
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
@@ -1556,7 +2359,7 @@ const Notification = () => {
             expected_sale: detail.changes?.expected_sale || 0,
             actual_sale: detail.changes?.actual_sale || 0,
             status: detail.changes?.status || 'Updated',
-            warehouse_id: getCurrentWarehouse(),
+            warehouse_id: currentWarehouseId,
             updated_at: new Date().toISOString(),
             is_van_load: true,
             changes_summary: detail.summary || `Van Load ${detail.action}`,
@@ -1580,12 +2383,174 @@ const Notification = () => {
     return () => {
       window.removeEventListener('vanLoadUpdated', handleVanLoadUpdate);
     };
-  }, [checkNotificationsOnAction, isLoaded, addNotification, getCurrentUser, getCurrentWarehouse]);
+  }, [checkNotificationsOnAction, isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
+
+  // ✅ Listen for Van Load and Warehouse MSP creation events
+  useEffect(() => {
+    const handleVanLoadCreated = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (['admin', 'supervisor'].includes(userRole)) {
+          const detail = event.detail;
+          
+          // Create immediate notification for Van Load creation
+          const notificationData = {
+            id: detail.id,
+            msp_no: detail.msp_no,
+            transaction_type_name: 'Van Load',
+            handled_by: detail.handled_by,
+            route: detail.route,
+            van: detail.van,
+            expected_sale: detail.expected_sale || 0,
+            warehouse_id: detail.warehouse_id,
+            created_at: new Date().toISOString(),
+            is_van_load: true,
+            creation_type: 'Van Load',
+            status: 'Pending'
+          };
+          
+          // Add notification immediately
+          addNotification('warehouse_msp_created', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+      }
+    };
+
+    const handleWarehouseMspCreated = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (['admin', 'supervisor'].includes(userRole)) {
+          const detail = event.detail;
+          
+          // Create immediate notification for Warehouse MSP creation
+          const notificationData = {
+            id: detail.id,
+            msp_no: detail.msp_no,
+            transaction_type_name: detail.transaction_type_name,
+            handled_by: detail.handled_by,
+            customer: detail.customer,
+            expected_sale: detail.expected_sale || 0,
+            actual_sale: detail.actual_sale || 0,
+            warehouse_id: detail.warehouse_id,
+            created_at: new Date().toISOString(),
+            is_van_load: false,
+            creation_type: detail.transaction_type_name,
+            status: 'Complete'
+          };
+          
+          // Add notification immediately
+          addNotification('warehouse_msp_created', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+      }
+    };
+
+    window.addEventListener('vanLoadCreated', handleVanLoadCreated);
+    window.addEventListener('warehouseMspCreated', handleWarehouseMspCreated);
+    
+    return () => {
+      window.removeEventListener('vanLoadCreated', handleVanLoadCreated);
+      window.removeEventListener('warehouseMspCreated', handleWarehouseMspCreated);
+    };
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
+
+  // ✅ NEW: Listen for credit-related events
+  useEffect(() => {
+    const handleCreditCreated = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        const detail = event.detail;
+        
+        // Create immediate notification for credit creation
+        const notificationData = {
+          id: detail.id,
+          msp_no: detail.msp_no,
+          customer_name: detail.customer_name,
+          balance: detail.balance || detail.amount,
+          due_date: detail.due_date,
+          credit_terms: detail.credit_terms || 30,
+          warehouse_id: detail.warehouse_id || currentWarehouseId,
+          created_at: new Date().toISOString(),
+          created_by: detail.created_by || user.id
+        };
+        
+        // Add notification immediately
+        addNotification('credit_created', notificationData, userRole);
+        
+        // FORCE UPDATE after immediate notification
+        setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+      }
+    };
+
+    const handleCreditPaid = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        const detail = event.detail;
+        
+        // Create immediate notification for credit payment
+        const notificationData = {
+          id: detail.id,
+          msp_no: detail.msp_no,
+          customer_name: detail.customer_name,
+          balance: detail.balance || detail.amount,
+          payment_amount: detail.payment_amount || detail.balance,
+          payment_method: detail.payment_method || 'Cash',
+          warehouse_id: detail.warehouse_id || currentWarehouseId,
+          updated_at: new Date().toISOString(),
+          payment_date: new Date().toISOString()
+        };
+        
+        // Add notification immediately
+        addNotification('paid_credit', notificationData, userRole);
+        
+        // FORCE UPDATE after immediate notification
+        setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+      }
+    };
+
+    // ✅ ENHANCED: Listen for credit payment notifications from external events
+    const handleCreditPaymentReceived = (event) => {
+      if (isLoaded && userDataReady) {
+        const detail = event.detail;
+        
+        triggerCreditNotification({
+          id: detail.creditId,
+          msp_no: detail.mspNo,
+          customer_name: detail.customerName,
+          balance: detail.paidAmount,
+          payment_amount: detail.paidAmount,
+          payment_method: detail.paymentMethod || 'Cash',
+          payment_date: new Date().toISOString(),
+          warehouse_id: detail.warehouseId || currentWarehouseId
+        }, 'paid');
+      }
+    };
+
+    window.addEventListener('creditCreated', handleCreditCreated);
+    window.addEventListener('creditPaid', handleCreditPaid);
+    window.addEventListener('creditPaymentReceived', handleCreditPaymentReceived);
+    
+    return () => {
+      window.removeEventListener('creditCreated', handleCreditCreated);
+      window.removeEventListener('creditPaid', handleCreditPaid);
+      window.removeEventListener('creditPaymentReceived', handleCreditPaymentReceived);
+    };
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId, triggerCreditNotification]);
 
   // Listen for role permission updates with immediate notification creation
   useEffect(() => {
     const handleRolePermissionUpdate = (event) => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady) {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
@@ -1600,7 +2565,7 @@ const Notification = () => {
             new_role: detail.roleName,
             old_role: detail.action === 'updated' ? 'Previous Role' : null,
             updated_by: user.username || user.name || 'Admin',
-            warehouse_id: getCurrentWarehouse(),
+            warehouse_id: currentWarehouseId,
             updated_at: new Date().toISOString(),
             changes: {
               permissions: detail.permissions,
@@ -1630,12 +2595,12 @@ const Notification = () => {
     return () => {
       window.removeEventListener('rolePermissionsUpdated', handleRolePermissionUpdate);
     };
-  }, [isLoaded, addNotification, getCurrentUser, getCurrentWarehouse, checkNotificationsOnAction]);
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId, checkNotificationsOnAction]);
 
   // Listen for admin settings change events with immediate notification creation
   useEffect(() => {
     const handleAdminSettingsUpdate = (event) => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady) {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
@@ -1649,7 +2614,7 @@ const Notification = () => {
             old_value: detail.oldValue || 'Previous Value',
             new_value: detail.newValue || 'Updated Value',
             changed_by: user.username || user.name || 'Admin',
-            warehouse_id: getCurrentWarehouse(),
+            warehouse_id: currentWarehouseId,
             updated_at: new Date().toISOString(),
             changes: {
               value: { old: detail.oldValue, new: detail.newValue },
@@ -1685,12 +2650,12 @@ const Notification = () => {
       window.removeEventListener('configurationUpdated', handleAdminSettingsUpdate);
       window.removeEventListener('systemSettingsModified', handleAdminSettingsUpdate);
     };
-  }, [isLoaded, addNotification, getCurrentUser, getCurrentWarehouse, checkNotificationsOnAction]);
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId, checkNotificationsOnAction]);
 
   // Listen for product management events
   useEffect(() => {
     const handleProductUpdate = (event) => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady) {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
@@ -1704,7 +2669,7 @@ const Notification = () => {
             product_code: detail.productCode,
             category: detail.category,
             selling_price: detail.price,
-            warehouse_id: getCurrentWarehouse(),
+            warehouse_id: currentWarehouseId,
             updated_at: new Date().toISOString(),
             changes: detail.changes,
             updated_by: user.username || user.name || 'Admin'
@@ -1720,7 +2685,7 @@ const Notification = () => {
     };
 
     const handleReturnUpdate = (event) => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady) {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
@@ -1735,7 +2700,7 @@ const Notification = () => {
             refund_amount: detail.amount,
             items_count: detail.itemsCount,
             return_reason: detail.reason,
-            warehouse_id: getCurrentWarehouse(),
+            warehouse_id: currentWarehouseId,
             processed_at: new Date().toISOString(),
             refund_method: detail.method || 'Cash'
           };
@@ -1758,32 +2723,32 @@ const Notification = () => {
       window.removeEventListener('productUpdated', handleProductUpdate);
       window.removeEventListener('returnProcessed', handleReturnUpdate);
     };
-  }, [isLoaded, addNotification, getCurrentUser, getCurrentWarehouse]);
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
 
-  // ✅ ENHANCED: Listen for user login events without debug logs
+  // ✅ ENHANCED: Listen for user login events with warehouse utils integration
   useEffect(() => {
     const handleUserLogin = () => {
       // Set login time for tracking
       localStorage.setItem('loginTime', Date.now().toString());
       
-      if (isLoaded) {
-        // Wait longer for user data to be properly stored
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        // Wait for user data to be properly established
         setTimeout(() => {
           checkLowStockOnLogin();
-        }, 3000); // Increased delay
+        }, 3000);
       } else {
-        // If not loaded yet, set a flag to check later
+        // If not ready yet, set a flag to check later
         localStorage.setItem('pendingLoginNotificationCheck', 'true');
       }
     };
 
     const handleSessionRestore = () => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady && currentWarehouseId) {
         setTimeout(() => {
           checkLowStockOnLogin();
         }, 2000);
       } else {
-        // If not loaded yet, set a flag to check later
+        // If not ready yet, set a flag to check later
         localStorage.setItem('pendingLoginNotificationCheck', 'true');
       }
     };
@@ -1795,16 +2760,16 @@ const Notification = () => {
       window.removeEventListener('userLoggedIn', handleUserLogin);
       window.removeEventListener('userSessionRestored', handleSessionRestore);
     };
-  }, [isLoaded, checkLowStockOnLogin]);
+  }, [isLoaded, userDataReady, currentWarehouseId, checkLowStockOnLogin]);
 
-  // ✅ ENHANCED: Check for login stock notifications when component becomes loaded
+  // ✅ ENHANCED: Check for login stock notifications when all dependencies are ready
   useEffect(() => {
-    if (isLoaded) {
+    if (isLoaded && userDataReady && currentWarehouseId) {
       // Check if this is a fresh login session (within last 2 minutes) OR if there's a pending check
       const loginTime = localStorage.getItem('loginTime');
       const pendingCheck = localStorage.getItem('pendingLoginNotificationCheck');
       const now = Date.now();
-      const isRecentLogin = loginTime && (now - parseInt(loginTime)) < 120000; // Increased to 2 minutes
+      const isRecentLogin = loginTime && (now - parseInt(loginTime)) < 120000; // 2 minutes
       
       if (isRecentLogin || pendingCheck) {
         // This is a recent login or we have a pending check, check for stock notifications
@@ -1817,12 +2782,12 @@ const Notification = () => {
         localStorage.removeItem('pendingLoginNotificationCheck');
       }
     }
-  }, [isLoaded, checkLowStockOnLogin]);
+  }, [isLoaded, userDataReady, currentWarehouseId, checkLowStockOnLogin]);
 
   // Listen for user activities that might trigger notifications
   useEffect(() => {
     const handleUserActivity = () => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady && currentWarehouseId) {
         checkNotificationsOnAction();
       }
     };
@@ -1831,7 +2796,7 @@ const Notification = () => {
 
     // Handle visibility change separately
     const handleVisibilityChange = () => {
-      if (!document.hidden && isLoaded) {
+      if (!document.hidden && isLoaded && userDataReady && currentWarehouseId) {
         handleUserActivity();
       }
     };
@@ -1843,7 +2808,7 @@ const Notification = () => {
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     // Check when notification dropdown is opened
-    if (isOpen && isLoaded) {
+    if (isOpen && isLoaded && userDataReady && currentWarehouseId) {
       checkNotificationsOnAction();
     }
 
@@ -1853,157 +2818,147 @@ const Notification = () => {
       });
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [checkNotificationsOnAction, isOpen, isLoaded]);
+  }, [checkNotificationsOnAction, isOpen, isLoaded, userDataReady, currentWarehouseId]);
 
-  // Listen for stocks page visits
+  // ✅ NEW: Listen for credit page visits to check overdue credits
+  useEffect(() => {
+    const handleCreditsPageVisit = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        // All users can see their own credits, admin/supervisor see all
+        checkCreditNotifications(currentWarehouseId, userRole, processedIdsRef.current);
+      }
+    };
+
+    window.addEventListener('creditsPageVisited', handleCreditsPageVisit);
+    
+    return () => {
+      window.removeEventListener('creditsPageVisited', handleCreditsPageVisit);
+    };
+  }, [checkCreditNotifications, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
+
+  // Listen for page-specific visits with warehouse awareness
   useEffect(() => {
     const handleStocksPageVisit = () => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady && currentWarehouseId) {
         checkStockNotifications();
       }
     };
 
-    window.addEventListener('stocksPageVisited', handleStocksPageVisit);
-    
-    return () => {
-      window.removeEventListener('stocksPageVisited', handleStocksPageVisit);
-    };
-  }, [checkStockNotifications, isLoaded]);
-
-  // Listen for expenses page visits
-  useEffect(() => {
     const handleExpensesPageVisit = () => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady && currentWarehouseId) {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
-        const warehouseId = getCurrentWarehouse();
         
-        if (['admin', 'supervisor'].includes(userRole) && warehouseId) {
-          checkExpenseNotifications(warehouseId, userRole, processedIdsRef.current);
+        if (['admin', 'supervisor'].includes(userRole)) {
+          checkExpenseNotifications(currentWarehouseId, userRole, processedIdsRef.current);
         }
       }
     };
 
-    window.addEventListener('expensesPageVisited', handleExpensesPageVisit);
-    
-    return () => {
-      window.removeEventListener('expensesPageVisited', handleExpensesPageVisit);
-    };
-  }, [checkExpenseNotifications, isLoaded, getCurrentUser, getCurrentWarehouse, largeExpenseThreshold]);
-
-  // Listen for supplier page visits
-  useEffect(() => {
     const handleSuppliersPageVisit = () => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady && currentWarehouseId) {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
-        const warehouseId = getCurrentWarehouse();
         
-        if (['admin', 'supervisor'].includes(userRole) && warehouseId) {
-          checkSupplierNotifications(warehouseId, userRole, processedIdsRef.current);
+        if (['admin', 'supervisor'].includes(userRole)) {
+          checkSupplierNotifications(currentWarehouseId, userRole, processedIdsRef.current);
         }
       }
     };
 
-    window.addEventListener('suppliersPageVisited', handleSuppliersPageVisit);
-    
-    return () => {
-      window.removeEventListener('suppliersPageVisited', handleSuppliersPageVisit);
-    };
-  }, [checkSupplierNotifications, isLoaded, getCurrentUser, getCurrentWarehouse]);
-
-  // Listen for admin settings page visits
-  useEffect(() => {
     const handleAdminPageVisit = () => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady && currentWarehouseId) {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
-        const warehouseId = getCurrentWarehouse();
         
-        if (userRole === 'admin' && warehouseId) {
-          checkSystemNotifications(warehouseId, userRole, processedIdsRef.current);
+        if (userRole === 'admin') {
+          checkSystemNotifications(currentWarehouseId, userRole, processedIdsRef.current);
         }
       }
     };
 
+    const handleProductsPageVisit = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin') {
+          checkProductsAndReturnsNotifications(currentWarehouseId, userRole, processedIdsRef.current);
+        }
+      }
+    };
+
+    // Add event listeners for page visits
+    window.addEventListener('stocksPageVisited', handleStocksPageVisit);
+    window.addEventListener('expensesPageVisited', handleExpensesPageVisit);
+    window.addEventListener('suppliersPageVisited', handleSuppliersPageVisit);
     window.addEventListener('adminPageVisited', handleAdminPageVisit);
     window.addEventListener('settingsPageVisited', handleAdminPageVisit);
     window.addEventListener('userManagementPageVisited', handleAdminPageVisit);
     window.addEventListener('rolesPageVisited', handleAdminPageVisit);
-    
-    return () => {
-      window.removeEventListener('adminPageVisited', handleAdminPageVisit);
-      window.removeEventListener('settingsPageVisited', handleAdminPageVisit);
-      window.removeEventListener('userManagementPageVisited', handleAdminPageVisit);
-      window.removeEventListener('rolesPageVisited', handleAdminPageVisit);
-    };
-  }, [checkSystemNotifications, isLoaded, getCurrentUser, getCurrentWarehouse]);
-
-  // Listen for products page visits
-  useEffect(() => {
-    const handleProductsPageVisit = () => {
-      if (isLoaded) {
-        const user = getCurrentUser();
-        const userRole = user.role?.toLowerCase();
-        const warehouseId = getCurrentWarehouse();
-        
-        if (userRole === 'admin' && warehouseId) {
-          checkProductsAndReturnsNotifications(warehouseId, userRole, processedIdsRef.current);
-        }
-      }
-    };
-
     window.addEventListener('productsPageVisited', handleProductsPageVisit);
     window.addEventListener('returnsPageVisited', handleProductsPageVisit);
     
     return () => {
+      window.removeEventListener('stocksPageVisited', handleStocksPageVisit);
+      window.removeEventListener('expensesPageVisited', handleExpensesPageVisit);
+      window.removeEventListener('suppliersPageVisited', handleSuppliersPageVisit);
+      window.removeEventListener('adminPageVisited', handleAdminPageVisit);
+      window.removeEventListener('settingsPageVisited', handleAdminPageVisit);
+      window.removeEventListener('userManagementPageVisited', handleAdminPageVisit);
+      window.removeEventListener('rolesPageVisited', handleAdminPageVisit);
       window.removeEventListener('productsPageVisited', handleProductsPageVisit);
       window.removeEventListener('returnsPageVisited', handleProductsPageVisit);
     };
-  }, [checkProductsAndReturnsNotifications, isLoaded, getCurrentUser, getCurrentWarehouse]);
+  }, [checkStockNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
 
   // Listen for page navigation/route changes
   useEffect(() => {
     const handlePageChange = () => {
-      if (isLoaded) {
+      if (isLoaded && userDataReady && currentWarehouseId) {
         setTimeout(() => checkNotificationsOnAction(), 2000);
       }
     };
 
     window.addEventListener('popstate', handlePageChange);
     
-    // Initial check on mount (after notifications are loaded)
-    if (isLoaded) {
+    // Initial check on mount (after all dependencies are ready)
+    if (isLoaded && userDataReady && currentWarehouseId) {
       setTimeout(() => checkNotificationsOnAction(), 3000);
     }
 
     return () => {
       window.removeEventListener('popstate', handlePageChange);
     };
-  }, [checkNotificationsOnAction, isLoaded]);
+  }, [checkNotificationsOnAction, isLoaded, userDataReady, currentWarehouseId]);
 
-  // Warehouse change handler
+  // ✅ NEW: Daily overdue credit check
   useEffect(() => {
-    const handleWarehouseChange = () => {
-      const newWarehouseId = getCurrentWarehouse();
-      if (newWarehouseId !== currentWarehouseId) {
-        setCurrentWarehouseId(newWarehouseId);
+    const checkOverdueCreditsDaily = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
         
-        if (isLoaded) {
-          setTimeout(() => checkNotificationsOnAction(), 1000);
-          // Also check for low stock when warehouse changes
-          setTimeout(() => checkLowStockOnLogin(), 1500);
-        }
+        // Trigger credit notifications check for overdue credits
+        checkCreditNotifications(currentWarehouseId, userRole, processedIdsRef.current);
       }
     };
 
-    window.addEventListener('warehouseChanged', handleWarehouseChange);
-    setCurrentWarehouseId(getCurrentWarehouse());
+    // Check overdue credits on mount and then every hour
+    const checkOverdueInterval = setInterval(checkOverdueCreditsDaily, 60 * 60 * 1000); // Every hour
+
+    // Initial check
+    if (isLoaded && userDataReady && currentWarehouseId) {
+      checkOverdueCreditsDaily();
+    }
 
     return () => {
-      window.removeEventListener('warehouseChanged', handleWarehouseChange);
+      clearInterval(checkOverdueInterval);
     };
-  }, [getCurrentWarehouse, currentWarehouseId, checkNotificationsOnAction, isLoaded, checkLowStockOnLogin]);
+  }, [isLoaded, userDataReady, currentWarehouseId, checkCreditNotifications, getCurrentUser]);
 
   // Proper click outside handling that respects detail modal
   useEffect(() => {
@@ -2093,7 +3048,7 @@ const Notification = () => {
     setShowOptionsMenu(false);
   };
 
-  // Update the getNotificationIcon function to include the new icons
+  // ✅ ENHANCED: Update the getNotificationIcon function to include credit icons
   const getNotificationIcon = (type, priority) => {
     const iconProps = { 
       className: `text-lg ${
@@ -2108,7 +3063,10 @@ const Notification = () => {
       'out_of_stock': faExclamationTriangle,
       'stock_adjustment': faEdit,
       'new_receiving': faWarehouse,
-      'paid_credit': faCreditCard,
+      // ✅ ENHANCED: Credit notification icons
+      'credit_created': faCreditCard,
+      'credit_overdue': faExclamationCircle,
+      'paid_credit': faCheck,
       'supplier_added': faUserTie,
       'supplier_updated': faEdit,
       'supplier_return_processed': faUndo,  
@@ -2173,16 +3131,70 @@ const Notification = () => {
     );
   };
 
+  // ✅ ENHANCED: Better warehouse name display with transition and admin handling
   const getCurrentWarehouseName = () => {
+    if (currentWarehouse?.name) {
+      return currentWarehouse.name;
+    }
+    
     const user = getCurrentUser();
     if (user.role?.toLowerCase() === "admin") {
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
       if (selectedWarehouse?.name) {
         return selectedWarehouse.name;
       }
+      
+      // Show "No Warehouse Selected" instead of "Unknown"
+      return currentWarehouseId ? "Loading..." : "Select Warehouse";
     }
+    
     return user.warehouse || "Unknown Warehouse";
   };
+
+  // ✅ ENHANCED: Better notification count calculation for admin with warehouse context
+  const currentWarehouseUnreadCount = React.useMemo(() => {
+    const user = getCurrentUser();
+    const userRole = user.role?.toLowerCase();
+    
+    if (!currentWarehouseId) {
+      return 0;
+    }
+    
+    const count = notifications.filter(notif => {
+      // Check if notification is unread
+      const isUnread = !notif.is_read;
+      if (!isUnread) return false;
+      
+      // Check warehouse filtering
+      const hasWarehouseId = notif.data?.warehouse_id;
+      const isCurrentWarehouse = hasWarehouseId && notif.data.warehouse_id === currentWarehouseId;
+      
+      // ✅ ADMIN: Show notifications for current warehouse
+      if (userRole === 'admin') {
+        return isCurrentWarehouse;
+      }
+      
+      // ✅ NON-ADMIN: Show only notifications for their assigned warehouse with permission check
+      if (['supervisor', 'cashier', 'staff'].includes(userRole) && isCurrentWarehouse) {
+        // Check if user has permission for this notification type
+        const hasPermission = hasNotificationPermission?.(notif.type, userRole);
+        
+        // For credit notifications, also check if it's their own or if they can see all
+        if (['credit_created', 'credit_overdue', 'paid_credit'].includes(notif.type)) {
+          const isOwnCredit = (notif.data?.created_by === user.id || notif.data?.user_id === user.id);
+          const canSeeAllCredits = ['admin', 'supervisor'].includes(userRole);
+          
+          return hasPermission && (isOwnCredit || canSeeAllCredits);
+        }
+        
+        return hasPermission;
+      }
+      
+      return false;
+    }).length;
+    
+    return count;
+  }, [notifications, currentWarehouseId, getCurrentUser, hasNotificationPermission]);
 
   // Strict warehouse filtering - Van Load notifications only show in correct warehouse
   const filteredNotifications = (activeTab === 'all' 
@@ -2195,42 +3207,35 @@ const Notification = () => {
       return false;
     });
 
-  // Calculate unread count with proper memoization
-  const currentWarehouseUnreadCount = React.useMemo(() => {
-    const count = notifications.filter(notif => {
-      const hasWarehouseId = notif.data?.warehouse_id;
-      const isCurrentWarehouse = hasWarehouseId && notif.data.warehouse_id === currentWarehouseId;
-      const isUnread = !notif.is_read;
-      
-      return isCurrentWarehouse && isUnread;
-    }).length;
-    
-    return count;
-  }, [notifications, currentWarehouseId]);
-
   return (
     <>
       <div className="relative" ref={dropdownRef}>
-        {/* Notification Bell Icon */}
+        {/* Notification Bell Icon with transition effect */}
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="relative p-2 text-white hover:text-gray-300 focus:outline-none transition-colors"
-          title={`${currentWarehouseUnreadCount} unread notifications`}
+          className={`relative p-2 text-white hover:text-gray-300 focus:outline-none transition-all duration-200 ${
+            isTransitioning ? 'opacity-70 transform scale-95' : 'opacity-100 transform scale-100'
+          }`}
+          title={`${currentWarehouseUnreadCount} unread notifications for ${getCurrentWarehouseName()}`}
         >
           <FontAwesomeIcon icon={faBell} className="text-lg" />
           {currentWarehouseUnreadCount > 0 && (
             <span 
               key={`badge-${currentWarehouseUnreadCount}-${forceUpdate}`}
-              className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold animate-pulse"
+              className={`absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold transition-all duration-200 ${
+                isTransitioning ? 'animate-bounce' : 'animate-pulse'
+              }`}
             >
               {currentWarehouseUnreadCount > 99 ? '99+' : currentWarehouseUnreadCount}
             </span>
           )}
         </button>
 
-        {/* Notification Dropdown - TALLER CONTAINER */}
+        {/* Notification Dropdown - ENHANCED WITH BETTER ADMIN HANDLING */}
         {isOpen && (
-          <div className="absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[600px] overflow-hidden">
+          <div className={`absolute right-0 mt-2 w-96 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50 max-h-[600px] overflow-hidden transition-all duration-200 ${
+            isTransitioning ? 'opacity-90 transform scale-98' : 'opacity-100 transform scale-100'
+          }`}>
             {/* Header */}
             <div className="p-4 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-start justify-between mb-3">
@@ -2239,11 +3244,19 @@ const Notification = () => {
                     Notifications
                   </h3>
                   <div className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed mt-1">
-                    <div className="font-medium text-gray-700 dark:text-gray-300">{getCurrentWarehouseName()}</div>
+                    <div className="font-medium text-gray-700 dark:text-gray-300 flex items-center">
+                      {getCurrentWarehouseName()}
+                      {isTransitioning && (
+                        <FontAwesomeIcon icon={faSync} className="ml-2 text-blue-500 animate-spin" />
+                      )}
+                    </div>
+                    {!userDataReady && (
+                      <div className="text-orange-600 dark:text-orange-400 mt-1">Setting up warehouse...</div>
+                    )}
                   </div>
                 </div>
                 
-                {/* Options Menu */}
+                {/* Enhanced Options Menu */}
                 <div className="relative flex-shrink-0" ref={optionsRef}>
                   <button
                     onClick={() => setShowOptionsMenu(!showOptionsMenu)}
@@ -2253,7 +3266,7 @@ const Notification = () => {
                   </button>
                   
                   {showOptionsMenu && (
-                    <div className="absolute right-0 mt-1 w-40 bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 z-10">
+                    <div className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-700 rounded-md shadow-lg border border-gray-200 dark:border-gray-600 z-10">
                       <button
                         onClick={markAllAsRead}
                         className="w-full text-left px-4 py-2 text-sm text-blue-600 hover:bg-gray-50 dark:text-blue-400 dark:hover:bg-gray-600 flex items-center"
@@ -2267,6 +3280,21 @@ const Notification = () => {
                       >
                         <FontAwesomeIcon icon={faTrash} className="mr-2" />
                         Clear all
+                      </button>
+                      <div className="border-t border-gray-200 dark:border-gray-600"></div>
+                      <button
+                        onClick={() => exportNotifications('json')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-600 flex items-center"
+                      >
+                        <FontAwesomeIcon icon={faDownload} className="mr-2" />
+                        Export JSON
+                      </button>
+                      <button
+                        onClick={() => exportNotifications('csv')}
+                        className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-600 flex items-center"
+                      >
+                        <FontAwesomeIcon icon={faDownload} className="mr-2" />
+                        Export CSV
                       </button>
                       <div className="border-t border-gray-200 dark:border-gray-600"></div>
                       <button
@@ -2306,30 +3334,36 @@ const Notification = () => {
               </div>
             </div>
 
-            {/* Notifications List - TALLER SCROLLABLE AREA */}
+            {/* Notifications List - ENHANCED LOADING STATES */}
             <div className="max-h-96 overflow-y-auto">
-              {!isLoaded ? (
+              {!isLoaded || !userDataReady ? (
                 <div className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
                     <FontAwesomeIcon icon={faBell} className="text-2xl text-gray-400 dark:text-gray-500 animate-pulse" />
                   </div>
                   <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Loading Notifications...
+                    {isTransitioning ? 'Switching Warehouse...' : 'Loading Notifications...'}
                   </h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 break-words">
-                    Setting up notification system...
+                    {isTransitioning 
+                      ? `Loading notifications for ${getCurrentWarehouseName()}...` 
+                      : 'Setting up notification system with warehouse utils...'
+                    }
                   </p>
                 </div>
               ) : filteredNotifications.length === 0 ? (
                 <div className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                    <FontAwesomeIcon icon={faBell} className="text-2xl text-gray-400 dark:text-gray-500" />
+                    <FontAwesomeIcon icon={activeTab === 'unread' ? faBellSlash : faBell} className="text-2xl text-gray-400 dark:text-gray-500" />
                   </div>
                   <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    No Notifications Here
+                    {activeTab === 'unread' ? 'All Caught Up!' : 'No Notifications Here'}
                   </h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    No notifications for {getCurrentWarehouseName()} right now.
+                    {activeTab === 'unread' 
+                      ? 'No unread notifications for ' + getCurrentWarehouseName()
+                      : 'No notifications for ' + getCurrentWarehouseName() + ' right now.'
+                    }
                   </p>
                 </div>
               ) : (
@@ -2370,6 +3404,16 @@ const Notification = () => {
                               {notification.type === 'paid_credit' && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                                   PAID
+                                </span>
+                              )}
+                              {notification.type === 'credit_overdue' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+                                  OVERDUE
+                                </span>
+                              )}
+                              {notification.type === 'credit_created' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                                  CREDIT
                                 </span>
                               )}
                               {notification.data?.login_check && (
@@ -2436,6 +3480,16 @@ const Notification = () => {
                       {selectedNotification.type === 'paid_credit' && (
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                           Credit Payment
+                        </span>
+                      )}
+                      {selectedNotification.type === 'credit_overdue' && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300">
+                          Overdue Credit
+                        </span>
+                      )}
+                      {selectedNotification.type === 'credit_created' && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300">
+                          New Credit
                         </span>
                       )}
                       {selectedNotification.data?.login_check && (

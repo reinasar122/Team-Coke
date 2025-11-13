@@ -1,3 +1,5 @@
+# api/views.py - CORRECTED VERSION WITH CONSISTENT WAREHOUSE FILTERING
+
 from decimal import Decimal, InvalidOperation          # 👈 for to_decimal()
 from django.db import transaction
 from django.shortcuts import get_object_or_404  
@@ -76,12 +78,43 @@ from .serializers import (
     CreditPaymentCreateSerializer,
 )
 
+# ✅ HELPER FUNCTION: Get user warehouse filtering
+def get_user_warehouse_filter(user, query_param_warehouse=None):
+    """
+    Helper function to determine warehouse filtering for a user.
+    Returns warehouse_id to filter by, or None for no filtering.
+    """
+    # For non-admin users, always filter by their warehouse
+    if hasattr(user, 'warehouse_id') and user.warehouse_id:
+        if not (hasattr(user, 'role') and getattr(user.role, 'name', '').lower() == 'admin'):
+            return user.warehouse_id
+    
+    # For admin users, use query parameter if provided
+    if query_param_warehouse:
+        try:
+            return int(query_param_warehouse)
+        except (ValueError, TypeError):
+            # If admin provides invalid warehouse_id, fall back to their warehouse
+            if hasattr(user, 'warehouse_id') and user.warehouse_id:
+                return user.warehouse_id
+    
+    # For admin without query param, use their warehouse if available
+    if hasattr(user, 'warehouse_id') and user.warehouse_id:
+        return user.warehouse_id
+    
+    return None
+
 class CreditLedgerListCreateAPIView(generics.ListCreateAPIView):
     def get_queryset(self):
         queryset = CreditLedger.objects.all()
-        warehouse_id = self.request.query_params.get('warehouse')
+        
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             queryset = queryset.filter(warehouse_id=warehouse_id)
+        
         return queryset
 
     def get_serializer_class(self):
@@ -90,12 +123,18 @@ class CreditLedgerListCreateAPIView(generics.ListCreateAPIView):
 class CreditLedgerDetailAPIView(generics.RetrieveAPIView):
     def get_queryset(self):
         queryset = CreditLedger.objects.all()
-        warehouse_id = self.request.query_params.get('warehouse')
+        
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             queryset = queryset.filter(warehouse_id=warehouse_id)
+        
         return queryset
     
     serializer_class = CreditLedgerDetailSerializer
+
 class CreditPaymentCreateAPIView(APIView):
     def post(self, request, pk):
         credit = get_object_or_404(CreditLedger, pk=pk)
@@ -104,9 +143,6 @@ class CreditPaymentCreateAPIView(APIView):
         serializer.save()
         detail = CreditLedgerDetailSerializer(credit)
         return Response(detail.data, status=status.HTTP_201_CREATED)
-
-
-
 
 # kerkmodify this part  otp
 # Temporary OTP storage (in production use cache like Redis or DB)
@@ -139,7 +175,6 @@ class SendOTPAPIView(APIView):
 
         print(f"📩 OTP for {email}: {otp} (valid 5 mins)")
         return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
-
 
 class VerifyOTPAPIView(APIView):
     def post(self, request):
@@ -192,21 +227,12 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
         """
         queryset = super().get_queryset()
         
-        # Get warehouse filter from query params
-        warehouse_id = self.request.query_params.get('warehouse', None)
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse', None)
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
         
         if warehouse_id:
-            try:
-                warehouse_id = int(warehouse_id)
-                queryset = queryset.filter(warehouse_id=warehouse_id)
-            except (ValueError, TypeError):
-                pass  # Invalid warehouse_id, return unfiltered for now
-        
-        # For non-admin users, filter by their warehouse automatically
-        user = self.request.user
-        if hasattr(user, 'warehouse_id') and user.warehouse_id:
-            if not (hasattr(user, 'role') and user.role.lower() == 'admin'):
-                queryset = queryset.filter(warehouse_id=user.warehouse_id)
+            queryset = queryset.filter(warehouse_id=warehouse_id)
         
         return queryset.select_related('transaction_type', 'warehouse', 'customer', 'route', 'van')
 
@@ -281,7 +307,6 @@ class RoleListCreateView(generics.ListCreateAPIView):
     """View to list all roles or create a new one"""
     queryset = Role.objects.all()
     serializer_class = RoleSerializer
-
 
 class RoleDetailView(generics.RetrieveUpdateDestroyAPIView):
     """View to retrieve, update, or delete a role by ID"""
@@ -381,7 +406,6 @@ class UserListCreateView(generics.ListCreateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
 
-
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """View to retrieve, update, or delete a user by ID"""
     queryset = User.objects.all()
@@ -427,8 +451,6 @@ class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
             "warehouse_name": instance.warehouse_name
         })
 
-
-
 # List all warehouses or create a new one
 class WarehouseListCreateView(generics.ListCreateAPIView):
     queryset = Warehouse.objects.all()
@@ -439,14 +461,29 @@ class WarehouseDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Warehouse.objects.all()
     serializer_class = WarehouseSerializer
     
-
 class SupplierListCreateView(generics.ListCreateAPIView):
-    queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
+    
+    def get_queryset(self):
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
+        if warehouse_id:
+            return Supplier.objects.filter(warehouse_id=warehouse_id)
+        return Supplier.objects.all()
 
 class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Supplier.objects.all()
     serializer_class = SupplierSerializer
+    
+    def get_queryset(self):
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
+        if warehouse_id:
+            return Supplier.objects.filter(warehouse_id=warehouse_id)
+        return Supplier.objects.all()
 
     def destroy(self, request, *args, **kwargs):
         supplier = self.get_object()
@@ -470,12 +507,14 @@ class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-
 class VanListCreateView(generics.ListCreateAPIView):
     serializer_class = VanSerializer
 
     def get_queryset(self):
-        warehouse_id = self.request.query_params.get('warehouse')
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             return Van.objects.filter(warehouse_id=warehouse_id)
         return Van.objects.all()
@@ -485,8 +524,16 @@ class VanListCreateView(generics.ListCreateAPIView):
         serializer.save()
 
 class VanRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Van.objects.all()
     serializer_class = VanSerializer
+    
+    def get_queryset(self):
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
+        if warehouse_id:
+            return Van.objects.filter(warehouse_id=warehouse_id)
+        return Van.objects.all()
 
 #Products
 
@@ -522,12 +569,14 @@ class PricingDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Pricing.objects.all()
     serializer_class = PricingSerializer
 
-
 class ProductListCreateView(generics.ListCreateAPIView):
     serializer_class = ProductSerializer
 
     def get_queryset(self):
-        warehouse_id = self.request.query_params.get('warehouse_id')
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse_id')  # Keep warehouse_id for compatibility
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             return Product.objects.filter(warehouse_id=warehouse_id)
         return Product.objects.all()
@@ -541,7 +590,10 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProductSerializer
     
     def get_queryset(self):
-        warehouse_id = self.request.query_params.get('warehouse_id')
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse_id')  # Keep warehouse_id for compatibility
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             return Product.objects.filter(warehouse_id=warehouse_id)
         return Product.objects.all()
@@ -567,22 +619,27 @@ def next_product_code(request):
     next_code = f"PRD-{next_id:04d}"
     return Response({"system_code": next_code})
 
-
-
-
-
 # ===== RECEIVING MODULE =====
 class ReceivingListCreateView(generics.ListCreateAPIView):
     serializer_class = ReceivingSerializer
 
     def get_queryset(self):
+        # ✅ FIXED: Support both header and query param methods
         warehouse_id = self.request.headers.get('X-Warehouse-ID')
+        if not warehouse_id:
+            warehouse_param = self.request.query_params.get('warehouse')
+            warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             return Receiving.objects.select_related('supplier', 'warehouse').prefetch_related('details').filter(warehouse_id=warehouse_id).order_by('-id')
         return Receiving.objects.select_related('supplier', 'warehouse').prefetch_related('details').order_by('-id')
 
     def perform_create(self, serializer):
         warehouse_id = self.request.headers.get('X-Warehouse-ID')
+        if not warehouse_id:
+            warehouse_param = self.request.query_params.get('warehouse')
+            warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         print(f"Received warehouse_id: {warehouse_id}")  # Debug log
 
         if warehouse_id:
@@ -611,12 +668,16 @@ class ReceivingListCreateView(generics.ListCreateAPIView):
             print(traceback.format_exc())
             return Response({"detail": f"Error creating receiving: {str(e)}"}, status=500)
 
-
 class ReceivingDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ReceivingSerializer
     
     def get_queryset(self):
+        # ✅ FIXED: Support both header and query param methods
         warehouse_id = self.request.headers.get('X-Warehouse-ID')
+        if not warehouse_id:
+            warehouse_param = self.request.query_params.get('warehouse')
+            warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             return Receiving.objects.filter(warehouse_id=warehouse_id)
         return Receiving.objects.all()
@@ -626,7 +687,9 @@ class StockListCreateView(generics.ListCreateAPIView):
     serializer_class = StockSerializer
 
     def get_queryset(self):
-        warehouse_id = self.request.query_params.get('warehouse', None)
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse', None)
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
         
         queryset = Stock.objects.select_related('product', 'warehouse').all()
         
@@ -648,11 +711,14 @@ class StockListCreateView(generics.ListCreateAPIView):
 class StockDetailView(APIView):
     def get(self, request):
         product_id = request.query_params.get("product_id")
-        warehouse_id = request.query_params.get("warehouse")
+        warehouse_param = request.query_params.get("warehouse")
 
         if not product_id:
             return Response({"detail": "Product ID is required."}, status=400)
 
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         filters = {'product_id': product_id}
         if warehouse_id:
             filters['warehouse_id'] = warehouse_id
@@ -663,11 +729,9 @@ class StockDetailView(APIView):
         except Stock.DoesNotExist:
             return Response({"quantity_available": 0})  # ← Instead of NotFound
 
-
 class RouteListCreateView(generics.ListCreateAPIView):
     queryset = Route.objects.all()
     serializer_class = RouteSerializer
-
 
 # TransactionType Views
 def get_user_warehouse(request):
@@ -692,12 +756,6 @@ class TransactionTypeListCreateView(generics.ListCreateAPIView):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    def create(self, request, *args, **kwargs):
-        return Response(
-            {"detail": "Transaction types are managed by the system."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
 class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = TransactionType.objects.all()
     serializer_class = TransactionTypeSerializer
@@ -714,39 +772,38 @@ class TransactionTypeDetailView(generics.RetrieveUpdateDestroyAPIView):
             status=status.HTTP_403_FORBIDDEN
         )
 
-    def update(self, request, *args, **kwargs):
-        return Response(
-            {"detail": "Transaction types cannot be updated."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
-    def destroy(self, request, *args, **kwargs):
-        return Response(
-            {"detail": "Transaction types cannot be deleted."},
-            status=status.HTTP_403_FORBIDDEN
-        )
-
-
 class CustomerListCreateView(generics.ListCreateAPIView):
     serializer_class = CustomerSerializer
 
     def get_queryset(self):
-        warehouse_id = get_user_warehouse(self.request)
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             return Customer.objects.filter(warehouse=warehouse_id).order_by('name')
         return Customer.objects.all().order_by('name')
 
     def perform_create(self, serializer):
-        warehouse_id = get_user_warehouse(self.request)
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             serializer.save(warehouse_id=warehouse_id)
         else:
             serializer.save()
 
 class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
-
+    
+    def get_queryset(self):
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
+        if warehouse_id:
+            return Customer.objects.filter(warehouse=warehouse_id)
+        return Customer.objects.all()
 
 # ------------------------------------------------------------
 # MerchandisingSale (summary list) – simple list/create/update
@@ -771,8 +828,6 @@ class MerchandisingSaleViewSet(viewsets.ModelViewSet):
             total_expenses_amount=data.get("total_expenses_amount", 0) or 0
         )
 
-
-
 # ------------------------------------------------------------
 # Merchandising CRUD (nested create handled by serializer)
 # ------------------------------------------------------------
@@ -787,9 +842,14 @@ class MerchandisingListCreateView(generics.ListCreateAPIView):
             .prefetch_related("items", "misc_items", "payments")   # <-- ensure related_name='misc_items' on model
             .order_by("-id")
         )
-        warehouse_id = get_user_warehouse(self.request)
+        
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             qs = qs.filter(warehouse_id=warehouse_id)
+        
         return qs
 
     def create(self, request, *args, **kwargs):
@@ -806,7 +866,8 @@ class MerchandisingListCreateView(generics.ListCreateAPIView):
         print(">>> VIEWS.perform_create validated misc_items len:", len(vd.get("misc_items", [])))
 
         # Always attach warehouse from logged-in user (if present)
-        warehouse_id = get_user_warehouse(self.request)
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
 
         # Save and log the created object id
         if warehouse_id:
@@ -816,15 +877,22 @@ class MerchandisingListCreateView(generics.ListCreateAPIView):
 
         print(">>> VIEWS.perform_create created Merchandising id:", obj.id)
 
-
-
-
 class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
-    queryset = Merchandising.objects.select_related(
-        "transaction_type", "route", "van", "warehouse"
-    ).prefetch_related("items", "misc_items", "payments")
     serializer_class = MerchandisingSerializer
-
+    
+    def get_queryset(self):
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
+        queryset = Merchandising.objects.select_related(
+            "transaction_type", "route", "van", "warehouse"
+        ).prefetch_related("items", "misc_items", "payments")
+        
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        return queryset
 
 class MerchandisingListView(generics.ListAPIView):
     serializer_class = MerchandisingSerializer
@@ -833,20 +901,21 @@ class MerchandisingListView(generics.ListAPIView):
         qs = Merchandising.objects.select_related(
             "transaction_type", "route", "van", "warehouse"
         ).prefetch_related("items", "misc_items", "payments").order_by("-id")
-        warehouse_id = get_user_warehouse(self.request)
+        
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             qs = qs.filter(warehouse_id=warehouse_id)
+        
         return qs
-
-
-
 
 @api_view(['GET'])
 def merchandising_sales_list(request):
     sales = MerchandisingSale.objects.all().order_by('-id')
     serializer = MerchandisingSaleSerializer(sales, many=True)
     return Response(serializer.data)
-
 
 # ------------------------------------------------------------
 # Next MSP number preview (mirrors model save() logic)
@@ -859,11 +928,15 @@ class NextMspNoView(APIView):
     """
     def get(self, request):
         tt_id = request.query_params.get("transaction_type")
-        warehouse_id = request.query_params.get("warehouse")
+        warehouse_param = request.query_params.get("warehouse")
 
         if not tt_id:
             return Response({"detail": "Transaction type is required."},
                             status=status.HTTP_400_BAD_REQUEST)
+
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if not warehouse_id:
             return Response({"detail": "Warehouse is required."},
                             status=status.HTTP_400_BAD_REQUEST)
@@ -911,7 +984,6 @@ class NextMspNoView(APIView):
             msp_no = f"{prefix}-{(prev_num + 1):04d}"
             return Response({"msp_no": msp_no})
 
-
         # api/views.py, in NextMspNoView.get()
         if tt_name == "van load":
             seq = MSPSequence.objects.filter(
@@ -923,18 +995,17 @@ class NextMspNoView(APIView):
             msp_no = f"{prefix}-{next_num:04d}"
             return Response({"msp_no": msp_no})
 
-
-
         # Fallback
         return Response({"msp_no": f"{prefix}-0001"})
-
 
 # ------------------------------------------------------------
 # Stock endpoints (warehouse-scoped, safe math)
 # ------------------------------------------------------------
 class StockAvailabilityView(APIView):
     def get(self, request, product_id):
-        warehouse_id = get_user_warehouse(request)
+        warehouse_param = request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         try:
             if warehouse_id:
                 stock = Stock.objects.get(product_id=product_id, warehouse_id=warehouse_id)
@@ -949,10 +1020,11 @@ class StockAvailabilityView(APIView):
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
 
-
 class UpdateStockView(APIView):
     def put(self, request, product_id):
-        warehouse_id = get_user_warehouse(request)
+        warehouse_param = request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         try:
             if warehouse_id:
                 stock = Stock.objects.get(product_id=product_id, warehouse_id=warehouse_id)
@@ -977,10 +1049,11 @@ class UpdateStockView(APIView):
         except Stock.DoesNotExist:
             return Response({"detail": "Product stock not found."}, status=status.HTTP_404_NOT_FOUND)
 
-
 @api_view(['PATCH'])
 def restore_stock(request, pk):
-    warehouse_id = get_user_warehouse(request)
+    warehouse_param = request.query_params.get('warehouse')
+    warehouse_id = get_user_warehouse_filter(request.user, warehouse_param)
+    
     try:
         if warehouse_id:
             stock = Stock.objects.get(product_id=pk, warehouse_id=warehouse_id)
@@ -1004,7 +1077,6 @@ def restore_stock(request, pk):
     except Stock.DoesNotExist:
         return Response({'error': 'Stock not found'}, status=404)
 
-
 # ------------------------------------------------------------
 # MerchandisingItem (optional simple endpoints)
 # ------------------------------------------------------------
@@ -1012,11 +1084,9 @@ class MerchandisingItemListCreateView(generics.ListCreateAPIView):
     queryset = MerchandisingItem.objects.select_related("merchandising", "product").all()
     serializer_class = MerchandisingItemSerializer
 
-
 class MerchandisingItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MerchandisingItem.objects.select_related("merchandising", "product").all()
     serializer_class = MerchandisingItemSerializer
-
 
 @api_view(["GET"])
 @permission_classes([AllowAny])
@@ -1026,7 +1096,9 @@ def warehouse_groups_view(request):
       - warehouse: int (defaults to logged-in user's warehouse if available)
       - date: YYYY-MM-DD  (optional; if not provided, returns recent groups)
     """
-    warehouse_id = request.query_params.get("warehouse") or get_user_warehouse(request)
+    warehouse_param = request.query_params.get("warehouse")
+    warehouse_id = get_user_warehouse_filter(request.user, warehouse_param)
+    
     day = request.query_params.get("date")
 
     # Only 'Warehouse' transactions, scoped by warehouse
@@ -1058,7 +1130,6 @@ def warehouse_groups_view(request):
 
     return Response(data)
 
-
 # --- NEW: Details per Warehouse MSP (aggregate items by product) ---
 from django.db.models import Sum, Max
 
@@ -1075,7 +1146,9 @@ def warehouse_details_view(request):
     if not msp_no:
         return Response({"detail": "msp_no is required."}, status=400)
 
-    warehouse_id = request.query_params.get("warehouse") or get_user_warehouse(request)
+    warehouse_param = request.query_params.get("warehouse")
+    warehouse_id = get_user_warehouse_filter(request.user, warehouse_param)
+    
     day = request.query_params.get("date")
 
     header_qs = Merchandising.objects.filter(
@@ -1125,7 +1198,6 @@ def warehouse_details_view(request):
         "overall_total": overall_total,
     })
 
-
 class VanLoadReturnView(APIView):
     # keep auth if the rest of your API uses it
     # permission_classes = [IsAuthenticated]
@@ -1145,7 +1217,7 @@ class VanLoadReturnView(APIView):
         except Merchandising.DoesNotExist:
             return Response({"detail": "Sale not found."}, status=404)
 
-        # idempotency guard (don’t double-add)
+        # idempotency guard (don't double-add)
         if getattr(sale, "full_returns_applied", False):
             return Response({"detail": "Returns already applied for this sale."}, status=409)
 
@@ -1183,13 +1255,12 @@ class VanLoadReturnView(APIView):
                 stk.quantity_available = int(stk.quantity_available or 0) + pcs
                 stk.save()
 
-            # mark so we can’t apply twice
+            # mark so we can't apply twice
             if hasattr(sale, "full_returns_applied"):
                 sale.full_returns_applied = True
                 sale.save(update_fields=["full_returns_applied"])
 
         return Response({"ok": True}, status=200)
-
 
 class MiscellaneousItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = MiscellaneousItem.objects.all()
@@ -1200,7 +1271,10 @@ class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         queryset = MiscellaneousItem.objects.all()
-        warehouse_id = self.request.query_params.get('warehouse')
+        
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
         
         if warehouse_id:
             # Filter by warehouse through merchandising relationship
@@ -1212,14 +1286,14 @@ class MiscellaneousItemListCreateView(generics.ListCreateAPIView):
     
     def perform_create(self, serializer):
         # Get warehouse from request data
-        warehouse_id = self.request.data.get('warehouse')
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
         
         # Save the serializer with the warehouse if provided
         if warehouse_id:
             serializer.save(warehouse_id=warehouse_id)
         else:
             serializer.save()
-
 
 class PaymentListCreateView(generics.ListCreateAPIView):
     queryset = Payment.objects.all()
@@ -1233,7 +1307,10 @@ class ReturnableStockListCreateView(generics.ListCreateAPIView):
     serializer_class = ReturnableStockSerializer
 
     def get_queryset(self):
-        warehouse_id = get_user_warehouse(self.request)
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             return ReturnableStock.objects.filter(warehouse=warehouse_id)
         return ReturnableStock.objects.all()
@@ -1246,7 +1323,10 @@ class SupplierReturnListCreateView(generics.ListCreateAPIView):
     serializer_class = SupplierReturnSerializer
 
     def get_queryset(self):
-        warehouse_id = get_user_warehouse(self.request)
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse')
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             return SupplierReturn.objects.filter(warehouse=warehouse_id)
         return SupplierReturn.objects.all()
@@ -1270,7 +1350,6 @@ class LoginAPIView(APIView):
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.contrib.auth.tokens import default_token_generator
@@ -1303,16 +1382,16 @@ class ChangePasswordAPIView(APIView):
 
         return Response({"success": "Password changed successfully"})
 
-
-
 class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
     serializer_class = SupplierReturnFormSerializer
 
     def get_queryset(self):
         queryset = SupplierReturnForm.objects.all().order_by('-date')
         
-        # Filter by warehouse if warehouse_id is provided in query params
-        warehouse_id = self.request.query_params.get('warehouse_id', None)
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse_id', None)  # Keep warehouse_id for compatibility
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             queryset = queryset.filter(warehouse_id=warehouse_id)
         
@@ -1324,8 +1403,10 @@ class SupplierReturnFormDetailView(generics.RetrieveDestroyAPIView):
     def get_queryset(self):
         queryset = SupplierReturnForm.objects.all()
         
-        # Optional: Filter by warehouse for additional security
-        warehouse_id = self.request.query_params.get('warehouse_id', None)
+        # ✅ FIXED: Apply consistent warehouse filtering
+        warehouse_param = self.request.query_params.get('warehouse_id', None)  # Keep warehouse_id for compatibility
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+        
         if warehouse_id:
             queryset = queryset.filter(warehouse_id=warehouse_id)
         
@@ -1370,7 +1451,9 @@ class ProcessEmptiesReturnView(APIView):
     def post(self, request):
         try:
             return_date = request.data.get('return_date')
-            warehouse_id = request.data.get('warehouse_id')
+            warehouse_param = request.data.get('warehouse_id')
+            warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
+            
             items = request.data.get('items', [])
             
             if not warehouse_id:
@@ -1519,8 +1602,6 @@ def to_int(v, default=0):
     except Exception:
         return int(default)
 
-
-
 class VanLoadReturnAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]  # adjust if needed
 
@@ -1628,7 +1709,6 @@ class VanLoadReturnAPIView(APIView):
         # and log the update_fields about to be saved:
         print(">>> DEBUG will update:", fields_to_update)
 
-
         if de is not None:
             merch.discrepancy_empty = dz(de)
             fields_to_update.append('discrepancy_empty')
@@ -1644,8 +1724,6 @@ class VanLoadReturnAPIView(APIView):
             merch.returned_with_content = dz(returned_with_content)
             fields_to_update.append('returned_with_content')
             print(f"Updating returned_with_content: {returned_with_content}")
-
-
 
         # Log the fields to update
         print(">>> Fields to update:", fields_to_update)
@@ -1667,8 +1745,6 @@ class VanLoadReturnAPIView(APIView):
             "returned_with_content": str(merch.returned_with_content),
 
         }, status=status.HTTP_200_OK)
-
-
     
 # --- BULK stock adjustments (add/deduct in PCS) -----------------------
 class BulkAdjustStockView(APIView):
@@ -1676,12 +1752,16 @@ class BulkAdjustStockView(APIView):
 
     def post(self, request):
         data = request.data or {}
-        wid = data.get("warehouse") or get_user_warehouse(request)
+        warehouse_param = data.get("warehouse")
+        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
 
         try:
-            wid = int(wid)
+            warehouse_id = int(warehouse_id) if warehouse_id else None
         except (TypeError, ValueError):
             return Response({"detail": "warehouse must be an integer"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not warehouse_id:
+            return Response({"detail": "warehouse is required"}, status=status.HTTP_400_BAD_REQUEST)
 
         items = data.get("items") or []
         if not isinstance(items, list) or not items:
@@ -1689,9 +1769,9 @@ class BulkAdjustStockView(APIView):
 
         # Ensure warehouse exists
         try:
-            Warehouse.objects.only("id").get(id=wid)
+            Warehouse.objects.only("id").get(id=warehouse_id)
         except Warehouse.DoesNotExist:
-            return Response({"detail": f"warehouse {wid} not found"}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": f"warehouse {warehouse_id} not found"}, status=status.HTTP_400_BAD_REQUEST)
 
         results = []
         try:
@@ -1720,10 +1800,10 @@ class BulkAdjustStockView(APIView):
                     # Lock row to avoid race conditions; create if missing
                     stock = (Stock.objects
                              .select_for_update()
-                             .filter(product_id=pid, warehouse_id=wid)
+                             .filter(product_id=pid, warehouse_id=warehouse_id)
                              .first())
                     if stock is None:
-                        stock = Stock(product_id=pid, warehouse_id=wid, quantity_available=0)
+                        stock = Stock(product_id=pid, warehouse_id=warehouse_id, quantity_available=0)
 
                     old_qty = int(stock.quantity_available or 0)
                     new_qty = old_qty + delta
@@ -1744,12 +1824,10 @@ class BulkAdjustStockView(APIView):
                         "new_qty": int(stock.quantity_available),
                     })
 
-            return Response({"warehouse": wid, "results": results}, status=status.HTTP_200_OK)
+            return Response({"warehouse": warehouse_id, "results": results}, status=status.HTTP_200_OK)
 
         except Exception as e:
             return Response({"detail": f"bulk-adjust failed: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
 
 class VanLoadReturnUpdateAPIView(APIView):
     def post(self, request, *args, **kwargs):
@@ -1866,7 +1944,6 @@ class VanLoadReturnUpdateAPIView(APIView):
                 sale.returned_with_content = to_decimal(returned_with_content)
                 fields_to_update.append('returned_with_content')
                 print(f"Updating returned_with_content: {returned_with_content}")
-
 
                 # Log the fields to update
                 print(">>> DEBUG Fields to update:", fields_to_update)
