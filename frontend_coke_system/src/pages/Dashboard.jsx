@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx - COMPLETE INTEGRATED VERSION WITH ALL FUNCTIONS FROM BOTH VERSIONS (FULL 2210+ LINES)
+// src/pages/Dashboard.jsx - FIXED VERSION WITH WAREHOUSE UTILS INTEGRATION + API IMPORT
 import React, {
   useEffect,
   useMemo,
@@ -22,7 +22,7 @@ import {
   getWarehouseQueryParam,
   findWarehouseByName 
 } from "../utils/warehouseUtils";
-import api from "../api"; // ✅ correct
+import api from "../api"; // ✅ API import integration
 
 /* -------------------- Skeleton Component -------------------- */
 const Skeleton = ({ className = "" }) => (
@@ -649,19 +649,6 @@ const saveSelection = (ids) => {
   } catch {}
 };
 
-/* -------------------- API helpers -------------------- */
-const getCurrentWarehouseId = () => {
-  const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-  if ((user.role || "").toLowerCase() === "admin") {
-    return selectedWarehouse?.id || user.warehouse_id;
-  }
-  // 🔧 For supervisors, warehouse_id might not exist, but warehouse name might
-  // This function will return undefined for now, and the dashboard will handle warehouse matching by name
-  return user.warehouse_id;
-};
-const apiCfgForWarehouse = (wid) => (wid ? { headers: { "X-Warehouse-ID": wid } } : {});
-
 /* -------------------- Helper function to check data availability -------------------- */
 const getDataAvailability = (lists) => {
   const hasData = (data) => {
@@ -691,7 +678,7 @@ const getDataAvailability = (lists) => {
   };
 };
 
-/* -------------------- 🔧 COMPLETELY FIXED: Enhanced fetchDashboard with SUPER STRICT CREDIT FILTERING + DEDUPLICATION -------------------- */
+/* -------------------- 🔧 FIXED: Enhanced fetchDashboard with warehouse utils integration + API import -------------------- */
 async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", customStartDate = '', customEndDate = '') {
   console.log('🏢 Fetching dashboard for warehouses:', selectedWarehouseIds);
   console.log('📅 Filtering data for period:', period, customStartDate, customEndDate);
@@ -707,20 +694,15 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   
   console.log('📊 Date range for filtering:', { startDate, endDate });
   
-  // 🔧 INTEGRATED: Use both approaches - try warehouse utils first, then getCurrentWarehouseId
+  // Use warehouse utils to get current warehouse if none provided
   const warehouseIds = selectedWarehouseIds.length > 0 ? selectedWarehouseIds : (() => {
     const currentWarehouse = getCurrentWarehouse();
-    if (currentWarehouse?.id) {
-      return [currentWarehouse.id];
-    }
-    // Fallback to the new version's approach
-    const fallbackId = getCurrentWarehouseId();
-    return fallbackId ? [fallbackId] : [];
+    return currentWarehouse?.id ? [currentWarehouse.id] : [];
   })();
   
-  console.log('🎯 Strictly filtering for warehouse IDs:', warehouseIds);
+  console.log('🎯 Using warehouse IDs for data fetch:', warehouseIds);
   
-  if (warehouseIds.length === 0 || warehouseIds.includes(null) || warehouseIds.includes(undefined)) {
+  if (warehouseIds.length === 0) {
     console.warn('⚠️ No valid warehouse IDs provided, returning empty data');
     return {
       metrics: {
@@ -759,17 +741,15 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     };
   }
 
-  // Create parallel requests for each warehouse using integrated approach
+  // Create parallel requests for each warehouse using warehouse utils + API integration
   const warehouseRequests = warehouseIds.map(async (wid) => {
     if (!wid) return null;
     
     console.log(`🔄 Fetching data for warehouse ID: ${wid}`);
     
-    // 🔧 INTEGRATED: Use both new and old approach for API calls
+    // Use warehouse utils for consistent config but with API import
     const warehouseConfig = getWarehouseAxiosConfig({ id: wid });
     const warehouseParam = getWarehouseQueryParam({ id: wid });
-    const qsWid = `?warehouse=${wid}`;
-    const qsWidId = `?warehouse_id=${wid}`;
 
     try {
       const [
@@ -784,46 +764,30 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
         rolesRes,
         vansRes,
       ] = await Promise.all([
-        api.get(`/stocks/${qsWid}`),
-        api.get(`/products/${qsWidId}`),
-        api.get(`/receiving/`, apiCfgForWarehouse(wid)),
-        api.get(`/merchandising-set/`, { params: { warehouse: wid } }),
-        api.get(`/credits/`, apiCfgForWarehouse(wid)),
-        api.get(`/supplier-return-form/${qsWidId}`),
-        api.get(`/merchandisings/${qsWid}`),
-        api.get(`/users/`, apiCfgForWarehouse(wid)),
+        api.get(`/stocks/?warehouse=${warehouseParam}`),
+        api.get(`/products/?warehouse_id=${warehouseParam}`),
+        api.get(`/receiving/`, warehouseConfig),
+        api.get(`/merchandising-set/?warehouse=${warehouseParam}`),
+        api.get(`/credits/`, warehouseConfig),
+        api.get(`/supplier-return-form/?warehouse_id=${warehouseParam}`),
+        api.get(`/merchandisings/?warehouse=${warehouseParam}`),
+        api.get(`/users/`, warehouseConfig),
         api.get(`/roles/`),
-        api.get(`/vans/${qsWid}`),
+        api.get(`/vans/?warehouse=${warehouseParam}`),
       ]);
 
-      // Handle suppliers separately with better error handling (preserved from old version)
+      // Handle suppliers separately with better error handling
       let suppliersRes;
       try {
-        suppliersRes = await api.get(`/suppliers/${qsWid}`);
+        suppliersRes = await api.get(`/suppliers/?warehouse=${warehouseParam}`);
         console.log(`✅ Suppliers loaded for warehouse ${wid}:`, suppliersRes.data?.length || 0);
       } catch (supplierError) {
         console.warn(`⚠️ Suppliers endpoint failed for warehouse ${wid}:`, supplierError.response?.status, supplierError.message);
         suppliersRes = { data: [] }; // Fallback to empty array
       }
 
-      // 🔧 ENHANCED CREDIT DEBUG from new version
       const creditsData = Array.isArray(creditsRes.data) ? creditsRes.data : creditsRes.data?.results || creditsRes.data?.data || [];
-      console.log(`🏦 CREDITS DEBUG for warehouse ${wid}:`, {
-        totalCredits: creditsData.length,
-        apiUrl: `/credits/`,
-        headers: apiCfgForWarehouse(wid),
-        rawResponse: creditsRes.data,
-        creditSample: creditsData.slice(0, 3).map(c => ({
-          id: c.id,
-          msp_no: c.msp_no,
-          customer: c.customer_name,
-          warehouse_id: c.warehouse_id,
-          warehouse: c.warehouse,
-          source_warehouse_id: c.source_warehouse_id,
-          balance: c.balance,
-          status: c.status
-        }))
-      });
+      console.log(`🏦 Credits loaded for warehouse ${wid}:`, creditsData.length);
 
       console.log(`✅ Successfully fetched data for warehouse ${wid}:`, {
         stocks: stocksRes.data?.length || stocksRes.data?.results?.length || 0,
@@ -831,6 +795,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
         receivings: receivingsRes.data?.length || receivingsRes.data?.results?.length || 0,
         transactions: merchSetRes.data?.length || merchSetRes.data?.results?.length || 0,
         credits: creditsData.length,
+        suppliers: suppliersRes.data?.length || 0,
       });
 
       return {
@@ -866,55 +831,31 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     }
   });
 
-  // Get warehouses list
+  // Get warehouses list using API import
   const warehousesRes = await api.get(`/warehouses/`);
   const warehousesData = warehousesRes.data;
 
   // Wait for all warehouse requests
   const warehouseResults = await Promise.all(warehouseRequests);
 
-  // 🔧 CRITICAL FIX: Enhanced warehouse ID preservation with strict data integrity
+  // Enhanced warehouse filtering with strict data integrity
   const combinedData = warehouseResults.reduce((acc, result) => {
     if (!result) return acc;
 
     const parseList = (data) =>
       Array.isArray(data) ? data : data?.results || data?.data || [];
 
-    // 🔧 SUPER STRICT: Enhanced warehouse ID handling with data integrity checks
+    // Enhanced warehouse ID preservation with strict data integrity
     const preserveWarehouseId = (items, requestedWarehouseId) => 
       items.map(item => {
-        // Use the warehouse ID that's already in the item from the API response
         const originalWarehouseId = item.warehouse_id || item.warehouse || item.source_warehouse_id;
-        
-        // 🔧 CRITICAL FIX: Only use fallback if NO warehouse ID exists AND it makes sense to do so
-        // For credits, if there's no warehouse ID, it's likely a data integrity issue
-        let finalWarehouseId = originalWarehouseId;
-        
-        // Only use requestedWarehouseId as fallback for certain data types that should inherit it
-        if (!originalWarehouseId) {
-          // For credits, users, roles - don't use fallback, keep as null to filter out
-          if (item.msp_no || item.customer_name || item.username || item.role) {
-            console.log(`⚠️ DATA INTEGRITY ISSUE: Item has no warehouse ID, will be filtered out:`, {
-              id: item.id,
-              type: item.msp_no ? 'credit' : item.username ? 'user' : 'other',
-              msp_no: item.msp_no,
-              customer: item.customer_name,
-              requestedWarehouse: requestedWarehouseId
-            });
-            finalWarehouseId = null; // This will cause it to be filtered out
-          } else {
-            // For other data types (stocks, products, etc.), use fallback
-            finalWarehouseId = requestedWarehouseId;
-          }
-        }
+        let finalWarehouseId = originalWarehouseId || requestedWarehouseId;
         
         // Log cross-warehouse data (data that belongs to different warehouse than requested)
         if (originalWarehouseId && originalWarehouseId !== requestedWarehouseId) {
           console.log(`⚠️ CROSS-WAREHOUSE DATA: Item belongs to warehouse ${originalWarehouseId} but was fetched for warehouse ${requestedWarehouseId}:`, {
             id: item.id || item.msp_no || 'unknown',
             type: item.transaction_type_name || item.msp_no ? 'credit' : 'unknown type',
-            msp_no: item.msp_no,
-            customer: item.customer_name,
             actualWarehouse: originalWarehouseId,
             requestedWarehouse: requestedWarehouseId
           });
@@ -922,7 +863,6 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
         
         return { 
           ...item, 
-          // Use the final warehouse ID (could be null for items with no warehouse ID)
           source_warehouse_id: finalWarehouseId,
           warehouse_id: finalWarehouseId,
           warehouse: finalWarehouseId
@@ -956,81 +896,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     vans: [],
   });
 
-  // 🔧 SUPER STRICT CREDIT FILTERING with detailed debugging AND DEDUPLICATION
-  const superStrictCreditFiltering = (combinedCredits, warehouseIds) => {
-    console.log('🏦 SUPER STRICT CREDIT FILTERING + DEDUPLICATION DEBUG:');
-    console.log('📋 All credits before filtering:', combinedCredits.length);
-    console.log('🎯 Target warehouse IDs:', warehouseIds);
-    
-    // 🔧 STEP 1: DEDUPLICATE by ID first
-    const uniqueCreditsMap = new Map();
-    
-    combinedCredits.forEach(credit => {
-      const creditId = credit.id;
-      if (!uniqueCreditsMap.has(creditId)) {
-        uniqueCreditsMap.set(creditId, credit);
-      } else {
-        // If duplicate found, log it for debugging
-        console.log(`🔄 DUPLICATE CREDIT DETECTED - Keeping first occurrence:`, {
-          id: creditId,
-          msp_no: credit.msp_no,
-          customer: credit.customer_name,
-          balance: credit.balance,
-          existing: uniqueCreditsMap.get(creditId)
-        });
-      }
-    });
-    
-    const deduplicatedCredits = Array.from(uniqueCreditsMap.values());
-    console.log(`🎯 DEDUPLICATION RESULT: ${deduplicatedCredits.length} unique credits from ${combinedCredits.length} total`);
-    
-    // 🔧 STEP 2: Apply warehouse filtering to deduplicated credits
-    const filtered = deduplicatedCredits.filter(credit => {
-      const creditWarehouseId = credit.source_warehouse_id || credit.warehouse_id || credit.warehouse;
-      
-      // 🔧 SUPER STRICT FILTERING: Reject items with null/undefined warehouse IDs
-      if (creditWarehouseId === null || creditWarehouseId === undefined) {
-        console.log(`🚫 FILTERING OUT CREDIT (NO WAREHOUSE ID):`, {
-          id: credit.id,
-          msp_no: credit.msp_no,
-          customer: credit.customer_name,
-          balance: credit.balance,
-          reason: `Credit has no warehouse ID (${creditWarehouseId}) - likely data integrity issue`
-        });
-        return false;
-      }
-      
-      const shouldInclude = warehouseIds.includes(creditWarehouseId);
-      
-      if (!shouldInclude) {
-        console.log(`🚫 FILTERING OUT CREDIT (WRONG WAREHOUSE):`, {
-          id: credit.id,
-          msp_no: credit.msp_no,
-          customer: credit.customer_name,
-          balance: credit.balance,
-          creditWarehouseId,
-          selectedWarehouses: warehouseIds,
-          reason: `Credit warehouse ${creditWarehouseId} not in selected warehouses [${warehouseIds.join(', ')}]`
-        });
-      } else {
-        console.log(`✅ KEEPING CREDIT:`, {
-          id: credit.id,
-          msp_no: credit.msp_no,
-          customer: credit.customer_name,
-          balance: credit.balance,
-          creditWarehouseId,
-          reason: `Credit warehouse ${creditWarehouseId} matches selected warehouse`
-        });
-      }
-      
-      return shouldInclude;
-    });
-    
-    console.log(`🏦 SUPER STRICT CREDIT FILTERING + DEDUPLICATION RESULT: ${filtered.length} unique, filtered credits from ${combinedCredits.length} total original credits`);
-    return filtered;
-  };
-
-  // Apply filtering with enhanced debugging
+  // Apply strict warehouse filtering
   console.log('🔒 Applying strict warehouse filtering for IDs:', warehouseIds);
   console.log('📊 Raw data counts before filtering:', {
     stocks: combinedData.stocks.length,
@@ -1048,18 +914,6 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     
     const filtered = items.filter(item => {
       const itemWarehouseId = item.source_warehouse_id || item.warehouse_id || item.warehouse;
-      
-      // Also reject null/undefined warehouse IDs for strict data types
-      if ((dataType === 'users' || dataType === 'credits') && (itemWarehouseId === null || itemWarehouseId === undefined)) {
-        console.log(`🚫 FILTERED OUT ${dataType.toUpperCase()} (NO WAREHOUSE ID):`, {
-          id: item.id || item.msp_no || 'unknown',
-          type: dataType,
-          warehouse: itemWarehouseId,
-          reason: 'No warehouse ID - data integrity issue'
-        });
-        return false;
-      }
-      
       const isInSelectedWarehouses = warehouseIds.includes(itemWarehouseId);
       
       if (!isInSelectedWarehouses) {
@@ -1082,10 +936,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   const products = strictFilterByWarehouse(combinedData.products, warehouseIds, 'products');
   const receivings = strictFilterByWarehouse(combinedData.receivings, warehouseIds, 'receivings');
   const transactions = strictFilterByWarehouse(combinedData.transactions, warehouseIds, 'transactions');
-  
-  // 🔧 USE SUPER STRICT CREDIT FILTERING WITH DEDUPLICATION
-  const credits = superStrictCreditFiltering(combinedData.credits, warehouseIds);
-  
+  const credits = strictFilterByWarehouse(combinedData.credits, warehouseIds, 'credits');
   const supplierReturns = strictFilterByWarehouse(combinedData.supplierReturns, warehouseIds, 'supplierReturns');
   const merch = strictFilterByWarehouse(combinedData.merch, warehouseIds, 'merch');
   const suppliers = strictFilterByWarehouse(combinedData.suppliers, warehouseIds, 'suppliers');
@@ -1093,7 +944,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   const roles = combinedData.roles; // Roles are global, don't filter
   const vans = strictFilterByWarehouse(combinedData.vans, warehouseIds, 'vans');
   
-  console.log('✅ FINAL filtered data counts after strict warehouse filtering + deduplication:', {
+  console.log('✅ FINAL filtered data counts after strict warehouse filtering:', {
     stocks: stocks.length,
     products: products.length,
     receivings: receivings.length,
@@ -1165,7 +1016,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     category: p.product_category?.name || "N/A",
   }));
 
-  // 🔧 DATE FILTERING: Apply to receivings
+  // DATE FILTERING: Apply to receivings
   const receivingsList = [...receivings]
     .filter((r) => !r.date_time || isWithinDateRange(r.date_time))
     .sort((a, b) => new Date(b.date_time || 0) - new Date(a.date_time || 0))
@@ -1178,7 +1029,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       net_amount: n(r.net_amount),
     }));
 
-  // 🔧 DATE FILTERING: Apply to transactions
+  // DATE FILTERING: Apply to transactions
   const recentTransactions = [...transactions]
     .filter((t) => !t.date_time || isWithinDateRange(t.date_time))
     .sort((a, b) => new Date(b.date_time || 0) - new Date(a.date_time || 0))
@@ -1193,7 +1044,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       source_warehouse_id: t.source_warehouse_id,
     }));
 
-  // 🔧 DATE FILTERING: Apply to supplier returns
+  // DATE FILTERING: Apply to supplier returns
   const supplierReturnsList = [...supplierReturns]
     .filter((sr) => !sr.date || isWithinDateRange(sr.date))
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
@@ -1206,7 +1057,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       date: sr.date || null,
     }));
 
-  // 🔧 DATE FILTERING: Apply to supplier returns for today's calculation
+  // DATE FILTERING: Apply to supplier returns for today's calculation
   const todaysReturnsArray = supplierReturns.filter((sr) => sr.date && isWithinDateRange(sr.date) && isSameDayManila(sr.date));
   const todaysReturns = todaysReturnsArray.reduce((sum, sr) => sum + n(sr.total_amount), 0);
   const todaysReturnsCount = todaysReturnsArray.length;
@@ -1214,7 +1065,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   /* -------- Return Empties aggregation with DATE FILTERING -------- */
   const emptiesRaw = [];
   for (const m of merch) {
-    // 🔧 DATE FILTERING: Check if transaction is within date range
+    // DATE FILTERING: Check if transaction is within date range
     if (!isWithinDateRange(m.date_time || m.created_at || m.updated_at)) continue;
     
     const type = m.transaction_type_name;
@@ -1300,8 +1151,8 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     users_count: Number(r.users_count ?? r.user_count ?? 0),
   }));
 
-  // 🔧 ENHANCED CREDIT PROCESSING with DEDUPLICATION ALREADY APPLIED
-  console.log('🏦 PROCESSING ALREADY DEDUPLICATED & FILTERED CREDITS:', credits.length);
+  // Enhanced credit processing
+  console.log('🏦 Processing credits:', credits.length);
   
   const creditSummary = (() => {
     const filteredCredits = credits.filter((c) => !c.created_at || isWithinDateRange(c.created_at));
@@ -1328,7 +1179,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       source_warehouse_id: c.source_warehouse_id,
     }));
 
-  console.log('🏦 FINAL DEDUPLICATED & FILTERED CREDIT LIST:', creditList.length, 'unique credits to display');
+  console.log('🏦 Final credit list:', creditList.length, 'credits to display');
 
   /* -------- Vans list -------- */
   const vansList = [...vans]
@@ -1390,7 +1241,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
 
   for (const m of merch) {
     const txDate = m?.date_time || m?.created_at || m?.updated_at;
-    // 🔧 DATE FILTERING: Apply to profit calculations
+    // DATE FILTERING: Apply to profit calculations
     if (!txDate || !Array.isArray(m.items) || !isWithinDateRange(txDate)) continue;
     let rev = 0, cogs = 0, disc = 0;
 
@@ -1440,7 +1291,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
 
   for (const m of merch) {
     const txDate = m?.date_time || m?.created_at || m?.updated_at;
-    // 🔧 DATE FILTERING: Apply to product performance
+    // DATE FILTERING: Apply to product performance
     if (!txDate || !Array.isArray(m.items) || !isWithinDateRange(txDate)) continue;
     const dateKey = new Date(txDate).toISOString().slice(0, 10);
     if (!ppSeriesByDate.has(dateKey)) ppSeriesByDate.set(dateKey, { date: dateKey });
@@ -1485,7 +1336,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     .sort((a, b) => b.value - a.value)
     .slice(0, 8);
 
-  console.log('📈 FINAL WAREHOUSE-FILTERED Results with SUPER STRICT + DEDUPLICATED CREDITS:', {
+  console.log('📈 FINAL WAREHOUSE-FILTERED Results with API integration:', {
     selectedWarehouses: warehouseIds,
     period,
     dateRange: { startDate, endDate },
@@ -1540,7 +1391,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   };
 }
 
-/* -------------------- Dashboard Component (Fixed initialization) -------------------- */
+/* -------------------- Dashboard Component (Fixed with warehouse utils) -------------------- */
 const Dashboard = () => {
   const location = useLocation();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -1574,31 +1425,8 @@ const Dashboard = () => {
   });
   const [lastUpdated, setLastUpdated] = useState(null);
   const [availableWarehouses, setAvailableWarehouses] = useState([]);
-
-  // 🔧 OLD: Preserved from old version - warehouse utils integration
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [hasInitialized, setHasInitialized] = useState(false);
-
-  // 🔧 NEW: Add this updateRevenueAndProfit function here
-  const updateRevenueAndProfit = (totalRevenue, profit) => {
-      setMetrics((prevMetrics) => ({
-        ...prevMetrics,
-        totalRevenue: prevMetrics.totalRevenue + totalRevenue, // Add the new total revenue
-        profit: prevMetrics.profit + profit, // Update profit 
-      }));
-    };
-
-  // Use this function where the sale is completed (this part is your business logic)
-  const completeVanLoadSale = async (vanLoadData) => {
-    const totalSaleAmount = vanLoadData.totalAmount; // Sale amount (revenue)
-    const costs = vanLoadData.costs; // Costs (COGS)
-
-    // Calculate profit: revenue - costs
-    const profit = totalSaleAmount - costs;
-
-    // Update revenue and profit in the dashboard
-    updateRevenueAndProfit(totalSaleAmount, profit);
-  };
 
   // Period states
   const [period, setPeriod] = useState("this-week");
@@ -1621,21 +1449,12 @@ const Dashboard = () => {
 
   useEffect(() => saveSelection(selectedIds), [selectedIds]);
 
-  // 🔧 OLD: Fetch the revenue from localStorage (or global state) (preserved from old version)
-  useEffect(() => {
-    const savedRevenue = localStorage.getItem('totalRevenue');
-    setMetrics((prevMetrics) => ({
-      ...prevMetrics,
-      totalRevenue: savedRevenue ? parseFloat(savedRevenue) : 0,
-    }));
-  }, []);
-
   const visibleSelectedItems = useMemo(
     () => selectedIds.map((id) => CATALOG_MAP.get(id)).filter(Boolean),
     [selectedIds]
   );
 
-  // 🔧 INTEGRATED: loadData function with warehouse utils integration + new API
+  // FIXED: loadData function with warehouse utils integration + API import
   const loadData = useCallback(
     async (warehouseIds, periodParam = period, customStart = customStartDate, customEnd = customEndDate) => {
       try {
@@ -1694,15 +1513,15 @@ const Dashboard = () => {
         setLoading(false);
       }
     },
-    [period, customStartDate, customEndDate] // Include period dependencies
+    [period, customStartDate, customEndDate]
   );
 
-  // 🔧 OLD: Initial data load with warehouse utils (preserved from old version with additional integration)
+  // FIXED: Initial data load with warehouse utils
   useEffect(() => {
     if (hasInitialized) return; // Prevent multiple initializations
     
     const initializeDashboard = async () => {
-      console.log('🚀 Initializing dashboard with integrated warehouse utils + new enhancements...');
+      console.log('🚀 Initializing dashboard with warehouse utils...');
       
       const warehouse = getCurrentWarehouse();
       console.log('🏭 Current warehouse from utils:', warehouse);
@@ -1755,7 +1574,7 @@ const Dashboard = () => {
     initializeDashboard();
   }, [hasInitialized, loadData]);
 
-  // 🔧 NEW: Enhanced warehouse change event listener from new version with warehouse utils integration
+  // Warehouse change event listener with warehouse utils
   useEffect(() => {
     const handleWarehouseChange = (event) => {
       const { warehouse, action, source } = event.detail || {};
@@ -1772,21 +1591,7 @@ const Dashboard = () => {
         } else if (action === 'reset') {
           console.log('🔄 Resetting to enrolled warehouse');
           const resetWarehouse = getCurrentWarehouse();
-          
-          // Try to find warehouse by name if warehouse_id doesn't exist
-          if (resetWarehouse?.warehouse && availableWarehouses.length > 0) {
-            const matchingWarehouse = availableWarehouses.find(w => 
-              w.name === resetWarehouse.warehouse || 
-              w.name.toLowerCase() === resetWarehouse.warehouse.toLowerCase()
-            );
-            
-            if (matchingWarehouse) {
-              const newIds = [matchingWarehouse.id];
-              setSelectedWarehouseIds(newIds);
-              setCurrentWarehouse(matchingWarehouse);
-              loadData(newIds, period, customStartDate, customEndDate);
-            }
-          } else if (resetWarehouse?.id) {
+          if (resetWarehouse?.id) {
             const newIds = [resetWarehouse.id];
             setSelectedWarehouseIds(newIds);
             setCurrentWarehouse(resetWarehouse);
@@ -1798,11 +1603,11 @@ const Dashboard = () => {
     
     window.addEventListener("warehouseChanged", handleWarehouseChange);
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
-  }, [loadData, period, customStartDate, customEndDate, availableWarehouses]);
+  }, [loadData, period, customStartDate, customEndDate]);
 
   const removeWidget = useCallback((id) => setSelectedIds((prev) => prev.filter((x) => x !== id)), []);
 
-  // 🔧 FIXED: Period change handler with data reload
+  // FIXED: Period change handler with data reload
   const handlePeriodChange = (newPeriod) => {
     setPeriod(newPeriod);
     if (newPeriod !== "custom") {
@@ -1815,7 +1620,7 @@ const Dashboard = () => {
     }
   };
 
-  // 🔧 FIXED: Custom dates change handler with data reload
+  // FIXED: Custom dates change handler with data reload
   const handleCustomDatesChange = (startDate, endDate) => {
     setCustomStartDate(startDate);
     setCustomEndDate(endDate);
@@ -1826,7 +1631,7 @@ const Dashboard = () => {
     }
   };
 
-  // 🔧 FIXED: Manual warehouse change handler
+  // FIXED: Manual warehouse change handler
   const handleWarehouseChange = (warehouseIds) => {
     console.log('🏗️ Manual warehouse selection change:', warehouseIds);
     setSelectedWarehouseIds(warehouseIds);
@@ -1857,7 +1662,7 @@ const Dashboard = () => {
   }, [lists, period, customStartDate, customEndDate]);
 
   // Debug logging
-  console.log('📊 Dashboard Debug (INTEGRATED):', {
+  console.log('📊 Dashboard Debug:', {
     totalProducts: metrics?.totalProducts,
     creditList: lists.creditList,
     selectedWarehouses: selectedWarehouseIds,
@@ -1865,25 +1670,11 @@ const Dashboard = () => {
     customStartDate,
     customEndDate,
     loading,
-    currentWarehouse, // OLD version state preserved
-    hasInitialized // OLD version state preserved
+    currentWarehouse
   });
 
   return (
     <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-100px,rgba(99,102,241,0.10),transparent)]">
-      {/* Loading overlay - Enhanced with more detailed loading state */}
-      {loading && (
-        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 flex items-center justify-center">
-          <div className="bg-white rounded-lg shadow-lg p-6 flex items-center gap-3">
-            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-            <div className="text-sm text-gray-700">
-              <div className="font-medium">Loading dashboard data...</div>
-              <div className="text-xs text-gray-500">Processing warehouse data and metrics</div>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Header */}
       <div className="px-4 pt-4">
         <div className="flex items-center justify-between">
@@ -1950,7 +1741,7 @@ const Dashboard = () => {
           <MetricsCards
             data={{
               totalRevenue: periodSums.revenue ?? 0,
-              productsSold: metrics?.productsSold ?? 0,   // ✅ fixed
+              productsSold: metrics?.productsSold ?? 0,
               supplierReturnables: lists?.supplierReturnsList?.length ?? 0,
               miscCharges: periodSums.misc ?? 0,
               actualProfit: periodSums.profit ?? 0,
