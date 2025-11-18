@@ -1,4 +1,4 @@
-// src/components/Notification.jsx - COMPLETE ENHANCED VERSION WITH DATABASE ENVIRONMENT DETECTION
+// src/components/Notification.jsx - COMPLETE FIXED VERSION WITH DELETION TRACKING AND WAREHOUSE FILTERING
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -24,6 +24,8 @@ import {
   faCalendarAlt,
   faMapMarkerAlt,
   faExclamationCircle,
+  faClock,
+  faDownload,
   faSync,
   faBellSlash
 } from "@fortawesome/free-solid-svg-icons";
@@ -43,10 +45,6 @@ const Notification = () => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [userDataReady, setUserDataReady] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
-  
-  // ✅ ENHANCED: Database environment detection to prevent cross-branch notification pollution
-  const [systemInitialized, setSystemInitialized] = useState(false);
-  const [databaseEnvironmentId, setDatabaseEnvironmentId] = useState(null);
   
   // Force re-render when notifications change
   const [forceUpdate, setForceUpdate] = useState(0);
@@ -100,160 +98,6 @@ const Notification = () => {
       return {};
     }
   }, []);
-
-  // ✅ NEW: Database environment detection utility (PRODUCTION SAFE)
-  const generateDatabaseFingerprint = useCallback(async () => {
-    try {
-      const user = getCurrentUser();
-      if (!user.id) {
-        return null;
-      }
-      
-      // Create a simple but effective fingerprint
-      const loginTime = localStorage.getItem('loginTime');
-      const currentTime = Date.now();
-      
-      // Check if this is a very recent login (within 2 minutes)
-      const isVeryRecentLogin = loginTime && (currentTime - parseInt(loginTime)) < 120000;
-      
-      if (isVeryRecentLogin) {
-        // Fresh session - generate new environment ID
-        const newFingerprint = btoa(`${user.id}_${user.role}_${loginTime}`).slice(0, 20);
-        console.log('🆕 New session detected, fingerprint:', newFingerprint);
-        return newFingerprint;
-      }
-      
-      // Check existing fingerprint
-      const existingFingerprint = localStorage.getItem('databaseEnvironmentId');
-      if (existingFingerprint) {
-        return existingFingerprint;
-      }
-      
-      // Create fingerprint for existing session
-      const sessionFingerprint = btoa(`${user.id}_${user.role}_session`).slice(0, 20);
-      return sessionFingerprint;
-      
-    } catch (error) {
-      console.warn('Could not generate database fingerprint:', error);
-      // Fallback to simple fingerprint
-      const user = getCurrentUser();
-      return btoa(`${user.id || 'unknown'}_fallback`).slice(0, 16);
-    }
-  }, [getCurrentUser]);
-
-  // ✅ NEW: Clear notification data for new environment (SAFE - only clears notification data)
-  const clearNotificationDataForNewEnvironment = useCallback(() => {
-    console.log('🧹 Clearing notification data for new database environment...');
-    
-    // Only clear notification-related keys, preserve other important data
-    const notificationKeys = [
-      'processedNotificationIds',
-      'persistedNotifications',
-      'persistedNotifications_admin_all'
-    ];
-    
-    // Clear warehouse-specific notification keys (safe range)
-    for (let i = 1; i <= 50; i++) {
-      notificationKeys.push(
-        `persistedNotifications_warehouse_${i}`,
-        `previousStocks_${i}`,
-        `previousExpenses_${i}`,
-        `previousCredits_${i}`,
-        `previousSuppliers_${i}`,
-        `previousMSPs_${i}`,
-        `previousUsers_${i}`,
-        `previousProducts_${i}`,
-        `previousReceiving_${i}`,
-        `previousReturns_${i}`
-      );
-    }
-    
-    // Clear overdue check keys (limited range for safety)
-    for (let i = 1; i <= 500; i++) {
-      for (let j = 1; j <= 20; j++) {
-        notificationKeys.push(`lastOverdueCheck_${i}_${j}`);
-      }
-    }
-    
-    // Remove only notification-related keys
-    let clearedCount = 0;
-    notificationKeys.forEach(key => {
-      if (localStorage.getItem(key)) {
-        localStorage.removeItem(key);
-        clearedCount++;
-      }
-    });
-    
-    // Clear notifications from context
-    dispatch({ type: 'SET_NOTIFICATIONS', payload: [] });
-    
-    // Reset processed IDs
-    processedIdsRef.current = new Set();
-    
-    console.log(`✅ Cleared ${clearedCount} notification data items for fresh environment`);
-  }, [dispatch]);
-
-  // ✅ NEW: Database environment initialization (PRODUCTION SAFE)
-  const initializeDatabaseEnvironment = useCallback(async () => {
-    try {
-      const newFingerprint = await generateDatabaseFingerprint();
-      if (!newFingerprint) {
-        console.warn('Could not generate fingerprint - using default initialization');
-        return false;
-      }
-      
-      const storedFingerprint = localStorage.getItem('databaseEnvironmentId');
-      const systemInitKey = `systemInit_${newFingerprint}`;
-      
-      console.log('🔍 Database environment check:', {
-        stored: storedFingerprint,
-        current: newFingerprint,
-        isNewEnvironment: !storedFingerprint || storedFingerprint !== newFingerprint
-      });
-      
-      // Check if this is a different database environment
-      if (!storedFingerprint || storedFingerprint !== newFingerprint) {
-        console.log('🆕 New database environment detected');
-        
-        // Clear old notification data
-        clearNotificationDataForNewEnvironment();
-        
-        // Store new environment ID
-        localStorage.setItem('databaseEnvironmentId', newFingerprint);
-        setDatabaseEnvironmentId(newFingerprint);
-        
-        // Mark as new environment requiring fresh initialization
-        localStorage.setItem(systemInitKey, 'true');
-        setSystemInitialized(true);
-        
-        return true; // New environment
-      } else {
-        console.log('📂 Existing database environment - checking initialization status');
-        setDatabaseEnvironmentId(storedFingerprint);
-        
-        // Check if system was initialized in this environment
-        const wasInitialized = localStorage.getItem(systemInitKey) === 'true';
-        setSystemInitialized(wasInitialized);
-        
-        if (!wasInitialized) {
-          // This environment exists but wasn't properly initialized
-          localStorage.setItem(systemInitKey, 'true');
-          setSystemInitialized(true);
-          console.log('🔄 Marking existing environment as initialized');
-        }
-        
-        return false; // Existing environment
-      }
-    } catch (error) {
-      console.error('❌ Database environment initialization failed:', error);
-      // Fallback: use safe default
-      const fallbackFingerprint = btoa(`fallback_${Date.now()}`).slice(0, 16);
-      localStorage.setItem('databaseEnvironmentId', fallbackFingerprint);
-      setDatabaseEnvironmentId(fallbackFingerprint);
-      setSystemInitialized(true);
-      return true;
-    }
-  }, [generateDatabaseFingerprint, clearNotificationDataForNewEnvironment]);
 
   // ✅ ENHANCED: Initialize warehouse using warehouse utils consistently
   const initializeWarehouse = useCallback(async () => {
@@ -348,25 +192,16 @@ const Notification = () => {
     return null;
   }, [getCurrentUser, initializeWarehouse]);
 
-  // ✅ ENHANCED: Initialize with database environment detection
+  // ✅ ENHANCED: Initialize warehouse ID early and track changes
   useEffect(() => {
     const initializeComponent = async () => {
       if (!initializationRef.current) {
         initializationRef.current = true;
         
-        console.log('🚀 Initializing notification component with database environment detection...');
-        
-        // First, check database environment
-        const isNewEnvironment = await initializeDatabaseEnvironment();
-        
-        // Wait for user data regardless of environment
+        console.log('🚀 Initializing notification component with warehouse utils...');
         const userData = await waitForUserData();
         if (userData) {
-          console.log('✅ Notification component initialized with user data:', userData);
-          
-          if (isNewEnvironment) {
-            console.log('🔄 Fresh database environment detected');
-          }
+          console.log('✅ Notification component initialized with warehouse data:', userData);
           
           // Trigger initial notification check after warehouse is set
           setTimeout(() => {
@@ -375,18 +210,17 @@ const Notification = () => {
             }
           }, 500);
         } else {
-          console.warn('⚠️ Failed to initialize notification component with valid user data');
+          console.warn('⚠️ Failed to initialize notification component with valid warehouse data');
         }
       }
     };
 
     initializeComponent();
-  }, [waitForUserData, isLoaded, initializeDatabaseEnvironment]);
+  }, [waitForUserData, isLoaded]);
 
   // ✅ ENHANCED: Credit-specific notification helper
   const triggerCreditNotification = useCallback((creditData, action = 'created') => {
-    // ✅ FIXED: Don't create notifications if system is not initialized
-    if (!userDataReady || !currentWarehouseId || !systemInitialized) return;
+    if (!userDataReady || !currentWarehouseId) return;
 
     const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
@@ -421,20 +255,15 @@ const Notification = () => {
           early_warning: true
         }, userRole);
         break;
-      default:
-        // Default case for any other action
-        addNotification('credit_created', notificationData, userRole);
-        break;
     }
     
     // Force update
     setTimeout(() => setForceUpdate(prev => prev + 1), 100);
-  }, [userDataReady, currentWarehouseId, systemInitialized, getCurrentUser, addNotification]);
+  }, [userDataReady, currentWarehouseId, getCurrentUser, addNotification]);
 
-  // ✅ ENHANCED: Batch notification processor for multiple credits (kept for future use)
+  // ✅ ENHANCED: Batch notification processor for multiple credits
   const processBatchCreditNotifications = useCallback(async (credits, action) => {
-    // ✅ FIXED: Don't create notifications if system is not initialized
-    if (!Array.isArray(credits) || credits.length === 0 || !systemInitialized) return;
+    if (!Array.isArray(credits) || credits.length === 0) return;
 
     const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
@@ -461,17 +290,11 @@ const Notification = () => {
       setTimeout(() => setForceUpdate(prev => prev + 1), 200);
       console.log(`✅ Created ${notificationsCreated} batch credit notifications`);
     }
-  }, [getCurrentUser, currentWarehouseId, systemInitialized, addNotification]);
-
-  // Expose function for external use
-  React.useEffect(() => {
-    window.processBatchCreditNotifications = processBatchCreditNotifications;
-  }, [processBatchCreditNotifications]);
+  }, [getCurrentUser, currentWarehouseId, addNotification]);
 
   // ✅ NEW: Credit due date checker
   const checkCreditDueDates = useCallback(async () => {
-    // ✅ FIXED: Don't check if system is not initialized
-    if (!userDataReady || !currentWarehouseId || !systemInitialized) return;
+    if (!userDataReady || !currentWarehouseId) return;
 
     try {
       const config = getWarehouseAxiosConfig(currentWarehouse);
@@ -527,7 +350,7 @@ const Notification = () => {
     } catch (error) {
       console.warn('❌ Credit due date check failed:', error.message);
     }
-  }, [userDataReady, currentWarehouseId, systemInitialized, currentWarehouse, triggerCreditNotification]);
+  }, [userDataReady, currentWarehouseId, currentWarehouse, triggerCreditNotification]);
 
   // ✅ ENHANCED: Notification cleanup for old notifications
   const cleanupOldNotifications = useCallback(() => {
@@ -544,9 +367,10 @@ const Notification = () => {
     }
   }, [notifications, dispatch]);
 
-  // ✅ NEW: Notification summary generator (kept for future use)
+  // ✅ NEW: Notification summary generator
   const generateNotificationSummary = useCallback(() => {
     const user = getCurrentUser();
+    const userRole = user.role?.toLowerCase();
     
     const warehouseNotifications = notifications.filter(notif => 
       notif.data?.warehouse_id === currentWarehouseId && !notif.is_read
@@ -605,10 +429,58 @@ const Notification = () => {
     return summary;
   }, [notifications, currentWarehouseId, getCurrentUser]);
 
-  // Expose function for external use
-  React.useEffect(() => {
-    window.generateNotificationSummary = generateNotificationSummary;
-  }, [generateNotificationSummary]);
+  // ✅ ENHANCED: Export notifications data
+  const exportNotifications = useCallback((format = 'json') => {
+    const user = getCurrentUser();
+    const warehouseNotifications = notifications.filter(notif => 
+      notif.data?.warehouse_id === currentWarehouseId
+    );
+
+    const exportData = {
+      warehouse: getCurrentWarehouseName(),
+      exported_by: user.username || user.name || 'Unknown',
+      exported_at: new Date().toISOString(),
+      total_notifications: warehouseNotifications.length,
+      unread_count: warehouseNotifications.filter(n => !n.is_read).length,
+      notifications: warehouseNotifications.map(notif => ({
+        id: notif.id,
+        type: notif.type,
+        category: notif.category,
+        title: notif.title,
+        message: notif.message,
+        details: notif.details,
+        priority: notif.priority,
+        timestamp: notif.timestamp,
+        is_read: notif.is_read,
+        data: notif.data
+      }))
+    };
+
+    if (format === 'csv') {
+      const csvContent = [
+        'Type,Title,Message,Priority,Timestamp,Read Status',
+        ...warehouseNotifications.map(notif =>
+          `"${notif.type}","${notif.title}","${notif.message}","${notif.priority}","${notif.timestamp}","${notif.is_read ? 'Read' : 'Unread'}"`
+        )
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `notifications_${getCurrentWarehouseName()}_${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } else {
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `notifications_${getCurrentWarehouseName()}_${new Date().toISOString().split('T')[0]}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+  }, [notifications, currentWarehouseId, getCurrentUser]);
 
   // Handle notification click with proper state update
   const handleNotificationClick = (notification) => {
@@ -891,17 +763,15 @@ const Notification = () => {
     }
   };
 
-  // ✅ ENHANCED: Load persisted notifications with warehouse-aware logic for admin (with environment check)
+  // ✅ FIXED: Load persisted notifications with proper deletion tracking
   useEffect(() => {
     const loadPersistedNotifications = () => {
-      if (!databaseEnvironmentId || !systemInitialized) {
-        console.log('⏳ Waiting for database environment initialization before loading notifications...');
-        return;
-      }
-
       try {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
+        
+        // ✅ FIXED: Load deleted notification IDs to filter them out
+        const deletedNotificationIds = new Set(JSON.parse(localStorage.getItem('deletedNotificationIds') || '[]'));
         
         if (userRole === 'admin' && currentWarehouseId) {
           // Load warehouse-specific notifications for admin
@@ -911,7 +781,8 @@ const Notification = () => {
           if (savedWarehouseNotifications) {
             const parsedNotifications = JSON.parse(savedWarehouseNotifications);
             const validNotifications = parsedNotifications.filter(notif => 
-              new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+              new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) &&
+              !deletedNotificationIds.has(notif.id) // ✅ FIXED: Filter out deleted notifications
             );
             
             if (validNotifications.length > 0) {
@@ -919,9 +790,24 @@ const Notification = () => {
               console.log(`📥 Admin loaded ${validNotifications.length} notifications for warehouse ${currentWarehouseId}`);
             }
             
-            // Update localStorage with only valid notifications
-            if (validNotifications.length !== parsedNotifications.length) {
-              localStorage.setItem(warehouseKey, JSON.stringify(validNotifications));
+            // Update localStorage with only valid, non-deleted notifications
+            localStorage.setItem(warehouseKey, JSON.stringify(validNotifications));
+          } else {
+            // Try loading from global admin notifications
+            const globalAdminNotifications = localStorage.getItem('persistedNotifications_admin_all');
+            if (globalAdminNotifications) {
+              const allNotifications = JSON.parse(globalAdminNotifications);
+              const warehouseNotifications = allNotifications.filter(notif =>
+                notif.data?.warehouse_id === currentWarehouseId &&
+                new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) &&
+                !deletedNotificationIds.has(notif.id) // ✅ FIXED: Filter out deleted notifications
+              );
+              
+              if (warehouseNotifications.length > 0) {
+                dispatch({ type: 'SET_NOTIFICATIONS', payload: warehouseNotifications });
+                localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
+                console.log(`📥 Admin migrated ${warehouseNotifications.length} notifications to warehouse ${currentWarehouseId}`);
+              }
             }
           }
         } else {
@@ -930,16 +816,16 @@ const Notification = () => {
           if (savedNotifications) {
             const parsedNotifications = JSON.parse(savedNotifications);
             const validNotifications = parsedNotifications.filter(notif => 
-              new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+              new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) &&
+              !deletedNotificationIds.has(notif.id) // ✅ FIXED: Filter out deleted notifications
             );
             
             if (validNotifications.length > 0) {
               dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
             }
             
-            if (validNotifications.length !== parsedNotifications.length) {
-              localStorage.setItem('persistedNotifications', JSON.stringify(validNotifications));
-            }
+            // Update localStorage with only valid, non-deleted notifications
+            localStorage.setItem('persistedNotifications', JSON.stringify(validNotifications));
           }
         }
       } catch (error) {
@@ -949,23 +835,19 @@ const Notification = () => {
           localStorage.removeItem(`persistedNotifications_warehouse_${currentWarehouseId}`);
         }
         localStorage.removeItem('persistedNotifications');
+        localStorage.removeItem('deletedNotificationIds');
       }
     };
 
-    // ✅ ENHANCED: Only load notifications if database environment is initialized and system is ready
-    if (!isLoaded && userDataReady && currentWarehouseId && systemInitialized && databaseEnvironmentId) {
+    if (!isLoaded && userDataReady && currentWarehouseId) {
       loadPersistedNotifications();
       setIsLoaded(true);
     }
-  }, [dispatch, isLoaded, userDataReady, currentWarehouseId, systemInitialized, databaseEnvironmentId, getCurrentUser]);
+  }, [dispatch, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
 
-  // ✅ ENHANCED: Persist notifications with warehouse awareness for admin (with environment check)
+  // ✅ ENHANCED: Persist notifications with warehouse awareness for admin
   useEffect(() => {
     const persistNotifications = (notifications) => {
-      if (!databaseEnvironmentId || !systemInitialized) {
-        return;
-      }
-
       try {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
@@ -994,10 +876,10 @@ const Notification = () => {
       }
     };
 
-    if (isLoaded && notifications.length >= 0 && databaseEnvironmentId && systemInitialized) {
+    if (isLoaded && notifications.length >= 0) {
       persistNotifications(notifications);
     }
-  }, [notifications, isLoaded, currentWarehouseId, databaseEnvironmentId, systemInitialized, getCurrentUser]);
+  }, [notifications, isLoaded, currentWarehouseId, getCurrentUser]);
 
   // Re-evaluate existing expense notifications when threshold changes
   const reevaluateExpenseNotifications = useCallback((newThreshold) => {
@@ -1077,10 +959,10 @@ const Notification = () => {
     };
   }, [largeExpenseThreshold, reevaluateExpenseNotifications]);
 
-  // ✅ ENHANCED: Stock notifications with warehouse utils integration and initialization fix
+  // ✅ ENHANCED: Stock notifications with warehouse utils integration
   const checkStockNotifications = useCallback(async () => {
-    // ✅ FIXED: Don't check if system is not initialized
-    if (!userDataReady || !currentWarehouseId || !systemInitialized) {
+    // Only proceed if user data is ready and warehouse is set
+    if (!userDataReady || !currentWarehouseId) {
       return;
     }
 
@@ -1109,13 +991,10 @@ const Notification = () => {
       );
       const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
 
-      // ✅ Get previous stock levels for comparison (with environment ID)
-      const previousStocksKey = `previousStocks_${warehouseId}_${databaseEnvironmentId}`;
+      // Get previous stock levels for comparison
+      const previousStocksKey = `previousStocks_${warehouseId}`;
       const previousStocks = JSON.parse(localStorage.getItem(previousStocksKey) || '{}');
       const now = new Date().toISOString();
-
-      // ✅ FIXED: Check if this is the first time checking stocks in this environment
-      const isFirstTimeStockCheck = Object.keys(previousStocks).length === 0;
 
       stocks.forEach(stock => {
         const stockId = `stock-${stock.id}-${warehouseId}`;
@@ -1123,20 +1002,8 @@ const Notification = () => {
         const currentQuantity = parseInt(stock.quantity_available || 0);
         const previousQuantity = previousStocks[stock.id]?.quantity;
         const lastChecked = previousStocks[stock.id]?.timestamp;
-
-        // ✅ FIXED: On first check, just store stock levels without creating notifications
-        if (isFirstTimeStockCheck) {
-          previousStocks[stock.id] = {
-            quantity: currentQuantity,
-            timestamp: now,
-            product_name: stock.product_name
-          };
-          processedIds.add(stockId + "-out");
-          processedIds.add(stockId + "-low");
-          return; // Skip notifications on first check
-        }
         
-        // CHECK FOR OUT OF STOCK (only on subsequent checks)
+        // CHECK FOR OUT OF STOCK
         if ((currentQuantity === 0 || status.includes("out")) && !processedIds.has(stockId + "-out")) {
           addNotification('out_of_stock', { 
             ...stock, 
@@ -1147,7 +1014,7 @@ const Notification = () => {
           processedIds.add(stockId + "-out");
           newNotifications++;
         }
-        // CHECK FOR LOW STOCK (but not out of stock, only on subsequent checks)
+        // CHECK FOR LOW STOCK (but not out of stock)
         else if (status.includes("low") && currentQuantity > 0 && !processedIds.has(stockId + "-low")) {
           addNotification('low_stock', { 
             ...stock, 
@@ -1219,28 +1086,24 @@ const Notification = () => {
       localStorage.setItem(previousStocksKey, JSON.stringify(previousStocks));
 
       // SAVE PROCESSED IDS
-      if (newNotifications > 0 || isFirstTimeStockCheck) {
+      if (newNotifications > 0) {
         localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIds]));
         processedIdsRef.current = processedIds;
         
-        if (newNotifications > 0) {
-          // FORCE UPDATE after creating notifications
-          setTimeout(() => setForceUpdate(prev => prev + 1), 200);
-          console.log(`✅ Created ${newNotifications} stock notifications`);
-        } else if (isFirstTimeStockCheck) {
-          console.log(`📦 Initialized stock tracking for ${stocks.length} items in environment ${databaseEnvironmentId}`);
-        }
+        // FORCE UPDATE after creating notifications
+        setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} stock notifications`);
       }
 
     } catch (error) {
       console.warn('❌ Stock notifications check failed:', error.message);
     }
-  }, [currentWarehouseId, userDataReady, systemInitialized, databaseEnvironmentId, addNotification, getCurrentUser, currentWarehouse]);
+  }, [currentWarehouseId, userDataReady, addNotification, getCurrentUser, currentWarehouse]);
 
-  // ✅ ENHANCED: Login stock check with warehouse utils integration and system initialization check
+  // ✅ ENHANCED: Login stock check with warehouse utils integration
   const checkLowStockOnLogin = useCallback(async () => {
-    // ✅ FIXED: Don't run if system is not initialized
-    if (!userDataReady || !currentWarehouseId || !systemInitialized) {
+    // Only proceed if user data is ready and warehouse is set
+    if (!userDataReady || !currentWarehouseId) {
       return;
     }
 
@@ -1254,7 +1117,7 @@ const Notification = () => {
       config.timeout = 10000;
       config.headers = {
         ...config.headers,
-        "Authorization": `Bearer ${localStorage.getToken("token")}`,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
         "Content-Type": "application/json"
       };
 
@@ -1344,16 +1207,10 @@ const Notification = () => {
     } catch (error) {
       console.warn('❌ Login stock check failed:', error.message);
     }
-  }, [currentWarehouseId, userDataReady, systemInitialized, addNotification, getCurrentUser, currentWarehouse]);
+  }, [currentWarehouseId, userDataReady, addNotification, getCurrentUser, currentWarehouse]);
   
-  // ✅ FIXED: Enhanced expense notification checking with proper initialization check
+  // ✅ FIXED: Enhanced expense notification checking with proper filtering
   const checkExpenseNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
-    // ✅ FIXED: Don't check if system is not initialized
-    if (!systemInitialized) {
-      console.log('💰 Skipping expense notifications - system initializing');
-      return 0;
-    }
-
     let newNotifications = 0;
 
     try {
@@ -1380,16 +1237,16 @@ const Notification = () => {
         return newNotifications;
       }
 
-      // ✅ Get previous expenses for comparison (with environment ID)
-      const previousExpensesKey = `previousExpenses_${warehouseId}_${databaseEnvironmentId}`;
+      // Get previous expenses for comparison (detect updates/deletions)
+      const previousExpensesKey = `previousExpenses_${warehouseId}`;
       const previousExpenses = JSON.parse(localStorage.getItem(previousExpensesKey) || '{}');
       const now = new Date().toISOString();
       
       // ✅ FIXED: Check if this is the first time checking expenses
       const isFirstTimeCheck = Object.keys(previousExpenses).length === 0;
       
-      // ✅ FIXED: Only very recent items (1 minute) should trigger notifications
-      const oneMinuteAgo = new Date(Date.now() - 1 * 60 * 1000);
+      // ✅ FIXED: Reduced time window to 5 minutes to avoid old expenses
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       
       // ✅ FIXED: Get current user to avoid notifying about other users' expenses
       const currentUser = getCurrentUser();
@@ -1401,9 +1258,9 @@ const Notification = () => {
         const expenseAmount = Number(expense.amount || 0);
         const previousExpense = previousExpenses[expense.id];
         
-        // ✅ FIXED: On first check, store ALL expenses but NEVER create notifications
-        if (isFirstTimeCheck) {
-          // Store all existing expenses but don't notify about any of them
+        // ✅ FIXED: Skip if this is first time check and expense is older than 5 minutes
+        if (isFirstTimeCheck && expenseDate <= fiveMinutesAgo) {
+          // Store the expense but don't notify about old expenses on first load
           previousExpenses[expense.id] = {
             amount: expenseAmount,
             description: expense.description,
@@ -1411,12 +1268,12 @@ const Notification = () => {
             timestamp: now,
             created_by: expense.created_by || expense.user_id
           };
-          processedIds.add(expenseId); // Mark as processed
-          return; // Skip ALL notifications on first initialization
+          processedIds.add(expenseId); // Mark as processed to avoid future notifications
+          return; // Skip notification for old expenses on first load
         }
 
-        // ✅ FIXED: Only notify about very recent expenses AND check if already processed
-        if (expenseDate > oneMinuteAgo && !processedIds.has(expenseId)) {
+        // ✅ FIXED: Only notify about recent expenses AND check if already processed
+        if (expenseDate > fiveMinutesAgo && !processedIds.has(expenseId)) {
           
           // ✅ FIXED: Only notify if this user created the expense OR if it's a supervisor/admin monitoring all expenses
           const shouldNotify = (
@@ -1576,7 +1433,7 @@ const Notification = () => {
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
         console.log(`✅ Created ${newNotifications} expense notifications`);
       } else if (isFirstTimeCheck) {
-        console.log(`📋 First time expense check - stored existing expenses without notifications in environment ${databaseEnvironmentId}`);
+        console.log('📋 First time expense check - stored existing expenses without notifications');
       }
 
     } catch (error) {
@@ -1584,10 +1441,784 @@ const Notification = () => {
     }
 
     return newNotifications;
-  }, [addNotification, largeExpenseThreshold, currentWarehouse, systemInitialized, databaseEnvironmentId, getCurrentUser]);
+  }, [addNotification, largeExpenseThreshold, currentWarehouse, getCurrentUser]);
 
-  // Continue with the rest of your component methods...
-  // Due to length constraints, I'll provide the key remaining methods separately
+  // ✅ NEW: Comprehensive credit notification checking
+  const checkCreditNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
+    let newNotifications = 0;
+
+    try {
+      // ✅ Using warehouse utils for consistent configuration
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      config.timeout = 5000;
+      config.headers = {
+        ...config.headers,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json"
+      };
+
+      const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+      console.log('💳 Checking credit notifications for warehouse:', warehouseQueryParam);
+      
+      const creditResponse = await axios.get(
+        `http://localhost:8080/api/credits/?warehouse=${warehouseQueryParam}`, 
+        config
+      );
+      
+      const credits = Array.isArray(creditResponse.data) ? creditResponse.data : creditResponse.data?.results || [];
+
+      if (credits.length === 0) {
+        return newNotifications;
+      }
+
+      // Get previous credits for comparison
+      const previousCreditsKey = `previousCredits_${warehouseId}`;
+      const previousCredits = JSON.parse(localStorage.getItem(previousCreditsKey) || '{}');
+      const now = new Date().toISOString();
+      const today = new Date();
+      
+      // ✅ Check if this is the first time checking credits
+      const isFirstTimeCheck = Object.keys(previousCredits).length === 0;
+      
+      // ✅ Time windows for different notifications
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const currentUser = getCurrentUser();
+      const currentUserId = currentUser.id;
+      
+      credits.forEach(credit => {
+        const creditId = `credit-${credit.id}-${warehouseId}`;
+        const creditDate = new Date(credit.created_at || credit.updated_at || now);
+        const creditAmount = Number(credit.balance || credit.amount || 0);
+        const previousCredit = previousCredits[credit.id];
+        const creditStatus = (credit.status || '').toUpperCase();
+        const dueDate = credit.due_date ? new Date(credit.due_date) : null;
+        
+        // ✅ FIXED: Skip old credits on first load for creation notifications
+        if (isFirstTimeCheck && creditDate <= fiveMinutesAgo) {
+          // Store the credit but don't notify about old credits on first load
+          previousCredits[credit.id] = {
+            amount: creditAmount,
+            status: creditStatus,
+            balance: creditAmount,
+            due_date: credit.due_date,
+            customer_name: credit.customer_name,
+            updated_at: credit.updated_at || credit.created_at,
+            timestamp: now,
+            created_by: credit.created_by || credit.user_id
+          };
+          processedIds.add(creditId);
+          
+          // ✅ Check for overdue credits even on first load (but not new creation)
+          if (dueDate && today > dueDate && creditStatus !== 'PAID') {
+            const overdueId = `credit-overdue-${credit.id}-${warehouseId}`;
+            const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+            
+            if (!processedIds.has(overdueId)) {
+              // ✅ Only notify about overdue credits if user should see them
+              const shouldNotifyOverdue = (
+                (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
+                (userRole === 'admin' || userRole === 'supervisor')
+              );
+              
+              if (shouldNotifyOverdue) {
+                addNotification('credit_overdue', { 
+                  ...credit, 
+                  warehouse_id: warehouseId,
+                  days_overdue: daysOverdue,
+                  original_amount: credit.original_amount || creditAmount,
+                  overdue_notification: true
+                }, userRole);
+                newNotifications++;
+              }
+              
+              processedIds.add(overdueId);
+            }
+          }
+          
+          return; // Skip new creation notification for old credits
+        }
+
+        // ✅ Check for NEW CREDIT CREATED (recent credits only)
+        if (creditDate > fiveMinutesAgo && !processedIds.has(creditId)) {
+          
+          // ✅ Only notify if this user created the credit OR if it's a supervisor/admin
+          const shouldNotifyCreation = (
+            (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
+            (userRole === 'admin' || userRole === 'supervisor')
+          );
+          
+          if (shouldNotifyCreation && !previousCredit) {
+            addNotification('credit_created', { 
+              ...credit, 
+              warehouse_id: warehouseId,
+              credit_terms: credit.credit_terms || credit.terms || 30,
+              created_by: credit.created_by || credit.user_id || 'Unknown'
+            }, userRole);
+            newNotifications++;
+          }
+          
+          processedIds.add(creditId);
+        }
+
+        // ✅ Check for CREDIT STATUS CHANGES (PAID)
+        if (previousCredit && previousCredit.status !== creditStatus) {
+          const statusChangeId = `credit-status-${credit.id}-${warehouseId}-${creditStatus}`;
+          
+          if (!processedIds.has(statusChangeId)) {
+            if (creditStatus === 'PAID' && previousCredit.status !== 'PAID') {
+              // ✅ Credit was paid
+              const shouldNotifyPayment = (
+                (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
+                (userRole === 'admin' || userRole === 'supervisor')
+              );
+              
+              if (shouldNotifyPayment) {
+                addNotification('paid_credit', { 
+                  ...credit, 
+                  warehouse_id: warehouseId,
+                  payment_date: credit.updated_at || now,
+                  payment_method: credit.payment_method || 'Cash',
+                  previous_balance: previousCredit.balance || previousCredit.amount
+                }, userRole);
+                newNotifications++;
+              }
+            }
+            
+            processedIds.add(statusChangeId);
+          }
+        }
+
+        // ✅ Check for OVERDUE CREDITS (check all credits, not just recent ones)
+        if (dueDate && today > dueDate && creditStatus !== 'PAID') {
+          const overdueId = `credit-overdue-${credit.id}-${warehouseId}`;
+          const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+          
+          // ✅ Only notify once per day about overdue credits
+          const lastOverdueCheck = localStorage.getItem(`lastOverdueCheck_${credit.id}_${warehouseId}`);
+          const shouldCheckOverdue = !lastOverdueCheck || 
+            (new Date(lastOverdueCheck).toDateString() !== today.toDateString());
+          
+          if (shouldCheckOverdue && !processedIds.has(overdueId)) {
+            const shouldNotifyOverdue = (
+              (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
+              (userRole === 'admin' || userRole === 'supervisor')
+            );
+            
+            if (shouldNotifyOverdue) {
+              addNotification('credit_overdue', { 
+                ...credit, 
+                warehouse_id: warehouseId,
+                days_overdue: daysOverdue,
+                original_amount: credit.original_amount || creditAmount,
+                overdue_notification: true
+              }, userRole);
+              newNotifications++;
+              
+              // Mark as checked today
+              localStorage.setItem(`lastOverdueCheck_${credit.id}_${warehouseId}`, today.toISOString());
+            }
+            
+            processedIds.add(overdueId);
+          }
+        }
+
+        // Store current credit data for next comparison
+        previousCredits[credit.id] = {
+          amount: creditAmount,
+          status: creditStatus,
+          balance: creditAmount,
+          due_date: credit.due_date,
+          customer_name: credit.customer_name,
+          updated_at: credit.updated_at || credit.created_at,
+          timestamp: now,
+          created_by: credit.created_by || credit.user_id
+        };
+      });
+
+      // Save current credit state for next comparison
+      localStorage.setItem(previousCreditsKey, JSON.stringify(previousCredits));
+
+      if (newNotifications > 0) {
+        // FORCE UPDATE after creating credit notifications
+        setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} credit notifications`);
+      } else if (isFirstTimeCheck) {
+        console.log('💳 First time credit check - stored existing credits and checked for overdue');
+      }
+
+    } catch (error) {
+      console.warn('❌ Credit notifications check failed:', error.message);
+    }
+
+    return newNotifications;
+  }, [addNotification, currentWarehouse, getCurrentUser]);
+
+  // Check system and role accessibility notifications (Admin only)
+  const checkSystemNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
+    let newNotifications = 0;
+
+    // Only admin can see system notifications
+    if (userRole !== 'admin') {
+      return newNotifications;
+    }
+
+    try {
+      const config = { 
+        headers: { 
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json"
+        },
+        timeout: 5000
+      };
+
+      const now = new Date().toISOString();
+
+      console.log('🔧 Checking system notifications for admin');
+
+      // 1. CHECK USER ROLE CHANGES
+      try {
+        const usersResponse = await axios.get(`http://localhost:8080/api/users/`, config);
+        const users = Array.isArray(usersResponse.data) ? usersResponse.data : usersResponse.data?.results || [];
+
+        // Get previous user roles for comparison
+        const previousUsersKey = `previousUsers_${warehouseId}`;
+        const previousUsers = JSON.parse(localStorage.getItem(previousUsersKey) || '{}');
+
+        const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+        
+        users.forEach(user => {
+          const userId = `user-role-${user.id}-${warehouseId}`;
+          const userDate = new Date(user.updated_at || user.created_at || now);
+          const previousUser = previousUsers[user.id];
+
+          // Check if this is a recent user update
+          if (userDate > fifteenMinutesAgo && !processedIds.has(userId)) {
+            
+            // Check for role changes
+            const isRoleUpdate = previousUser && (
+              previousUser.role !== user.role ||
+              previousUser.permissions !== JSON.stringify(user.permissions || {})
+            );
+
+            if (isRoleUpdate) {
+              addNotification('role_updated', { 
+                ...user, 
+                warehouse_id: warehouseId,
+                user_name: user.username || user.name || `User ${user.id}`,
+                old_role: previousUser.role,
+                new_role: user.role,
+                role_name: user.role,
+                updated_by: user.updated_by || 'System',
+                changes: {
+                  role: { old: previousUser.role, new: user.role },
+                  permissions: { 
+                    old: previousUser.permissions, 
+                    new: JSON.stringify(user.permissions || {}) 
+                  }
+                }
+              }, userRole);
+              
+              processedIds.add(userId);
+              newNotifications++;
+            }
+          }
+
+          // Store current user data for next comparison
+          previousUsers[user.id] = {
+            role: user.role,
+            permissions: JSON.stringify(user.permissions || {}),
+            updated_at: user.updated_at || user.created_at,
+            username: user.username || user.name,
+            timestamp: now
+          };
+        });
+
+        // Save current users state for next comparison
+        localStorage.setItem(previousUsersKey, JSON.stringify(previousUsers));
+        
+      } catch (userError) {
+        console.warn('Users API not available for system notifications');
+      }
+
+      if (newNotifications > 0) {
+        // FORCE UPDATE after creating system notifications
+        setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} system notifications`);
+      }
+
+    } catch (error) {
+      console.warn('❌ System notifications check failed:', error.message);
+    }
+
+    return newNotifications;
+  }, [addNotification]);
+
+  // ✅ FIXED: Enhanced supplier notifications with warehouse filtering
+  const checkSupplierNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
+    let newNotifications = 0;
+
+    try {
+      // ✅ FIXED: Use warehouse utils for consistent configuration
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      config.timeout = 5000;
+      config.headers = {
+        ...config.headers,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json"
+      };
+
+      const now = new Date().toISOString();
+      const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+
+      console.log('🏪 Checking supplier and warehouse notifications for warehouse:', warehouseQueryParam);
+
+      // ✅ FIXED: CHECK SUPPLIERS WITH WAREHOUSE FILTERING
+      const supplierResponse = await axios.get(`http://localhost:8080/api/suppliers/?warehouse=${warehouseQueryParam}`, config);
+      const suppliers = Array.isArray(supplierResponse.data) ? supplierResponse.data : supplierResponse.data?.results || [];
+
+      // Get previous suppliers for comparison
+      const previousSuppliersKey = `previousSuppliers_${warehouseId}`;
+      const previousSuppliers = JSON.parse(localStorage.getItem(previousSuppliersKey) || '{}');
+
+      // Check for NEW or UPDATED suppliers (last 60 minutes)
+      const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000);
+      
+      suppliers.forEach(supplier => {
+        const supplierId = `supplier-${supplier.id}-${warehouseId}`;
+        const supplierDate = new Date(supplier.created_at || supplier.updated_at || now);
+        const previousSupplier = previousSuppliers[supplier.id];
+
+        // Check if this is a recent supplier (created or updated)
+        if (supplierDate > sixtyMinutesAgo && !processedIds.has(supplierId)) {
+          
+          // Determine if it's a creation or update
+          const isUpdate = previousSupplier && (
+            previousSupplier.name !== supplier.name ||
+            previousSupplier.contact_number !== supplier.contact_number ||
+            previousSupplier.address !== supplier.address
+          );
+
+          if (isUpdate) {
+            // SUPPLIER UPDATED
+            addNotification('supplier_updated', { 
+              ...supplier, 
+              warehouse_id: warehouseId,
+              changes: {
+                name: previousSupplier.name !== supplier.name ? { old: previousSupplier.name, new: supplier.name } : null,
+                contact: previousSupplier.contact_number !== supplier.contact_number ? { old: previousSupplier.contact_number, new: supplier.contact_number } : null,
+                address: previousSupplier.address !== supplier.address ? { old: previousSupplier.address, new: supplier.address } : null
+              }
+            }, userRole);
+          } else if (!previousSupplier) {
+            // NEW SUPPLIER CREATED
+            addNotification('supplier_added', { 
+              ...supplier, 
+              warehouse_id: warehouseId
+            }, userRole);
+          }
+
+          processedIds.add(supplierId);
+          newNotifications++;
+        }
+
+        // Store current supplier data for next comparison
+        previousSuppliers[supplier.id] = {
+          name: supplier.name,
+          contact_number: supplier.contact_number,
+          address: supplier.address,
+          updated_at: supplier.updated_at || supplier.created_at,
+          timestamp: now
+        };
+      });
+
+      // Save current supplier state for next comparison
+      localStorage.setItem(previousSuppliersKey, JSON.stringify(previousSuppliers));
+
+      // ✅ FIXED: CHECK SUPPLIER RETURNS WITH WAREHOUSE FILTERING
+      try {
+        const returnResponse = await axios.get(`http://localhost:8080/api/supplier-returns/?warehouse=${warehouseQueryParam}`, config);
+        const returns = Array.isArray(returnResponse.data) ? returnResponse.data : returnResponse.data?.results || [];
+
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+        
+        returns.forEach(returnItem => {
+          const returnId = `supplier-return-${returnItem.id}-${warehouseId}`;
+          const returnDate = new Date(returnItem.created_at || returnItem.processed_at || returnItem.date_processed || now);
+          
+          // Check if this is a recent return
+          if (returnDate > thirtyMinutesAgo && !processedIds.has(returnId)) {
+            addNotification('supplier_return_processed', { 
+              ...returnItem, 
+              warehouse_id: warehouseId,
+              supplier_name: returnItem.supplier_name || returnItem.supplier?.name || 'Unknown Supplier',
+              product_name: returnItem.product_name || returnItem.product?.name || 'Product',
+              return_quantity: returnItem.quantity_returned || returnItem.quantity || 0,
+              return_reason: returnItem.reason || returnItem.return_reason || 'Not specified'
+            }, userRole);
+            
+            processedIds.add(returnId);
+            newNotifications++;
+          }
+        });
+      } catch (returnError) {
+        console.warn('Supplier returns API not available');
+      }
+
+      // 3. CHECK WAREHOUSE MSP (MERCHANDISING) OPERATIONS WITH VAN LOAD SUPPORT
+      try {
+        // ✅ Using warehouse utils for consistent MSP configuration
+        const mspConfig = getWarehouseAxiosConfig(currentWarehouse);
+        mspConfig.timeout = 5000;
+        mspConfig.headers = {
+          ...mspConfig.headers,
+          "Authorization": `Bearer ${localStorage.getItem("token")}`,
+          "Content-Type": "application/json"
+        };
+
+        console.log('🚛 Checking MSP/Van Load notifications for warehouse:', warehouseQueryParam);
+        
+        const mspResponse = await axios.get(
+          `http://localhost:8080/api/merchandisings/?warehouse=${warehouseQueryParam}`, 
+          mspConfig
+        );
+        const msps = Array.isArray(mspResponse.data) ? mspResponse.data : mspResponse.data?.results || [];
+
+        // Get previous MSPs for comparison
+        const previousMSPsKey = `previousMSPs_${warehouseId}`;
+        const previousMSPs = JSON.parse(localStorage.getItem(previousMSPsKey) || '{}');
+
+        const twentyMinutesAgo = new Date(Date.now() - 20 * 60 * 1000);
+        
+        msps.forEach(msp => {
+          const mspId = `msp-${msp.id}-${warehouseId}`;
+          const mspDate = new Date(msp.created_at || msp.updated_at || now);
+          const previousMSP = previousMSPs[msp.id];
+
+          // Check if this is a recent MSP (created or updated)
+          if (mspDate > twentyMinutesAgo && !processedIds.has(mspId)) {
+            
+            // Better update detection for Van Load transactions
+            const isUpdate = previousMSP && (
+              previousMSP.msp_no !== msp.msp_no ||
+              previousMSP.status !== msp.status ||
+              previousMSP.total_amount !== msp.total_amount ||
+              previousMSP.expected_sale !== msp.expected_sale ||
+              previousMSP.actual_sale !== msp.actual_sale ||
+              previousMSP.handled_by !== msp.handled_by ||
+              previousMSP.route !== msp.route ||
+              previousMSP.van !== msp.van
+            );
+
+            if (isUpdate) {
+              // MSP UPDATED - Enhanced for Van Load notifications
+              const isVanLoad = (msp.transaction_type_name || '').toLowerCase().includes('van load');
+              const updateType = isVanLoad ? 'Van Load' : 'Warehouse MSP';
+              
+              // Determine what changed for better notification details
+              const changes = [];
+              if (previousMSP.status !== msp.status) {
+                changes.push(`Status: ${previousMSP.status} → ${msp.status}`);
+              }
+              if (previousMSP.expected_sale !== msp.expected_sale) {
+                changes.push(`Expected Sale: ₱${Number(previousMSP.expected_sale || 0).toLocaleString()} → ₱${Number(msp.expected_sale || 0).toLocaleString()}`);
+              }
+              if (previousMSP.actual_sale !== msp.actual_sale) {
+                changes.push(`Actual Sale: ₱${Number(previousMSP.actual_sale || 0).toLocaleString()} → ₱${Number(msp.actual_sale || 0).toLocaleString()}`);
+              }
+              if (previousMSP.handled_by !== msp.handled_by) {
+                changes.push(`Handler: ${previousMSP.handled_by || 'N/A'} → ${msp.handled_by || 'N/A'}`);
+              }
+              if (isVanLoad) {
+                if (previousMSP.route !== msp.route) {
+                  changes.push(`Route changed`);
+                }
+                if (previousMSP.van !== msp.van) {
+                  changes.push(`Van changed`);
+                }
+              }
+
+              addNotification('warehouse_msp_updated', { 
+                ...msp, 
+                warehouse_id: warehouseId,
+                update_type: updateType,
+                is_van_load: isVanLoad,
+                changes_summary: changes.join(', ') || 'Details updated',
+                action_type: isVanLoad ? 'van_load_updated' : 'warehouse_updated',
+                changes: {
+                  status: previousMSP.status !== msp.status ? { old: previousMSP.status, new: msp.status } : null,
+                  expected_sale: previousMSP.expected_sale !== msp.expected_sale ? { old: previousMSP.expected_sale, new: msp.expected_sale } : null,
+                  actual_sale: previousMSP.actual_sale !== msp.actual_sale ? { old: previousMSP.actual_sale, new: msp.actual_sale } : null,
+                  handled_by: previousMSP.handled_by !== msp.handled_by ? { old: previousMSP.handled_by, new: msp.handled_by } : null,
+                  route: previousMSP.route !== msp.route ? { old: previousMSP.route, new: msp.route } : null,
+                  van: previousMSP.van !== msp.van ? { old: previousMSP.van, new: msp.van } : null
+                }
+              }, userRole);
+            } else if (!previousMSP) {
+              // NEW MSP CREATED - Enhanced for both Van Load and Warehouse
+              const isVanLoad = (msp.transaction_type_name || '').toLowerCase().includes('van load');
+              const creationType = isVanLoad ? 'Van Load' : 'Warehouse MSP';
+              
+              addNotification('warehouse_msp_created', { 
+                ...msp, 
+                warehouse_id: warehouseId,
+                msp_number: msp.msp_no,
+                total_amount: msp.total_amount || msp.expected_sale || 0,
+                expected_sale: msp.expected_sale || msp.total_amount || 0,
+                is_van_load: isVanLoad,
+                creation_type: creationType,
+                status: msp.status || 'PENDING'
+              }, userRole);
+            }
+
+            processedIds.add(mspId);
+            newNotifications++;
+          }
+
+          // Store enhanced MSP data for next comparison (including more fields)
+          previousMSPs[msp.id] = {
+            msp_no: msp.msp_no,
+            status: msp.status,
+            total_amount: msp.total_amount,
+            expected_sale: msp.expected_sale,
+            actual_sale: msp.actual_sale,
+            handled_by: msp.handled_by,
+            route: typeof msp.route === 'object' ? msp.route?.id : msp.route,
+            van: typeof msp.van === 'object' ? msp.van?.id : msp.van,
+            updated_at: msp.updated_at || msp.created_at,
+            timestamp: now
+          };
+        });
+
+        // Save current MSP state for next comparison
+        localStorage.setItem(previousMSPsKey, JSON.stringify(previousMSPs));
+        
+      } catch (mspError) {
+        console.warn('❌ MSP/Merchandising API not available:', mspError.message);
+      }
+
+      if (newNotifications > 0) {
+        // FORCE UPDATE after creating supplier/warehouse notifications
+        setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} supplier/warehouse notifications`);
+      }
+
+    } catch (error) {
+      console.warn('❌ Supplier notifications check failed:', error.message);
+    }
+
+    return newNotifications;
+  }, [addNotification, currentWarehouse]);
+
+  // ✅ FIXED: Check products and returns/refunds notifications with warehouse filtering
+  const checkProductsAndReturnsNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
+    let newNotifications = 0;
+
+    // Only admin can see product and returns notifications
+    if (userRole !== 'admin') {
+      return newNotifications;
+    }
+
+    try {
+      // ✅ FIXED: Use warehouse utils for consistent configuration
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      config.timeout = 5000;
+      config.headers = {
+        ...config.headers,
+        "Authorization": `Bearer ${localStorage.getItem("token")}`,
+        "Content-Type": "application/json"
+      };
+
+      const now = new Date().toISOString();
+      const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+
+      console.log('📦 Checking product and returns notifications for admin in warehouse:', warehouseQueryParam);
+
+      // ✅ FIXED: CHECK PRODUCTS WITH WAREHOUSE FILTERING
+      try {
+        const productsResponse = await axios.get(`http://localhost:8080/api/products/?warehouse=${warehouseQueryParam}`, config);
+        const products = Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.results || [];
+
+        // Get previous products for comparison
+        const previousProductsKey = `previousProducts_${warehouseId}`;
+        const previousProducts = JSON.parse(localStorage.getItem(previousProductsKey) || '{}');
+
+        const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+        
+        products.forEach(product => {
+          const productId = `product-${product.id}-${warehouseId}`;
+          const productDate = new Date(product.created_at || product.updated_at || now);
+          const previousProduct = previousProducts[product.id];
+
+          // Check if this is a recent product (created or updated)
+          if (productDate > thirtyMinutesAgo && !processedIds.has(productId)) {
+            
+            // Determine if it's a creation or update
+            const isUpdate = previousProduct && (
+              previousProduct.name !== product.product_name ||
+              previousProduct.price !== product.selling_price ||
+              previousProduct.category !== product.category ||
+              previousProduct.status !== product.status
+            );
+
+            if (isUpdate) {
+              // PRODUCT UPDATED
+              const changes = {};
+              if (previousProduct.name !== product.product_name) changes.name = { old: previousProduct.name, new: product.product_name };
+              if (previousProduct.price !== product.selling_price) changes.price = { old: previousProduct.price, new: product.selling_price };
+              if (previousProduct.category !== product.category) changes.category = { old: previousProduct.category, new: product.category };
+              if (previousProduct.status !== product.status) changes.status = { old: previousProduct.status, new: product.status };
+              
+              addNotification('product_updated', { 
+                ...product, 
+                warehouse_id: warehouseId,
+                changes: changes,
+                updated_by: 'Admin'
+              }, userRole);
+            } else if (!previousProduct) {
+              // NEW PRODUCT CREATED
+              addNotification('product_created', { 
+                ...product, 
+                warehouse_id: warehouseId
+              }, userRole);
+            }
+
+            processedIds.add(productId);
+            newNotifications++;
+          }
+
+          // Store current product data for next comparison
+          previousProducts[product.id] = {
+            name: product.product_name,
+            price: product.selling_price,
+            category: product.category,
+            status: product.status,
+            updated_at: product.updated_at || product.created_at,
+            timestamp: now
+          };
+        });
+
+        // Save current product state for next comparison
+        localStorage.setItem(previousProductsKey, JSON.stringify(previousProducts));
+        
+      } catch (productsError) {
+        console.warn('Products API not available');
+      }
+
+      if (newNotifications > 0) {
+        // FORCE UPDATE after creating products/returns notifications
+        setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+        console.log(`✅ Created ${newNotifications} product/returns notifications`);
+      }
+
+    } catch (error) {
+      console.warn('❌ Products/returns notifications check failed:', error.message);
+    }
+
+    return newNotifications;
+  }, [addNotification, currentWarehouse]);
+
+  // ✅ ENHANCED: Check ALL notification types when user performs actions with warehouse utils and credit support
+  const checkNotificationsOnAction = useCallback(async () => {
+    // Only proceed if user data is ready and we have a warehouse
+    if (!userDataReady || !currentWarehouseId) {
+      return;
+    }
+
+    console.log('🔄 Checking all notifications for warehouse:', currentWarehouseId);
+
+    // First, always check stock notifications
+    await checkStockNotifications();
+
+    // Then check other notification types
+    const user = getCurrentUser();
+    const userRole = user.role?.toLowerCase();
+    const warehouseId = currentWarehouseId;
+    
+    if (!userRole || !warehouseId) return;
+
+    // ✅ Using warehouse utils for consistent configuration for all API calls
+    const config = getWarehouseAxiosConfig(currentWarehouse);
+    config.timeout = 5000;
+
+    try {
+      const apiCalls = [];
+      const processedIds = processedIdsRef.current;
+      let newNotifications = 0;
+      
+      // Add other API calls (receiving, etc.)
+      apiCalls.push(
+        axios.get(`http://localhost:8080/api/receiving/`, config).then(res => ({ type: 'receiving', data: res })).catch(() => null)
+      );
+
+      // ✅ NEW: CREDITS (All users can see their own credits, admin/supervisor see all)
+      const creditNotifications = await checkCreditNotifications(warehouseId, userRole, processedIds);
+      newNotifications += creditNotifications;
+
+      // EXPENSES (Admin & Supervisor only) - Call our enhanced expense checker
+      if (['admin', 'supervisor'].includes(userRole)) {
+        const expenseNotifications = await checkExpenseNotifications(warehouseId, userRole, processedIds);
+        newNotifications += expenseNotifications;
+        
+        // SUPPLIERS & WAREHOUSE OPERATIONS (Admin & Supervisor only)
+        const supplierNotifications = await checkSupplierNotifications(warehouseId, userRole, processedIds);
+        newNotifications += supplierNotifications;
+      }
+
+      // SYSTEM & ROLE ACCESSIBILITY (Admin only) - Check for role changes, menu access, and settings
+      if (userRole === 'admin') {
+        const systemNotifications = await checkSystemNotifications(warehouseId, userRole, processedIds);
+        newNotifications += systemNotifications;
+        
+        // PRODUCTS & RETURNS (Admin only)
+        const productsReturnsNotifications = await checkProductsAndReturnsNotifications(warehouseId, userRole, processedIds);
+        newNotifications += productsReturnsNotifications;
+      }
+
+      const results = await Promise.allSettled(apiCalls);
+
+      // Process each API result (excluding expenses, suppliers, products & returns since we handled them separately)
+      results.forEach((result) => {
+        if (result.status !== 'fulfilled' || !result.value) return;
+        
+        const { type, data } = result.value;
+        const items = Array.isArray(data.data) ? data.data : data.data?.results || [];
+        
+        switch (type) {
+          case 'receiving':
+            // Check for new receivings (last 10 minutes)
+            const tenMinutesAgo = new Date(Date.now() - 10 * 60 * 1000);
+            items.forEach(receiving => {
+              const receivingId = `receiving-${receiving.id}-${warehouseId}`;
+              const receivingDate = new Date(receiving.date_time || receiving.created_at);
+              
+              if (receivingDate > tenMinutesAgo && !processedIds.has(receivingId)) {
+                addNotification('new_receiving', { ...receiving, warehouse_id: warehouseId }, userRole);
+                processedIds.add(receivingId);
+                newNotifications++;
+              }
+            });
+            break;
+
+          default:
+            // No action needed for unknown types
+            break;
+        }
+      });
+
+      // Save processed IDs
+      if (newNotifications > 0) {
+        localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIds]));
+        processedIdsRef.current = processedIds;
+        
+        // FORCE UPDATE after all notifications are processed
+        setTimeout(() => setForceUpdate(prev => prev + 1), 300);
+        console.log(`✅ Total new notifications created: ${newNotifications}`);
+      }
+
+    } catch (error) {
+      console.warn('❌ General notifications check failed:', error.message);
+    }
+  }, [userDataReady, currentWarehouseId, getCurrentUser, addNotification, checkStockNotifications, checkCreditNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications, currentWarehouse]);
 
   // Action handlers with force update
   const markAllAsRead = () => {
@@ -1609,6 +2240,7 @@ const Notification = () => {
     setShowOptionsMenu(false);
   };
 
+  // ✅ FIXED: Clear all notifications with proper deletion tracking
   const clearAllNotifications = () => {
     const currentWarehouseNotifications = notifications.filter(notif => {
       if (notif.data?.warehouse_id) {
@@ -1617,7 +2249,13 @@ const Notification = () => {
       return false;
     });
 
+    // ✅ FIXED: Track deleted notification IDs permanently
+    const deletedNotificationIds = new Set(JSON.parse(localStorage.getItem('deletedNotificationIds') || '[]'));
+
     currentWarehouseNotifications.forEach(notification => {
+      // Add to deleted IDs to prevent reappearing
+      deletedNotificationIds.add(notification.id);
+      
       if (notification.data) {
         const processedId = `${notification.type}-${notification.data.id}-${notification.data.warehouse_id || currentWarehouseId}`;
         processedIdsRef.current.add(processedId);
@@ -1625,7 +2263,21 @@ const Notification = () => {
       dispatch({ type: 'REMOVE_NOTIFICATION', payload: notification.id });
     });
 
+    // ✅ FIXED: Save deleted notification IDs
+    localStorage.setItem('deletedNotificationIds', JSON.stringify([...deletedNotificationIds]));
     localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIdsRef.current]));
+    
+    // ✅ FIXED: Also remove from warehouse-specific storage for admin
+    const user = getCurrentUser();
+    const userRole = user.role?.toLowerCase();
+    
+    if (userRole === 'admin' && currentWarehouseId) {
+      const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
+      const remainingNotifications = notifications.filter(notif => 
+        !currentWarehouseNotifications.some(deleted => deleted.id === notif.id)
+      );
+      localStorage.setItem(warehouseKey, JSON.stringify(remainingNotifications));
+    }
     
     // FORCE UPDATE after clearing all notifications
     setTimeout(() => setForceUpdate(prev => prev + 1), 100);
@@ -1715,6 +2367,848 @@ const Notification = () => {
     );
   };
 
+  // ✅ ENHANCED: Warehouse change handler with notification persistence for admin
+  useEffect(() => {
+    const handleWarehouseChange = async () => {
+      const user = getCurrentUser();
+      const userRole = user.role?.toLowerCase();
+      const newWarehouse = getCurrentWarehouse();
+      const newWarehouseId = newWarehouse?.id ? parseInt(newWarehouse.id) : null;
+      
+      if (newWarehouseId && newWarehouseId !== currentWarehouseId) {
+        console.log('🔄 Admin warehouse changed:', { old: currentWarehouseId, new: newWarehouseId });
+        
+        // ✅ Add transition effect
+        setIsTransitioning(true);
+        
+        // ✅ ADMIN: Preserve notifications from previous warehouse and load new warehouse notifications
+        if (userRole === 'admin') {
+          // Save current notifications for the old warehouse
+          if (currentWarehouseId) {
+            const currentWarehouseNotifications = notifications.filter(notif => 
+              notif.data?.warehouse_id === currentWarehouseId
+            );
+            
+            if (currentWarehouseNotifications.length > 0) {
+              try {
+                const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
+                localStorage.setItem(warehouseKey, JSON.stringify(currentWarehouseNotifications));
+                console.log(`💾 Saved ${currentWarehouseNotifications.length} notifications for warehouse ${currentWarehouseId}`);
+              } catch (error) {
+                console.warn('Failed to save warehouse notifications');
+              }
+            }
+          }
+          
+          // Load notifications for new warehouse
+          try {
+            const newWarehouseKey = `persistedNotifications_warehouse_${newWarehouseId}`;
+            const savedNewWarehouseNotifications = localStorage.getItem(newWarehouseKey);
+            
+            if (savedNewWarehouseNotifications) {
+              const parsedNotifications = JSON.parse(savedNewWarehouseNotifications);
+              const validNotifications = parsedNotifications.filter(notif => 
+                new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+              );
+              
+              // Merge with existing notifications from other warehouses
+              const otherWarehouseNotifications = notifications.filter(notif => 
+                notif.data?.warehouse_id !== currentWarehouseId && 
+                notif.data?.warehouse_id !== newWarehouseId
+              );
+              
+              const allNotifications = [...validNotifications, ...otherWarehouseNotifications];
+              dispatch({ type: 'SET_NOTIFICATIONS', payload: allNotifications });
+              
+              console.log(`📥 Loaded ${validNotifications.length} notifications for new warehouse ${newWarehouseId}`);
+            } else {
+              // Keep notifications from other warehouses, just filter out old warehouse
+              const otherWarehouseNotifications = notifications.filter(notif => 
+                notif.data?.warehouse_id !== currentWarehouseId
+              );
+              dispatch({ type: 'SET_NOTIFICATIONS', payload: otherWarehouseNotifications });
+              
+              console.log(`🔄 No saved notifications found for warehouse ${newWarehouseId}, starting fresh`);
+            }
+          } catch (error) {
+            console.warn('Failed to load new warehouse notifications');
+          }
+        }
+        
+        // Update current warehouse state
+        setCurrentWarehouse(newWarehouse);
+        setCurrentWarehouseId(newWarehouseId);
+        
+        // Force update to refresh UI immediately
+        setTimeout(() => {
+          setForceUpdate(prev => prev + 1);
+          setIsTransitioning(false);
+        }, 300);
+        
+        // Check for new notifications in the new warehouse
+        if (isLoaded && userDataReady) {
+          setTimeout(() => {
+            checkNotificationsOnAction();
+            // Also check for low stock when warehouse changes
+            checkLowStockOnLogin();
+          }, 1000);
+        }
+      }
+    };
+
+    window.addEventListener('warehouseChanged', handleWarehouseChange);
+
+    return () => {
+      window.removeEventListener('warehouseChanged', handleWarehouseChange);
+    };
+  }, [
+    currentWarehouseId, 
+    notifications, 
+    dispatch, 
+    checkNotificationsOnAction, 
+    checkLowStockOnLogin, 
+    isLoaded, 
+    userDataReady, 
+    getCurrentUser,
+    getCurrentWarehouse
+  ]);
+
+  // ✅ NEW: Periodic cleanup and credit due date checking
+  useEffect(() => {
+    if (!isLoaded || !userDataReady || !currentWarehouseId) return;
+
+    // Cleanup old notifications every hour
+    const cleanupInterval = setInterval(cleanupOldNotifications, 60 * 60 * 1000);
+    
+    // Check credit due dates every 30 minutes
+    const creditCheckInterval = setInterval(checkCreditDueDates, 30 * 60 * 1000);
+    
+    // Initial checks
+    cleanupOldNotifications();
+    checkCreditDueDates();
+
+    return () => {
+      clearInterval(cleanupInterval);
+      clearInterval(creditCheckInterval);
+    };
+  }, [isLoaded, userDataReady, currentWarehouseId, cleanupOldNotifications, checkCreditDueDates]);
+
+  // ✅ FIXED: Listen for product management events with proper warehouse assignment
+  useEffect(() => {
+    const handleProductUpdate = (event) => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin') {
+          const detail = event.detail;
+          
+          // ✅ FIXED: Ensure warehouse_id is properly set
+          const notificationData = {
+            id: detail.productId,
+            product_name: detail.productName,
+            product_code: detail.productCode,
+            category: detail.category,
+            selling_price: detail.price,
+            warehouse_id: detail.warehouseId || currentWarehouseId, // ✅ FIXED: Use current warehouse
+            updated_at: new Date().toISOString(),
+            changes: detail.changes,
+            updated_by: user.username || user.name || 'Admin'
+          };
+          
+          // Add notification immediately
+          addNotification(detail.action === 'created' ? 'product_created' : 'product_updated', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+      }
+    };
+
+    const handleSupplierUpdate = (event) => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (['admin', 'supervisor'].includes(userRole)) {
+          const detail = event.detail;
+          
+          // ✅ FIXED: Ensure warehouse_id is properly set for supplier notifications
+          const notificationData = {
+            id: detail.supplierId,
+            name: detail.supplierName,
+            company_name: detail.supplierName,
+            contact_number: detail.contactNumber,
+            address: detail.address,
+            email: detail.email,
+            warehouse_id: detail.warehouseId || currentWarehouseId, // ✅ FIXED: Use current warehouse
+            updated_at: new Date().toISOString(),
+            changes: detail.changes,
+            updated_by: user.username || user.name || 'Admin'
+          };
+          
+          // Add notification immediately
+          addNotification(detail.action === 'created' ? 'supplier_added' : 'supplier_updated', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+      }
+    };
+
+    // ✅ FIXED: Listen to multiple event types for better coverage
+    window.addEventListener('productUpdated', handleProductUpdate);
+    window.addEventListener('productCreated', handleProductUpdate);
+    window.addEventListener('productAdded', handleProductUpdate);
+    window.addEventListener('supplierUpdated', handleSupplierUpdate);
+    window.addEventListener('supplierCreated', handleSupplierUpdate);
+    window.addEventListener('supplierAdded', handleSupplierUpdate);
+    
+    return () => {
+      window.removeEventListener('productUpdated', handleProductUpdate);
+      window.removeEventListener('productCreated', handleProductUpdate);
+      window.removeEventListener('productAdded', handleProductUpdate);
+      window.removeEventListener('supplierUpdated', handleSupplierUpdate);
+      window.removeEventListener('supplierCreated', handleSupplierUpdate);
+      window.removeEventListener('supplierAdded', handleSupplierUpdate);
+    };
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
+
+  // [INCLUDE ALL YOUR OTHER EVENT LISTENERS AND USEEFFECTS HERE - THEY REMAIN THE SAME]
+  // Listen for Van Load update events with immediate notification creation
+  useEffect(() => {
+    const handleVanLoadUpdate = (event) => {
+      if (isLoaded && userDataReady) {
+        // Immediate notification creation instead of waiting for API check
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (['admin', 'supervisor'].includes(userRole)) {
+          const detail = event.detail;
+          
+          // Create immediate notification based on the event
+          const notificationData = {
+            id: detail.saleId,
+            msp_no: detail.mspNo || `MSP-${detail.saleId}`,
+            transaction_type_name: 'Van Load',
+            handled_by: detail.handledBy || 'Unknown',
+            expected_sale: detail.changes?.expected_sale || 0,
+            actual_sale: detail.changes?.actual_sale || 0,
+            status: detail.changes?.status || 'Updated',
+            warehouse_id: currentWarehouseId,
+            updated_at: new Date().toISOString(),
+            is_van_load: true,
+            changes_summary: detail.summary || `Van Load ${detail.action}`,
+            action_type: detail.action
+          };
+          
+          // Add notification immediately
+          addNotification('warehouse_msp_updated', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+        
+        // Also trigger the regular check after a delay
+        setTimeout(() => checkNotificationsOnAction(), 2000);
+      }
+    };
+
+    window.addEventListener('vanLoadUpdated', handleVanLoadUpdate);
+    
+    return () => {
+      window.removeEventListener('vanLoadUpdated', handleVanLoadUpdate);
+    };
+  }, [checkNotificationsOnAction, isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
+
+  // ✅ Listen for Van Load and Warehouse MSP creation events
+  useEffect(() => {
+    const handleVanLoadCreated = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (['admin', 'supervisor'].includes(userRole)) {
+          const detail = event.detail;
+          
+          // Create immediate notification for Van Load creation
+          const notificationData = {
+            id: detail.id,
+            msp_no: detail.msp_no,
+            transaction_type_name: 'Van Load',
+            handled_by: detail.handled_by,
+            route: detail.route,
+            van: detail.van,
+            expected_sale: detail.expected_sale || 0,
+            warehouse_id: detail.warehouse_id,
+            created_at: new Date().toISOString(),
+            is_van_load: true,
+            creation_type: 'Van Load',
+            status: 'Pending'
+          };
+          
+          // Add notification immediately
+          addNotification('warehouse_msp_created', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+      }
+    };
+
+    const handleWarehouseMspCreated = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (['admin', 'supervisor'].includes(userRole)) {
+          const detail = event.detail;
+          
+          // Create immediate notification for Warehouse MSP creation
+          const notificationData = {
+            id: detail.id,
+            msp_no: detail.msp_no,
+            transaction_type_name: detail.transaction_type_name,
+            handled_by: detail.handled_by,
+            customer: detail.customer,
+            expected_sale: detail.expected_sale || 0,
+            actual_sale: detail.actual_sale || 0,
+            warehouse_id: detail.warehouse_id,
+            created_at: new Date().toISOString(),
+            is_van_load: false,
+            creation_type: detail.transaction_type_name,
+            status: 'Complete'
+          };
+          
+          // Add notification immediately
+          addNotification('warehouse_msp_created', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+      }
+    };
+
+    window.addEventListener('vanLoadCreated', handleVanLoadCreated);
+    window.addEventListener('warehouseMspCreated', handleWarehouseMspCreated);
+    
+    return () => {
+      window.removeEventListener('vanLoadCreated', handleVanLoadCreated);
+      window.removeEventListener('warehouseMspCreated', handleWarehouseMspCreated);
+    };
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
+
+  // ✅ NEW: Listen for credit-related events
+  useEffect(() => {
+    const handleCreditCreated = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        const detail = event.detail;
+        
+        // Create immediate notification for credit creation
+        const notificationData = {
+          id: detail.id,
+          msp_no: detail.msp_no,
+          customer_name: detail.customer_name,
+          balance: detail.balance || detail.amount,
+          due_date: detail.due_date,
+          credit_terms: detail.credit_terms || 30,
+          warehouse_id: detail.warehouse_id || currentWarehouseId,
+          created_at: new Date().toISOString(),
+          created_by: detail.created_by || user.id
+        };
+        
+        // Add notification immediately
+        addNotification('credit_created', notificationData, userRole);
+        
+        // FORCE UPDATE after immediate notification
+        setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+      }
+    };
+
+    const handleCreditPaid = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        const detail = event.detail;
+        
+        // Create immediate notification for credit payment
+        const notificationData = {
+          id: detail.id,
+          msp_no: detail.msp_no,
+          customer_name: detail.customer_name,
+          balance: detail.balance || detail.amount,
+          payment_amount: detail.payment_amount || detail.balance,
+          payment_method: detail.payment_method || 'Cash',
+          warehouse_id: detail.warehouse_id || currentWarehouseId,
+          updated_at: new Date().toISOString(),
+          payment_date: new Date().toISOString()
+        };
+        
+        // Add notification immediately
+        addNotification('paid_credit', notificationData, userRole);
+        
+        // FORCE UPDATE after immediate notification
+        setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+      }
+    };
+
+    // ✅ ENHANCED: Listen for credit payment notifications from external events
+    const handleCreditPaymentReceived = (event) => {
+      if (isLoaded && userDataReady) {
+        const detail = event.detail;
+        
+        triggerCreditNotification({
+          id: detail.creditId,
+          msp_no: detail.mspNo,
+          customer_name: detail.customerName,
+          balance: detail.paidAmount,
+          payment_amount: detail.paidAmount,
+          payment_method: detail.paymentMethod || 'Cash',
+          payment_date: new Date().toISOString(),
+          warehouse_id: detail.warehouseId || currentWarehouseId
+        }, 'paid');
+      }
+    };
+
+    window.addEventListener('creditCreated', handleCreditCreated);
+    window.addEventListener('creditPaid', handleCreditPaid);
+    window.addEventListener('creditPaymentReceived', handleCreditPaymentReceived);
+    
+    return () => {
+      window.removeEventListener('creditCreated', handleCreditCreated);
+      window.removeEventListener('creditPaid', handleCreditPaid);
+      window.removeEventListener('creditPaymentReceived', handleCreditPaymentReceived);
+    };
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId, triggerCreditNotification]);
+
+  // Listen for role permission updates with immediate notification creation
+  useEffect(() => {
+    const handleRolePermissionUpdate = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin') {
+          const detail = event.detail;
+          
+          // Create immediate notification based on the event
+          const notificationData = {
+            id: `role-${detail.roleId}-${Date.now()}`,
+            user_name: detail.roleName,
+            role_name: detail.roleName,
+            new_role: detail.roleName,
+            old_role: detail.action === 'updated' ? 'Previous Role' : null,
+            updated_by: user.username || user.name || 'Admin',
+            warehouse_id: currentWarehouseId,
+            updated_at: new Date().toISOString(),
+            changes: {
+              permissions: detail.permissions,
+              action: detail.action,
+              summary: detail.summary
+            },
+            action_type: detail.action,
+            permissions_count: detail.permissionsCount || 0,
+            full_access_count: detail.fullAccessCount || 0,
+            role_action: detail.action // created, updated, deleted
+          };
+          
+          // Add notification immediately
+          addNotification('role_updated', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+        
+        // Also trigger the regular system check after a delay
+        setTimeout(() => checkNotificationsOnAction(), 1000);
+      }
+    };
+
+    window.addEventListener('rolePermissionsUpdated', handleRolePermissionUpdate);
+    
+    return () => {
+      window.removeEventListener('rolePermissionsUpdated', handleRolePermissionUpdate);
+    };
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId, checkNotificationsOnAction]);
+
+  // Listen for admin settings change events with immediate notification creation
+  useEffect(() => {
+    const handleAdminSettingsUpdate = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin') {
+          const detail = event.detail;
+          
+          // Create immediate notification based on the event
+          const notificationData = {
+            id: `settings-${detail.settingId || Date.now()}`,
+            setting_name: detail.settingName || detail.name || 'System Setting',
+            old_value: detail.oldValue || 'Previous Value',
+            new_value: detail.newValue || 'Updated Value',
+            changed_by: user.username || user.name || 'Admin',
+            warehouse_id: currentWarehouseId,
+            updated_at: new Date().toISOString(),
+            changes: {
+              value: { old: detail.oldValue, new: detail.newValue },
+              setting: detail.settingName,
+              action: detail.action || 'updated'
+            },
+            action_type: detail.action || 'updated',
+            update_type: detail.action || 'updated',
+            setting_category: detail.category || 'General'
+          };
+          
+          // Add notification immediately
+          addNotification('admin_settings_changed', notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+        
+        // Also trigger the regular system check after a delay
+        setTimeout(() => checkNotificationsOnAction(), 1000);
+      }
+    };
+
+    // Listen for various settings-related events
+    window.addEventListener('adminSettingsUpdated', handleAdminSettingsUpdate);
+    window.addEventListener('settingsChanged', handleAdminSettingsUpdate);
+    window.addEventListener('configurationUpdated', handleAdminSettingsUpdate);
+    window.addEventListener('systemSettingsModified', handleAdminSettingsUpdate);
+    
+    return () => {
+      window.removeEventListener('adminSettingsUpdated', handleAdminSettingsUpdate);
+      window.removeEventListener('settingsChanged', handleAdminSettingsUpdate);
+      window.removeEventListener('configurationUpdated', handleAdminSettingsUpdate);
+      window.removeEventListener('systemSettingsModified', handleAdminSettingsUpdate);
+    };
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId, checkNotificationsOnAction]);
+
+  // Listen for product management events
+  useEffect(() => {
+    const handleReturnUpdate = (event) => {
+      if (isLoaded && userDataReady) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin') {
+          const detail = event.detail;
+          
+          // Create immediate notification based on the event
+          const notificationData = {
+            id: detail.returnId,
+            return_no: detail.returnNo,
+            customer_name: detail.customerName,
+            refund_amount: detail.amount,
+            items_count: detail.itemsCount,
+            return_reason: detail.reason,
+            warehouse_id: currentWarehouseId,
+            processed_at: new Date().toISOString(),
+            refund_method: detail.method || 'Cash'
+          };
+          
+          // Add notification immediately
+          const notificationType = detail.action === 'refund' ? 'refund_issued' : 
+                                 detail.action === 'rejected' ? 'return_rejected' : 'return_processed';
+          addNotification(notificationType, notificationData, userRole);
+          
+          // FORCE UPDATE after immediate notification
+          setTimeout(() => setForceUpdate(prev => prev + 1), 100);
+        }
+      }
+    };
+
+    window.addEventListener('returnProcessed', handleReturnUpdate);
+    
+    return () => {
+      window.removeEventListener('returnProcessed', handleReturnUpdate);
+    };
+  }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
+
+  // ✅ ENHANCED: Listen for user login events with warehouse utils integration
+  useEffect(() => {
+    const handleUserLogin = () => {
+      // Set login time for tracking
+      localStorage.setItem('loginTime', Date.now().toString());
+      
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        // Wait for user data to be properly established
+        setTimeout(() => {
+          checkLowStockOnLogin();
+        }, 3000);
+      } else {
+        // If not ready yet, set a flag to check later
+        localStorage.setItem('pendingLoginNotificationCheck', 'true');
+      }
+    };
+
+    const handleSessionRestore = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        setTimeout(() => {
+          checkLowStockOnLogin();
+        }, 2000);
+      } else {
+        // If not ready yet, set a flag to check later
+        localStorage.setItem('pendingLoginNotificationCheck', 'true');
+      }
+    };
+
+    window.addEventListener('userLoggedIn', handleUserLogin);
+    window.addEventListener('userSessionRestored', handleSessionRestore);
+    
+    return () => {
+      window.removeEventListener('userLoggedIn', handleUserLogin);
+      window.removeEventListener('userSessionRestored', handleSessionRestore);
+    };
+  }, [isLoaded, userDataReady, currentWarehouseId, checkLowStockOnLogin]);
+
+  // ✅ ENHANCED: Check for login stock notifications when all dependencies are ready
+  useEffect(() => {
+    if (isLoaded && userDataReady && currentWarehouseId) {
+      // Check if this is a fresh login session (within last 2 minutes) OR if there's a pending check
+      const loginTime = localStorage.getItem('loginTime');
+      const pendingCheck = localStorage.getItem('pendingLoginNotificationCheck');
+      const now = Date.now();
+      const isRecentLogin = loginTime && (now - parseInt(loginTime)) < 120000; // 2 minutes
+      
+      if (isRecentLogin || pendingCheck) {
+        // This is a recent login or we have a pending check, check for stock notifications
+        setTimeout(() => {
+          checkLowStockOnLogin();
+        }, 2000);
+        
+        // Clear the flags to prevent repeated checks
+        localStorage.removeItem('loginTime');
+        localStorage.removeItem('pendingLoginNotificationCheck');
+      }
+    }
+  }, [isLoaded, userDataReady, currentWarehouseId, checkLowStockOnLogin]);
+
+  // Listen for user activities that might trigger notifications
+  useEffect(() => {
+    const handleUserActivity = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        checkNotificationsOnAction();
+      }
+    };
+
+    const events = ['click', 'focus', 'online'];
+
+    // Handle visibility change separately
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isLoaded && userDataReady && currentWarehouseId) {
+        handleUserActivity();
+      }
+    };
+
+    events.forEach(event => {
+      window.addEventListener(event, handleUserActivity, { passive: true });
+    });
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    // Check when notification dropdown is opened
+    if (isOpen && isLoaded && userDataReady && currentWarehouseId) {
+      checkNotificationsOnAction();
+    }
+
+    return () => {
+      events.forEach(event => {
+        window.removeEventListener(event, handleUserActivity);
+      });
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [checkNotificationsOnAction, isOpen, isLoaded, userDataReady, currentWarehouseId]);
+
+  // ✅ NEW: Listen for credit page visits to check overdue credits
+  useEffect(() => {
+    const handleCreditsPageVisit = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        // All users can see their own credits, admin/supervisor see all
+        checkCreditNotifications(currentWarehouseId, userRole, processedIdsRef.current);
+      }
+    };
+
+    window.addEventListener('creditsPageVisited', handleCreditsPageVisit);
+    
+    return () => {
+      window.removeEventListener('creditsPageVisited', handleCreditsPageVisit);
+    };
+  }, [checkCreditNotifications, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
+
+  // Listen for page-specific visits with warehouse awareness
+  useEffect(() => {
+    const handleStocksPageVisit = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        checkStockNotifications();
+      }
+    };
+
+    const handleExpensesPageVisit = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (['admin', 'supervisor'].includes(userRole)) {
+          checkExpenseNotifications(currentWarehouseId, userRole, processedIdsRef.current);
+        }
+      }
+    };
+
+    const handleSuppliersPageVisit = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (['admin', 'supervisor'].includes(userRole)) {
+          checkSupplierNotifications(currentWarehouseId, userRole, processedIdsRef.current);
+        }
+      }
+    };
+
+    const handleAdminPageVisit = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin') {
+          checkSystemNotifications(currentWarehouseId, userRole, processedIdsRef.current);
+        }
+      }
+    };
+
+    const handleProductsPageVisit = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        if (userRole === 'admin') {
+          checkProductsAndReturnsNotifications(currentWarehouseId, userRole, processedIdsRef.current);
+        }
+      }
+    };
+
+    // Add event listeners for page visits
+    window.addEventListener('stocksPageVisited', handleStocksPageVisit);
+    window.addEventListener('expensesPageVisited', handleExpensesPageVisit);
+    window.addEventListener('suppliersPageVisited', handleSuppliersPageVisit);
+    window.addEventListener('adminPageVisited', handleAdminPageVisit);
+    window.addEventListener('settingsPageVisited', handleAdminPageVisit);
+    window.addEventListener('userManagementPageVisited', handleAdminPageVisit);
+    window.addEventListener('rolesPageVisited', handleAdminPageVisit);
+    window.addEventListener('productsPageVisited', handleProductsPageVisit);
+    window.addEventListener('returnsPageVisited', handleProductsPageVisit);
+    
+    return () => {
+      window.removeEventListener('stocksPageVisited', handleStocksPageVisit);
+      window.removeEventListener('expensesPageVisited', handleExpensesPageVisit);
+      window.removeEventListener('suppliersPageVisited', handleSuppliersPageVisit);
+      window.removeEventListener('adminPageVisited', handleAdminPageVisit);
+      window.removeEventListener('settingsPageVisited', handleAdminPageVisit);
+      window.removeEventListener('userManagementPageVisited', handleAdminPageVisit);
+      window.removeEventListener('rolesPageVisited', handleAdminPageVisit);
+      window.removeEventListener('productsPageVisited', handleProductsPageVisit);
+      window.removeEventListener('returnsPageVisited', handleProductsPageVisit);
+    };
+  }, [checkStockNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
+
+  // Listen for page navigation/route changes
+  useEffect(() => {
+    const handlePageChange = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        setTimeout(() => checkNotificationsOnAction(), 2000);
+      }
+    };
+
+    window.addEventListener('popstate', handlePageChange);
+    
+    // Initial check on mount (after all dependencies are ready)
+    if (isLoaded && userDataReady && currentWarehouseId) {
+      setTimeout(() => checkNotificationsOnAction(), 3000);
+    }
+
+    return () => {
+      window.removeEventListener('popstate', handlePageChange);
+    };
+  }, [checkNotificationsOnAction, isLoaded, userDataReady, currentWarehouseId]);
+
+  // ✅ NEW: Daily overdue credit check
+  useEffect(() => {
+    const checkOverdueCreditsDaily = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        const user = getCurrentUser();
+        const userRole = user.role?.toLowerCase();
+        
+        // Trigger credit notifications check for overdue credits
+        checkCreditNotifications(currentWarehouseId, userRole, processedIdsRef.current);
+      }
+    };
+
+    // Check overdue credits on mount and then every hour
+    const checkOverdueInterval = setInterval(checkOverdueCreditsDaily, 60 * 60 * 1000); // Every hour
+
+    // Initial check
+    if (isLoaded && userDataReady && currentWarehouseId) {
+      checkOverdueCreditsDaily();
+    }
+
+    return () => {
+      clearInterval(checkOverdueInterval);
+    };
+  }, [isLoaded, userDataReady, currentWarehouseId, checkCreditNotifications, getCurrentUser]);
+
+  // Proper click outside handling that respects detail modal
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      // Don't close main dropdown if detail modal is open and click is on detail modal
+      if (showDetailModal && event.target.closest('.notification-detail-modal')) {
+        return;
+      }
+      
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+        setShowOptionsMenu(false);
+      }
+      if (optionsRef.current && !optionsRef.current.contains(event.target)) {
+        setShowOptionsMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showDetailModal]);
+
+  // Close detail modal when clicking outside (but keep main dropdown open)
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showDetailModal && !event.target.closest('.notification-detail-modal')) {
+        closeDetailModal();
+      }
+    };
+
+    if (showDetailModal) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showDetailModal]);
+
+  // Request notification permission
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
   // ✅ ENHANCED: Better warehouse name display with transition and admin handling
   const getCurrentWarehouseName = () => {
     if (currentWarehouse?.name) {
@@ -1791,51 +3285,6 @@ const Notification = () => {
       return false;
     });
 
-  // Proper click outside handling that respects detail modal
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      // Don't close main dropdown if detail modal is open and click is on detail modal
-      if (showDetailModal && event.target.closest('.notification-detail-modal')) {
-        return;
-      }
-      
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsOpen(false);
-        setShowOptionsMenu(false);
-      }
-      if (optionsRef.current && !optionsRef.current.contains(event.target)) {
-        setShowOptionsMenu(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showDetailModal]);
-
-  // Close detail modal when clicking outside (but keep main dropdown open)
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (showDetailModal && !event.target.closest('.notification-detail-modal')) {
-        closeDetailModal();
-      }
-    };
-
-    if (showDetailModal) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [showDetailModal]);
-
-  // Request notification permission
-  useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
-
   return (
     <>
       <div className="relative" ref={dropdownRef}>
@@ -1878,14 +3327,6 @@ const Notification = () => {
                       {isTransitioning && (
                         <FontAwesomeIcon icon={faSync} className="ml-2 text-blue-500 animate-spin" />
                       )}
-                      {!systemInitialized && (
-                        <span className="ml-2 text-orange-600 dark:text-orange-400">Initializing...</span>
-                      )}
-                      {databaseEnvironmentId && (
-                        <span className="ml-2 text-green-600 dark:text-green-400 text-xs">
-                          ENV: {databaseEnvironmentId.slice(0, 8)}
-                        </span>
-                      )}
                     </div>
                     {!userDataReady && (
                       <div className="text-orange-600 dark:text-orange-400 mt-1">Setting up warehouse...</div>
@@ -1918,6 +3359,7 @@ const Notification = () => {
                         <FontAwesomeIcon icon={faTrash} className="mr-2" />
                         Clear all
                       </button>
+                      <div className="border-t border-gray-200 dark:border-gray-600"></div>
                       <div className="border-t border-gray-200 dark:border-gray-600"></div>
                       <button
                         onClick={() => window.location.href = '/expense-settings'}
@@ -1958,23 +3400,17 @@ const Notification = () => {
 
             {/* Notifications List - ENHANCED LOADING STATES */}
             <div className="max-h-96 overflow-y-auto">
-              {!isLoaded || !userDataReady || !systemInitialized || !databaseEnvironmentId ? (
+              {!isLoaded || !userDataReady ? (
                 <div className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
                     <FontAwesomeIcon icon={faBell} className="text-2xl text-gray-400 dark:text-gray-500 animate-pulse" />
                   </div>
                   <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {isTransitioning ? 'Switching Warehouse...' : 
-                     !systemInitialized ? 'Initializing System...' : 
-                     !databaseEnvironmentId ? 'Checking Environment...' : 'Loading Notifications...'}
+                    {isTransitioning ? 'Switching Warehouse...' : 'Loading Notifications...'}
                   </h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400 break-words">
                     {isTransitioning 
                       ? `Loading notifications for ${getCurrentWarehouseName()}...` 
-                      : !systemInitialized
-                      ? 'Setting up notification system to prevent old alerts...'
-                      : !databaseEnvironmentId
-                      ? 'Checking database environment for fresh data...'
                       : 'Setting up notification system with warehouse utils...'
                     }
                   </p>
@@ -1992,11 +3428,6 @@ const Notification = () => {
                       ? 'No unread notifications for ' + getCurrentWarehouseName()
                       : 'No notifications for ' + getCurrentWarehouseName() + ' right now.'
                     }
-                    {databaseEnvironmentId && (
-                      <div className="text-xs mt-1 text-green-600 dark:text-green-400">
-                        Fresh environment detected - clean slate!
-                      </div>
-                    )}
                   </p>
                 </div>
               ) : (
@@ -2189,14 +3620,6 @@ const Notification = () => {
                         {selectedNotification.is_read ? 'Read' : 'Unread'}
                       </div>
                     </div>
-                    {databaseEnvironmentId && (
-                      <div>
-                        <span className="text-gray-500 dark:text-gray-400">Environment:</span>
-                        <div className="font-medium text-green-600 dark:text-green-400 text-xs">
-                          {databaseEnvironmentId.slice(0, 12)}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 
