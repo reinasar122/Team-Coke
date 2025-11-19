@@ -1,4 +1,4 @@
-// src/components/Notification.jsx - COMPLETE FIXED VERSION WITH DELETION TRACKING AND WAREHOUSE FILTERING
+// src/components/Notification.jsx - COMPLETE FIXED VERSION WITH WAREHOUSE FILTERING AND ALL FUNCTIONS INTACT
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -2493,7 +2493,7 @@ const Notification = () => {
     };
   }, [isLoaded, userDataReady, currentWarehouseId, cleanupOldNotifications, checkCreditDueDates]);
 
-  // ✅ FIXED: Listen for product management events with proper warehouse assignment
+  // ✅ FIXED: Listen for product management events with PROPER WAREHOUSE FILTERING
   useEffect(() => {
     const handleProductUpdate = (event) => {
       if (isLoaded && userDataReady && currentWarehouseId) {
@@ -2503,17 +2503,29 @@ const Notification = () => {
         if (userRole === 'admin') {
           const detail = event.detail;
           
-          // ✅ FIXED: Ensure warehouse_id is properly set
+          // ✅ CRITICAL FIX: Only create notification if product belongs to current warehouse
+          const productWarehouseId = detail.warehouseId || detail.warehouse_id;
+          
+          // Skip notification if it's for a different warehouse than currently selected
+          if (productWarehouseId && parseInt(productWarehouseId) !== currentWarehouseId) {
+            console.log(`📦 SKIPPED product notification - product warehouse: ${productWarehouseId}, current: ${currentWarehouseId}`);
+            return;
+          }
+          
+          console.log(`✅ CREATING product notification for warehouse: ${currentWarehouseId}`);
+          
+          // ✅ FIXED: Ensure warehouse_id matches current warehouse context
           const notificationData = {
             id: detail.productId,
             product_name: detail.productName,
             product_code: detail.productCode,
             category: detail.category,
             selling_price: detail.price,
-            warehouse_id: detail.warehouseId || currentWarehouseId, // ✅ FIXED: Use current warehouse
+            warehouse_id: currentWarehouseId, // ✅ Always use current warehouse for filtering
             updated_at: new Date().toISOString(),
             changes: detail.changes,
-            updated_by: user.username || user.name || 'Admin'
+            updated_by: user.username || user.name || 'Admin',
+            source_warehouse: productWarehouseId || currentWarehouseId // Keep original for reference
           };
           
           // Add notification immediately
@@ -2533,7 +2545,18 @@ const Notification = () => {
         if (['admin', 'supervisor'].includes(userRole)) {
           const detail = event.detail;
           
-          // ✅ FIXED: Ensure warehouse_id is properly set for supplier notifications
+          // ✅ CRITICAL FIX: Only create notification if supplier belongs to current warehouse
+          const supplierWarehouseId = detail.warehouseId || detail.warehouse_id;
+          
+          // Skip notification if it's for a different warehouse than currently selected
+          if (supplierWarehouseId && parseInt(supplierWarehouseId) !== currentWarehouseId) {
+            console.log(`🏪 SKIPPED supplier notification - supplier warehouse: ${supplierWarehouseId}, current: ${currentWarehouseId}`);
+            return;
+          }
+          
+          console.log(`✅ CREATING supplier notification for warehouse: ${currentWarehouseId}`);
+          
+          // ✅ FIXED: Ensure warehouse_id matches current warehouse context
           const notificationData = {
             id: detail.supplierId,
             name: detail.supplierName,
@@ -2541,10 +2564,11 @@ const Notification = () => {
             contact_number: detail.contactNumber,
             address: detail.address,
             email: detail.email,
-            warehouse_id: detail.warehouseId || currentWarehouseId, // ✅ FIXED: Use current warehouse
+            warehouse_id: currentWarehouseId, // ✅ Always use current warehouse for filtering
             updated_at: new Date().toISOString(),
             changes: detail.changes,
-            updated_by: user.username || user.name || 'Admin'
+            updated_by: user.username || user.name || 'Admin',
+            source_warehouse: supplierWarehouseId || currentWarehouseId // Keep original for reference
           };
           
           // Add notification immediately
