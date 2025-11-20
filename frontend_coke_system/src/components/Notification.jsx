@@ -1,4 +1,4 @@
-// src/components/Notification.jsx - COMPLETE FIXED VERSION WITH WAREHOUSE FILTERING AND ALL FUNCTIONS INTACT
+// src/components/Notification.jsx - COMPLETE FIXED VERSION WITH CENTRALIZED API INTEGRATION
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -29,7 +29,7 @@ import {
   faSync,
   faBellSlash
 } from "@fortawesome/free-solid-svg-icons";
-import axios from 'axios';
+import api from '../api'; // ✅ Using centralized API instance
 import { useNotifications } from '../contexts/NotificationContext';
 import { getCurrentWarehouse, getWarehouseAxiosConfig, getWarehouseQueryParam, findWarehouseByName } from '../utils/warehouseUtils';
 
@@ -152,11 +152,9 @@ const Notification = () => {
           const token = localStorage.getItem("token");
           if (token) {
             console.log('🔄 Fetching user data from API for warehouse info in notifications...');
-            const response = await fetch(`http://localhost:8080/api/users/${user.id}/`, {
-              headers: { "Authorization": `Bearer ${token}` }
-            });
-            if (response.ok) {
-              const userData = await response.json();
+            const response = await api.get(`/users/${user.id}/`);
+            if (response.data) {
+              const userData = response.data;
               const apiWarehouseId = userData.warehouse_id || userData.warehouse || userData.assigned_warehouse_id;
               
               if (apiWarehouseId) {
@@ -292,22 +290,15 @@ const Notification = () => {
     }
   }, [getCurrentUser, currentWarehouseId, addNotification]);
 
-  // ✅ NEW: Credit due date checker
+  // ✅ NEW: Credit due date checker with API integration
   const checkCreditDueDates = useCallback(async () => {
     if (!userDataReady || !currentWarehouseId) return;
 
     try {
       const config = getWarehouseAxiosConfig(currentWarehouse);
-      config.headers = {
-        ...config.headers,
-        "Authorization": `Bearer ${localStorage.getItem("token")}`,
-      };
-
+      
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
-      const response = await axios.get(
-        `http://localhost:8080/api/credits/?warehouse=${warehouseQueryParam}&status=PENDING`,
-        config
-      );
+      const response = await api.get(`/credits/?warehouse=${warehouseQueryParam}&status=PENDING`, config);
 
       const credits = Array.isArray(response.data) ? response.data : response.data?.results || [];
       const today = new Date();
@@ -959,7 +950,7 @@ const Notification = () => {
     };
   }, [largeExpenseThreshold, reevaluateExpenseNotifications]);
 
-  // ✅ ENHANCED: Stock notifications with warehouse utils integration
+  // ✅ ENHANCED: Stock notifications with API integration
   const checkStockNotifications = useCallback(async () => {
     // Only proceed if user data is ready and warehouse is set
     if (!userDataReady || !currentWarehouseId) {
@@ -976,19 +967,11 @@ const Notification = () => {
       // ✅ Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 10000;
-      config.headers = {
-        ...config.headers,
-        "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        "Content-Type": "application/json"
-      };
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
       console.log('📦 Checking stock notifications for warehouse:', warehouseQueryParam);
       
-      const stockResponse = await axios.get(
-        `http://localhost:8080/api/stocks/?warehouse=${warehouseQueryParam}`, 
-        config
-      );
+      const stockResponse = await api.get(`/stocks/?warehouse=${warehouseQueryParam}`, config);
       const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
 
       // Get previous stock levels for comparison
@@ -1100,7 +1083,7 @@ const Notification = () => {
     }
   }, [currentWarehouseId, userDataReady, addNotification, getCurrentUser, currentWarehouse]);
 
-  // ✅ ENHANCED: Login stock check with warehouse utils integration
+  // ✅ ENHANCED: Login stock check with API integration
   const checkLowStockOnLogin = useCallback(async () => {
     // Only proceed if user data is ready and warehouse is set
     if (!userDataReady || !currentWarehouseId) {
@@ -1115,19 +1098,11 @@ const Notification = () => {
       // ✅ Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 10000;
-      config.headers = {
-        ...config.headers,
-        "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        "Content-Type": "application/json"
-      };
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
       console.log('🔔 Login stock check for warehouse:', warehouseQueryParam);
       
-      const stockResponse = await axios.get(
-        `http://localhost:8080/api/stocks/?warehouse=${warehouseQueryParam}`, 
-        config
-      );
+      const stockResponse = await api.get(`/stocks/?warehouse=${warehouseQueryParam}`, config);
       const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
 
       let loginNotifications = 0;
@@ -1209,7 +1184,7 @@ const Notification = () => {
     }
   }, [currentWarehouseId, userDataReady, addNotification, getCurrentUser, currentWarehouse]);
   
-  // ✅ FIXED: Enhanced expense notification checking with proper filtering
+  // ✅ ENHANCED: Expense notification checking with API integration
   const checkExpenseNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
@@ -1217,19 +1192,11 @@ const Notification = () => {
       // ✅ Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
-      config.headers = {
-        ...config.headers,
-        "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        "Content-Type": "application/json"
-      };
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
       console.log('💰 Checking expense notifications for warehouse:', warehouseQueryParam);
       
-      const expenseResponse = await axios.get(
-        `http://localhost:8080/api/miscellaneous-items/?warehouse=${warehouseQueryParam}`, 
-        config
-      );
+      const expenseResponse = await api.get(`/miscellaneous-items/?warehouse=${warehouseQueryParam}`, config);
       
       const expenses = Array.isArray(expenseResponse.data) ? expenseResponse.data : expenseResponse.data?.results || [];
 
@@ -1242,13 +1209,13 @@ const Notification = () => {
       const previousExpenses = JSON.parse(localStorage.getItem(previousExpensesKey) || '{}');
       const now = new Date().toISOString();
       
-      // ✅ FIXED: Check if this is the first time checking expenses
+      // ✅ Check if this is the first time checking expenses
       const isFirstTimeCheck = Object.keys(previousExpenses).length === 0;
       
-      // ✅ FIXED: Reduced time window to 5 minutes to avoid old expenses
+      // ✅ Reduced time window to 5 minutes to avoid old expenses
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       
-      // ✅ FIXED: Get current user to avoid notifying about other users' expenses
+      // ✅ Get current user to avoid notifying about other users' expenses
       const currentUser = getCurrentUser();
       const currentUserId = currentUser.id;
       
@@ -1258,7 +1225,7 @@ const Notification = () => {
         const expenseAmount = Number(expense.amount || 0);
         const previousExpense = previousExpenses[expense.id];
         
-        // ✅ FIXED: Skip if this is first time check and expense is older than 5 minutes
+        // ✅ Skip if this is first time check and expense is older than 5 minutes
         if (isFirstTimeCheck && expenseDate <= fiveMinutesAgo) {
           // Store the expense but don't notify about old expenses on first load
           previousExpenses[expense.id] = {
@@ -1272,10 +1239,10 @@ const Notification = () => {
           return; // Skip notification for old expenses on first load
         }
 
-        // ✅ FIXED: Only notify about recent expenses AND check if already processed
+        // ✅ Only notify about recent expenses AND check if already processed
         if (expenseDate > fiveMinutesAgo && !processedIds.has(expenseId)) {
           
-          // ✅ FIXED: Only notify if this user created the expense OR if it's a supervisor/admin monitoring all expenses
+          // ✅ Only notify if this user created the expense OR if it's a supervisor/admin monitoring all expenses
           const shouldNotify = (
             // If the expense was created by current user
             (expense.created_by === currentUserId || expense.user_id === currentUserId) ||
@@ -1384,7 +1351,7 @@ const Notification = () => {
         };
       });
 
-      // ✅ FIXED: Only check for deleted expenses if not first time check
+      // ✅ Only check for deleted expenses if not first time check
       if (!isFirstTimeCheck) {
         Object.keys(previousExpenses).forEach(expenseId => {
           const currentExpense = expenses.find(e => e.id.toString() === expenseId.toString());
@@ -1395,7 +1362,7 @@ const Notification = () => {
               const expenseData = previousExpenses[expenseId];
               const wasLarge = expenseData.amount >= largeExpenseThreshold;
               
-              // ✅ FIXED: Only notify about deleted expenses if user created them or is admin/supervisor
+              // ✅ Only notify about deleted expenses if user created them or is admin/supervisor
               const shouldNotifyDelete = (
                 (expenseData.created_by === currentUserId) ||
                 (userRole === 'admin' || userRole === 'supervisor')
@@ -1443,7 +1410,7 @@ const Notification = () => {
     return newNotifications;
   }, [addNotification, largeExpenseThreshold, currentWarehouse, getCurrentUser]);
 
-  // ✅ NEW: Comprehensive credit notification checking
+  // ✅ NEW: Comprehensive credit notification checking with API integration
   const checkCreditNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
@@ -1451,19 +1418,11 @@ const Notification = () => {
       // ✅ Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
-      config.headers = {
-        ...config.headers,
-        "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        "Content-Type": "application/json"
-      };
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
       console.log('💳 Checking credit notifications for warehouse:', warehouseQueryParam);
       
-      const creditResponse = await axios.get(
-        `http://localhost:8080/api/credits/?warehouse=${warehouseQueryParam}`, 
-        config
-      );
+      const creditResponse = await api.get(`/credits/?warehouse=${warehouseQueryParam}`, config);
       
       const credits = Array.isArray(creditResponse.data) ? creditResponse.data : creditResponse.data?.results || [];
 
@@ -1493,7 +1452,7 @@ const Notification = () => {
         const creditStatus = (credit.status || '').toUpperCase();
         const dueDate = credit.due_date ? new Date(credit.due_date) : null;
         
-        // ✅ FIXED: Skip old credits on first load for creation notifications
+        // ✅ Skip old credits on first load for creation notifications
         if (isFirstTimeCheck && creditDate <= fiveMinutesAgo) {
           // Store the credit but don't notify about old credits on first load
           previousCredits[credit.id] = {
@@ -1653,7 +1612,7 @@ const Notification = () => {
     return newNotifications;
   }, [addNotification, currentWarehouse, getCurrentUser]);
 
-  // Check system and role accessibility notifications (Admin only)
+  // Check system and role accessibility notifications (Admin only) with API integration
   const checkSystemNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
@@ -1663,21 +1622,13 @@ const Notification = () => {
     }
 
     try {
-      const config = { 
-        headers: { 
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json"
-        },
-        timeout: 5000
-      };
-
       const now = new Date().toISOString();
 
       console.log('🔧 Checking system notifications for admin');
 
-      // 1. CHECK USER ROLE CHANGES
+      // 1. CHECK USER ROLE CHANGES with API integration
       try {
-        const usersResponse = await axios.get(`http://localhost:8080/api/users/`, config);
+        const usersResponse = await api.get(`/users/`);
         const users = Array.isArray(usersResponse.data) ? usersResponse.data : usersResponse.data?.results || [];
 
         // Get previous user roles for comparison
@@ -1753,27 +1704,22 @@ const Notification = () => {
     return newNotifications;
   }, [addNotification]);
 
-  // ✅ FIXED: Enhanced supplier notifications with warehouse filtering
+  // ✅ ENHANCED: Supplier notifications with warehouse filtering and API integration
   const checkSupplierNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
     try {
-      // ✅ FIXED: Use warehouse utils for consistent configuration
+      // ✅ Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
-      config.headers = {
-        ...config.headers,
-        "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        "Content-Type": "application/json"
-      };
 
       const now = new Date().toISOString();
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
 
       console.log('🏪 Checking supplier and warehouse notifications for warehouse:', warehouseQueryParam);
 
-      // ✅ FIXED: CHECK SUPPLIERS WITH WAREHOUSE FILTERING
-      const supplierResponse = await axios.get(`http://localhost:8080/api/suppliers/?warehouse=${warehouseQueryParam}`, config);
+      // ✅ CHECK SUPPLIERS WITH WAREHOUSE FILTERING and API integration
+      const supplierResponse = await api.get(`/suppliers/?warehouse=${warehouseQueryParam}`, config);
       const suppliers = Array.isArray(supplierResponse.data) ? supplierResponse.data : supplierResponse.data?.results || [];
 
       // Get previous suppliers for comparison
@@ -1834,9 +1780,9 @@ const Notification = () => {
       // Save current supplier state for next comparison
       localStorage.setItem(previousSuppliersKey, JSON.stringify(previousSuppliers));
 
-      // ✅ FIXED: CHECK SUPPLIER RETURNS WITH WAREHOUSE FILTERING
+      // ✅ CHECK SUPPLIER RETURNS WITH WAREHOUSE FILTERING and API integration
       try {
-        const returnResponse = await axios.get(`http://localhost:8080/api/supplier-returns/?warehouse=${warehouseQueryParam}`, config);
+        const returnResponse = await api.get(`/supplier-returns/?warehouse=${warehouseQueryParam}`, config);
         const returns = Array.isArray(returnResponse.data) ? returnResponse.data : returnResponse.data?.results || [];
 
         const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
@@ -1864,23 +1810,15 @@ const Notification = () => {
         console.warn('Supplier returns API not available');
       }
 
-      // 3. CHECK WAREHOUSE MSP (MERCHANDISING) OPERATIONS WITH VAN LOAD SUPPORT
+      // 3. CHECK WAREHOUSE MSP (MERCHANDISING) OPERATIONS WITH VAN LOAD SUPPORT and API integration
       try {
         // ✅ Using warehouse utils for consistent MSP configuration
         const mspConfig = getWarehouseAxiosConfig(currentWarehouse);
         mspConfig.timeout = 5000;
-        mspConfig.headers = {
-          ...mspConfig.headers,
-          "Authorization": `Bearer ${localStorage.getItem("token")}`,
-          "Content-Type": "application/json"
-        };
 
         console.log('🚛 Checking MSP/Van Load notifications for warehouse:', warehouseQueryParam);
         
-        const mspResponse = await axios.get(
-          `http://localhost:8080/api/merchandisings/?warehouse=${warehouseQueryParam}`, 
-          mspConfig
-        );
+        const mspResponse = await api.get(`/merchandisings/?warehouse=${warehouseQueryParam}`, mspConfig);
         const msps = Array.isArray(mspResponse.data) ? mspResponse.data : mspResponse.data?.results || [];
 
         // Get previous MSPs for comparison
@@ -2009,7 +1947,7 @@ const Notification = () => {
     return newNotifications;
   }, [addNotification, currentWarehouse]);
 
-  // ✅ FIXED: Check products and returns/refunds notifications with warehouse filtering
+  // ✅ Check products and returns/refunds notifications with warehouse filtering and API integration
   const checkProductsAndReturnsNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
@@ -2019,23 +1957,18 @@ const Notification = () => {
     }
 
     try {
-      // ✅ FIXED: Use warehouse utils for consistent configuration
+      // ✅ Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
-      config.headers = {
-        ...config.headers,
-        "Authorization": `Bearer ${localStorage.getItem("token")}`,
-        "Content-Type": "application/json"
-      };
 
       const now = new Date().toISOString();
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
 
       console.log('📦 Checking product and returns notifications for admin in warehouse:', warehouseQueryParam);
 
-      // ✅ FIXED: CHECK PRODUCTS WITH WAREHOUSE FILTERING
+      // ✅ CHECK PRODUCTS WITH WAREHOUSE FILTERING and API integration
       try {
-        const productsResponse = await axios.get(`http://localhost:8080/api/products/?warehouse=${warehouseQueryParam}`, config);
+        const productsResponse = await api.get(`/products/?warehouse=${warehouseQueryParam}`, config);
         const products = Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.results || [];
 
         // Get previous products for comparison
@@ -2117,7 +2050,7 @@ const Notification = () => {
     return newNotifications;
   }, [addNotification, currentWarehouse]);
 
-  // ✅ ENHANCED: Check ALL notification types when user performs actions with warehouse utils and credit support
+  // ✅ ENHANCED: Check ALL notification types when user performs actions with warehouse utils and API integration
   const checkNotificationsOnAction = useCallback(async () => {
     // Only proceed if user data is ready and we have a warehouse
     if (!userDataReady || !currentWarehouseId) {
@@ -2145,9 +2078,9 @@ const Notification = () => {
       const processedIds = processedIdsRef.current;
       let newNotifications = 0;
       
-      // Add other API calls (receiving, etc.)
+      // Add other API calls (receiving, etc.) using centralized API
       apiCalls.push(
-        axios.get(`http://localhost:8080/api/receiving/`, config).then(res => ({ type: 'receiving', data: res })).catch(() => null)
+        api.get(`/receiving/`, config).then(res => ({ type: 'receiving', data: res })).catch(() => null)
       );
 
       // ✅ NEW: CREDITS (All users can see their own credits, admin/supervisor see all)
@@ -2493,7 +2426,7 @@ const Notification = () => {
     };
   }, [isLoaded, userDataReady, currentWarehouseId, cleanupOldNotifications, checkCreditDueDates]);
 
-  // ✅ FIXED: Listen for product management events with PROPER WAREHOUSE FILTERING
+  // ✅ FIXED: Listen for product management events with SUPER STRICT WAREHOUSE FILTERING
   useEffect(() => {
     const handleProductUpdate = (event) => {
       if (isLoaded && userDataReady && currentWarehouseId) {
@@ -2503,35 +2436,30 @@ const Notification = () => {
         if (userRole === 'admin') {
           const detail = event.detail;
           
-          // ✅ CRITICAL FIX: Only create notification if product belongs to current warehouse
-          const productWarehouseId = detail.warehouseId || detail.warehouse_id;
+          // ✅ SUPER STRICT: Only create notification if warehouse IDs match exactly
+          const productWarehouseId = parseInt(detail.warehouseId || detail.warehouse_id);
+          const currentWarehouse = parseInt(currentWarehouseId);
           
-          // Skip notification if it's for a different warehouse than currently selected
-          if (productWarehouseId && parseInt(productWarehouseId) !== currentWarehouseId) {
-            console.log(`📦 SKIPPED product notification - product warehouse: ${productWarehouseId}, current: ${currentWarehouseId}`);
-            return;
+          if (!productWarehouseId || productWarehouseId !== currentWarehouse) {
+            console.log(`📦 ADMIN NOTIFICATION BLOCKED - Product warehouse: ${productWarehouseId}, Admin current warehouse: ${currentWarehouse}`);
+            return; // Block notification for other warehouses
           }
           
-          console.log(`✅ CREATING product notification for warehouse: ${currentWarehouseId}`);
+          console.log(`✅ ADMIN NOTIFICATION ALLOWED - Creating notification for warehouse: ${currentWarehouse}`);
           
-          // ✅ FIXED: Ensure warehouse_id matches current warehouse context
           const notificationData = {
             id: detail.productId,
             product_name: detail.productName,
             product_code: detail.productCode,
             category: detail.category,
             selling_price: detail.price,
-            warehouse_id: currentWarehouseId, // ✅ Always use current warehouse for filtering
+            warehouse_id: currentWarehouse, // ✅ Use current warehouse for filtering
             updated_at: new Date().toISOString(),
             changes: detail.changes,
-            updated_by: user.username || user.name || 'Admin',
-            source_warehouse: productWarehouseId || currentWarehouseId // Keep original for reference
+            updated_by: detail.createdBy || user.username || user.name || 'Admin'
           };
           
-          // Add notification immediately
           addNotification(detail.action === 'created' ? 'product_created' : 'product_updated', notificationData, userRole);
-          
-          // FORCE UPDATE after immediate notification
           setTimeout(() => setForceUpdate(prev => prev + 1), 100);
         }
       }
@@ -2545,18 +2473,17 @@ const Notification = () => {
         if (['admin', 'supervisor'].includes(userRole)) {
           const detail = event.detail;
           
-          // ✅ CRITICAL FIX: Only create notification if supplier belongs to current warehouse
-          const supplierWarehouseId = detail.warehouseId || detail.warehouse_id;
+          // ✅ SUPER STRICT: Only create notification if warehouse IDs match exactly
+          const supplierWarehouseId = parseInt(detail.warehouseId || detail.warehouse_id);
+          const currentWarehouse = parseInt(currentWarehouseId);
           
-          // Skip notification if it's for a different warehouse than currently selected
-          if (supplierWarehouseId && parseInt(supplierWarehouseId) !== currentWarehouseId) {
-            console.log(`🏪 SKIPPED supplier notification - supplier warehouse: ${supplierWarehouseId}, current: ${currentWarehouseId}`);
-            return;
+          if (!supplierWarehouseId || supplierWarehouseId !== currentWarehouse) {
+            console.log(`🏪 ADMIN NOTIFICATION BLOCKED - Supplier warehouse: ${supplierWarehouseId}, Admin current warehouse: ${currentWarehouse}`);
+            return; // Block notification for other warehouses
           }
           
-          console.log(`✅ CREATING supplier notification for warehouse: ${currentWarehouseId}`);
+          console.log(`✅ ADMIN NOTIFICATION ALLOWED - Creating notification for warehouse: ${currentWarehouse}`);
           
-          // ✅ FIXED: Ensure warehouse_id matches current warehouse context
           const notificationData = {
             id: detail.supplierId,
             name: detail.supplierName,
@@ -2564,17 +2491,13 @@ const Notification = () => {
             contact_number: detail.contactNumber,
             address: detail.address,
             email: detail.email,
-            warehouse_id: currentWarehouseId, // ✅ Always use current warehouse for filtering
+            warehouse_id: currentWarehouse, // ✅ Use current warehouse for filtering
             updated_at: new Date().toISOString(),
             changes: detail.changes,
-            updated_by: user.username || user.name || 'Admin',
-            source_warehouse: supplierWarehouseId || currentWarehouseId // Keep original for reference
+            updated_by: detail.createdBy || user.username || user.name || 'Admin'
           };
           
-          // Add notification immediately
           addNotification(detail.action === 'created' ? 'supplier_added' : 'supplier_updated', notificationData, userRole);
-          
-          // FORCE UPDATE after immediate notification
           setTimeout(() => setForceUpdate(prev => prev + 1), 100);
         }
       }
@@ -2598,7 +2521,6 @@ const Notification = () => {
     };
   }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
 
-  // [INCLUDE ALL YOUR OTHER EVENT LISTENERS AND USEEFFECTS HERE - THEY REMAIN THE SAME]
   // Listen for Van Load update events with immediate notification creation
   useEffect(() => {
     const handleVanLoadUpdate = (event) => {
@@ -3383,7 +3305,6 @@ const Notification = () => {
                         <FontAwesomeIcon icon={faTrash} className="mr-2" />
                         Clear all
                       </button>
-                      <div className="border-t border-gray-200 dark:border-gray-600"></div>
                       <div className="border-t border-gray-200 dark:border-gray-600"></div>
                       <button
                         onClick={() => window.location.href = '/expense-settings'}
