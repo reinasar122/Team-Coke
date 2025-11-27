@@ -1,4 +1,4 @@
-// utils/productNotifier.js
+// utils/productNotifier.js - FIXED VERSION WITH PROPER WAREHOUSE CONTEXT
 export const notifyProductChange = (productData) => {
   console.log('📦 Notifying product change:', productData);
   
@@ -11,9 +11,25 @@ export const notifyProductChange = (productData) => {
       category: productData.category,
       price: productData.selling_price || productData.price,
       changes: productData.changes, // Detailed change information
+      // ✅ ENHANCED: Warehouse isolation fields - THESE ARE NEW/MODIFIED
+      warehouseId: productData.warehouse_id || productData.warehouseId,
+      warehouse_id: productData.warehouse_id || productData.warehouseId,
+      targetWarehouse: productData.targetWarehouse,               // NEW: Target specific warehouse
+      restrictToWarehouse: productData.restrictToWarehouse || false, // NEW: Enable warehouse restriction
+      sourceWarehouse: productData.source_warehouse,
+      metadata: productData.metadata,
+      createdBy: productData.created_by || productData.createdBy,
       timestamp: new Date().toISOString(),
       summary: generateChangeSummary(productData.action, productData.changes, productData.product_name)
     }
+  });
+  
+  // ✅ Enhanced logging for debugging - NEW LOGGING
+  console.log('🔔 Event details:', {
+    warehouse: event.detail.warehouseId,
+    target: event.detail.targetWarehouse,
+    restricted: event.detail.restrictToWarehouse,
+    product: event.detail.productName
   });
   
   window.dispatchEvent(event);

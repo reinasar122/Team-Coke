@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import ProductBreakdownTable from "../components/tables/ProductBreakdownTable";
-import api from "../api"; // ensure api is imported so env vars are loaded import ".";
 
 const SORTERS = {
   revenue: (r) => Number(r.revenue ?? 0),
@@ -25,6 +24,7 @@ export default function ProductBreakdownContainer({
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState("revenue");
   const [err, setErr] = useState("");
+  const [showFull, setShowFull] = useState(false); // 👈 modal toggle
 
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +61,7 @@ export default function ProductBreakdownContainer({
           try {
             // eslint-disable-next-line no-console
             console.log("[ProductBreakdown] GET:", url, params);
-            const res = await api.get(url, { params, headers, timeout: 15000 });
+            const res = await axios.get(url, { params, headers, timeout: 15000 });
             data = res.data;
             break;
           } catch (e) {
@@ -78,7 +78,6 @@ export default function ProductBreakdownContainer({
 
         const products = data?.products ?? data?.product_breakdown ?? data?.rows ?? [];
 
-        // --- Normalize rows
         // --- Normalize rows
         let rows = products.map((p) => ({
           product_id:
@@ -99,12 +98,12 @@ export default function ProductBreakdownContainer({
           (r) => r.product && r.product.toLowerCase() !== "product"
         );
 
-
         // --- If "All Warehouses" -> merge duplicates by product (sum qty/revenue/profit)
         if (!warehouseId || warehouseId === "all") {
           const merged = new Map();
           for (const r of rows) {
-            const key = r.product_id != null ? `id:${r.product_id}` : `name:${r.product}`;
+            const key =
+              r.product_id != null ? `id:${r.product_id}` : `name:${r.product}`;
             if (!merged.has(key)) {
               merged.set(key, {
                 product_id: r.product_id,
@@ -153,6 +152,7 @@ export default function ProductBreakdownContainer({
     };
   }, [apiBase, warehouseId, routeId, period, start, end]);
 
+  // 🔎 Apply search + sort + totals
   const rows = useMemo(() => {
     const term = query.trim().toLowerCase();
     const filtered = term
@@ -176,9 +176,19 @@ export default function ProductBreakdownContainer({
     return filtered;
   }, [rawRows, query, sortKey, onTotalsChange]);
 
+  // 👀 Preview: only show top 10 in main card
+  const previewRows = useMemo(() => rows.slice(0, 10), [rows]);
+
   const onExportCSV = () => {
     if (!rows.length) return;
-    const header = ["Product", "Qty Sold", "Revenue", "Profit", "Discount %", "Return Rate %"];
+    const header = [
+      "Product",
+      "Qty Sold",
+      "Revenue",
+      "Profit",
+      "Discount %",
+      "Return Rate %",
+    ];
     const body = rows.map((r) => [
       csvSafe(r.product),
       r.qty,
@@ -198,16 +208,58 @@ export default function ProductBreakdownContainer({
   };
 
   return (
-    <ProductBreakdownTable
-      loading={loading}
-      rows={rows}
-      query={query}
-      sortKey={sortKey}
-      onQuery={setQuery}
-      onSort={setSortKey}
-      onExportCSV={onExportCSV}
-      error={err}
-    />
+    <>
+      {/* 🧊 Preview card (Top 10) */}
+      <ProductBreakdownTable
+        loading={loading}
+        rows={previewRows}
+        query={query}
+        sortKey={sortKey}
+        onQuery={setQuery}
+        onSort={setSortKey}
+        onExportCSV={onExportCSV}
+        error={err}
+        totalCount={rows.length}
+        isPreview
+        onOpenFull={() => setShowFull(true)}
+        variant="card"
+      />
+
+      {/* 🪟 Full breakdown modal */}
+      {showFull && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-[94vw] max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <h3 className="text-sm md:text-base font-semibold text-slate-800">
+                Full Product Breakdown
+              </h3>
+              <button
+                onClick={() => setShowFull(false)}
+                className="rounded-full p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition"
+              >
+                <span className="sr-only">Close</span>
+                ✕
+              </button>
+            </div>
+            <div className="p-4 flex-1 overflow-hidden">
+              <ProductBreakdownTable
+                loading={loading}
+                rows={rows}
+                query={query}
+                sortKey={sortKey}
+                onQuery={setQuery}
+                onSort={setSortKey}
+                onExportCSV={onExportCSV}
+                error={err}
+                totalCount={rows.length}
+                isPreview={false}
+                variant="modal"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

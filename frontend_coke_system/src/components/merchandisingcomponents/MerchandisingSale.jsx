@@ -18,7 +18,52 @@ const authHeaders = {
   },
 };
 
+// ✅ NEW: Van Load notification helper
+const notifyVanLoadCreated = (vanLoadData) => {
+  console.log('🚛 Notifying van load creation:', vanLoadData);
+  
+  const event = new CustomEvent('vanLoadCreated', {
+    detail: {
+      action: 'created',
+      id: vanLoadData.id,
+      msp_no: vanLoadData.msp_no,
+      route: vanLoadData.route,
+      van: vanLoadData.van,
+      handled_by: vanLoadData.handled_by,
+      expected_sale: vanLoadData.expected_sale,
+      warehouse_id: vanLoadData.warehouse,
+      createdBy: JSON.parse(localStorage.getItem("user") || "{}").username || 'Unknown',
+      timestamp: new Date().toISOString(),
+      summary: `Van Load ${vanLoadData.msp_no} has been created`
+    }
+  });
+  
+  window.dispatchEvent(event);
+};
 
+// ✅ NEW: Warehouse MSP notification helper  
+const notifyWarehouseMspCreated = (mspData) => {
+  console.log('🏭 Notifying warehouse MSP creation:', mspData);
+  
+  const event = new CustomEvent('warehouseMspCreated', {
+    detail: {
+      action: 'created',
+      id: mspData.id,
+      msp_no: mspData.msp_no,
+      transaction_type_name: mspData.transaction_type_name || 'Warehouse',
+      handled_by: mspData.handled_by,
+      customer: mspData.customer,
+      expected_sale: mspData.expected_sale,
+      actual_sale: mspData.actual_sale,
+      warehouse_id: mspData.warehouse,
+      createdBy: JSON.parse(localStorage.getItem("user") || "{}").username || 'Unknown',
+      timestamp: new Date().toISOString(),
+      summary: `Warehouse MSP ${mspData.msp_no} has been created`
+    }
+  });
+  
+  window.dispatchEvent(event);
+};
 
 // Convert a Date to a value usable by <input type="datetime-local"> in LOCAL time
 const toDatetimeLocalValue = (date = new Date()) => {
@@ -455,7 +500,7 @@ const loadStocksAndProducts = async () => {
       initTxTypeOnce.current = true;
       console.log("🟡 Preserved Van Load because editMode is true:", chosen);
     }
-    return; // important: don’t run the normal create flow below
+    return; // important: don't run the normal create flow below
   }
 
   // Normal CREATE flow (not editing)
@@ -797,7 +842,7 @@ const mapped = items.map((it, idx) => {
     }
 
     // karen changes
-    // Use the modal’s copy if it sent one (so we save the exact rows the user confirmed)
+    // Use the modal's copy if it sent one (so we save the exact rows the user confirmed)
     const sourceMiscItems =
       paymentData && Array.isArray(paymentData.miscItems)
         ? paymentData.miscItems
@@ -901,6 +946,15 @@ const mapped = items.map((it, idx) => {
       
       const merchandising = response.data;
       console.log("✅ Step 1: Transaction created successfully:", merchandising);
+
+      // ✅ NEW: Trigger creation notifications based on transaction type
+      if (isVanLoad) {
+        notifyVanLoadCreated(merchandising);
+        console.log(`🚛 Van Load creation notification sent for: ${merchandising.msp_no}`);
+      } else if (selectedTransactionTypeName === "Warehouse") {
+        notifyWarehouseMspCreated(merchandising);
+        console.log(`🏭 Warehouse MSP creation notification sent for: ${merchandising.msp_no}`);
+      }
 
       // 🔧 STEP 2: Create payment separately with correct field names
       if (paymentData && paymentData.paymentMethod !== "credit") {

@@ -1,12 +1,14 @@
-// ProductForm.jsx - COMPLETE UPDATED VERSION WITH NOTIFICATIONS
+// ProductForm.jsx - FIXED VERSION WITH PROPER WAREHOUSE ID PASSING
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { notifyProductChange } from "../utils/productNotifier"; // ✅ NEW IMPORT
+import { getCurrentWarehouse, getWarehouseAxiosConfig } from "../utils/warehouseUtils"; // ✅ NEW IMPORT
 import "../styles/pages/productform.scss";
 import api from "../api"; // ✅ correct
 
 const ProductForm = () => {
   const navigate = useNavigate();
+  const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ NEW STATE
   const [rows, setRows] = useState([
     {
       system_code: "",
@@ -42,36 +44,12 @@ const ProductForm = () => {
     text: "",
   });
 
-    /*useEffect(() => {
-      // Add event listener for the Enter key when the modal is open
-      const handleEnterKey = (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();  // Prevent form submission
-          handleAddNew();      // Add new category
-        }
-      };
-
-      if (showModal.type) {
-        window.addEventListener("keydown", handleEnterKey);
-      }
-
-      return () => {
-        window.removeEventListener("keydown", handleEnterKey);
-      };
-    }, [showModal, newValue]);  // Re-run when showModal or newValue changes*/
-
-
-  // Get current warehouse from user session
-  const getCurrentWarehouse = () => {
-    const userData = JSON.parse(localStorage.getItem("user") || "{}");
-    const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-    if (userData.role?.toLowerCase() === "admin") {
-      return selectedWarehouse?.id || userData.warehouse_id;
-    }
-    return userData.warehouse_id;
-  };
-
+  // ✅ UPDATED: Use warehouse utilities instead of inline function
   useEffect(() => {
+    const warehouse = getCurrentWarehouse();
+    setCurrentWarehouse(warehouse);
+    console.log('🏭 Current warehouse set:', warehouse);
+    
     fetchDropdowns();
     generateSystemCode(0);
   }, []);
@@ -335,15 +313,15 @@ const ProductForm = () => {
       return;
     }
 
-    const currentWarehouse = getCurrentWarehouse();
-    if (!currentWarehouse) {
+    // ✅ UPDATED: Use warehouse utilities for better warehouse detection
+    if (!currentWarehouse || !currentWarehouse.id) {
       showNotice("❌ No warehouse assigned. Please contact administrator.", "error");
       return;
     }
 
     try {
       const filledRows = rows.filter(row => row.product_name.trim() !== "");
-      let createdProducts = []; // ✅ NEW: Track created products for notifications
+      let createdProducts = []; // ✅ Track created products for notifications
       
       for (let formData of filledRows) {
         // Create pricing
@@ -372,20 +350,23 @@ const ProductForm = () => {
         productData.append('product_category', formData.product_category);
         productData.append('unit_type', unitTypeRes.data.id);
         productData.append('price', pricingRes.data.id);
-        productData.append('warehouse', currentWarehouse);
+        productData.append('warehouse', currentWarehouse.id); // ✅ UPDATED: Use currentWarehouse.id
         
         // Add image if exists
         if (formData.image) {
           productData.append('image', formData.image);
         }
 
+        // ✅ UPDATED: Use warehouse config for API calls
+        const warehouseConfig = getWarehouseAxiosConfig(currentWarehouse);
         const productResponse = await api.post("/products/", productData, {
           headers: {
             'Content-Type': 'multipart/form-data',
+            ...warehouseConfig.headers // Include warehouse headers
           },
         });
 
-        // ✅ NEW: Track created product for notification
+        // ✅ Track created product for notification
         if (productResponse.data) {
           createdProducts.push({
             ...productResponse.data,
@@ -394,27 +375,52 @@ const ProductForm = () => {
         }
       }
       
-      // ✅ NEW: Trigger notifications for all created products
+      // ================================
+      // 🔧 CRITICAL MODIFICATION SECTION - REPLACE THIS ENTIRE BLOCK
+      // ================================
       if (createdProducts.length > 0) {
         console.log('📦 Products created successfully:', createdProducts.length);
+        console.log('🏭 Notifying ONLY current warehouse users:', currentWarehouse.name); // ✅ MODIFIED: Updated message
         
         createdProducts.forEach(product => {
           const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
           
+          // ✅ CRITICAL FIX: Only notify users in the SAME warehouse - REPLACE OLD NOTIFY CALL
           notifyProductChange({
             action: 'created',
             id: product.id,
             product_name: product.formData.product_name,
             product_code: product.formData.system_code,
             category: categoryName,
-            selling_price: product.formData.selling_price
+            selling_price: product.formData.selling_price,
+            warehouse_id: currentWarehouse.id,
+            warehouseId: currentWarehouse.id,
+            // ✅ NEW FIELDS: Add these to restrict notifications to current warehouse only
+            targetWarehouse: currentWarehouse.id,        // NEW: Target specific warehouse
+            restrictToWarehouse: true,                   // NEW: Enable warehouse restriction
+            source_warehouse: {
+              id: currentWarehouse.id,
+              name: currentWarehouse.name
+            },
+            metadata: {
+              supplier_code: product.formData.supplier_code,
+              purchase_price: product.formData.purchase_price,
+              returnable: product.formData.returnable,
+              created_at: new Date().toISOString(),
+              event_timestamp: Date.now()               // NEW: Add timestamp for stale event prevention
+            }
           });
           
-          console.log(`📦 Product creation notification sent for: ${product.formData.product_name}`);
+          console.log(`📦 Product notification sent for: ${product.formData.product_name} - ONLY to ${currentWarehouse.name} users`); // ✅ MODIFIED: Updated message
         });
+        
+        console.log(`🔒 Notifications restricted to warehouse ${currentWarehouse.name} only`); // ✅ NEW: Added restriction confirmation
       }
+      // ================================
+      // END CRITICAL MODIFICATION SECTION
+      // ================================
       
-      showNotice("✅ Products saved to your warehouse!", "success");
+      showNotice(`✅ ${createdProducts.length} product(s) saved to ${currentWarehouse.name}!`, "success");
       setTimeout(() => {
         navigate("/products/");
       }, 1500);
@@ -429,8 +435,30 @@ const ProductForm = () => {
     <form onSubmit={handleSubmit} className="page pf-form">
       {/* Header */}
       <div className="page-header">
-        <h2 className="page-title">Product Form</h2>
+        <h2 className="page-title">
+          Product Form
+          {/* ✅ NEW: Show current warehouse in header */}
+          {currentWarehouse && (
+            <span style={{ 
+              fontSize: '14px', 
+              fontWeight: 'normal', 
+              color: '#6b7280',
+              marginLeft: '12px'
+            }}>
+              📍 {currentWarehouse.name}
+            </span>
+          )}
+        </h2>
       </div>
+
+      {/* ✅ NEW: Warehouse warning if none detected */}
+      {!currentWarehouse && (
+        <div className="card" style={{ marginBottom: '20px', padding: '16px', borderLeft: '4px solid #f59e0b', backgroundColor: '#fef3c7' }}>
+          <p style={{ color: '#92400e', margin: '0', fontWeight: '500' }}>
+            ⚠️ Warning: No warehouse detected. Products may not be saved correctly.
+          </p>
+        </div>
+      )}
 
       {/* Validation Errors Summary */}
       {validationErrors.length > 0 && (
@@ -707,7 +735,11 @@ const ProductForm = () => {
           >
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary">
+          <button 
+            type="submit" 
+            className="btn btn-primary"
+            disabled={!currentWarehouse} // ✅ NEW: Disable if no warehouse
+          >
             Save Product
           </button>
         </div>
@@ -750,7 +782,6 @@ const ProductForm = () => {
         </div>
       </div>
     )}
-
 
       {/* Notice Modal - Slightly Bigger & User Friendly */}
       {notice.open && (

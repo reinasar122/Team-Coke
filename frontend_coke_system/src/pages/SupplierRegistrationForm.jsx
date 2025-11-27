@@ -174,7 +174,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     return true;
   };
 
-  // ✅ Submit form (Create supplier)
+  // ✅ Submit form (Create supplier) with notification dispatch
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateMainFields()) return;
@@ -189,7 +189,40 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     };
 
     try {
-      await axios.post("http://localhost:8080/api/suppliers/", payload);
+      const response = await axios.post("http://localhost:8080/api/suppliers/", payload);
+      
+      // ✅ NEW: Dispatch supplier creation event for notifications
+      if (response.data) {
+        // Get current user and warehouse info
+        const userData = JSON.parse(localStorage.getItem("user") || "{}");
+        const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+        
+        let warehouseId;
+        if (userData.role?.toLowerCase() === "admin") {
+          warehouseId = selectedWarehouse?.id || userData.warehouse_id;
+        } else {
+          warehouseId = userData.warehouse_id;
+        }
+        
+        // Dispatch notification event
+        const supplierEvent = new CustomEvent('supplierCreated', {
+          detail: {
+            action: 'created',
+            supplierId: response.data.id,
+            supplierName: response.data.company_name || payload.company_name,
+            contactNumber: response.data.phone_number || payload.phone_number,
+            address: `${payload.street_address}, ${payload.barangay}, ${payload.city}, ${payload.province}`,
+            email: response.data.email || payload.email,
+            warehouseId: warehouseId,
+            warehouse_id: warehouseId,
+            createdBy: userData.username || userData.name || 'User'
+          }
+        });
+        window.dispatchEvent(supplierEvent);
+        
+        console.log('🏪 Supplier creation notification dispatched for warehouse:', warehouseId);
+      }
+      
       toast.success("Supplier successfully added!", { style: successStyle });
       onSuccess?.();
       onClose?.();

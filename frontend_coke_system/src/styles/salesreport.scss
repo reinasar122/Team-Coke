@@ -1,75 +1,26 @@
+/* ================================
+   📊 Sales Report Page Styles (Updated)
+   Combines your existing layout with new lifted cards,
+   smooth shadows, and cohesive dashboard visuals.
+   ================================ */
+
 .sales-report-page {
-  display: grid; 
+  display: grid;
   gap: 12px;
+  background: #f8fafc; /* light slate background */
+  min-height: 100vh;
+  padding: 1rem;
 
-  .card { 
-    background: #fff; 
-    border: 1px solid #eef0f3; 
-    border-radius: 12px; 
-    padding: 12px; 
-  }
-
-  /* page header already styled by your Tailwind classes; keep compact spacing */
-  .page-header { margin-bottom: 6px; }
-  .subtitle { color: #667085; }
-
-  /* Filters */
-  .filters-card { display: grid; gap: 10px; }
-  .filters-grid {
-    display: grid; 
-    grid-template-columns: repeat(3, minmax(0, 1fr)); 
-    gap: 12px;
-    .form-group { 
-      display: grid; 
-      gap: 6px; 
-    }
-    label { 
-      font-size: 12px; 
-      font-weight: 700; 
-      color: #475467; 
-    }
-    select { 
-      height: 38px; 
-      padding: 0 12px; 
-      border: 1px solid #e5e7eb; 
-      border-radius: 10px; 
-      background: #fff; 
-    }
-  }
-
-  /* KPI 2×2 grid */
-  /* KPI strip: 4 cards in one line, white cards, colored numbers */
-  .kpi-card { padding-top: 8px; }
-  .kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr)); /* ← one row */
-    gap: 12px;
-
-    .kpi {
-      background: #fff; /* white cards */
-      border: 1px solid #e8edf3;
-      border-radius: 12px;
-      padding: 12px;
-      box-shadow: 0 1px 2px rgba(16,24,40,.04);
-      display: grid; 
-      gap: 4px;
-
-      .kpi-value { font-size: 20px; font-weight: 800; line-height: 1; }
-      .kpi-label { color: #667085; font-weight: 600; }
-    }
-
-    /* remove old pastel fills, keep only colored numbers */
-    .kpi-green, .kpi-blue, .kpi-amber, .kpi-purple { background: #fff; }
-
-    .kpi-green  .kpi-value { color: #16a34a; } /* green */
-    .kpi-blue   .kpi-value { color: #2563eb; } /* blue  */
-    .kpi-amber  .kpi-value { color: #ea580c; } /* orange*/
-    .kpi-purple .kpi-value { color: #7c3aed; } /* violet*/
-  }
-
-  /* KPI hover effect */
-  .kpi-grid .kpi {
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  /* -----------------------------
+     Card Base (used everywhere)
+     ----------------------------- */
+  .card {
+    background: #fff;
+    border: 1px solid #eef0f3;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+    transition: all 0.25s ease;
 
     &:hover {
       transform: translateY(-2px);
@@ -77,75 +28,327 @@
     }
   }
 
-  /* Responsive: collapse the KPI row nicely */
+  /* -----------------------------
+     Header Section
+     ----------------------------- */
+  .page-header {
+    margin-bottom: 6px;
+  }
+
+  .subtitle {
+    color: #667085;
+  }
+
+  /* -----------------------------
+     Filters Section
+     ----------------------------- */
+  .filters-card {
+    display: grid;
+    gap: 10px;
+  }
+
+  .filters-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+
+    .form-group {
+      display: grid;
+      gap: 6px;
+    }
+
+    label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #475467;
+    }
+
+    select {
+      height: 38px;
+      padding: 0 12px;
+      border: 1px solid #e5e7eb;
+      border-radius: 10px;
+      background: #fff;
+      font-size: 14px;
+      transition: border-color 0.2s ease;
+
+      &:focus {
+        outline: none;
+        border-color: #2563eb;
+      }
+    }
+  }
+
+  /* -----------------------------
+     KPI Section
+     ----------------------------- */
+  .kpi-card {
+    padding-top: 8px;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 12px;
+
+    .kpi {
+      background: #fff;
+      border: 1px solid #e8edf3;
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+      display: grid;
+      gap: 4px;
+      transition: all 0.25s ease;
+
+      .kpi-value {
+        font-size: 20px;
+        font-weight: 800;
+        line-height: 1;
+      }
+
+      .kpi-label {
+        color: #667085;
+        font-weight: 600;
+        font-size: 13px;
+      }
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+      }
+    }
+
+    /* Colored numbers */
+    .kpi-green .kpi-value {
+      color: #16a34a;
+    }
+    .kpi-blue .kpi-value {
+      color: #2563eb;
+    }
+    .kpi-amber .kpi-value {
+      color: #ea580c;
+    }
+    .kpi-purple .kpi-value {
+      color: #7c3aed;
+    }
+  }
+
   @media (max-width: 1024px) {
-    .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+    .kpi-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
   }
+
   @media (max-width: 640px) {
-    .kpi-grid { grid-template-columns: 1fr; }
+    .kpi-grid {
+      grid-template-columns: 1fr;
+    }
   }
 
-  /* Two-column content area (recs + summary) */
-  .grid-2 { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; }
+  /* -----------------------------
+     Content Grid (Product Breakdown + Charts)
+     ----------------------------- */
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr;
+    gap: 16px;
+  }
 
-  /* Recommendations */
-  .section-title { font-weight: 800; margin-bottom: 8px; }
-  .recs-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .rec { border: 1px solid #eef0f3; border-radius: 12px; padding: 10px; background: #fff; }
-  .rec-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .rec h4 { margin: 0; font-size: 14px; }
-  .rec-notes { margin-top: 4px; display: flex; justify-content: space-between; gap: 8px; }
-  .muted { color: #667085; font-size: 12px; }
-  .muted.action { font-weight: 600; }
+  .section-title {
+    font-weight: 800;
+    margin-bottom: 8px;
+    color: #334155;
+  }
 
-  /* Badges */
-  .badge { display: inline-block; padding: 4px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-  .badge-high { background: #fee2e2; color: #b91c1c; }
-  .badge-medium { background: #fef3c7; color: #b45309; }
-  .badge-low { background: #e0e7ff; color: #4338ca; }
+  /* -----------------------------
+     Recommendations (if used)
+     ----------------------------- */
+  .recs-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
 
-  /* Table + empty state */
- .table-wrap {
-  overflow-x: auto;
-  max-height: 520px;
-  overflow-y: auto;
-  position: relative;
-  padding-top: 50px; /* Adjust based on your system header's height */
-}
-  .table { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; } /* Fixed table layout for better column control */
-  .table th, .table td { border: 1px solid #eef0f3; padding: 10px 12px; text-align: left; }
+  .rec {
+    border: 1px solid #eef0f3;
+    border-radius: 12px;
+    padding: 10px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  }
+
+  .rec-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .rec h4 {
+    margin: 0;
+    font-size: 14px;
+    color: #1e293b;
+  }
+
+  .rec-notes {
+    margin-top: 4px;
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .muted {
+    color: #667085;
+    font-size: 12px;
+  }
+
+  .muted.action {
+    font-weight: 600;
+  }
+
+  /* -----------------------------
+     Badges
+     ----------------------------- */
+  .badge {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .badge-high {
+    background: #fee2e2;
+    color: #b91c1c;
+  }
+
+  .badge-medium {
+    background: #fef3c7;
+    color: #b45309;
+  }
+
+  .badge-low {
+    background: #e0e7ff;
+    color: #4338ca;
+  }
+
+  /* -----------------------------
+     Product Breakdown Table
+     ----------------------------- */
+  .table-wrap {
+    overflow-x: auto;
+    max-height: 520px;
+    overflow-y: auto;
+    position: relative;
+    padding-top: 50px;
+  }
+
+  .table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+    table-layout: fixed;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+  }
+
+  .table th,
+  .table td {
+    border: 1px solid #eef0f3;
+    padding: 10px 12px;
+    text-align: left;
+  }
+
+  .table thead th {
+    background: #f8fafc;
+    font-weight: 700;
+    color: #475569;
+  }
+
   .table thead th.sticky {
-  position: sticky;
-  top: 0;
-  z-index: 20; /* Higher than other elements */
-  background: #fafafa;
-}
-  .table thead th { background: #fafafa; font-weight: 700; }
-  .table tfoot th { background: #fbfbff; font-weight: 700; }
-  .table td.neg { color: #b42318; font-weight: 600; }
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: #fafafa;
+  }
 
-  .empty-state { display: grid; place-items: center; gap: 6px; padding: 24px 12px; text-align: center; }
-  .empty-illustration { width: 84px; height: 84px; border-radius: 16px; background: #f4f6fa; box-shadow: inset 0 0 0 1px #eef0f3; }
-  .empty-title { font-weight: 800; }
-  .empty-desc { color: #667085; }
+  .table tfoot th {
+    background: #fbfbff;
+    font-weight: 700;
+  }
+
+  .table tr:nth-child(even) {
+    background: #f9fafb;
+  }
+
+  .table td.neg {
+    color: #b42318;
+    font-weight: 600;
+  }
+
+  .table th.text-right,
+  .table td.text-right {
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* -----------------------------
+     Empty / No Data States
+     ----------------------------- */
+  .empty-state {
+    display: grid;
+    place-items: center;
+    gap: 6px;
+    padding: 24px 12px;
+    text-align: center;
+    color: #94a3b8;
+    font-style: italic;
+
+    .empty-illustration {
+      width: 84px;
+      height: 84px;
+      border-radius: 16px;
+      background: #f4f6fa;
+      box-shadow: inset 0 0 0 1px #eef0f3;
+    }
+
+    .empty-title {
+      font-weight: 800;
+    }
+
+    .empty-desc {
+      color: #667085;
+    }
+  }
 
   .spinner {
-    width: 20px; height: 20px; border: 2px solid #e5e7eb; border-top-color: #111827; border-radius: 50%;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e5e7eb;
+    border-top-color: #111827;
+    border-radius: 50%;
     animation: sp 0.8s linear infinite;
   }
-  @keyframes sp { to { transform: rotate(360deg); } }
 
-  /* Responsive */
-  @media (max-width: 1024px) {
-    .grid-2 { grid-template-columns: 1fr; }
-    .recs-grid { grid-template-columns: 1fr; }
+  @keyframes sp {
+    to {
+      transform: rotate(360deg);
+    }
   }
 
-  /* Table Column Specific Adjustments (Product Breakdown Table) */
-  .table th.text-right, .table td.text-right {
-    text-align: right;
-    white-space: nowrap; /* Prevents wrapping of numbers */
-    overflow: hidden;
-    text-overflow: ellipsis; /* Handles overflowed text */
+  /* -----------------------------
+     Responsive Adjustments
+     ----------------------------- */
+  @media (max-width: 1024px) {
+    .grid-2 {
+      grid-template-columns: 1fr;
+    }
+    .recs-grid {
+      grid-template-columns: 1fr;
+    }
   }
 }

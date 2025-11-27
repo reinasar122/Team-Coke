@@ -97,6 +97,29 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     return true;
   };
 
+  // ✅ NEW: Warehouse creation notification helper
+  const notifyWarehouseCreated = (warehouseData) => {
+    console.log('🏭 Notifying warehouse creation:', warehouseData);
+    
+    const event = new CustomEvent('warehouseCreated', {
+      detail: {
+        action: 'created',
+        warehouseId: warehouseData.id,
+        warehouseName: warehouseData.name,
+        warehouse_id: warehouseData.id,
+        name: warehouseData.name,
+        address: `${warehouseData.street_address}, ${warehouseData.barangay}, ${warehouseData.city}, ${warehouseData.province}`,
+        phone: warehouseData.phone_number,
+        email: warehouseData.email,
+        createdBy: JSON.parse(localStorage.getItem("user") || "{}").username || 'Admin',
+        timestamp: new Date().toISOString(),
+        summary: `New warehouse "${warehouseData.name}" has been created`
+      }
+    });
+    
+    window.dispatchEvent(event);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -110,9 +133,17 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
       });
 
       if (res.ok) {
+        // ✅ NEW: Get the created warehouse data
+        const warehouseData = await res.json();
+        
         toast.success(`Warehouse '${formData.name}' has been saved successfully!`, {
           style: successStyle,
         });
+        
+        // ✅ NEW: Trigger warehouse creation notification
+        notifyWarehouseCreated(warehouseData);
+        console.log(`🏭 Warehouse creation notification sent for: ${warehouseData.name}`);
+        
         onSuccess?.();
         onClose?.();
       } else {

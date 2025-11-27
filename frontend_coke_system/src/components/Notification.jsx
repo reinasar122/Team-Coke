@@ -1,4 +1,4 @@
-// src/components/Notification.jsx - COMPLETE FIXED VERSION WITH CENTRALIZED API INTEGRATION
+// src/components/Notification.jsx - COMPLETE FIXED VERSION WITH WAREHOUSE ISOLATION
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
@@ -1704,81 +1704,107 @@ const Notification = () => {
     return newNotifications;
   }, [addNotification]);
 
-  // ✅ ENHANCED: Supplier notifications with warehouse filtering and API integration
+  // ✅ ENHANCED: Supplier notifications with warehouse filtering and API integration - FIXED 500 ERROR HANDLING
   const checkSupplierNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
     try {
+      // ✅ Rate limiting: Only check suppliers every 5 minutes to avoid API spam
+      const lastSupplierCheck = localStorage.getItem(`lastSupplierCheck_${warehouseId}`);
+      const now = Date.now();
+      const fiveMinutesAgo = now - (5 * 60 * 1000);
+      
+      if (lastSupplierCheck && parseInt(lastSupplierCheck) > fiveMinutesAgo) {
+        console.log('🏪 Skipping supplier check - rate limited');
+        return newNotifications;
+      }
+
       // ✅ Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
 
-      const now = new Date().toISOString();
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
 
       console.log('🏪 Checking supplier and warehouse notifications for warehouse:', warehouseQueryParam);
 
-      // ✅ CHECK SUPPLIERS WITH WAREHOUSE FILTERING and API integration
-      const supplierResponse = await api.get(`/suppliers/?warehouse=${warehouseQueryParam}`, config);
-      const suppliers = Array.isArray(supplierResponse.data) ? supplierResponse.data : supplierResponse.data?.results || [];
+      // ✅ CHECK SUPPLIERS WITH WAREHOUSE FILTERING and API integration - FIXED 500 ERROR HANDLING
+      try {
+        const supplierResponse = await api.get(`/suppliers/?warehouse=${warehouseQueryParam}`, config);
+        const suppliers = Array.isArray(supplierResponse.data) ? supplierResponse.data : supplierResponse.data?.results || [];
 
-      // Get previous suppliers for comparison
-      const previousSuppliersKey = `previousSuppliers_${warehouseId}`;
-      const previousSuppliers = JSON.parse(localStorage.getItem(previousSuppliersKey) || '{}');
+        // ✅ Store successful check timestamp
+        localStorage.setItem(`lastSupplierCheck_${warehouseId}`, now.toString());
 
-      // Check for NEW or UPDATED suppliers (last 60 minutes)
-      const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000);
-      
-      suppliers.forEach(supplier => {
-        const supplierId = `supplier-${supplier.id}-${warehouseId}`;
-        const supplierDate = new Date(supplier.created_at || supplier.updated_at || now);
-        const previousSupplier = previousSuppliers[supplier.id];
+        // Get previous suppliers for comparison
+        const previousSuppliersKey = `previousSuppliers_${warehouseId}`;
+        const previousSuppliers = JSON.parse(localStorage.getItem(previousSuppliersKey) || '{}');
 
-        // Check if this is a recent supplier (created or updated)
-        if (supplierDate > sixtyMinutesAgo && !processedIds.has(supplierId)) {
-          
-          // Determine if it's a creation or update
-          const isUpdate = previousSupplier && (
-            previousSupplier.name !== supplier.name ||
-            previousSupplier.contact_number !== supplier.contact_number ||
-            previousSupplier.address !== supplier.address
-          );
+        // Check for NEW or UPDATED suppliers (last 60 minutes)
+        const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000);
+        
+        suppliers.forEach(supplier => {
+          const supplierId = `supplier-${supplier.id}-${warehouseId}`;
+          const supplierDate = new Date(supplier.created_at || supplier.updated_at || now);
+          const previousSupplier = previousSuppliers[supplier.id];
 
-          if (isUpdate) {
-            // SUPPLIER UPDATED
-            addNotification('supplier_updated', { 
-              ...supplier, 
-              warehouse_id: warehouseId,
-              changes: {
-                name: previousSupplier.name !== supplier.name ? { old: previousSupplier.name, new: supplier.name } : null,
-                contact: previousSupplier.contact_number !== supplier.contact_number ? { old: previousSupplier.contact_number, new: supplier.contact_number } : null,
-                address: previousSupplier.address !== supplier.address ? { old: previousSupplier.address, new: supplier.address } : null
-              }
-            }, userRole);
-          } else if (!previousSupplier) {
-            // NEW SUPPLIER CREATED
-            addNotification('supplier_added', { 
-              ...supplier, 
-              warehouse_id: warehouseId
-            }, userRole);
+          // Check if this is a recent supplier (created or updated)
+          if (supplierDate > sixtyMinutesAgo && !processedIds.has(supplierId)) {
+            
+            // Determine if it's a creation or update
+            const isUpdate = previousSupplier && (
+              previousSupplier.name !== supplier.name ||
+              previousSupplier.contact_number !== supplier.contact_number ||
+              previousSupplier.address !== supplier.address
+            );
+
+            if (isUpdate) {
+              // SUPPLIER UPDATED
+              addNotification('supplier_updated', { 
+                ...supplier, 
+                warehouse_id: warehouseId,
+                changes: {
+                  name: previousSupplier.name !== supplier.name ? { old: previousSupplier.name, new: supplier.name } : null,
+                  contact: previousSupplier.contact_number !== supplier.contact_number ? { old: previousSupplier.contact_number, new: supplier.contact_number } : null,
+                  address: previousSupplier.address !== supplier.address ? { old: previousSupplier.address, new: supplier.address } : null
+                }
+              }, userRole);
+            } else if (!previousSupplier) {
+              // NEW SUPPLIER CREATED
+              addNotification('supplier_added', { 
+                ...supplier, 
+                warehouse_id: warehouseId
+              }, userRole);
+            }
+
+            processedIds.add(supplierId);
+            newNotifications++;
           }
 
-          processedIds.add(supplierId);
-          newNotifications++;
+          // Store current supplier data for next comparison
+          previousSuppliers[supplier.id] = {
+            name: supplier.name,
+            contact_number: supplier.contact_number,
+            address: supplier.address,
+            updated_at: supplier.updated_at || supplier.created_at,
+            timestamp: now
+          };
+        });
+
+        // Save current supplier state for next comparison
+        localStorage.setItem(previousSuppliersKey, JSON.stringify(previousSuppliers));
+        
+      } catch (supplierError) {
+        // ✅ Enhanced error handling with rate limiting
+        if (supplierError.response?.status === 500) {
+          console.warn('⚠️ Supplier API temporarily unavailable (500 error) - will retry in 5 minutes');
+          
+          // ✅ Set rate limit to prevent immediate retries
+          localStorage.setItem(`lastSupplierCheck_${warehouseId}`, now.toString());
+          return newNotifications;
+        } else {
+          throw supplierError;
         }
-
-        // Store current supplier data for next comparison
-        previousSuppliers[supplier.id] = {
-          name: supplier.name,
-          contact_number: supplier.contact_number,
-          address: supplier.address,
-          updated_at: supplier.updated_at || supplier.created_at,
-          timestamp: now
-        };
-      });
-
-      // Save current supplier state for next comparison
-      localStorage.setItem(previousSuppliersKey, JSON.stringify(previousSuppliers));
+      }
 
       // ✅ CHECK SUPPLIER RETURNS WITH WAREHOUSE FILTERING and API integration
       try {
@@ -1941,7 +1967,12 @@ const Notification = () => {
       }
 
     } catch (error) {
-      console.warn('❌ Supplier notifications check failed:', error.message);
+      // ✅ FIXED: Better error handling for supplier API failures
+      if (error.response?.status === 500) {
+        console.warn('⚠️ Supplier API temporarily unavailable - will retry later');
+      } else {
+        console.warn('❌ Supplier notifications check failed:', error.message);
+      }
     }
 
     return newNotifications;
@@ -2309,7 +2340,11 @@ const Notification = () => {
       const newWarehouseId = newWarehouse?.id ? parseInt(newWarehouse.id) : null;
       
       if (newWarehouseId && newWarehouseId !== currentWarehouseId) {
-        console.log('🔄 Admin warehouse changed:', { old: currentWarehouseId, new: newWarehouseId });
+        console.log('🔄 Admin warehouse changed:', { 
+          old: currentWarehouseId, 
+          new: newWarehouseId,
+          clearingCrossWarehouseNotifications: true 
+        });
         
         // ✅ Add transition effect
         setIsTransitioning(true);
@@ -2355,13 +2390,13 @@ const Notification = () => {
               
               console.log(`📥 Loaded ${validNotifications.length} notifications for new warehouse ${newWarehouseId}`);
             } else {
-              // Keep notifications from other warehouses, just filter out old warehouse
-              const otherWarehouseNotifications = notifications.filter(notif => 
-                notif.data?.warehouse_id !== currentWarehouseId
+              // ✅ CRITICAL: Clear cross-warehouse notifications
+              const validNotifications = notifications.filter(notif => 
+                notif.data?.warehouse_id === newWarehouseId
               );
-              dispatch({ type: 'SET_NOTIFICATIONS', payload: otherWarehouseNotifications });
               
-              console.log(`🔄 No saved notifications found for warehouse ${newWarehouseId}, starting fresh`);
+              dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
+              console.log(`🧹 Cleared cross-warehouse notifications. Kept ${validNotifications.length} for warehouse ${newWarehouseId}`);
             }
           } catch (error) {
             console.warn('Failed to load new warehouse notifications');
@@ -2426,7 +2461,11 @@ const Notification = () => {
     };
   }, [isLoaded, userDataReady, currentWarehouseId, cleanupOldNotifications, checkCreditDueDates]);
 
-  // ✅ FIXED: Listen for product management events with SUPER STRICT WAREHOUSE FILTERING
+  // ================================
+  // 🔧 CRITICAL MODIFICATION SECTION - PRODUCT EVENT LISTENER WITH WAREHOUSE ISOLATION
+  // ================================
+  
+  // ✅ FIXED: Listen for product management events with WAREHOUSE ISOLATION
   useEffect(() => {
     const handleProductUpdate = (event) => {
       if (isLoaded && userDataReady && currentWarehouseId) {
@@ -2436,16 +2475,39 @@ const Notification = () => {
         if (userRole === 'admin') {
           const detail = event.detail;
           
-          // ✅ SUPER STRICT: Only create notification if warehouse IDs match exactly
+          // ✅ CRITICAL: Only process if event is for CURRENT warehouse
           const productWarehouseId = parseInt(detail.warehouseId || detail.warehouse_id);
-          const currentWarehouse = parseInt(currentWarehouseId);
+          const currentWarehouseInt = parseInt(currentWarehouseId);
           
-          if (!productWarehouseId || productWarehouseId !== currentWarehouse) {
-            console.log(`📦 ADMIN NOTIFICATION BLOCKED - Product warehouse: ${productWarehouseId}, Admin current warehouse: ${currentWarehouse}`);
-            return; // Block notification for other warehouses
+          console.log(`📦 PRODUCT EVENT:`, {
+            productWarehouse: productWarehouseId,
+            adminCurrentWarehouse: currentWarehouseInt,
+            productName: detail.productName,
+            shouldShow: productWarehouseId === currentWarehouseInt
+          });
+          
+          // ✅ ABSOLUTE FILTER: Only show if warehouses match exactly
+          if (!productWarehouseId || productWarehouseId !== currentWarehouseInt) {
+            console.log(`🚫 BLOCKED: Product from warehouse ${productWarehouseId}, admin viewing ${currentWarehouseInt}`);
+            return; // Don't create notification for other warehouses
           }
           
-          console.log(`✅ ADMIN NOTIFICATION ALLOWED - Creating notification for warehouse: ${currentWarehouse}`);
+          // ✅ Additional check: Ignore if restrictToWarehouse is true but doesn't match
+          if (detail.restrictToWarehouse && detail.targetWarehouse !== currentWarehouseInt) {
+            console.log(`🚫 RESTRICTED: Event only for warehouse ${detail.targetWarehouse}`);
+            return;
+          }
+          
+          // ✅ Time-based filter: Ignore old events (prevent stale notifications)
+          if (detail.metadata?.event_timestamp) {
+            const eventAge = Date.now() - detail.metadata.event_timestamp;
+            if (eventAge > 30000) { // 30 seconds max
+              console.log(`⏰ IGNORED: Event too old (${eventAge}ms)`);
+              return;
+            }
+          }
+          
+          console.log(`✅ ALLOWED: Creating notification for warehouse ${currentWarehouseInt}`);
           
           const notificationData = {
             id: detail.productId,
@@ -2453,8 +2515,8 @@ const Notification = () => {
             product_code: detail.productCode,
             category: detail.category,
             selling_price: detail.price,
-            warehouse_id: currentWarehouse, // ✅ Use current warehouse for filtering
-            updated_at: new Date().toISOString(),
+            warehouse_id: currentWarehouseInt, // Force current warehouse
+            created_at: new Date().toISOString(),
             changes: detail.changes,
             updated_by: detail.createdBy || user.username || user.name || 'Admin'
           };
@@ -2503,7 +2565,7 @@ const Notification = () => {
       }
     };
 
-    // ✅ FIXED: Listen to multiple event types for better coverage
+    // ✅ Listen to multiple event types for better coverage
     window.addEventListener('productUpdated', handleProductUpdate);
     window.addEventListener('productCreated', handleProductUpdate);
     window.addEventListener('productAdded', handleProductUpdate);
@@ -2520,6 +2582,10 @@ const Notification = () => {
       window.removeEventListener('supplierAdded', handleSupplierUpdate);
     };
   }, [isLoaded, userDataReady, addNotification, getCurrentUser, currentWarehouseId]);
+  
+  // ================================
+  // END CRITICAL MODIFICATION SECTION
+  // ================================
 
   // Listen for Van Load update events with immediate notification creation
   useEffect(() => {

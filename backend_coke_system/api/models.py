@@ -22,11 +22,11 @@ from django.dispatch import receiver
 
 
 class CreditLedger(models.Model):
-    STATUS_UNPAID = "UNPAID"
+    STATUS_PENDING = "PENDING"
     STATUS_PARTIAL = "PARTIAL"
     STATUS_PAID = "PAID"
     STATUS_CHOICES = [
-        (STATUS_UNPAID, "Unpaid"),
+        (STATUS_PENDING, "Pending"),
         (STATUS_PARTIAL, "Partially Paid"),
         (STATUS_PAID, "Fully Paid"),
     ]
@@ -38,6 +38,14 @@ class CreditLedger(models.Model):
         related_name="credit_ledgers"
     )
 
+    # Link to your real Merchandising model in the SAME app
+    merchandising = models.ForeignKey(
+        "api.Merchandising",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="credit_ledgers",
+    )
 
     # header / identity
     msp_no = models.CharField(max_length=50, db_index=True)
@@ -52,7 +60,7 @@ class CreditLedger(models.Model):
     # money
     total_amount = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(0)])
     amount_paid = models.DecimalField(max_digits=12, decimal_places=2, default=0)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_UNPAID)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
 
     rows_json = models.JSONField(default=list, blank=True)
 
@@ -66,7 +74,7 @@ class CreditLedger(models.Model):
     def recalc_status(self, save=True):
         """Recalculate payment status based on amount paid."""
         if self.amount_paid <= 0:
-            self.status = self.STATUS_UNPAID  # 🔴 changed from PENDING → UNPAID
+            self.status = self.STATUS_PENDING  # 🔴 changed from UNPAID → PENDING
         elif self.amount_paid < self.total_amount:
             self.status = self.STATUS_PARTIAL  # 🟡 Partially Paid
         else:
@@ -508,7 +516,7 @@ def _prefix_for(tt):
 # ------------------------------------------------------------
 class MerchandisingSale(models.Model):
     msp_no = models.CharField(max_length=100)
-    date_time = models.DateTimeField()
+    date_time = models.DateTimeField(default=timezone.now)
     transaction_type_name = models.CharField(max_length=100)
     customer_name = models.CharField(max_length=255)
     route = models.ForeignKey('Route', null=True, blank=True, on_delete=models.SET_NULL)
