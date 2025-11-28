@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
+import api from "../api"; // ✅ your Axios instance
 
 const EditUser = ({ userId, onClose, onUserUpdated }) => {
   const [user, setUser] = useState(null);
@@ -13,9 +14,8 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8080/api/roles/");
-        const data = await res.json();
-        setRoles(data);
+        const res = await api.get("/roles/");  // Replaced fetch with api.get()
+        setRoles(res.data);
       } catch (err) {
         console.error("Failed to load roles:", err);
       }
@@ -23,9 +23,8 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
     const fetchWarehouses = async () => {
       try {
-        const res = await fetch("http://127.0.0.1:8080/api/warehouses/");
-        const data = await res.json();
-        setWarehouses(data);
+        const res = await api.get("/warehouses/"); // Replaced fetch with api.get()
+        setWarehouses(res.data);
       } catch (err) {
         console.error("Failed to load warehouses:", err);
       }
@@ -33,8 +32,8 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
     const fetchUser = async () => {
       try {
-        const response = await fetch(`http://127.0.0.1:8080/api/users/${userId}/`);
-        const data = await response.json();
+        const response = await api.get(`/users/${userId}/`); // Replaced fetch with api.get()
+        const data = response.data;
         console.log("Fetched user:", data);
 
         let roleId = data.role?.id || data.role_id || "";
@@ -113,15 +112,11 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
         password: user.password || undefined,
       };
 
-      const res = await fetch(`http://127.0.0.1:8080/api/users/${userId}/`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedUser),
-      });
+      const res = await api.put(`/users/${userId}/`, updatedUser); // Replaced fetch with api.put()
 
-      const result = await res.json();
+      const result = res.data;
 
-      if (!res.ok) {
+      if (!res.status === 200) {
         // Handle backend validation errors gracefully
         if (result.phone_number && result.phone_number[0]) {
           toast.error(`Phone number error: ${result.phone_number[0]}`, { style: errorStyle });
@@ -258,45 +253,33 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
             </div>
           </div>
 
-          {/* Username & Password */}
-          <div className="mb-5 flex gap-6">
-            <div className="w-1/2">
-              <label className="block font-medium">Username</label>
-              <input
-                type="text"
-                name="username"
-                value={user.username}
-                onChange={handleChange}
-                className="w-full border p-2 rounded"
-                required
-              />
-            </div>
-            <div className="w-1/2">
-              <label className="block font-medium">Password (optional)</label>
-              <input
-                type="password"
-                name="password"
-                value={user.password}
-                onChange={handleChange}
-                className="w-full border p-2 rounded"
-                placeholder="Leave blank to keep current"
-              />
-            </div>
-          </div>
+          {/* Username & Status */}
+            <div className="mb-5 flex gap-6">
+              <div className="w-1/2">
+                <label className="block font-medium">Username</label>
+                <input
+                  type="text"
+                  name="username"
+                  value={user.username}
+                  onChange={handleChange}
+                  className="w-full border p-2 rounded"
+                  required
+                />
+              </div>
 
-          {/* Status */}
-          <div className="mb-5">
-            <label className="block font-medium">Status</label>
-            <select
-              name="is_active"
-              value={user.is_active.toString()}
-              onChange={handleChange}
-              className="w-full p-2 border rounded"
-            >
-              <option value="true">Active</option>
-              <option value="false">Inactive</option>
-            </select>
-          </div>
+              <div className="w-1/2">
+                <label className="block font-medium">Status</label>
+                <select
+                  name="is_active"
+                  value={user.is_active.toString()}
+                  onChange={handleChange}
+                  className="w-full border p-2 rounded"
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </select>
+              </div>
+            </div>
 
           {/* Buttons */}
           <div className="flex justify-between">

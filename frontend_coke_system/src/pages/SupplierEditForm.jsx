@@ -1,5 +1,6 @@
+// src/pages/SupplierEditForm.jsx
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api"; // ✅ centralized API instance
 import psgcData from "../data/psgc_output.json";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
@@ -22,12 +23,10 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     contacts: [],
   });
 
-  // ✅ PSGC dropdown state
   const [provinces, setProvinces] = useState([]);
   const [cities, setCities] = useState([]);
   const [barangays, setBarangays] = useState([]);
 
-  // ✅ Live validation states
   const [errors, setErrors] = useState({ phone_number: null, zip_code: null });
   const [contactErrors, setContactErrors] = useState({
     contact_person: null,
@@ -35,7 +34,6 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     phone_number: null,
   });
 
-  // ✅ New additional contact state
   const [newContact, setNewContact] = useState({
     contact_person: "",
     email: "",
@@ -46,9 +44,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   useEffect(() => {
     const loadSupplier = async () => {
       try {
-        const { data } = await axios.get(
-          `http://localhost:8080/api/suppliers/${supplierId}/`
-        );
+        const { data } = await api.get(`/suppliers/${supplierId}/`); // ✅ use centralized API call
         setFormData({
           ...data,
           street_address: data.street_address ?? data.street ?? "",
@@ -63,7 +59,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     if (supplierId) loadSupplier();
   }, [supplierId]);
 
-  // ✅ PSGC cascading logic (same as registration form)
+  // ✅ PSGC cascading logic
   useEffect(() => {
     const selectedRegion = psgcData.find(
       (r) => r.region_name === formData.region
@@ -213,10 +209,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     };
 
     try {
-      await axios.put(
-        `http://localhost:8080/api/suppliers/${supplierId}/`,
-        payload
-      );
+      await api.put(`/suppliers/${supplierId}/`, payload); // ✅ use centralized API call
       toast.success(
         `Supplier '${formData.company_name}' has been successfully updated!`,
         { style: successStyle }

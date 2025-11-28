@@ -12,7 +12,6 @@ const peso = (n) =>
     maximumFractionDigits: 2,
   })}`;
 
-const API = "http://localhost:8080/api"; // ✅ Keep for fallback
 const authHeaders = () => ({
   headers: {
     "Content-Type": "application/json",

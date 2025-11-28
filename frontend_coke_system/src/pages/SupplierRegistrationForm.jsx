@@ -1,5 +1,6 @@
+// src/pages/SupplierRegistrationForm.jsx
 import React, { useState, useEffect } from "react";
-import axios from "axios";
+import api from "../api"; // ✅ centralized API instance
 import psgcData from "../data/psgc_output.json";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
@@ -189,7 +190,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     };
 
     try {
-      const response = await axios.post("http://localhost:8080/api/suppliers/", payload);
+      const response = await api.post("/suppliers/", payload); // ✅ use centralized API call
       
       // ✅ NEW: Dispatch supplier creation event for notifications
       if (response.data) {

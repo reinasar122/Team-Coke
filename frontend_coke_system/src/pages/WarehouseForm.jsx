@@ -3,6 +3,7 @@ import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
 import psgcData from "../data/psgc_output.json";
 import { validatePhoneNumber, validateZipCode } from "../utils/validators";
+import api from "../api"; // ✅ Use centralized API instance
 
 const WarehouseForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -22,7 +23,6 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
   const [cities, setCities] = useState([]);
   const [barangays, setBarangays] = useState([]);
 
-  // ✅ Error state for live validation
   const [errors, setErrors] = useState({
     phone_number: null,
     zip_code: null,
@@ -75,6 +75,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     }
   };
 
+  // ✅ Validate inputs
   const validateInputs = () => {
     const phoneError = validatePhoneNumber(formData.phone_number);
     const zipError = validateZipCode(formData.zip_code);
@@ -99,7 +100,7 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
 
   // ✅ NEW: Warehouse creation notification helper
   const notifyWarehouseCreated = (warehouseData) => {
-    console.log('🏭 Notifying warehouse creation:', warehouseData);
+    console.log("🏭 Notifying warehouse creation:", warehouseData);
     
     const event = new CustomEvent('warehouseCreated', {
       detail: {
@@ -126,40 +127,21 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     if (!validateInputs()) return;
 
     try {
-      const res = await fetch("http://127.0.0.1:8080/api/warehouses/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const res = await api.post("/warehouses/", formData); // ✅ Use centralized API call
 
-      if (res.ok) {
-        // ✅ NEW: Get the created warehouse data
-        const warehouseData = await res.json();
+      // ✅ NEW: Get the created warehouse data
+      const warehouseData = res.data;
         
-        toast.success(`Warehouse '${formData.name}' has been saved successfully!`, {
-          style: successStyle,
-        });
+      toast.success(`Warehouse '${formData.name}' has been saved successfully!`, {
+        style: successStyle,
+      });
+      
+      // ✅ NEW: Trigger warehouse creation notification
+      notifyWarehouseCreated(warehouseData);
+      console.log(`🏭 Warehouse creation notification sent for: ${warehouseData.name}`);
         
-        // ✅ NEW: Trigger warehouse creation notification
-        notifyWarehouseCreated(warehouseData);
-        console.log(`🏭 Warehouse creation notification sent for: ${warehouseData.name}`);
-        
-        onSuccess?.();
-        onClose?.();
-      } else {
-        const data = await res.json();
-        if (data && typeof data === "object") {
-          const firstKey = Object.keys(data)[0];
-          const firstErr = Array.isArray(data[firstKey])
-            ? data[firstKey][0]
-            : data[firstKey];
-          toast.error(`${firstKey}: ${firstErr}`, { style: errorStyle });
-        } else {
-          toast.error("Failed to create warehouse. Please check the fields.", {
-            style: errorStyle,
-          });
-        }
-      }
+      onSuccess?.();
+      onClose?.();
     } catch (error) {
       console.error("Error creating warehouse:", error);
       toast.error("Failed to create warehouse. Please check the fields.", {

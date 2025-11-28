@@ -3,6 +3,7 @@ import psgcData from "../data/psgc_output.json";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
 import { validatePhoneNumber, validateZipCode } from "../utils/validators";
+import api from "../api"; // ✅ Axios instance
 
 const EditWarehouse = ({ id, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -22,20 +23,18 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
   const [cities, setCities] = useState([]);
   const [barangays, setBarangays] = useState([]);
 
-  // ✅ Live validation errors
   const [errors, setErrors] = useState({
     phone_number: null,
     zip_code: null,
     email: null,
   });
 
-  // ✅ Fetch warehouse data
+  // ✅ Fetch warehouse data (api.get)
   useEffect(() => {
     const fetchWarehouse = async () => {
       try {
-        const res = await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`);
-        const data = await res.json();
-        setFormData(data);
+        const res = await api.get(`/warehouses/${id}/`);
+        setFormData(res.data);
       } catch (error) {
         console.error("Error fetching warehouse:", error);
         toast.error("Failed to load warehouse details.", { style: errorStyle });
@@ -75,7 +74,6 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
       return { ...prev, [name]: value };
     });
 
-    // Live validation logic
     if (name === "phone_number") {
       const err = validatePhoneNumber(value);
       setErrors((prev) => ({ ...prev, phone_number: err }));
@@ -88,7 +86,7 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
 
     if (name === "email") {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const err = !emailRegex.test(value)
+      const err = value && !emailRegex.test(value)
         ? "Please enter a valid email address."
         : null;
       setErrors((prev) => ({ ...prev, email: err }));
@@ -116,42 +114,35 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
     return true;
   };
 
-  // ✅ Submit updated warehouse
+  // ✅ Submit updated warehouse (api.put)
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateInputs()) return;
 
     try {
-      const res = await fetch(`http://127.0.0.1:8080/api/warehouses/${id}/`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
-      });
+      const res = await api.put(`/warehouses/${id}/`, formData);
 
-      if (res.ok) {
-        toast.success(
-          `Warehouse '${formData.name}' has been updated successfully!`,
-          { style: successStyle }
-        );
-        onSuccess?.();
-        onClose?.();
-      } else {
-        const data = await res.json();
-        if (data && typeof data === "object") {
-          const firstKey = Object.keys(data)[0];
-          const firstErr = Array.isArray(data[firstKey])
-            ? data[firstKey][0]
-            : data[firstKey];
-          toast.error(`${firstKey}: ${firstErr}`, { style: errorStyle });
-        } else {
-          toast.error("Failed to update warehouse. Please check the fields.", {
-            style: errorStyle,
-          });
-        }
-      }
+      toast.success(
+        `Warehouse '${res.data.name || formData.name}' has been updated successfully!`,
+        { style: successStyle }
+      );
+      onSuccess?.();
+      onClose?.();
     } catch (error) {
       console.error("Error updating warehouse:", error);
-      toast.error("Failed to update warehouse.", { style: errorStyle });
+      const data = error.response?.data;
+
+      if (data && typeof data === "object") {
+        const firstKey = Object.keys(data)[0];
+        const firstErr = Array.isArray(data[firstKey])
+          ? data[firstKey][0]
+          : data[firstKey];
+        toast.error(`${firstKey}: ${firstErr}`, { style: errorStyle });
+      } else {
+        toast.error("Failed to update warehouse. Please check the fields.", {
+          style: errorStyle,
+        });
+      }
     }
   };
 
