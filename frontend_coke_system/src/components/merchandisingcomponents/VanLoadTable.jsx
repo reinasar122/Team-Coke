@@ -94,7 +94,7 @@ const VanLoadTable = ({
     };
   }, [fetchAllStocks]);
 
-   // ---------- Pricing ----------
+  // ---------- Pricing ----------
   useEffect(() => {
     (async () => {
       try {
@@ -134,6 +134,8 @@ const VanLoadTable = ({
   useEffect(() => {
     localStorage.setItem("rows", JSON.stringify(rows));
   }, [rows]);
+
+
 
   // ---------- Prevent duplicate product selections ----------
   const pickedIds = useMemo(() => {
@@ -191,6 +193,8 @@ const VanLoadTable = ({
     if (typeof onAdjustmentsChange === "function") onAdjustmentsChange(adjustments);
   }, [adjustments, onAdjustmentsChange]);
 
+
+
   // ---------- Handlers ----------
   const handleProductChange = (index, value) => {
     const updated = [...rows];
@@ -218,14 +222,14 @@ const VanLoadTable = ({
         shellPrice: fullPrice?.shell_price ?? "",
         bottlePrice: fullPrice?.bottle_price ?? "",
         sellingPrice: fullPrice?.selling_price ?? "",
-        // Seed discount
+        // Seed discount (preserve if exists, otherwise default)
         discount:
-          (updated[index]?.discount !== undefined && updated[index]?.discount !== null)
+          updated[index]?.discount !== undefined && updated[index]?.discount !== null
             ? updated[index].discount
-            : (defaultDiscount ?? ""),
+            : defaultDiscount ?? "",
       };
 
-      // compute expectedSale right away (uses current dispatchedPcs & discount)
+      // Compute expectedSale right away (uses current dispatchedPcs & discount)
       const price = n(nextRow.sellingPrice);
       const dPct = n(nextRow.discount);
       const dispatchedPcs = n(nextRow.dispatchedPcs);
@@ -233,6 +237,7 @@ const VanLoadTable = ({
 
       updated[index] = nextRow;
     } else {
+      // If no product selected, reset the row to its initial state
       updated[index] = {
         ...(updated[index] || {}),
         productId: "",
@@ -245,10 +250,11 @@ const VanLoadTable = ({
         dispatchedShell: "",
         dispatchedPcs: "",
         expectedSale: "",
-        discount: updated[index]?.discount ?? (defaultDiscount ?? ""),
+        discount: updated[index]?.discount ?? defaultDiscount ?? "",
       };
     }
 
+    // Update the rows with the new data
     setRows(updated);
 
     // Auto-add a blank row when the last row picks a valid product
@@ -273,11 +279,26 @@ const VanLoadTable = ({
     }
   };
 
+
   const handleRowChange = (index, field, value) => {
   const updated = [...rows];
   const row = { ...updated[index] };
 
   const n = (v) => parseFloat(v) || 0;
+
+
+  const qtyFields = [
+    "dispatchedShell", "dispatchedPcs", "soldShell", "soldPcs", 
+    "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty", "discount"
+  ];
+
+  // Prevent input if no product is selected
+  if (!row.productId && qtyFields.includes(field) && value !== null && value !== "") {
+    alert("Product required");
+    return;
+  }
+
+
 
   if (value === null) {
     row[field] = null;

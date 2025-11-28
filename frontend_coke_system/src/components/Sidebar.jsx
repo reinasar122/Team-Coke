@@ -12,6 +12,7 @@ import {
   faChevronDown,
   faChevronUp,
   faChartBar,
+  faChartLine,
 } from "@fortawesome/free-solid-svg-icons";
 import { canView } from "../utils/accessControl";
 
@@ -57,6 +58,7 @@ const Sidebar = ({ isSidebarOpen }) => {
             <DisabledItem icon={faTachometerAlt} text="Dashboard" />
           )}
         </li>
+
 
         {/* Transactions */}
         <li>
@@ -258,6 +260,27 @@ const Sidebar = ({ isSidebarOpen }) => {
             <DisabledItem icon={faCog} text="Settings" />
           )}
         </li>
+
+
+        {/*Karen Changes */}
+        {/* Facebook Prophet / Forecasting - always enabled */}
+        <li>
+          <NavLink
+            to="/forecasting"
+            className={({ isActive }) =>
+              `p-2 hover:bg-gray-700 rounded flex items-center ${
+                isActive ? "bg-gray-800" : ""
+              }`
+            }
+          >
+            <FontAwesomeIcon icon={faChartLine} className="mr-2" /> Forecasting
+          </NavLink>
+        </li>
+
+        
+{/* ------------------ */}
+
+
 
         {/* Logout
         <li>

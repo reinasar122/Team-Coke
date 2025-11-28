@@ -67,6 +67,9 @@ import "react-toastify/dist/ReactToastify.css";
 
 import Invoice from "./pages/Invoice";
 
+import ForecastingDashboard from "./pages/ForecastingDashboard";
+
+
 import {
   FaHome,
   FaClipboardCheck,
@@ -169,6 +172,19 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
+
+                {/* Forecasting page title */}
+                <Route
+                  path="/forecasting"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaChartLine /> Forecasting
+                    </h1>
+                  }
+                />
+
+
+
                 {/* ✅ NEW: Expense Settings page title */}
                 <Route
                   path="/expense-settings"
@@ -233,6 +249,10 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
           <Routes>
             {/* Dashboard */}
             <Route path="/dashboard" element={<Dashboard />} />
+
+            {/* Forecasting */}
+            <Route path="/forecasting" element={<ForecastingDashboard />} />
+
 
             {/* Credits */}
             <Route path="/credits" element={<CreditList />} />

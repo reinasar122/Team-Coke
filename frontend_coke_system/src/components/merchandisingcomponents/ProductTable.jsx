@@ -21,6 +21,7 @@ const ProductTable = ({
   setDiscrepancy,
   setTotalAmount,
   miscCharges,
+  defaultDiscount,
 
   setDiscrepancyEmptyTotal,  
 
@@ -136,6 +137,33 @@ const ProductTable = ({
   };
 
 
+  useEffect(() => {
+    localStorage.setItem("rows", JSON.stringify(rows));
+  }, [rows]);
+
+
+
+  useEffect(() => {
+    if (!pricingData.length || !rows.length) return;
+
+    setRows(prevRows =>
+      prevRows.map(r => {
+        if (!r.priceId || (r.unitPrice && r.unitPrice !== "")) return r;
+        const p = pricingData.find(p => p.id === r.priceId);
+        if (!p) return r;
+
+        return {
+          ...r,
+          unitPrice: p.selling_price ?? r.unitPrice,
+          shellPrice: p.shell_price ?? r.shellPrice,
+          bottlePrice: p.bottle_price ?? r.bottlePrice,
+        };
+      })
+    );
+  }, [pricingData, rows.length]);
+
+
+
   // cache pricing by priceId for fast lookup
   useEffect(() => {
     const next = {};
@@ -162,6 +190,7 @@ const ProductTable = ({
     const selectedProduct = products.find((p) => p.id === productId);
 
     if (selectedProduct) {
+      // Fetch pricing details from pricingData (if exists)
       const priceId = selectedProduct.price?.id || null;
       const priceRec = pricingData.find((price) => price.id === priceId);
       const contentNo = selectedProduct.unit_type?.content_no || 1;
@@ -173,11 +202,11 @@ const ProductTable = ({
         priceId,
         contentNo,
         unitPrice: n(priceRec?.selling_price),
-        shellPrice: n(priceRec?.shell_price) || "",
-        bottlePrice: n(priceRec?.bottle_price) || "",
+        shellPrice: n(priceRec?.shell_price) || "",  // Store shell price
+        bottlePrice: n(priceRec?.bottle_price) || "", // Store bottle price
       };
 
-      // Returnable check affects empties fields
+      // If shell and bottle prices are zero, handle returnable check
       const shellP = n(priceRec?.shell_price);
       const bottleP = n(priceRec?.bottle_price);
       if (shellP === 0 && bottleP === 0) {
@@ -188,23 +217,68 @@ const ProductTable = ({
       }
     }
 
+    // Update rows with new data
     setRows(updated);
-    fetchStockQuantity(productId);
+    fetchStockQuantity(productId); // Fetch stock quantity for the selected product
 
-    // auto-add a blank row at the end if last became valid
+    // Auto-add a blank row at the end if last row becomes valid (only for valid products)
     if (index === rows.length - 1 && selectedProduct) {
       setRows((prev) => [
         ...prev,
-        makeBlankRow(),
+        {
+          id: Date.now(),
+          productId: "",
+          productName: "",
+          priceId: "",
+          dispatchedShell: "",
+          dispatchedPcs: "",
+          expectedSale: "",
+          contentNo: "",
+          sellingPrice: "",
+          shellPrice: "",
+          bottlePrice: "",
+          discount: defaultDiscount ?? "",  // Add default discount if necessary
+        },
       ]);
     }
   };
+
 
   //const isMissing = v => v == null || v === "";
 
   const handleRowChange = (index, field, value) => {
   const updated = [...rows];
   const row = { ...updated[index] };
+
+
+  //changes for product require
+
+  // fields that must not be filled without a product
+  const qtyFields = [
+    "dispatchedShell",
+    "dispatchedPcs",
+    "soldShell",
+    "soldPcs",
+    "expectedReturnShellEmpty",
+    "expectedReturnPcsEmpty",
+    "expectedReturnShellNonempty",
+    "expectedReturnPcsNonempty",
+    "discount",
+  ];
+
+  // If no product selected and user tries to enter a value
+  if (
+    !row.productId &&
+    qtyFields.includes(field) &&
+    value !== null &&
+    value !== "" &&
+    Number(value) > 0
+  ) {
+    alert("Product required");
+    return;
+  }
+
+
 
   if (value === null) {
     row[field] = null;
@@ -388,19 +462,6 @@ if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
     const updatedRows = rows.filter((_, idx) => idx !== rowIndex);
     setRows(updatedRows);
   };
-
-  const productHasEmptyPrice = (row) => {
-  const n = (v) => parseFloat(v) || 0;
-  // If the product or pricing exists, check any shell/bottle/empty price > 0
-  const candidates = [
-    row?.product?.empty_price,
-    row?.product?.price?.shell_price,
-    row?.product?.price?.bottle_price,
-    row?.shellPrice,
-    row?.bottlePrice,
-  ];
-  return candidates.some((v) => n(v) > 0);
-};
 
   // -------------------- Totals (memo + push up) --------------------
 
@@ -671,14 +732,8 @@ useEffect(() => {
             return (
             <tr key={row.id ?? index} className="bg-white hover:bg-slate-100 transition duration-150">
               {/* PRODUCT SELECT */}
-             <td className="border border-gray-200 py-1 px-1 w-[180px] relative overflow-visible">
+              <td className="border border-gray-200 py-1 px-1 w-[180px] relative">
                 <ProductSearchSelect
-                  menuPortalTarget={document.body}   // ✅ renders dropdown outside the table
-                  menuPosition="fixed"  
-                  menuPlacement="auto"             // ✅ ensures proper positioning on scroll
-                  styles={{
-                    menuPortal: (base) => ({ ...base, zIndex: 9999 }), // ✅ keeps dropdown on top
-                  }}
                   products={products}
                   value={row.productName ?? ""}
                   onChange={(id) => handleProductChange(index, String(id))}
@@ -686,6 +741,7 @@ useEffect(() => {
                   placeholder="Search product…"
                 />
               </td>
+
               {/* DISPATCHED */}
              <td className="border border-gray-200 py-1 px-1">
                 <input
@@ -787,24 +843,13 @@ useEffect(() => {
               </td>
 
 
-            {[
-              "expectedReturnShellEmpty",
-              "expectedReturnPcsEmpty",
-              "discrepancyShellEmpty",
-              "discrepancyPcsEmpty",
-            ].map((field, i) => {
-              const isEmptyField = [
+              {/* RETURN & DISCREPANCY FIELDS */}
+              {[
                 "expectedReturnShellEmpty",
                 "expectedReturnPcsEmpty",
                 "discrepancyShellEmpty",
                 "discrepancyPcsEmpty",
-              ].includes(field);
-
-              const isDiscrepancyField = field.includes("discrepancy");
-              const hasEmptyPrice = productHasEmptyPrice(row);
-              const shouldDisable = isEmptyField && !hasEmptyPrice; // <-- core logic
-
-              return (
+              ].map((field, i) => (
                 <td key={i} className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
@@ -813,16 +858,15 @@ useEffect(() => {
                       ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)
                         ? "input-always-spinner bg-yellow-50"
                         : "bg-gray-100"}
-                      ${isDiscrepancyField && parseFloat(row[field]) !== 0
+                      ${field.includes("discrepancy") && parseFloat(row[field]) !== 0
                         ? "bg-red-100 text-red-700 font-semibold"
                         : ""}
-                      ${shouldDisable ? "cursor-not-allowed opacity-60" : ""}
                     `}
                     value={
                       row[field] === "" || row[field] === "0" || row[field] === null
                         ? ""
                         : row[field]
-                    }
+                    } // Handle empty and "0"
                     onChange={(e) =>
                       handleRowChange(
                         index,
@@ -830,13 +874,10 @@ useEffect(() => {
                         e.target.value === "" ? null : e.target.value
                       )
                     }
-                    readOnly={isDiscrepancyField}    // discrepancy stays computed & non-editable
-                    disabled={shouldDisable}         // disable ONLY when no empty price
+                    readOnly={["discrepancyShellEmpty", "discrepancyPcsEmpty"].includes(field)} // ⬅️ Make discrepancy fields non-editable
                   />
                 </td>
-              );
-            })}
-
+              ))}
 
 
 
