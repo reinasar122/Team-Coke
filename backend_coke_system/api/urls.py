@@ -35,14 +35,17 @@ from .views import (
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, BulkRoleAccessibilityUpsertView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
-    CreditPaymentCreateAPIView,BulkAdjustStockView,
+    CreditPaymentCreateAPIView,BulkAdjustStockView, 
 
 
 
 )
 from .views import warehouse_groups_view, warehouse_details_view
 
-
+from .views import (
+    HolidayViewSet,
+    ForecastViewSet, GenerateForecastAPIView
+)
 
 from .views import SupplierReturnFormListCreateView
 from .views import SupplierReturnFormDetailView
@@ -176,10 +179,13 @@ urlpatterns = [
     path("reports/product_breakdown/", ProductBreakdownReport.as_view()),
     #path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
 
+    path("forecasts/generate/", GenerateForecastAPIView.as_view(), name="generate-forecast"),
 
 ]
 
 router = DefaultRouter()
 router.register(r'merchandising-set', MerchandisingViewSet, basename='merchandising-set')
+router.register(r"forecasts", ForecastViewSet)
+router.register(r"holidays", HolidayViewSet)
 
 urlpatterns += router.urls

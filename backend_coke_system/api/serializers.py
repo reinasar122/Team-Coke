@@ -2,7 +2,7 @@ from rest_framework import serializers
 from .models import Warehouse
 from .models import Supplier, SupplierContact
 from django.contrib.auth.hashers import make_password
-from .models import User, Role
+from .models import User, Role, Holiday, Forecast
 from .models import Van
 from .models import RoleAccessibility,ContentType, ShellType, UnitType, Pricing, Product, ProductCategory, Receiving, ReceivingItem, Stock, Route, TransactionType, Merchandising, MerchandisingItem, MiscellaneousItem, ReturnableStock, SupplierReturn, SupplierReturnItem, Payment, Customer
 from .models import User, RoleAccessibility
@@ -1174,3 +1174,16 @@ class ProcessEmptiesReturnSerializer(serializers.Serializer):
                     raise serializers.ValidationError(f"Missing required field: {field}")
         
         return value
+    
+
+class HolidaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Holiday
+        fields = ["id", "name", "date"]
+
+class ForecastSerializer(serializers.ModelSerializer):
+    product_name = serializers.CharField(source="product.product_name", read_only=True)
+
+    class Meta:
+        model = Forecast
+        fields = ["id", "product", "product_name", "date", "forecast", "lower", "upper"]

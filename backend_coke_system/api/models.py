@@ -820,3 +820,27 @@ class SupplierReturnFormItem(models.Model):
 
 #     def __str__(self):
 #      return f"Invoice {self.invoice_no} - {self.customer_name}"
+
+
+
+class Holiday(models.Model):
+    name = models.CharField(max_length=100)
+    date = models.DateField()
+
+    def __str__(self):
+        return f"{self.name} ({self.date})"
+
+class Forecast(models.Model):
+    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="forecasts")
+    date = models.DateField()
+    actual = models.IntegerField(null=True, blank=True)
+    forecast = models.IntegerField()
+    lower = models.IntegerField()
+    upper = models.IntegerField()
+
+    class Meta:
+        unique_together = ("product", "date")
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.product.name} - {self.date}"

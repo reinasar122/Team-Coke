@@ -78,6 +78,17 @@ from .serializers import (
     CreditPaymentCreateSerializer,
 )
 
+from .serializers import ForecastSerializer, HolidaySerializer
+
+import pandas as pd
+from prophet import Prophet
+
+from .models import Forecast, Holiday
+from django.db.models.functions import TruncDate
+from datetime import timedelta
+
+
+
 # ✅ HELPER FUNCTION: Get user warehouse filtering
 def get_user_warehouse_filter(user, query_param_warehouse=None):
     """
@@ -2035,3 +2046,139 @@ class VanLoadReturnUpdateAPIView(APIView):
         except Exception as e:
             import traceback; traceback.print_exc()
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+
+# ----------------------
+# Holiday ViewSet
+# ----------------------
+class HolidayViewSet(viewsets.ModelViewSet):
+    queryset = Holiday.objects.all()
+    serializer_class = HolidaySerializer
+    permission_classes = [AllowAny]  # allow testing
+
+
+# ----------------------
+# Forecast ViewSet
+# ----------------------
+class ForecastViewSet(viewsets.ModelViewSet):
+    queryset = Forecast.objects.select_related("product").all()
+    serializer_class = ForecastSerializer
+    permission_classes = [AllowAny]  # allow testing
+
+    def get_queryset(self):
+        queryset = self.queryset
+        product_id = self.request.query_params.get("product_id")
+        start_date = self.request.query_params.get("start_date")
+        end_date = self.request.query_params.get("end_date")
+
+        if product_id:
+            queryset = queryset.filter(product_id=product_id)
+        if start_date and end_date:
+            queryset = queryset.filter(date__range=[start_date, end_date])
+
+        return queryset.order_by("date")
+
+
+# ----------------------
+# Generate Forecast API
+# ----------------------
+class GenerateForecastAPIView(APIView):
+    permission_classes = [AllowAny]   # TEMP for testing
+
+    def post(self, request, *args, **kwargs):
+        product_id = request.data.get("product")
+        days = int(request.data.get("days", 30))
+
+        if not product_id:
+            return Response({"detail": "product is required"}, status=400)
+
+        # ------------------------------------------
+        # 1) Fetch historical sales grouped by DATE
+        # ------------------------------------------
+        qs = (
+            MerchandisingItem.objects
+            .filter(product_id=product_id)
+            .annotate(sale_date=TruncDate("merchandising__date_time"))
+            .values("sale_date")
+            .annotate(y=Sum("sold_pcs"))
+            .order_by("sale_date")
+        )
+
+        rows = list(qs)
+
+        # 🔥 FIX: Remove rows where sale_date is None
+        rows = [r for r in rows if r["sale_date"] is not None]
+
+        # ------------------------------------------
+        # Padding logic
+        # ------------------------------------------
+        if len(rows) == 0:
+            today = timezone.now().date()
+            rows = [
+                {"sale_date": today - timedelta(days=1), "y": 10},
+                {"sale_date": today, "y": 12},
+            ]
+
+        elif len(rows) == 1:
+            only = rows[0]
+            d = only["sale_date"]
+            rows = [
+                {"sale_date": d - timedelta(days=1), "y": only["y"]},
+                {"sale_date": d, "y": only["y"]},
+            ]
+
+        # ------------------------------------------
+        # 3) Build DataFrame for Prophet
+        # ------------------------------------------
+        df = pd.DataFrame(rows)
+        df.rename(columns={"sale_date": "ds"}, inplace=True)
+        df["ds"] = pd.to_datetime(df["ds"]).dt.tz_localize(None)  # REMOVE TZ
+        df = df[["ds", "y"]]
+
+        # ------------------------------------------
+        # 4) Prepare Holidays (optional)
+        # ------------------------------------------
+        holidays_qs = Holiday.objects.all().values("name", "date")
+        holidays = [{"ds": pd.to_datetime(h["date"]), "holiday": h["name"]} for h in holidays_qs]
+        holidays_df = pd.DataFrame(holidays) if holidays else None
+
+        # ------------------------------------------
+        # 5) Fit Prophet
+        # ------------------------------------------
+        try:
+            m = Prophet(holidays=holidays_df)
+            m.fit(df)
+        except Exception as e:
+            return Response({"detail": f"Prophet fitting failed: {str(e)}"}, status=500)
+
+        # ------------------------------------------
+        # 6) Forecast future
+        # ------------------------------------------
+        future = m.make_future_dataframe(periods=days)
+        forecast = m.predict(future)
+
+        # ------------------------------------------
+        # 7) Save forecast into DB
+        # ------------------------------------------
+        created = []
+        last_hist_date = df["ds"].max().date()
+
+        for _, row in forecast.iterrows():
+            ds = pd.to_datetime(row["ds"]).date()
+            if ds < last_hist_date:
+                continue
+
+            f = Forecast.objects.update_or_create(
+                product_id=product_id,
+                date=ds,
+                defaults={
+                    "forecast": int(max(0, round(row["yhat"]))),
+                    "lower": int(max(0, round(row["yhat_lower"]))),
+                    "upper": int(max(0, round(row["yhat_upper"]))),
+                },
+            )[0]
+
+            created.append(f)
+
+        serializer = ForecastSerializer(created, many=True)
+        return Response(serializer.data, status=201)        
