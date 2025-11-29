@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";  
-import api from "../api"; // ✅ correct
+import api from "../api";
 
 const isStrongPassword = (password) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
@@ -18,7 +17,11 @@ const ChangePassword = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    if (!uid || !token) navigate("/login");
+    console.log("URL Parameters:", { uid, token });
+    if (!uid || !token) {
+      console.error("Missing uid or token, redirecting to login");
+      navigate("/login");
+    }
   }, [uid, token, navigate]);
 
   const handleSubmit = async (e) => {
@@ -43,16 +46,17 @@ const ChangePassword = () => {
 
     setLoading(true);
     try {
-      const payload = {
-        uid: decodeURIComponent(uid),
-        token: decodeURIComponent(token),
+      // ✅ FIX: POST to the correct URL with uid and token as URL parameters
+      const response = await api.post(`/change-password/${uid}/${token}/`, {
+        uid: uid,           // Include in body for Django view
+        token: token,       // Include in body for Django view  
         new_password: newPassword,
-      };
-      await api.post("/change-password/", payload);
+      });
 
       setSuccess("✅ Password changed successfully! Redirecting...");
       setTimeout(() => navigate("/login"), 2000);
     } catch (err) {
+      console.error("Change password error:", err);
       const msg =
         err.response?.data?.error ||
         err.response?.data?.detail ||
@@ -63,7 +67,6 @@ const ChangePassword = () => {
     }
   };
 
-  // ✅ Change: use green when satisfied, gray when not
   const getValidationColor = (condition) =>
     condition ? "text-green-500 font-semibold" : "text-gray-400";
 
@@ -81,6 +84,13 @@ const ChangePassword = () => {
         <h3 className="text-2xl font-bold mb-6 text-center text-white uppercase tracking-wide">
           Change Password
         </h3>
+
+        {/* Debug info (remove in production) */}
+        {process.env.NODE_ENV === 'development' && (
+          <div className="bg-blue-600/50 text-white text-xs p-2 rounded mb-3">
+            Debug: UID={uid}, Token={token?.substring(0, 10)}...
+          </div>
+        )}
 
         {error && (
           <div className="bg-red-600 text-white text-sm p-2 rounded mb-3">
