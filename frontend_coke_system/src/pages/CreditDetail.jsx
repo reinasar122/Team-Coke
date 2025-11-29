@@ -5,7 +5,6 @@ import { useParams, Link, useSearchParams } from "react-router-dom";
 import api from "../api"; // ✅ correct
 
 
-const API = "http://localhost:8080";
 
 export default function CreditDetail() {
   const { id } = useParams();

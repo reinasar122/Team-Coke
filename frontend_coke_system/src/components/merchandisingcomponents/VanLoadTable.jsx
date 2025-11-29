@@ -60,9 +60,9 @@ const VanLoadTable = ({
         (products || []).map((p) => [(p.product_name || "").trim().toLowerCase(), Number(p.id)])
       );
 
-      const { data } = await axios.get(
-        `http://localhost:8080/api/stocks/?warehouse=${encodeURIComponent(wid)}`
-      );
+     const { data } = await api.get("/stocks/", {
+      params: { warehouse: encodeURIComponent(wid) }, // Using params to pass query parameters
+    });
 
       const map = {};
       const list = Array.isArray(data) ? data : [data];
@@ -96,15 +96,16 @@ const VanLoadTable = ({
 
   // ---------- Pricing ----------
   useEffect(() => {
-    (async () => {
-      try {
-        const { data } = await axios.get("http://localhost:8080/api/pricing/");
-        setPricingData(data || []);
-      } catch (err) {
-        console.error("Failed to fetch pricing:", err);
-      }
-    })();
-  }, []);
+  (async () => {
+    try {
+      // Fetch pricing data using api instance
+      const { data } = await api.get("/pricing/");
+      setPricingData(data || []);
+    } catch (err) {
+      console.error("Failed to fetch pricing:", err);
+    }
+  })();
+}, [])
 
 
 

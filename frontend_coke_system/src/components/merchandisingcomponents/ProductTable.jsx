@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import axios from "axios";
 import { FaTrash } from 'react-icons/fa';
 import ProductSearchSelect from "../common/ProductSearchSelect"; // adjust path if needed
+import api from "../../api";
 
 
 
@@ -86,28 +87,28 @@ const ProductTable = ({
 
   // -------------------- Fetches --------------------
   useEffect(() => {
-    const fetchUnitTypes = async () => {
-      try {
-        const response = await axios.get("http://localhost:8080/api/unit-types/");
-        setUnitTypes(response.data || []);
-      } catch (err) {
-        console.error("Failed to fetch unit types:", err);
-      }
-    };
-    fetchUnitTypes();
-  }, []);
+  const fetchUnitTypes = async () => {
+    try {
+      const response = await api.get("/unit-types/"); // Use api instance
+      setUnitTypes(response.data || []);
+    } catch (err) {
+      console.error("Failed to fetch unit types:", err);
+    }
+  };
+  fetchUnitTypes();
+}, []);
 
-  useEffect(() => {
-    const fetchPricing = async () => {
-      try {
-        const response = await axios.get("http://localhost:8080/api/pricing/");
-        setPricingData(response.data || []);
-      } catch (err) {
-        console.error("Failed to fetch pricing:", err);
-      }
-    };
-    fetchPricing();
-  }, []);
+useEffect(() => {
+  const fetchPricing = async () => {
+    try {
+      const response = await api.get("/pricing/"); // Use api instance
+      setPricingData(response.data || []);
+    } catch (err) {
+      console.error("Failed to fetch pricing:", err);
+    }
+  };
+  fetchPricing();
+}, []);
 
   // unitTypeId -> content_no
   const unitTypeMap = useMemo(() => {
@@ -123,10 +124,7 @@ const ProductTable = ({
     if (!productId || !warehouseId) return;
 
     try {
-      const response = await axios.get(
-        `http://localhost:8080/api/stocks/${productId}/availability/`
-      );
-
+      const response = await api.get(`/stocks/${productId}/availability/`); // Use api instance
       const quantity = response.data.quantity_available ?? 0;
       setAvailableStock((prev) => ({ ...prev, [productId]: quantity }));
       console.log(`✅ Stock for product ${productId}:`, quantity);

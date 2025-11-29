@@ -5,8 +5,6 @@ import VanLoadTable from "../components/merchandisingcomponents/VanLoadTable";
 import api from "../api"; // ✅ correct
 
 
-//const API = "http://localhost:8080/api";
-
 // format to <input type="datetime-local">
 const toDatetimeLocalValue = (date = new Date()) => {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
