@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import api from "../api";  // Import the custom API instance
+import api from "../../api";  // Import the custom API instance
 import Card from "../../components/common/Card";
 import Metric from "../../components/common/Metric";
 import SalesByWarehouseBar from "../../components/charts/SalesByWarehouseBar";
