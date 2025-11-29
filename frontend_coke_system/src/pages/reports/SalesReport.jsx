@@ -1,17 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
-import axios from "axios";
-
+import React, { useEffect, useState, useRef } from "react";
+import api from "../api";  // Import the custom API instance
 import Card from "../../components/common/Card";
 import Metric from "../../components/common/Metric";
 import SalesByWarehouseBar from "../../components/charts/SalesByWarehouseBar";
 import SalesByRouteBar from "../../components/charts/SalesByRoutePie";
 import Empty from "../../components/common/Empty";
 import { n, peso, pct } from "../../utils/formatters";
-
 import ProductBreakdownContainer from "../../containers/ProductBreakdownContainer";
 import { FaChartBar } from "react-icons/fa";
-
-const API = process.env.REACT_APP_API_URL || "http://localhost:8080/api";
 
 export default function SalesReport() {
   const [warehouses, setWarehouses] = useState([]);
@@ -23,7 +19,6 @@ export default function SalesReport() {
     start: null,
     end: null,
   });
-
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState("");
   const [data, setData] = useState({
@@ -38,30 +33,33 @@ export default function SalesReport() {
   const [unitsSold, setUnitsSold] = useState(0);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
 
-
-  // Load dropdown options
+  // Load dropdown options for warehouses and routes
   useEffect(() => {
-    let ok = true;
-    (async () => {
+    let cancelled = false;
+    const fetchData = async () => {
       try {
         const [wh, rt] = await Promise.allSettled([
-          axios.get(`${API}/warehouses/`),
-          axios.get(`${API}/routes/`),
+          api.get(`/warehouses/`),  // Use api.js for warehouse data
+          api.get(`/routes/`),       // Use api.js for route data
         ]);
-        if (!ok) return;
-        setWarehouses(wh.status === "fulfilled" ? wh.value.data : []);
-        setRoutes(rt.status === "fulfilled" ? rt.value.data : []);
-      } catch {
-        /* ignore */
+
+        if (!cancelled) {
+          setWarehouses(wh.status === "fulfilled" ? wh.value.data : []);
+          setRoutes(rt.status === "fulfilled" ? rt.value.data : []);
+        }
+      } catch (error) {
+        console.error("Error loading warehouses and routes:", error);
       }
-    })();
-    return () => (ok = false);
+    };
+    fetchData();
+
+    return () => (cancelled = true);
   }, []);
 
-  // Fetch sales report
+  // Fetch sales report data
   useEffect(() => {
     let alive = true;
-    (async () => {
+    const fetchSalesReport = async () => {
       setLoading(true);
       setErr("");
 
@@ -74,26 +72,10 @@ export default function SalesReport() {
           if (filters.start) params.set("start", filters.start);
           if (filters.end) params.set("end", filters.end);
         }
-        const qs = params.toString();
 
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
+        const response = await api.get(`/sales_report/?${params.toString()}`);
+        const r = response.data || {};
 
-        const [rpt1, rpt2] = await Promise.allSettled([
-          axios.get(`${API}/sales_report/?${qs}`, { headers, timeout: 15000 }),
-          axios.get(`${API}/reports/sales/?${qs}`, { headers, timeout: 15000 }),
-        ]);
-        if (!alive) return;
-
-        let reportRes = null;
-        if (rpt1.status === "fulfilled") reportRes = rpt1.value;
-        else if (rpt2.status === "fulfilled") reportRes = rpt2.value;
-        if (!reportRes) throw new Error("All report endpoints failed.");
-
-        const r = reportRes.data || {};
         setData({
           summary: {
             gross_revenue: n(r?.summary?.revenue?.gross_revenue),
@@ -133,59 +115,30 @@ export default function SalesReport() {
             : [],
         });
 
-        // 🧾 Debug: KPI summary logs
-        const kpiGross = n(r?.summary?.revenue?.gross_revenue);
-        const kpiProfit = n(r?.summary?.revenue?.net_profit);
+        // Additional debug logs
         console.groupCollapsed("🧾 Sales Report Totals Check");
-        console.log("KPI Gross Revenue:", kpiGross);
-        console.log("KPI Net Profit:", kpiProfit);
-        console.log("KPI Discounts:", n(r?.summary?.discount?.total_amount));
-        console.log("KPI Returned Rate:", n(r?.summary?.returned_rate ?? r?.summary?.return_rate));
+        console.log("Gross Revenue:", n(r?.summary?.revenue?.gross_revenue));
+        console.log("Net Profit:", n(r?.summary?.revenue?.net_profit));
+        console.log("Discounts:", n(r?.summary?.discount?.total_amount));
+        console.log("Returned Rate:", n(r?.summary?.returned_rate ?? r?.summary?.return_rate));
         console.groupEnd();
 
-        // 🚨 Listen for totals event from ProductBreakdownContainer
-        const listener = (e) => {
-          const { totalRevenue, totalProfit } = e.detail || {};
-          const revDiff = totalRevenue - kpiGross;
-          const profDiff = totalProfit - kpiProfit;
-
-          const revPct = kpiGross
-            ? ((revDiff / kpiGross) * 100).toFixed(2)
-            : 0;
-          const profPct = kpiProfit
-            ? ((profDiff / kpiProfit) * 100).toFixed(2)
-            : 0;
-
-          if (Math.abs(revDiff) > 1) {
-            console.log(
-              `%c⚠️ Revenue mismatch: ${revDiff > 0 ? "+" : ""}${revDiff.toFixed(2)} (${revPct}%)`,
-              "color:red;font-weight:bold"
-            );
-          }
-          if (Math.abs(profDiff) > 1) {
-            console.log(
-              `%c⚠️ Profit mismatch: ${profDiff > 0 ? "+" : ""}${profDiff.toFixed(2)} (${profPct}%)`,
-              "color:red;font-weight:bold"
-            );
-          }
-        };
-
-        // Remove old listeners before re-adding (avoid duplicates)
-        window.removeEventListener("sales-breakdown-totals", listener);
-        window.addEventListener("sales-breakdown-totals", listener);
-
-      } catch (e) {
-        setErr(`Request failed: ${e?.message || e}`);
-        setData((d) => ({
-          ...d,
-          sales_by_warehouse: [],
-          sales_by_route: [],
-          misc_expenses: [],
-        }));
+      } catch (error) {
+        if (alive) {
+          setErr(`Request failed: ${error?.message || error}`);
+          setData((prevData) => ({
+            ...prevData,
+            sales_by_warehouse: [],
+            sales_by_route: [],
+            misc_expenses: [],
+          }));
+        }
       } finally {
         if (alive) setLoading(false);
       }
-    })();
+    };
+
+    fetchSalesReport();
     return () => {
       alive = false;
     };
@@ -202,16 +155,12 @@ export default function SalesReport() {
         warehouses.find((w) => String(w.id) === String(filters.warehouse))?.warehouse_name ||
         null;
 
-    const miscTotal = data.misc_expenses.reduce(
-      (sum, m) => sum + (m.amount || 0),
-      0
-    );
+  const miscTotal = data.misc_expenses.reduce((sum, m) => sum + (m.amount || 0), 0);
 
-    const previewLimit = 5;
-    const expensesToShow = showAllExpenses
-      ? data.misc_expenses
-      : data.misc_expenses.slice(0, previewLimit);
-
+  const previewLimit = 5;
+  const expensesToShow = showAllExpenses
+    ? data.misc_expenses
+    : data.misc_expenses.slice(0, previewLimit);
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6" ref={printRef}>
@@ -309,7 +258,6 @@ export default function SalesReport() {
 
           <ProductBreakdownContainer
             key={`${filters.warehouse}-${filters.route}-${filters.period}-${filters.start}-${filters.end}`}
-            apiBase={API.replace("/api", "")}
             warehouseId={filters.warehouse ?? "all"}
             routeId={filters.route ?? "all"}
             period={filters.period}
@@ -323,15 +271,7 @@ export default function SalesReport() {
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <Card title="Sales by Warehouse">
-          {loading ? (
-            <Empty text="Loading…" />
-          ) : (
-            <SalesByWarehouseBar
-              data={data.sales_by_warehouse}
-              warehouses={chartWarehouses}
-              focus={selectedWarehouseName}
-            />
-          )}
+          {loading ? <Empty text="Loading…" /> : <SalesByWarehouseBar data={data.sales_by_warehouse} />}
         </Card>
 
         <Card title="Sales by Route">
@@ -340,114 +280,85 @@ export default function SalesReport() {
       </div>
 
       {/* Bottom Section */}
-        <div className="space-y-4">
-          {/* Returns & Discrepancies – full width */}
-          <Card title="Returns & Discrepancies">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Metric
-                label="Actual Sales"
-                value={peso(data.returns_block.actual_sale)}
-              />
-              <Metric
-                label="Supplier Returnables (Bottle)"
-                value={n(data.returns_block.supplier_returnables.bottle)}
-              />
-              <Metric
-                label="Supplier Returnables (Shell)"
-                value={n(data.returns_block.supplier_returnables.shell)}
-              />
-            </div>
-          </Card>
+      <div className="space-y-4">
+        <Card title="Returns & Discrepancies">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
+            <Metric label="Supplier Returnables (Bottle)" value={n(data.returns_block.supplier_returnables.bottle)} />
+            <Metric label="Supplier Returnables (Shell)" value={n(data.returns_block.supplier_returnables.shell)} />
+          </div>
+        </Card>
 
-          {/* Miscellaneous Expenses – full width */}
-          <Card title="Miscellaneous Expenses">
-            <div className="rounded-lg border border-slate-200 flex flex-col">
-              {/* Scrollable table area */}
-              <div className="max-h-72 overflow-y-auto">
-                <table className="min-w-full text-sm table-fixed">
-                  <thead className="bg-slate-50 text-slate-600">
+        <Card title="Miscellaneous Expenses">
+          <div className="rounded-lg border border-slate-200 flex flex-col">
+            {/* Scrollable table area */}
+            <div className="max-h-72 overflow-y-auto">
+              <table className="min-w-full text-sm table-fixed">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="text-center font-semibold px-3 py-2 border-b">Description</th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">Transaction Info</th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">Amount</th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
                     <tr>
-                      <th className="text-center font-semibold px-3 py-2 border-b">
-                        Description
-                      </th>
-                      <th className="text-center font-semibold px-3 py-2 border-b">
-                        Transaction Info
-                      </th>
-                      <th className="text-center font-semibold px-3 py-2 border-b">
-                        Amount
-                      </th>
-                      <th className="text-center font-semibold px-3 py-2 border-b">
-                        Date
-                      </th>
+                      <td colSpan={4} className="px-3 py-8">
+                        <Empty text="Loading…" />
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={4} className="px-3 py-8">
-                          <Empty text="Loading…" />
-                        </td>
+                  ) : data.misc_expenses.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8">
+                        <Empty text="No expenses for the selected filters." />
+                      </td>
+                    </tr>
+                  ) : (
+                    expensesToShow.map((m, i) => (
+                      <tr key={i} className="odd:bg-white even:bg-slate-50/50">
+                        <td className="text-center px-3 py-2 border-b">{m.description}</td>
+                        <td className="text-center px-3 py-2 border-b">{m.notes}</td>
+                        <td className="text-center px-3 py-2 border-b">{peso(m.amount)}</td>
+                        <td className="text-center px-3 py-2 border-b">{m.date}</td>
                       </tr>
-                    ) : data.misc_expenses.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-3 py-8">
-                          <Empty text="No expenses for the selected filters." />
-                        </td>
-                      </tr>
-                   ) : (
-                      expensesToShow.map((m, i) => (
-                        <tr key={i} className="odd:bg-white even:bg-slate-50/50">
-                          <td className="text-center px-3 py-2 border-b">
-                            {m.description}
-                          </td>
-                          <td className="text-center px-3 py-2 border-b">
-                            {m.notes}
-                          </td>
-                          <td className="text-center px-3 py-2 border-b whitespace-nowrap">
-                            {peso(m.amount)}
-                          </td>
-                          <td className="text-center px-3 py-2 border-b whitespace-nowrap">
-                            {m.date}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Info + toggle */}
-              {data.misc_expenses.length > previewLimit && (
-                <div className="px-3 py-2 border-t border-slate-200 text-xs flex items-center justify-between text-slate-500">
-                  <span>
-                    Showing{" "}
-                    <span className="font-semibold">
-                      {showAllExpenses ? data.misc_expenses.length : previewLimit}
-                    </span>{" "}
-                    of{" "}
-                    <span className="font-semibold">{data.misc_expenses.length}</span>{" "}
-                    expenses
-                  </span>
-                  <button
-                    type="button"
-                    className="text-blue-600 font-semibold hover:underline"
-                    onClick={() => setShowAllExpenses((v) => !v)}
-                  >
-                    {showAllExpenses ? "Show less" : "View full expenses"}
-                  </button>
-                </div>
-              )}
-
-              {/* Total footer */}
-              <div className="px-3 py-2 border-t border-slate-200 text-xs text-right text-slate-500">
-                Total Miscellaneous:{" "}
-                <span className="font-semibold text-slate-700">
-                  {peso(miscTotal)}
-                </span>
-              </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          </Card>
-        </div>
-    </div>               
+
+            {/* Info + toggle */}
+            {data.misc_expenses.length > previewLimit && (
+              <div className="px-3 py-2 border-t border-slate-200 text-xs flex items-center justify-between text-slate-500">
+                <span>
+                  Showing{" "}
+                  <span className="font-semibold">
+                    {showAllExpenses ? data.misc_expenses.length : previewLimit}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-semibold">{data.misc_expenses.length}</span>{" "}
+                  expenses
+                </span>
+                <button
+                  type="button"
+                  className="text-blue-600 font-semibold hover:underline"
+                  onClick={() => setShowAllExpenses((v) => !v)}
+                >
+                  {showAllExpenses ? "Show less" : "View full expenses"}
+                </button>
+              </div>
+            )}
+
+            {/* Total footer */}
+            <div className="px-3 py-2 border-t border-slate-200 text-xs text-right text-slate-500">
+              Total Miscellaneous:{" "}
+              <span className="font-semibold text-slate-700">{peso(miscTotal)}</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
   );
 }
