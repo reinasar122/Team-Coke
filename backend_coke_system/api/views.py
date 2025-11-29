@@ -1366,32 +1366,34 @@ from rest_framework.response import Response
 from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from .models import User
+from django.contrib.auth import get_user_model
 
 class ChangePasswordAPIView(APIView):
-    def post(self, request):
-        uidb64 = request.data.get("uid")
-        token = request.data.get("token")
+    def post(self, request, uidb64, token):
+        # Get the new password from the request body
         new_password = request.data.get("new_password")
-
-        if not uidb64 or not token or not new_password:
-            return Response({"error": "Missing data"}, status=400)
-
+        
+        if not new_password:
+            return Response({"error": "New password is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
+            # Decode uidb64 to get the user ID
             uid = urlsafe_base64_decode(uidb64).decode()
-            user = User.objects.get(pk=int(uid))  # ensure integer
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-            return Response({"error": "Invalid UID"}, status=400)
+            user = get_user_model().objects.get(pk=int(uid))  # Ensure integer for user ID
+        except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
+            return Response({"error": "Invalid UID or User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Check token validity
+        # Check if the token is valid for the user
         if not default_token_generator.check_token(user, token):
-            return Response({"error": "Invalid or expired token"}, status=400)
+            return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Set new password
+        # Set the new password and save the user
         user.set_password(new_password)
-        user.must_change_password = False
+        user.must_change_password = False  # Reset the password change flag if present
         user.save()
 
-        return Response({"success": "Password changed successfully"})
+        return Response({"success": "Password changed successfully"}, status=status.HTTP_200_OK)
+
 
 class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
     serializer_class = SupplierReturnFormSerializer
