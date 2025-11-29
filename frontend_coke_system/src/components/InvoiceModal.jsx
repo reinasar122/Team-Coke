@@ -1,27 +1,20 @@
-// src/components/InvoiceModal.jsx
-import React, { useEffect, useState} from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { downloadInvoicePDF } from "./PDFInvoice"; // ⬅️ new import
-// In src/components/InvoiceModal.jsx (same folder as receiptPrint.jsx)
-import { printReceipt } from "./receiptPrint.jsx"; // Make sure the file name is exactly 'receiptPrint.jsx'
-import "react-toastify/dist/ReactToastify.css"
+import { printReceipt } from "./receiptPrint"; // Make sure the file name is exactly 'receiptPrint.jsx'
+import "react-toastify/dist/ReactToastify.css";
 
-
-
-const InvoiceModal = ({ 
+const InvoiceModal = ({
   onClose,
-  invoiceData = {}, 
+  invoiceData = {},
   hidePaymentBreakdown = false,
   isViewOnly = false,
- }) => {
-
+}) => {
   const navigate = useNavigate();
   const saleId = invoiceData?.id || null;
 
-                    // id of Merchandising record
-
-  // small helper using your showCustomAlert (you already have this function)
-  const showAlert = (msg) => showCustomAlert ? showCustomAlert(msg) : alert(msg);
+  // Small helper using your showCustomAlert (you already have this function)
+  const showAlert = (msg) => (showCustomAlert ? showCustomAlert(msg) : alert(msg));
 
   // Get warehouse info from localStorage as fallback if not in props
   const getCurrentWarehouse = () => {
@@ -29,95 +22,68 @@ const InvoiceModal = ({
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
 
     if (user.role?.toLowerCase() === "admin") {
-      return (
-        selectedWarehouse || {
-          id: user.warehouse_id,
-          name: user.warehouse,
-          warehouse: user.warehouse,
-        }
-      );
+      return selectedWarehouse || {
+        id: user.warehouse_id,
+        name: user.warehouse,
+      };
     } else {
       return {
         id: user.warehouse_id,
         name: user.warehouse,
-        warehouse: user.warehouse,
       };
     }
   };
 
   const currentWarehouse = getCurrentWarehouse();
 
-  // ---------- unpack from PaymentModal ----------
+  // ---------- Unpack from PaymentModal ----------
   const {
     paymentMethod,
     cashReceived,
     change,
     totalAmount,
-
-    // header / context
     mspNo,
     customerName,
     customerAddress,
     customerPhone,
-
-    // warehouse data from merchandising.warehouse_id -> warehouse table
     warehouseName,
     warehouseAddress,
     warehousePhone,
     warehouseCity,
     warehouseRegion,
     warehouseEmail,
-
-    // Additional possible warehouse field names
-    warehouse,
-    warehouse_name,
-    warehouse_address,
-    warehouse_phone,
-    warehouse_city,
-    warehouse_region,
-    warehouse_email,
-
     handledBy,
     transactionDate,
     transactionTypeName,
-
-    // breakdown numbers
     rows = [],
     actualSales,
     emptiesPriceTotal,
     emptyReturns,
     emptyDiscrepancies,
-
-    // van load only
     expensesTotal = 0,
     miscItems = [],
     remarks = "",
-
-    amountDue, // final due from PaymentModal
-
-    // Van Load breakdown pieces
+    amountDue,
     expectedSale = 0,
     totalReturnedWithContent = 0,
     totalDiscrepancyNonEmpty = 0,
     totalActualRetrievedVL = 0,
     overallTotalVL = 0,
     grandTotalVL = 0,
-
-    transactionTypes = "", //Kath
+    transactionTypes = "",
   } = invoiceData;
 
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
   const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
 
-  //PDF Generation sizes: KathPDF
-  const [paper, setPaper] = useState(localStorage.getItem("pdf_paper") || "long");       // short | long | a4 | letter | legal | f4
+  // PDF Generation sizes: KathPDF
+  const [paper, setPaper] = useState(localStorage.getItem("pdf_paper") || "long"); // short | long | a4 | letter | legal | f4
   const [orientation, setOrientation] = useState(localStorage.getItem("pdf_orientation") || "portrait");
 
-// remember last choice
-useEffect(() => localStorage.setItem("pdf_paper", paper), [paper]);
-useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientation]);
+  useEffect(() => localStorage.setItem("pdf_paper", paper), [paper]);
+  useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientation]);
 
-  // ---------- Auto-generate invoice number (always generate, don't use mspNo) ----------
+  // ---------- Auto-generate invoice number ----------
   const generateInvoiceNumber = () => {
     const date = new Date();
     const year = date.getFullYear();
@@ -127,9 +93,9 @@ useEffect(() => localStorage.setItem("pdf_orientation", orientation), [orientati
     return `INV-${year}${month}${day}-${time}`;
   };
 
-const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoiceNumber());
+  const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoiceNumber());
 
-  // ---------- helpers ----------
+  // ---------- Helper functions ----------
   const n = (v) => Number(v || 0);
   const fmt = (v) => n(v).toFixed(2);
 
@@ -162,12 +128,8 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const getWarehouseName = () => {
     const possibleNames = [
       warehouseName,
-      warehouse_name,
       warehouse?.warehouse,
-      warehouse?.name,
-      warehouse?.warehouse_name,
       invoiceData.currentWarehouse?.name,
-      invoiceData.currentWarehouse?.warehouse,
       currentWarehouse?.warehouse,
       currentWarehouse?.name,
       "Warehouse",
@@ -185,7 +147,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const getWarehouseAddress = () => {
     const possibleAddresses = [
       warehouseAddress,
-      warehouse_address,
       warehouse?.address,
       invoiceData.currentWarehouse?.address,
       currentWarehouse?.address,
@@ -202,7 +163,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const getWarehouseCity = () => {
     const possibleCities = [
       warehouseCity,
-      warehouse_city,
       warehouse?.city,
       invoiceData.currentWarehouse?.city,
       currentWarehouse?.city,
@@ -219,7 +179,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const getWarehouseRegion = () => {
     const possibleRegions = [
       warehouseRegion,
-      warehouse_region,
       warehouse?.region,
       invoiceData.currentWarehouse?.region,
       currentWarehouse?.region,
@@ -236,7 +195,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const getWarehousePhone = () => {
     const possiblePhones = [
       warehousePhone,
-      warehouse_phone,
       warehouse?.phone,
       invoiceData.currentWarehouse?.phone,
       currentWarehouse?.phone,
@@ -253,7 +211,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const getWarehouseEmail = () => {
     const possibleEmails = [
       warehouseEmail,
-      warehouse_email,
       warehouse?.email,
       invoiceData.currentWarehouse?.email,
       currentWarehouse?.email,
@@ -281,8 +238,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   };
 
   // Product helper functions
-  const getProdName = (r) =>
-    r.productName || r.product_name || r.product_detail?.product_name || "--";
+  const getProdName = (r) => r.productName || r.product_name || r.product_detail?.product_name || "--";
 
   const getDispatchedShell = (r) => pickNum(r.dispatchedShell, r.dispatched_shell);
   const getDispatchedPcs = (r) => pickNum(r.dispatchedPcs, r.dispatched_pcs);
@@ -361,121 +317,100 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     }).format(d);
   };
 
-
- const handleClose = async () => {
-  if (isViewOnly) {
-    onClose?.();
-    navigate("/trading", { replace: true });
-    return;
-  }
-
-  if (!saleId) {
-    console.warn("⚠️ InvoiceModal: no saleId provided.");
-    onClose?.();
-    navigate("/trading", { replace: true });
-    return;
-  }
-
-  if (!invoiceNumber) {
-    showAlert("Cannot save invoice: invoice number is empty.");
-    return;
-  }
-
-  try {
-    const token = localStorage.getItem("authToken");
-    const headers = {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Token ${token}` } : {}),
-    };
-
-    console.log("📤 Saving invoice for merchandising ID:", saleId, "Invoice No:", invoiceNumber);
-
-    const res = await fetch(
-      `http://localhost:8080/api/merchandising-set/${saleId}/set_invoice_no/`,
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          invoice_no: invoiceNumber,
-          empties_price_total: emptiesPriceTotal,
-          empty_returns: emptyReturns,
-          payment_method: paymentMethod,
-        }),
-      }
-    );
-
-    const responseBody = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      console.error("❌ Save invoice failed:", res.status, responseBody);
-      showAlert(
-        responseBody?.detail ||
-          JSON.stringify(responseBody) ||
-          "Failed to save invoice number. See console."
-      );
+  const handleClose = async () => {
+    if (isViewOnly) {
+      onClose?.();
+      navigate("/trading", { replace: true });
       return;
     }
 
-    console.log("✅ Invoice saved:", responseBody);
-
-    // ✅ Logic after saving invoice
-    const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
-
-    if (isWarehouse) {
-      // Only Warehouse → go back to Merchandising Sale and open new transaction
-      const warehouseType = Array.isArray(transactionTypes)
-        ? transactionTypes.find(tt => tt.name === "Warehouse")
-        : null;
-
-      navigate("/merchandising-sale", {
-        replace: true,
-        state: {
-          reset: true,
-          transactionTypeId: warehouseType?.id || "",
-        },
-      });
-    } else {
-      // Van Load → go back to trading list
-      navigate("/trading", { replace: true, state: { reset: true } });
+    if (!saleId) {
+      console.warn("⚠️ InvoiceModal: no saleId provided.");
+      onClose?.();
+      navigate("/trading", { replace: true });
+      return;
     }
 
-    onClose?.();
-  } catch (err) {
-    console.error("🔥 Network error saving invoice:", err);
-    showAlert("Network error while saving invoice. Check console.");
-  }
-};
+    if (!invoiceNumber) {
+      showAlert("Cannot save invoice: invoice number is empty.");
+      return;
+    }
 
+    try {
+      const token = localStorage.getItem("authToken");
+      const headers = {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Token ${token}` } : {}),
+      };
 
+      console.log("📤 Saving invoice for merchandising ID:", saleId, "Invoice No:", invoiceNumber);
 
+      const res = await fetch(
+        `http://localhost:8080/api/merchandising-set/${saleId}/set_invoice_no/`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            invoice_no: invoiceNumber,
+            empties_price_total: emptiesPriceTotal,
+            empty_returns: emptyReturns,
+            payment_method: paymentMethod,
+          }),
+        }
+      );
 
+      const responseBody = await res.json().catch(() => ({}));
 
-  // ✅ Navigate to fresh sale
-  // const handleNewSale = () => {
-  //   onClose?.();
-  //   localStorage.removeItem("merchForm");
-  //   navigate("/merchandising-sale", { replace: true, state: { reset: true } });
-  // }; Kath
+      if (!res.ok) {
+        console.error("❌ Save invoice failed:", res.status, responseBody);
+        showAlert(responseBody?.detail || JSON.stringify(responseBody) || "Failed to save invoice number. See console.");
+        return;
+      }
+
+      console.log("✅ Invoice saved:", responseBody);
+
+      const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
+
+      if (isWarehouse) {
+        const warehouseType = Array.isArray(transactionTypes)
+          ? transactionTypes.find((tt) => tt.name === "Warehouse")
+          : null;
+
+        navigate("/merchandising-sale", {
+          replace: true,
+          state: {
+            reset: true,
+            transactionTypeId: warehouseType?.id || "",
+          },
+        });
+      } else {
+        navigate("/trading", { replace: true, state: { reset: true } });
+      }
+
+      onClose?.();
+    } catch (err) {
+      console.error("🔥 Network error saving invoice:", err);
+      showAlert("Network error while saving invoice. Check console.");
+    }
+  };
+
   const handleNewSale = () => {
     onClose?.();
     localStorage.removeItem("merchForm");
 
-    // Make sure transactionTypes is an array before calling find
     const warehouseType = Array.isArray(transactionTypes)
-      ? transactionTypes.find(tt => tt.name === "Warehouse")
+      ? transactionTypes.find((tt) => tt.name === "Warehouse")
       : null;
 
     navigate("/merchandising-sale", {
       replace: true,
       state: {
         reset: true,
-        transactionTypeId: warehouseType?.id || ""
-      }
+        transactionTypeId: warehouseType?.id || "",
+      },
     });
-  }; //Kath
+  };
 
-
-  // ------- NEW: build payload for external PDF module -------
   const buildInvoicePdfPayload = () => ({
     invoiceNumber,
     paymentMethod,
@@ -484,20 +419,17 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     mspNo,
     transactionTypeName,
     remarks,
-
     customer: {
       name: customerName || "Walk-in",
       address: customerAddress || "",
       phone: customerPhone || "",
     },
-
     warehouse: {
       name: getWarehouseName(),
       fullAddress: getWarehouseFullAddress(),
       phone: getWarehousePhone(),
       email: getWarehouseEmail(),
     },
-
     totals: {
       actualSales: n(actualSales),
       emptiesPriceTotal: n(emptiesPriceTotal),
@@ -508,10 +440,8 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
       cashReceived: n(cashReceived),
       change: n(change),
       amountDue: n(amountDue) || n(totalAmount),
-
       isVanLoad,
       isWarehouse,
-
       expectedSale: n(expectedSale),
       vl_actual,
       vl_retWc,
@@ -521,7 +451,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
       vl_overallTotal: vl_overallTotal_final,
       vl_grandTotal: vl_grandTotal_final,
     },
-
     tables: {
       products: tableRows.map((r) => ({
         product: getProdName(r),
@@ -532,12 +461,10 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
         unitPrice: getUnitPrice(r),
         discountPercent: getDiscountPercent(r),
         amount: getRowActual(r),
-        // jelyn changes start
-        expenses: (miscItems || []).map(e => ({
-        description: e.description,
-        amount: Number(e.amount || 0),
-       })),
-      //  jelyn changes ends here
+        expenses: (miscItems || []).map((e) => ({
+          description: e.description,
+          amount: Number(e.amount || 0),
+        })),
       })),
       empties: tableRows.map((r) => ({
         product: getProdName(r),
@@ -558,7 +485,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     },
   });
 
-  // ------- REPLACED: PDF generation now calls external module -------
   const handleDownloadPDF = async () => {
     try {
       const payload = buildInvoicePdfPayload();
@@ -571,50 +497,9 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   };
 
   const handlePrintInvoice = () => {
-    const payload = buildInvoicePdfPayload();   // ✅ reuse what you already have
-    // Optional: pass "80mm" if you use wider paper
-    printReceipt(payload, { width: "58mm" });   // or { width: "80mm", cols: 48 }
+    const payload = buildInvoicePdfPayload(); // reuse payload logic
+    printReceipt(payload, { width: "58mm" });
   };
-
-  // const handleSaveInvoice = async () => {
-  //   const invoiceData = {
-  //     invoice_no: invoiceNumber,
-  //     customer_name: customerName,
-  //     total_amount: totalAmount,
-  //     status: "Pending"
-  //   };
-
-  //   try {
-  //     await fetch("http://localhost:8080/api/invoices/", {
-  //       method: "POST",
-  //       headers: { "Content-Type": "application/json" },
-  //       body: JSON.stringify(invoiceData),
-  //     });
-  //     alert("Invoice saved!");
-  //   } catch (err) {
-  //     console.error("Error saving invoice:", err);
-  //   }
-  // };
-
-  const showCustomAlert = (message) => {
-    const modal = document.createElement("div");
-    modal.className =
-      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
-    modal.innerHTML = `
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
-        <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
-        <div class="flex justify-end">
-          <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
-  };
-
-  // ✅ Subtotal logic
-const subtotalFromRows = tableRows.reduce((sum, r) => sum + getRowActual(r), 0);
-// Prefer backend actualSales if > 0, else use calculated rows
-const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -658,7 +543,8 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
             <button
               onClick={handleDownloadPDF}
               className="bg-white border border-gray-300 px-3 py-1 rounded hover:bg-gray-100"
-            >
+
+                        >
               ⬇️ Download PDF
             </button>
             <button
@@ -670,27 +556,22 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
           </div>
         </div>
 
-
         {/* From / To / Meta */}
         <div className="mt-4 text-sm">
           <div className="grid grid-cols-2 gap-6">
-  
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mt-6 p-4 bg-gray-50 rounded-lg">
-            <p>
+            <div>
               <strong>Invoice No:</strong> {invoiceNumber}
-            </p>
-            <p>
+            </div>
+            <div>
               <strong>Date:</strong> {formatLocalToManila(transactionDate) || "--"}
-            </p>
-            <p>
+            </div>
+            <div>
               <strong>Payment Method:</strong>{" "}
               {paymentMethod ? paymentMethod.toUpperCase() : "--"}
-            </p>
-            <p>
+            </div>
+            <div>
               <strong>Handled By:</strong> {handledBy || "--"}
-            </p>
+            </div>
           </div>
 
           {mspNo && (
@@ -714,8 +595,6 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
             </span>
           </div>
         </div>
-
-        
 
         {/* SOLD PRODUCTS */}
         <div className="mt-6">
@@ -748,10 +627,7 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
               ))}
             </tbody>
           </table>
-           <p className="text-right font-semibold mt-1">
-            SUBTOTAL: ₱{fmt(subtotal)}
-           </p>
-
+          <p className="text-right font-semibold mt-1">SUBTOTAL: ₱{fmt(subtotal)}</p>
         </div>
 
         {/* EMPTY PRICE */}
@@ -814,7 +690,7 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
           <p className="text-right font-semibold mt-1">SUBTOTAL: ₱-{fmt(emptyReturns)}</p>
         </div>
 
-      {/* Expenses Summary — only if NOT Warehouse */}
+        {/* Expenses Summary — only if NOT Warehouse */}
         {!isWarehouse && (
           <div className="mt-6 mb-6">
             <h3 className="font-semibold mb-2">Expenses Summary</h3>
@@ -840,194 +716,136 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                     </tr>
                   ))
                 )}
-                
               </tbody>
             </table>
-                 <p className="text-right font-semibold mt-1">Total
-               
-                    ₱{(miscItems || [])
-                      .reduce((s, i) => s + Number(i.amount || 0), 0)
-                      .toFixed(2)}
-                  </p>
+            <p className="text-right font-semibold mt-1">
+              Total: ₱{(miscItems || []).reduce((s, i) => s + Number(i.amount || 0), 0).toFixed(2)}
+            </p>
           </div>
         )}
 
-
         {/* PAYMENT BREAKDOWN */}
+        {!hidePaymentBreakdown && (
+          <>
+            <h4 className="font-bold mb-2 text-gray-700">PAYMENT BREAKDOWN</h4>
+            <div className="mt-2 text-sm">
+              <div className="flex flex-col bg-transparent p-6 border border-black">
+                {isVanLoad ? (
+                  <div className="space-y-8">
+                    {/* Expected Sale */}
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">Expected Sale</h3>
+                      <div className="tabular-nums">₱{fmt(expectedSale)}</div>
+                    </div>
 
-         {!hidePaymentBreakdown && (
-            <>
-              <h4 className="font-bold mb-2 text-gray-700">PAYMENT BREAKDOWN</h4>
-              <div className="mt-2 text-sm">
-                <div className="flex flex-col bg-transparent p-6 border border-black">
-                  {isVanLoad ? (
-                    <div className="space-y-8">
-                      {/* Expected Sale */}
-                      <div className="flex items-center justify-between">
-                        <h3 className="font-semibold">Expected Sale</h3>
-                        <div className="tabular-nums">₱{fmt(expectedSale)}</div>
-                      </div>
-
-                      {/* Total Actual Retrieved */}
-                      <div>
-                        <div className="font-semibold mb-2">Total Actual Retrieved:</div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span>Actual Sale:</span>
-                            <span className="tabular-nums">₱{fmt(vl_actual)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Returned With Content:</span>
-                            <span className="tabular-nums">+ ₱{fmt(vl_retWc)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Discrepancies (non-empty):</span>
-                            <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
-                          </div>
-
-                          <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                            <span>Total:</span>
-                            <span className="tabular-nums">₱{fmt(vl_totalActualRetrieved_final)}</span>
-                          </div>
+                    {/* Total Actual Retrieved */}
+                    <div>
+                      <div className="font-semibold mb-2">Total Actual Retrieved:</div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between">
+                          <span>Actual Sale:</span>
+                          <span className="tabular-nums">₱{fmt(vl_actual)}</span>
                         </div>
-                      </div>
-
-                      {/* Overall Total */}
-                      <div>
-                        <div className="font-semibold mb-2">Overall Total:</div>
-                        <div className="space-y-1">
-                          <div className="flex justify-between">
-                            <span>Actual Sale:</span>
-                            <span className="tabular-nums">₱{fmt(vl_actual)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Discrepancies (empty):</span>
-                            <span className="tabular-nums">+ ₱{fmt(vl_discE)}</span>
-                          </div>
-                          <div className="flex justify-between">
-                            <span>Discrepancies (non-empty):</span>
-                            <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
-                          </div>
-
-                          <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                            <span>Total:</span>
-                            <span className="tabular-nums">₱{fmt(vl_overallTotal_final)}</span>
-                          </div>
-
-                          <div className="flex justify-between">
-                            <span>Expenses:</span>
-                            <span className="tabular-nums">- ₱{fmt(expensesTotal)}</span>
-                          </div>
-
-                          <div className="border-t border-gray-300 my-2"></div>
-
-                          {(paymentMethod === "cash" || paymentMethod === "credit") && (
-                        <div className="flex justify-between font-bold text-gray-800">
-                          <span>Grand Total</span>
-                          <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
+                        <div className="flex justify-between">
+                          <span>Returned With Content:</span>
+                          <span className="tabular-nums">+ ₱{fmt(vl_retWc)}</span>
                         </div>
-                      )}
+                        <div className="flex justify-between">
+                          <span>Discrepancies (non-empty):</span>
+                          <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
+                        </div>
+
+                        <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                          <span>Total:</span>
+                          <span className="tabular-nums">₱{fmt(vl_totalActualRetrieved_final)}</span>
                         </div>
                       </div>
                     </div>
-                  ) : (
-                    // WAREHOUSE layout
-                    <div className="space-y-1">
-                      <div className="font-semibold mb-2 flex justify-between">
-                        <span>Actual Sales:</span>
-                        <span className="tabular-nums">₱{fmt(actualSales)}</span>
-                      </div>
 
-                      <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                        <span>Discrepancy:</span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span>Empties Price Total:</span>
-                        <span className="tabular-nums">₱{fmt(emptiesPriceTotal)}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Empty Returns:</span>
-                        <span className="tabular-nums">- ₱{fmt(emptyReturns)}</span>
-                      </div>
-
-                      <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                        <span>Total:</span>
-                        <span className="tabular-nums">₱{fmt(emptyDiscrepancies)}</span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span>Actual Sales</span>
-                        <span className="tabular-nums">+ ₱{fmt(actualSales)}</span>
-                      </div>
-
-                      {/* 🔹 Add a divider after Actual Sales */}
-                      <div className="border-t border-gray-300 my-2"></div>
-
-                      {(paymentMethod === "cash" || paymentMethod === "credit") && (
-                        <div className="flex justify-between font-bold text-gray-800">
-                          <span>Amount Due:</span>
-                          <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
+                    {/* Overall Total */}
+                    <div>
+                      <div className="font-semibold mb-2">Overall Total:</div>
+                      <div className="space-y-1">
+                        <div className="flex justify-between">
+                          <span>Actual Sale:</span>
+                          <span className="tabular-nums">₱{fmt(vl_actual)}</span>
                         </div>
-                      )}
+                        <div className="flex justify-between">
+                          <span>Discrepancies (empty):</span>
+                          <span className="tabular-nums">+ ₱{fmt(vl_discE)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Discrepancies (non-empty):</span>
+                          <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
+                        </div>
 
-                    </div>
-                  )}
+                        <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                          <span>Total:</span>
+                          <span className="tabular-nums">₱{fmt(vl_overallTotal_final)}</span>
+                        </div>
 
-                  {/* Cash details (always shown if available) */}
-                  {/* Payment Summary (dynamic based on payment method) */}
-                    {/* 💰 Payment Summary (dynamic layout) */}
-                    <div className="pt-4">
-                      {paymentMethod === "cash+credit" ? (
-                        // 🟦 Cash + Credit layout
-                        <div className="bg-blue-50 border border-blue-300 rounded p-4 space-y-2">
-                          <div className="flex justify-between font-semibold text-gray-800">
-                            <span>Total Amount Due:</span>
+                        <div className="flex justify-between">
+                          <span>Expenses:</span>
+                          <span className="tabular-nums">- ₱{fmt(expensesTotal)}</span>
+                        </div>
+
+                        <div className="border-t border-gray-300 my-2"></div>
+
+                        {(paymentMethod === "cash" || paymentMethod === "credit") && (
+                          <div className="flex justify-between font-bold text-gray-800">
+                            <span>Grand Total</span>
                             <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
                           </div>
-
-                          <div className="flex justify-between text-red-600 font-medium">
-                            <span>Cash Received:</span>
-                            <span>- ₱{fmt(cashReceived)}</span>
-                          </div>
-
-                          <div className="flex justify-between border-t border-blue-300 pt-2 font-bold text-blue-700">
-                            <span>Total Amount Credit:</span>
-                            <span>₱{fmt((n(amountDue) || n(totalAmount)) - n(cashReceived))}</span>
-                          </div>
-                        </div>
-                      ) : (
-                        // 🟩 Cash or Credit layout
-                        <div className="">
-                          <div className="pt-2 grid grid-cols-2 gap-2 text-sm">
-                            <div className="flex flex-col">
-                              <div>
-                                <strong>Cash Received:</strong> ₱{fmt(cashReceived)}
-                              </div>
-                              <div className="mt-1">
-                                <strong>Change:</strong> ₱{fmt(change)}
-                              </div>
-                            </div>
-                            
-                            {isVanLoad && remarks && (
-                              <div className="col-span-2">
-                                <strong>Remarks:</strong> {remarks}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {isVanLoad && remarks && (
-                        <div className="mt-3">
-                          <strong>Remarks:</strong> {remarks}
-                        </div>
-                      )}
+                        )}
+                      </div>
                     </div>
-                </div>
+                  </div>
+                ) : (
+                  // WAREHOUSE layout
+                  <div className="space-y-1">
+                    <div className="font-semibold mb-2 flex justify-between">
+                      <span>Actual Sales:</span>
+                      <span className="tabular-nums">₱{fmt(actualSales)}</span>
+                    </div>
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                      <span>Discrepancy:</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Empties Price Total:</span>
+                      <span className="tabular-nums">₱{fmt(emptiesPriceTotal)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Empty Returns:</span>
+                      <span className="tabular-nums">- ₱{fmt(emptyReturns)}</span>
+                    </div>
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                      <span>Total:</span>
+                      <span className="tabular-nums">₱{fmt(emptyDiscrepancies)}</span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span>Actual Sales</span>
+                      <span className="tabular-nums">+ ₱{fmt(actualSales)}</span>
+                    </div>
+
+                    {/* Add a divider after Actual Sales */}
+                    <div className="border-t border-gray-300 my-2"></div>
+
+                    {(paymentMethod === "cash" || paymentMethod === "credit") && (
+                      <div className="flex justify-between font-bold text-gray-800">
+                        <span>Amount Due:</span>
+                        <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
-            </>
-          )}
+            </div>
+          </>
+        )}
 
         {/* Close */}
         <div className="text-right mt-6">
