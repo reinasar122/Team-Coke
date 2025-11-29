@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { successStyle } from "../utils/toastStyles";
-import api from "../../services/api"; // Import the custom API instance
+import api from "../api"; // Import the custom API instance
 
 const UserForm = ({ onUserAdded, onClose }) => {
   const [formData, setFormData] = useState({
