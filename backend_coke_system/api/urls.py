@@ -58,9 +58,9 @@ from .views_reports import SalesReportAPIView, ProductBreakdownReport
 
 urlpatterns = [
     # User URLs
+    path('change-password/<uidb64>/<token>/', ChangePasswordAPIView.as_view(), name='change-password'),
     path('users/', UserListCreateView.as_view(), name='user-list-create'),
     path('users/<int:pk>/', UserDetailView.as_view(), name='user-detail'),
-    path('change-password/<uidb64>/<token>/', ChangePasswordAPIView.as_view(), name='change-password'),
     path('forgot-password/send-otp/', SendOTPAPIView.as_view(), name='send-otp'),
     path('forgot-password/verify-otp/', VerifyOTPAPIView.as_view(), name='verify-otp'),
     # --- CREDIT LEDGER ---
