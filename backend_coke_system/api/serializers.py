@@ -220,8 +220,8 @@ class UserSerializer(serializers.ModelSerializer):
         # send reset link
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
-        reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
-        # reset_link = f"http://192.168.0.167:8002/change-password/{uid}/{token}/"
+        # reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
+        reset_link = f"http://192.168.0.167:8002/change-password/{uid}/{token}/"
 
         send_mail(
             subject="Set Your Account Password",
