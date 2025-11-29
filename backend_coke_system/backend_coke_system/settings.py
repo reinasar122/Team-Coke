@@ -92,13 +92,27 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'cokedb1',
-         'USER': 'cokeuser',
-         'PASSWORD': '@-@CokE123',
+         'NAME': 'coke',
+         'USER': 'root',
+         'PASSWORD': 'karen_123',
          'HOST': 'localhost',
          'PORT': '3306',
      }
  }
+
+'''
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',  # The database engine to use (MySQL in this case)
+        'NAME': 'cokedb1',  # The name of the database
+        'USER': 'cokeuser',  # Database username
+        'PASSWORD': '@-@CokE123',  # Password for the user
+        'HOST': 'localhost',  # Database host, default is localhost
+        'PORT': '3306',  # MySQL port, default is 3306
+    }
+}
+'''
+
 
 # Password validation
 # https://docs.djangoproject.com/en/4.2/ref/settings/#auth-password-validators
