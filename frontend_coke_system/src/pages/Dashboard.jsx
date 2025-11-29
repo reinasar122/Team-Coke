@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx - FIXED VERSION WITH WAREHOUSE UTILS INTEGRATION + API IMPORT
+// src/pages/Dashboard.jsx - FIXED VERSION WITH PROPER REACT ROUTER NAVIGATION
 import React, {
   useEffect,
   useMemo,
@@ -8,7 +8,7 @@ import React, {
   memo,
   useRef,
 } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../styles/dashboard.scss";
 import Statistics, { getPeriodRange, periodOptions } from "../components/Statistics";
@@ -616,7 +616,7 @@ const CreditWidget = memo(function CreditWidget({ rows, summary }) {
   );
 });
 
-/* -------------------- generic sidebar widget -------------------- */
+/* -------------------- FIXED: generic sidebar widget with proper navigation -------------------- */
 const GenericSidebarWidget = memo(function GenericSidebarWidget({
   id,
   title,
@@ -624,9 +624,16 @@ const GenericSidebarWidget = memo(function GenericSidebarWidget({
   children,
   onRemove,
 }) {
+  const navigate = useNavigate();
   const handleClose = useCallback(() => onRemove?.(id), [onRemove, id]);
+  const handleClick = useCallback(() => {
+    if (route) {
+      navigate(route);
+    }
+  }, [navigate, route]);
+  
   return (
-    <MiniCard title={title} onClick={() => (window.location.href = route)} onClose={handleClose} accentKey={id}>
+    <MiniCard title={title} onClick={handleClick} onClose={handleClose} accentKey={id}>
       <div className="w-full">{children}</div>
     </MiniCard>
   );
@@ -1391,9 +1398,10 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   };
 }
 
-/* -------------------- Dashboard Component (Fixed with warehouse utils) -------------------- */
+/* -------------------- Dashboard Component (Fixed with React Router navigation) -------------------- */
 const Dashboard = () => {
   const location = useLocation();
+  const navigate = useNavigate(); // ✅ Added useNavigate hook
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(loadSelection());
 
