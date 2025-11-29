@@ -378,12 +378,39 @@ useEffect(() => {
 //.......
 
 
-  // --- DISCOUNT FIELD CHANGE ---
-  if (field === "discount") {
-    const discountAmt = (price * row.soldPcs * discountPercent) / 100;
-    row.actualSale = Number((price * row.soldPcs - discountAmt).toFixed(2));  // Update actual sale based on discount
+// --- DISCOUNT FIELD CHANGE ---
+if (field === "discount") {
+  const price = n(row.unitPrice);  // Selling price
+  const soldPcs = n(row.soldPcs);  // Number of sold pieces
+  const discountPercent = n(row.discount);  // Discount percentage
+
+  // Store the actual sale before the discount
+  const totalAmount = price * soldPcs;
+  const previousActualSale = row.actualSale;
+
+  // Calculate the discount amount
+  const discountAmt = (totalAmount * discountPercent) / 100;
+
+  // **Validation for discount exceeding actual sale**
+  if (discountAmt > totalAmount) {
+    alert("Discount cannot exceed the total amount of the product.");
+
+    // Reset the discount to 0
+    row.discount = 0;
+
+    // Manually reset the actualSale to the original value (before discount)
+    row.actualSale = totalAmount;
+
+    // Recalculate discrepancy based on the original actualSale
+    row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
+  } else {
+    // Valid discount: Update actual sale and discrepancy as usual
+    row.actualSale = Number((totalAmount - discountAmt).toFixed(2));  // Update actual sale based on discount
     row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));  // Recalculate discrepancy
   }
+}
+
+
 
   // --- RETURNED EMPTY FIELDS (dependent on DISPATCHED) ---
 if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
