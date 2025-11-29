@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { downloadInvoicePDF } from "./PDFInvoice"; // ⬅️ new import
 import { printReceipt } from "./receiptPrint"; // Make sure the file name is exactly 'receiptPrint.jsx'
 import "react-toastify/dist/ReactToastify.css";
-import api from "../../api"; // Assuming you're importing the centralized API instance
+import api from "../api"; // ensure api is imported so env vars are loaded import ".";
 
 const InvoiceModal = ({
   onClose,
