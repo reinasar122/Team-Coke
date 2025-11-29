@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import api from "../api";
+import axios from "axios";  
+import api from "../api"; // ✅ correct
 
 const isStrongPassword = (password) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
@@ -17,11 +18,7 @@ const ChangePassword = () => {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    console.log("URL Parameters:", { uid, token });
-    if (!uid || !token) {
-      console.error("Missing uid or token, redirecting to login");
-      navigate("/login");
-    }
+    if (!uid || !token) navigate("/login");
   }, [uid, token, navigate]);
 
   const handleSubmit = async (e) => {
@@ -46,14 +43,17 @@ const ChangePassword = () => {
 
   setLoading(true);
   try {
-    // ✅ Ensure this is a POST request
-    const response = await api.post(`/change-password/${uid}/${token}/`, { new_password: newPassword });
+    // Send only the new_password in the payload
+    const payload = {
+      new_password: newPassword
+    };
 
+    // Make sure URL includes uid and token correctly
+    await api.post(`/change-password/${uid}/${token}/`, payload);
 
     setSuccess("✅ Password changed successfully! Redirecting...");
     setTimeout(() => navigate("/login"), 2000);
   } catch (err) {
-    console.error("Change password error:", err);
     const msg =
       err.response?.data?.error ||
       err.response?.data?.detail ||
@@ -65,6 +65,7 @@ const ChangePassword = () => {
 };
 
 
+  // ✅ Change: use green when satisfied, gray when not
   const getValidationColor = (condition) =>
     condition ? "text-green-500 font-semibold" : "text-gray-400";
 
@@ -82,13 +83,6 @@ const ChangePassword = () => {
         <h3 className="text-2xl font-bold mb-6 text-center text-white uppercase tracking-wide">
           Change Password
         </h3>
-
-        {/* Debug info (remove in production) */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="bg-blue-600/50 text-white text-xs p-2 rounded mb-3">
-            Debug: UID={uid}, Token={token?.substring(0, 10)}...
-          </div>
-        )}
 
         {error && (
           <div className="bg-red-600 text-white text-sm p-2 rounded mb-3">

@@ -1380,7 +1380,8 @@ class ChangePasswordAPIView(APIView):
             # Decode uidb64 to get the user ID
             uid = urlsafe_base64_decode(uidb64).decode()
             user = get_user_model().objects.get(pk=int(uid))  # Ensure integer for user ID
-        except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
+        except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist) as e:
+            print(f"Error decoding UID or retrieving user: {str(e)}")  # Optional logging
             return Response({"error": "Invalid UID or User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the token is valid for the user
@@ -1388,8 +1389,8 @@ class ChangePasswordAPIView(APIView):
             return Response({"error": "Invalid or expired token"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Set the new password and save the user
-        user.set_password(new_password)
-        user.must_change_password = False  # Reset the password change flag if present
+        user.set_password(new_password)  # This hashes the password
+        user.must_change_password = False  # Optional: Reset password change flag if needed
         user.save()
 
         return Response({"success": "Password changed successfully"}, status=status.HTTP_200_OK)
