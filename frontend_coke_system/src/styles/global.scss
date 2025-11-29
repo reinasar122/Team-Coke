@@ -96,6 +96,22 @@ body {
 .app-content.lock-scroll { overflow: hidden; }   /* hide universal scrollbar */
 .app-content.allow-page-scroll { overflow: auto; } /* default */
 
+/* ✅ FIXED HEADER SPACING */
+.app-content,
+.page,
+main {
+  padding-top: 4rem; /* Header height (≈64px) */
+}
+
+/* ✅ Extra offset for mobile fixed warehouse bar */
+@media (max-width: 768px) {
+  .app-content,
+  .page,
+  main {
+    padding-top: 7rem; /* Header + mobile warehouse bar */
+  }
+}
+
 .receiving-container,
 .warehousedetails-container,
 .vanlist-container,
@@ -436,145 +452,3 @@ body {
 .p-2 { padding: var(--sp-2); }
 .p-3 { padding: var(--sp-3); }
 .p-4 { padding: var(--sp-4); }
-
-
-/* =========================
-   Print / Export to PDF
-   ========================= */
-@media print {
-  /* Reset page for printing */
-  html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #ffffff !important;
-    height: auto !important;
-    overflow: visible !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-
-  /* Expand report to full width */
-  #root,
-  .app-content {
-    height: auto !important;
-    overflow: visible !important;
-    width: 100% !important;
-    background: #ffffff !important;
-  }
-
-  /* Page wrapper */
-  .page {
-    max-width: 100% !important;
-    width: 100% !important;
-    padding: 24px 32px !important;
-    margin: 0 !important;
-    background: #ffffff !important;
-    box-shadow: none !important;
-  }
-
-  /* Remove Sidebar 100% */
-  .sidebar,
-  aside,
-  nav,
-  .sidebar-container,
-  .sidebar-wrapper {
-    display: none !important;
-    visibility: hidden !important;
-    width: 0 !important;
-    max-width: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-
-  /* Remove Header too (optional) */
-  .header,
-  .topbar,
-  .header-container {
-    display: none !important;
-  }
-
-  /* Tighten and clean summary cards */
-  .card {
-    box-shadow: none !important;
-    border: 1px solid #e5e7eb !important;
-  }
-
-  /* Table formatting */
-  .table-wrapper {
-    max-height: none !important;
-    overflow: visible !important;
-  }
-
-  .table {
-    width: 100% !important;
-    font-size: 12px !important;
-    border-collapse: collapse !important;
-  }
-
-  .table th,
-  .table td {
-    padding: 6px !important;
-    border: 1px solid #e5e7eb !important;
-  }
-
-  .table thead th {
-    background: #f1f5f9 !important;
-  }
-
-  /* Hide all buttons and UI interactions */
-  button,
-  .btn,
-  .icon-btn,
-  .actions,
-  .pagination-controls,
-  .notification-container {
-    display: none !important;
-  }
-
-  /* Center report title */
-  .page-header {
-    justify-content: center !important;
-  }
-
-  .page-title {
-    font-size: 20px !important;
-  }
-}
-
-
-/* Product Breakdown toolbar */
-.pb-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 12px;
-}
-
-.pb-toolbar-left {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-muted);
-}
-
-.pb-label {
-  font-weight: 500;
-}
-
-.pb-select {
-  border-radius: var(--r-sm);
-  border: 1px solid var(--border);
-  padding: 4px 10px;
-  font-size: 13px;
-  background: #fff;
-  cursor: pointer;
-}
-
-/* group the buttons nicely */
-.pb-toolbar-right {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}

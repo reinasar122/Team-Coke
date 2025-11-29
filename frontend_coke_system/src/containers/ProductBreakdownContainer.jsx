@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import axios from "axios";
+import api from "../../services/api";  // Import the custom axios instance
 import ProductBreakdownTable from "../components/tables/ProductBreakdownTable";
 
 const SORTERS = {
@@ -11,7 +11,6 @@ const SORTERS = {
 };
 
 export default function ProductBreakdownContainer({
-  apiBase = "http://localhost:8080",
   warehouseId = "all",
   routeId = "all",
   period = "this_week",
@@ -24,15 +23,16 @@ export default function ProductBreakdownContainer({
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState("revenue");
   const [err, setErr] = useState("");
-  const [showFull, setShowFull] = useState(false); // 👈 modal toggle
+  const [showFull, setShowFull] = useState(false); // Modal toggle
 
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+
+    const fetchData = async () => {
       setLoading(true);
-      setErr("");
+      setErr(""); // Reset error state
+
       try {
-        // ✅ Always send warehouse_id and route_id (use "all" when not filtered)
         const params = {
           warehouse_id: String(warehouseId ?? "all"),
           route_id: String(routeId ?? "all"),
@@ -43,38 +43,8 @@ export default function ProductBreakdownContainer({
           if (end) params.end = end;
         }
 
-        const token = localStorage.getItem("token");
-        const headers = {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        };
-
-        // ✅ Prefer the fixed endpoint first; fallback to legacy
-        const urls = [
-          `${apiBase}/api/sales_report/`,
-          `${apiBase}/api/reports/sales/`,
-        ];
-
-        let data;
-        let lastError;
-        for (const url of urls) {
-          try {
-            // eslint-disable-next-line no-console
-            console.log("[ProductBreakdown] GET:", url, params);
-            const res = await axios.get(url, { params, headers, timeout: 15000 });
-            data = res.data;
-            break;
-          } catch (e) {
-            lastError = e;
-          }
-        }
-        if (!data) {
-          throw new Error(
-            lastError?.response?.data?.detail ||
-              lastError?.message ||
-              "Failed to fetch product breakdown"
-          );
-        }
+        const response = await api.get("/sales_report/", { params });  // Use the custom api instance
+        const data = response.data;
 
         const products = data?.products ?? data?.product_breakdown ?? data?.rows ?? [];
 
@@ -94,9 +64,7 @@ export default function ProductBreakdownContainer({
         }));
 
         // 🧹 Filter out junk rows
-        rows = rows.filter(
-          (r) => r.product && r.product.toLowerCase() !== "product"
-        );
+        rows = rows.filter((r) => r.product && r.product.toLowerCase() !== "product");
 
         // --- If "All Warehouses" -> merge duplicates by product (sum qty/revenue/profit)
         if (!warehouseId || warehouseId === "all") {
@@ -136,21 +104,25 @@ export default function ProductBreakdownContainer({
           }));
         }
 
-        if (!cancelled) setRawRows(rows);
+        if (!cancelled) setRawRows(rows); // Set the rows in state
+
       } catch (e) {
         console.error("[ProductBreakdown] load error:", e);
         if (!cancelled) {
           setErr(typeof e?.message === "string" ? e.message : "Load error");
-          setRawRows([]);
+          setRawRows([]); // Clear rows on error
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setLoading(false); // Stop loading
       }
-    })();
-    return () => {
-      cancelled = true;
     };
-  }, [apiBase, warehouseId, routeId, period, start, end]);
+
+    fetchData();
+
+    return () => {
+      cancelled = true; // Cleanup on unmount
+    };
+  }, [warehouseId, routeId, period, start, end]);
 
   // 🔎 Apply search + sort + totals
   const rows = useMemo(() => {
