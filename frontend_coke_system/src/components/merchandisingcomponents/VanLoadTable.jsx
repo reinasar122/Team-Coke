@@ -4,6 +4,7 @@ import axios from "axios";
 import { FaTrash } from 'react-icons/fa';
 import '../../styles/global.scss';
 import ProductSearchSelect from "../common/ProductSearchSelect"; // adjust path
+import api from "../../api";
 
 /**
  * Props:
