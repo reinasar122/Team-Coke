@@ -1369,13 +1369,13 @@ from .models import User
 from django.contrib.auth import get_user_model
 
 class ChangePasswordAPIView(APIView):
-    def get(self, request, uidb64, token):
-        # Retrieve data from the request
-        new_password = request.query_params.get("new_password")  # Use query params for GET requests
-
+    def post(self, request, uidb64, token):
+        # Get the new password from the request body
+        new_password = request.data.get("new_password")
+        
         if not new_password:
-            return Response({"error": "Missing new password"}, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response({"error": "New password is required"}, status=status.HTTP_400_BAD_REQUEST)
+        
         try:
             # Decode uidb64 to get the user ID
             uid = urlsafe_base64_decode(uidb64).decode()
@@ -1389,7 +1389,7 @@ class ChangePasswordAPIView(APIView):
 
         # Set the new password and save the user
         user.set_password(new_password)
-        user.must_change_password = False
+        user.must_change_password = False  # Reset the password change flag if present
         user.save()
 
         return Response({"success": "Password changed successfully"}, status=status.HTTP_200_OK)
