@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { downloadInvoicePDF } from "./PDFInvoice"; // ⬅️ new import
 import { printReceipt } from "./receiptPrint"; // Make sure the file name is exactly 'receiptPrint.jsx'
 import "react-toastify/dist/ReactToastify.css";
+import api from "../../api"; // Assuming you're importing the centralized API instance
 
 const InvoiceModal = ({
   onClose,
@@ -345,17 +346,19 @@ const InvoiceModal = ({
 
       console.log("📤 Saving invoice for merchandising ID:", saleId, "Invoice No:", invoiceNumber);
 
-      const res = await fetch(
-        `http://localhost:8080/api/merchandising-set/${saleId}/set_invoice_no/`,
+      const res = await api.post(
+        `/merchandising-set/${saleId}/set_invoice_no/`,
         {
-          method: "POST",
-          headers,
-          body: JSON.stringify({
-            invoice_no: invoiceNumber,
-            empties_price_total: emptiesPriceTotal,
-            empty_returns: emptyReturns,
-            payment_method: paymentMethod,
-          }),
+          invoice_no: invoiceNumber,
+          empties_price_total: emptiesPriceTotal,
+          empty_returns: emptyReturns,
+          payment_method: paymentMethod,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+            "Content-Type": "application/json",
+          },
         }
       );
 
