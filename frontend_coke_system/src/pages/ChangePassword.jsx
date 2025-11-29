@@ -46,12 +46,10 @@ const ChangePassword = () => {
 
     setLoading(true);
     try {
-      // ✅ FIX: POST to the correct URL with uid and token as URL parameters
       const response = await api.post(`/change-password/${uid}/${token}/`, {
-        uid: uid,           // Include in body for Django view
-        token: token,       // Include in body for Django view  
-        new_password: newPassword,
-      });
+      new_password: newPassword, // Only send the new password in the body
+    });
+
 
       setSuccess("✅ Password changed successfully! Redirecting...");
       setTimeout(() => navigate("/login"), 2000);
