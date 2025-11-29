@@ -49,7 +49,8 @@ const ChangePassword = () => {
     };
 
     // Make sure URL includes uid and token correctly
-    await api.post(`/change-password/${uid}/${token}/`, payload);
+    await api.post(`/change-password/${uid}/${token}/`, { new_password: newPassword });
+
 
     setSuccess("✅ Password changed successfully! Redirecting...");
     setTimeout(() => navigate("/login"), 2000);
