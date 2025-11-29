@@ -5,6 +5,9 @@ import { printReceipt } from "./receiptPrint"; // Make sure the file name is exa
 import "react-toastify/dist/ReactToastify.css";
 import api from "../api"; // ensure api is imported so env vars are loaded import ".";
 
+// Define showCustomAlert (for demo purposes, using alert as fallback)
+const showCustomAlert = (msg) => alert(msg);
+
 const InvoiceModal = ({
   onClose,
   invoiceData = {},
@@ -13,9 +16,6 @@ const InvoiceModal = ({
 }) => {
   const navigate = useNavigate();
   const saleId = invoiceData?.id || null;
-
-  // Define showCustomAlert (for demo purposes, using alert as fallback)
-  const showCustomAlert = (msg) => alert(msg);
 
   // Get warehouse info from localStorage as fallback if not in props
   const getCurrentWarehouse = () => {
@@ -36,6 +36,7 @@ const InvoiceModal = ({
   };
 
   const currentWarehouse = getCurrentWarehouse();
+  const warehouse = invoiceData?.warehouse || currentWarehouse; // Ensure warehouse is defined
 
   // ---------- Unpack from PaymentModal ----------
   const {
@@ -333,7 +334,7 @@ const InvoiceModal = ({
     }
 
     if (!invoiceNumber) {
-      showAlert("Cannot save invoice: invoice number is empty.");
+      showCustomAlert("Cannot save invoice: invoice number is empty.");
       return;
     }
 
@@ -366,7 +367,7 @@ const InvoiceModal = ({
 
       if (!res.ok) {
         console.error("❌ Save invoice failed:", res.status, responseBody);
-        showAlert(responseBody?.detail || JSON.stringify(responseBody) || "Failed to save invoice number. See console.");
+        showCustomAlert(responseBody?.detail || JSON.stringify(responseBody) || "Failed to save invoice number. See console.");
         return;
       }
 
@@ -393,7 +394,7 @@ const InvoiceModal = ({
       onClose?.();
     } catch (err) {
       console.error("🔥 Network error saving invoice:", err);
-      showAlert("Network error while saving invoice. Check console.");
+      showCustomAlert("Network error while saving invoice. Check console.");
     }
   };
 
