@@ -47,9 +47,8 @@ const ChangePassword = () => {
   setLoading(true);
   try {
     // ✅ Ensure this is a POST request
-    const response = await api.post(`/change-password/${uid}/${token}/`, {
-      new_password: newPassword, // Only send the new password
-    });
+    const response = await api.post(`/change-password/${uid}/${token}/`, { new_password: newPassword });
+
 
     setSuccess("✅ Password changed successfully! Redirecting...");
     setTimeout(() => navigate("/login"), 2000);
