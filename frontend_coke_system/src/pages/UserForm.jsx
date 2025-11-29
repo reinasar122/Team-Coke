@@ -141,68 +141,68 @@ const UserForm = ({ onUserAdded, onClose }) => {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    setErrors({});
+  e.preventDefault();
+  setIsSubmitting(true);
+  setErrors({});
 
-    try {
-      // --- Client-side validation ---
-      const phoneError = validatePhoneNumber(formData.phone_number);
-      if (phoneError) {
-        setErrors({ phone_number: phoneError });
-        toast.error(phoneError);
+  try {
+    // --- Client-side validation ---
+    const phoneError = validatePhoneNumber(formData.phone_number);
+    if (phoneError) {
+      setErrors({ phone_number: phoneError });
+      toast.error(phoneError);
+      return;
+    }
+
+    if (formData.email) {
+      const emailError = validateEmail(formData.email);
+      if (emailError) {
+        setErrors({ email: emailError });
+        toast.error("Please fix the email format before submitting");
         return;
       }
 
-      if (formData.email) {
-        const emailError = validateEmail(formData.email);
-        if (emailError) {
-          setErrors({ email: emailError });
-          toast.error("Please fix the email format before submitting");
+      if (formData.email.endsWith("@gmail.com")) {
+        try {
+          await verifyGmailExists(formData.email);
+        } catch (err) {
+          setErrors({ email: err.message });
+          toast.error("Gmail verification failed: " + err.message);
           return;
         }
-
-        if (formData.email.endsWith("@gmail.com")) {
-          try {
-            await verifyGmailExists(formData.email);
-          } catch (err) {
-            setErrors({ email: err.message });
-            toast.error("Gmail verification failed: " + err.message);
-            return;
-          }
-        }
       }
-
-      const userPayload = {
-        ...formData,
-        role_id: Number(formData.role_id) || null,
-        warehouse_id: Number(formData.warehouse_id) || null,
-        is_active: Boolean(formData.is_active),
-      };
-
-      const response = await api.post("/users/", userPayload);  // Use api.js for POST request
-
-      const data = response.data;
-
-      if (response.status === 201) {
-        toast.success(`User '${data.username}' has been created successfully!`, { style: successStyle });
-        onUserAdded(data);
-        onClose();
-      } else {
-        // Log error details from the response
-        if (data.errors) {
-          data.errors.forEach((err) => toast.error(`${err.field}: ${err.message}`));
-        } else {
-          toast.error("Failed to create user. Please check the form.");
-        }
-      }
-    } catch (error) {
-      console.error("Error creating user:", error);
-      toast.error("An unexpected error occurred. Please try again.");
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+
+    const userPayload = {
+      ...formData,
+      role_id: Number(formData.role_id) || null,
+      warehouse_id: Number(formData.warehouse_id) || null,
+      is_active: Boolean(formData.is_active),
+    };
+
+    const response = await api.post("/users/", userPayload);  // Use api.js for POST request
+    const data = response.data;
+
+    if (response.status === 201) {
+      toast.success(`User '${data.username}' has been created successfully!`, { style: successStyle });
+      onUserAdded(data);
+      onClose();
+    } else {
+      console.error("Response Error:", data); // Log the error response body
+      if (data.errors) {
+        data.errors.forEach((err) => toast.error(`${err.field}: ${err.message}`));
+      } else {
+        toast.error("Failed to create user. Please check the form.");
+      }
+    }
+  } catch (error) {
+    console.error("Error creating user:", error.response?.data || error.message); // Log the response body
+    toast.error("An unexpected error occurred. Please try again.");
+  } finally {
+    setIsSubmitting(false);
+  }
+};
+
 
   // ---------------- JSX Form ----------------
   return (
