@@ -1368,6 +1368,9 @@ from django.utils.http import urlsafe_base64_decode
 from .models import User
 from django.contrib.auth import get_user_model
 
+# Set up logger
+logger = logging.getLogger(__name__)
+
 class ChangePasswordAPIView(APIView):
     def post(self, request, uidb64, token):
         # Get the new password from the request body
@@ -1381,7 +1384,7 @@ class ChangePasswordAPIView(APIView):
             uid = urlsafe_base64_decode(uidb64).decode()
             user = get_user_model().objects.get(pk=int(uid))  # Ensure integer for user ID
         except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist) as e:
-            print(f"Error decoding UID or retrieving user: {str(e)}")  # Optional logging
+            logger.error(f"Error decoding UID or retrieving user: {str(e)}")  # Proper logging
             return Response({"error": "Invalid UID or User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the token is valid for the user
