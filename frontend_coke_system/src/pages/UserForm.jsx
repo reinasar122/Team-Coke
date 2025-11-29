@@ -184,17 +184,14 @@ const UserForm = ({ onUserAdded, onClose }) => {
 
       const data = response.data;
 
-      if (response.ok) {
+      if (response.status === 201) {
         toast.success(`User '${data.username}' has been created successfully!`, { style: successStyle });
         onUserAdded(data);
         onClose();
       } else {
-        if (data.phone_number && data.phone_number[0]) {
-          toast.error(`Phone number error: ${data.phone_number[0]}`);
-        } else if (data.email && data.email[0]) {
-          toast.error(`Email error: ${data.email[0]}`);
-        } else if (data.username && data.username[0]) {
-          toast.error(`Username error: ${data.username[0]}`);
+        // Log error details from the response
+        if (data.errors) {
+          data.errors.forEach((err) => toast.error(`${err.field}: ${err.message}`));
         } else {
           toast.error("Failed to create user. Please check the form.");
         }
