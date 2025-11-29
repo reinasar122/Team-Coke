@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "../../services/api";  // Import the custom axios instance
+import api from '../api';  // Import the custom axios instance
 import ProductBreakdownTable from "../components/tables/ProductBreakdownTable";
 
 const SORTERS = {
