@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import { successStyle } from "../utils/toastStyles";
+import api from "../../services/api"; // Import the custom API instance
 
 const UserForm = ({ onUserAdded, onClose }) => {
   const [formData, setFormData] = useState({
@@ -26,10 +27,8 @@ const UserForm = ({ onUserAdded, onClose }) => {
   useEffect(() => {
     const fetchRoles = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8080/api/roles/");
-        if (!response.ok) throw new Error("Failed to fetch roles");
-        const data = await response.json();
-        setRoles(data);
+        const response = await api.get("/roles/");  // Use api.js for roles
+        setRoles(response.data);
       } catch (error) {
         console.error("Error fetching roles:", error);
         toast.error("Failed to load roles. Please refresh the page.");
@@ -38,10 +37,8 @@ const UserForm = ({ onUserAdded, onClose }) => {
 
     const fetchWarehouses = async () => {
       try {
-        const response = await fetch("http://127.0.0.1:8080/api/warehouses/");
-        if (!response.ok) throw new Error("Failed to fetch warehouses");
-        const data = await response.json();
-        setWarehouses(data);
+        const response = await api.get("/warehouses/");  // Use api.js for warehouses
+        setWarehouses(response.data);
       } catch (error) {
         console.error("Error fetching warehouses:", error);
         toast.error("Failed to load warehouses. Please refresh the page.");
@@ -183,19 +180,12 @@ const UserForm = ({ onUserAdded, onClose }) => {
         is_active: Boolean(formData.is_active),
       };
 
-      const response = await fetch("http://127.0.0.1:8080/api/users/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(userPayload),
-      });
+      const response = await api.post("/users/", userPayload);  // Use api.js for POST request
 
-      const data = await response.json();
+      const data = response.data;
 
       if (response.ok) {
-        toast.success(
-          `User '${data.username}' has been created successfully!`,
-          { style: successStyle }
-        );
+        toast.success(`User '${data.username}' has been created successfully!`, { style: successStyle });
         onUserAdded(data);
         onClose();
       } else {
@@ -271,42 +261,32 @@ const UserForm = ({ onUserAdded, onClose }) => {
               <input
                 type="text"
                 name="phone_number"
-                className={`w-full border p-2 rounded ${
-                  errors.phone_number ? "border-red-500" : ""
-                }`}
+                className={`w-full border p-2 rounded ${errors.phone_number ? "border-red-500" : ""}`}
                 required
                 onChange={handleChange}
                 value={formData.phone_number}
                 placeholder="e.g., 09123456789"
               />
-              {errors.phone_number && (
-                <p className="text-red-500 text-sm mt-1">{errors.phone_number}</p>
-              )}
+              {errors.phone_number && <p className="text-red-500 text-sm mt-1">{errors.phone_number}</p>}
             </div>
           </div>
 
           {/* Email */}
           <div className="mb-5">
             <label className="block font-medium">
-              Email {isVerifyingEmail && (
-                <span className="text-blue-500">(Verifying...)</span>
-              )}
+              Email {isVerifyingEmail && <span className="text-blue-500">(Verifying...)</span>}
             </label>
             <input
               type="email"
               name="email"
-              className={`w-full border p-2 rounded ${
-                errors.email ? "border-red-500" : ""
-              }`}
+              className={`w-full border p-2 rounded ${errors.email ? "border-red-500" : ""}`}
               required
               onChange={handleChange}
               value={formData.email}
               placeholder="example@gmail.com (lowercase only)"
               disabled={isVerifyingEmail}
             />
-            {errors.email && (
-              <p className="text-red-500 text-sm mt-1">{errors.email}</p>
-            )}
+            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
           </div>
 
           {/* Role & Warehouse */}
