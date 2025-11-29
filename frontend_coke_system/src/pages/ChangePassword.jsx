@@ -25,45 +25,46 @@ const ChangePassword = () => {
   }, [uid, token, navigate]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError("");
-    setSuccess("");
+  e.preventDefault();
+  setError("");
+  setSuccess("");
 
-    if (!newPassword || !confirmPassword) {
-      setError("Please fill in all fields.");
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (!isStrongPassword(newPassword)) {
-      setError(
-        "Password must be at least 8 characters, with uppercase, lowercase, number, and special character."
-      );
-      return;
-    }
+  if (!newPassword || !confirmPassword) {
+    setError("Please fill in all fields.");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setError("Passwords do not match.");
+    return;
+  }
+  if (!isStrongPassword(newPassword)) {
+    setError(
+      "Password must be at least 8 characters, with uppercase, lowercase, number, and special character."
+    );
+    return;
+  }
 
-    setLoading(true);
-    try {
-      const response = await api.post(`/change-password/${uid}/${token}/`, {
-      new_password: newPassword, // Only send the new password in the body
+  setLoading(true);
+  try {
+    // ✅ Ensure this is a POST request
+    const response = await api.post(`/change-password/${uid}/${token}/`, {
+      new_password: newPassword, // Only send the new password
     });
 
+    setSuccess("✅ Password changed successfully! Redirecting...");
+    setTimeout(() => navigate("/login"), 2000);
+  } catch (err) {
+    console.error("Change password error:", err);
+    const msg =
+      err.response?.data?.error ||
+      err.response?.data?.detail ||
+      "Failed to update password. Link may be invalid or expired.";
+    setError(msg);
+  } finally {
+    setLoading(false);
+  }
+};
 
-      setSuccess("✅ Password changed successfully! Redirecting...");
-      setTimeout(() => navigate("/login"), 2000);
-    } catch (err) {
-      console.error("Change password error:", err);
-      const msg =
-        err.response?.data?.error ||
-        err.response?.data?.detail ||
-        "Failed to update password. Link may be invalid or expired.";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const getValidationColor = (condition) =>
     condition ? "text-green-500 font-semibold" : "text-gray-400";
