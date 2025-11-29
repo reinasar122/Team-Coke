@@ -1369,22 +1369,18 @@ from .models import User
 from django.contrib.auth import get_user_model
 
 class ChangePasswordAPIView(APIView):
-    def post(self, request):
+    def get(self, request, uidb64, token):
         # Retrieve data from the request
-        uidb64 = request.data.get("uid")
-        token = request.data.get("token")
-        new_password = request.data.get("new_password")
+        new_password = request.query_params.get("new_password")  # Use query params for GET requests
 
-        # Check for missing data
-        if not uidb64 or not token or not new_password:
-            return Response({"error": "Missing data"}, status=status.HTTP_400_BAD_REQUEST)
+        if not new_password:
+            return Response({"error": "Missing new password"}, status=status.HTTP_400_BAD_REQUEST)
 
         try:
             # Decode uidb64 to get the user ID
             uid = urlsafe_base64_decode(uidb64).decode()
             user = get_user_model().objects.get(pk=int(uid))  # Ensure integer for user ID
         except (TypeError, ValueError, OverflowError, get_user_model().DoesNotExist):
-            # Handle the case where the user is not found or the ID is invalid
             return Response({"error": "Invalid UID or User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
         # Check if the token is valid for the user
@@ -1393,13 +1389,11 @@ class ChangePasswordAPIView(APIView):
 
         # Set the new password and save the user
         user.set_password(new_password)
-
-        # Optionally, handle the must_change_password flag (if applicable to your app)
         user.must_change_password = False
         user.save()
 
-        # Return success response
         return Response({"success": "Password changed successfully"}, status=status.HTTP_200_OK)
+
 
 class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
     serializer_class = SupplierReturnFormSerializer
