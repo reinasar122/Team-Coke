@@ -218,11 +218,16 @@ class UserSerializer(serializers.ModelSerializer):
             user.save()
 
         # send reset link
+        # Inside the UserSerializer `create` method
+
+        # Generate token and encode user ID
         token = default_token_generator.make_token(user)
         uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
-        # reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
+
+        # Construct the reset password link
         reset_link = f"http://192.168.0.167:8002/change-password/{uid}/{token}/"
 
+        # Send email to user with the reset link
         send_mail(
             subject="Set Your Account Password",
             message=(
@@ -230,10 +235,11 @@ class UserSerializer(serializers.ModelSerializer):
                 f"Your username is: {user.username}\n\n"
                 f"Please set your password using the link below:\n{reset_link}"
             ),
-            from_email="your_email@gmail.com",
-            recipient_list=[user.email],
+            from_email="your_email@gmail.com",  # sender's email
+            recipient_list=[user.email],  # user's email
             fail_silently=False,
         )
+
         return user
 
     def update(self, instance, validated_data):
@@ -1094,8 +1100,6 @@ class ChangePasswordSerializer(serializers.Serializer):
             user_id = int(urlsafe_base64_decode(uid).decode())
             user = User.objects.get(pk=user_id)
 
-            # Log for debugging purposes
-            logging.info(f"User found: {user.id}, Token: {token}")
         except (User.DoesNotExist, ValueError, TypeError, OverflowError):
             raise serializers.ValidationError("Invalid UID")
 
@@ -1108,11 +1112,11 @@ class ChangePasswordSerializer(serializers.Serializer):
 
     def save(self):
         user = self.validated_data['user']
-        # Set new password for the user
         user.set_password(self.validated_data['new_password'])
-        user.must_change_password = False  # Make sure this field exists or remove it if unnecessary
+        user.must_change_password = False
         user.save()
         return user
+
 
 
 class ForgotPasswordRequestSerializer(serializers.Serializer):
