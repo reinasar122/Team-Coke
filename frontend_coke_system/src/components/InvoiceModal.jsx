@@ -914,10 +914,13 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                           <div className="border-t border-gray-300 my-2"></div>
 
                           {(paymentMethod === "cash" || paymentMethod === "credit") && (
-                        <div className="flex justify-between font-bold text-gray-800">
-                          <span>Grand Total</span>
-                          <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
-                        </div>
+                          <div className="flex justify-between font-bold text-gray-800">
+                            <span>Grand Total</span>
+
+                            <span className="text-3xl font-extrabold text-black">
+                              ₱{fmt(n(amountDue) || n(totalAmount))}
+                            </span>
+                          </div>
                       )}
                         </div>
                       </div>

@@ -972,8 +972,12 @@ const PaymentModal = ({
 
                     <div className="border-t mt-2 pt-2 flex justify-between font-bold">
                       <span>Grand Total:</span>
-                      <span className="tabular-nums">₱{fmt(vl_grandTotal)}</span>
+
+                      <span className="tabular-nums text-3xl font-extrabold text-black">
+                        ₱{fmt(vl_grandTotal)}
+                      </span>
                     </div>
+
                   </div>
                 </div>
               </div>
