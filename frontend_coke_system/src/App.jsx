@@ -379,7 +379,7 @@ function App() {
   }
 
   return (
-    <Router basename="/coke">
+    <Router >
       <NotificationProvider>
         {/* Toast container at the root */}
         <ToastContainer
