@@ -1,7 +1,5 @@
 import { useState, useRef } from "react";
-import axios from "axios";
 import api from "../api";
-
 
 const VerifyOTPModal = ({ onClose, onVerified }) => {
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
@@ -58,31 +56,24 @@ const VerifyOTPModal = ({ onClose, onVerified }) => {
     }
 
     try {
-      const response = await api.post(
-        "/forgot-password/verify-otp/",
-        { email, otp }
-      );
+      const response = await api.post("/forgot-password/verify-otp/", {
+        email,
+        otp,
+      });
 
       console.log("📨 VERIFY OTP FULL RESPONSE:", response.data);
 
-      // ✅ Support both formats: {user: {...}} OR flat {...}
-      const data = response.data;
-      const user = data.user || data;
+      // ✅ Backend now returns { uid, token }
+      const { uid, token } = response.data || {};
 
-      if (!user.id || !user.token) {
-        setError("User data missing. Please restart.");
+      if (!uid || !token) {
+        setError("Reset data missing. Please restart.");
         return;
       }
 
-      // Base64 encode the user ID safely
-      const encodedUid = btoa(String(user.id));
-
-      // Save user data
-      localStorage.setItem("user", JSON.stringify(user));
-
-      // ✅ pass back encodedUid and token to parent (Login)
+      // ✅ Call parent so it can navigate to /change-password/:uid/:token
       if (typeof onVerified === "function") {
-        onVerified(encodedUid, user.token);
+        onVerified(uid, token);
       } else {
         console.warn("⚠️ onVerified prop was not passed!");
       }
@@ -95,7 +86,6 @@ const VerifyOTPModal = ({ onClose, onVerified }) => {
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md p-8 border border-gray-300">
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute top-3 right-4 text-gray-500 hover:text-red-500 text-2xl font-bold"

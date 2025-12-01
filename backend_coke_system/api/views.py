@@ -1361,16 +1361,11 @@ class LoginAPIView(APIView):
             return Response(serializer.validated_data, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+from django.utils.encoding import force_str
+from django.utils.http import urlsafe_base64_decode
+from django.contrib.auth.tokens import default_token_generator
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_decode
-from .models import User
-
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from django.contrib.auth.tokens import default_token_generator
-from django.utils.http import urlsafe_base64_decode
 from .models import User
 
 class ChangePasswordAPIView(APIView):
@@ -1383,12 +1378,17 @@ class ChangePasswordAPIView(APIView):
             return Response({"error": "Missing data"}, status=400)
 
         try:
-            uid = urlsafe_base64_decode(uidb64).decode()
-            user = User.objects.get(pk=int(uid))  # ensure integer
-        except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+            # Decode UID
+            uid = force_str(urlsafe_base64_decode(uidb64))
+            # Debug: you can temporarily print this
+            # print("Decoded UID:", uid)
+            user = User.objects.get(pk=uid)
+        except User.DoesNotExist:
+            return Response({"error": "Invalid UID: user not found"}, status=400)
+        except Exception:
             return Response({"error": "Invalid UID"}, status=400)
 
-        # Check token validity
+        # Check token
         if not default_token_generator.check_token(user, token):
             return Response({"error": "Invalid or expired token"}, status=400)
 
@@ -1398,6 +1398,7 @@ class ChangePasswordAPIView(APIView):
         user.save()
 
         return Response({"success": "Password changed successfully"})
+
 
 class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
     serializer_class = SupplierReturnFormSerializer

@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { errorStyle } from "../utils/toastStyles";
 import RoleForm from "./RoleForm";
 import EditRoleAccess from "./EditRoleAccess";
 import { FaEdit, FaTrash, FaUserShield } from "react-icons/fa";
 import api from "../api"; // ✅ correct
+import { canCreate, canEdit, canDelete } from "../utils/accessControl"; // ✅ NEW
 
 const RoleList = () => {
   const [roles, setRoles] = useState([]);
@@ -45,19 +46,25 @@ const RoleList = () => {
         data.forEach((role, idx) => {
           const obj = results[idx]; // object or null
           if (!obj || Object.keys(obj).length === 0) {
-            map[role.id] = role.name?.toLowerCase() === "admin" ? "Full" : "Custom";
+            map[role.id] =
+              role.name?.toLowerCase() === "admin" ? "Full" : "Custom";
           } else {
             const perms = Object.values(obj); // [{full, view, create, edit, delete}, ...]
             const allFull = perms.every((p) => p.full === true);
             const allViewOnly = perms.every(
-              (p) => p.view === true && !p.create && !p.edit && !p.delete && !p.full
+              (p) =>
+                p.view === true &&
+                !p.create &&
+                !p.edit &&
+                !p.delete &&
+                !p.full
             );
             map[role.id] = allFull ? "Full" : allViewOnly ? "View-only" : "Custom";
           }
         });
         setRoleSummaries(map);
       } catch {
-        // noop
+        // ignore summary errors
       }
     } catch (error) {
       console.error("Error fetching roles:", error);
@@ -87,26 +94,24 @@ const RoleList = () => {
   const handleDelete = async () => {
     if (!roleToDelete) return;
     try {
-      const response = await fetch(`/roles/${roleToDelete.id}/`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error("Failed to delete role");
+      await api.delete(`/roles/${roleToDelete.id}/`);
 
       setRoles((prev) => prev.filter((r) => r.id !== roleToDelete.id));
-      toast.error(`Role '${roleToDelete.name}' has been deleted.`, { style: errorStyle });
-      
-      // ✅ Dispatch role permissions updated event for notifications
-      const roleEvent = new CustomEvent('rolePermissionsUpdated', {
+
+      toast.error(`Role '${roleToDelete.name}' has been deleted.`, {
+        style: errorStyle,
+      });
+
+      const roleEvent = new CustomEvent("rolePermissionsUpdated", {
         detail: {
-          action: 'deleted',
+          action: "deleted",
           roleId: roleToDelete.id,
           roleName: roleToDelete.name,
           timestamp: new Date().toISOString(),
-          summary: `Role '${roleToDelete.name}' deleted and all associated permissions removed`
-        }
+          summary: `Role '${roleToDelete.name}' deleted and all associated permissions removed`,
+        },
       });
       window.dispatchEvent(roleEvent);
-      
     } catch (error) {
       console.error("Error deleting role:", error);
       toast.error("Error deleting role.", { style: errorStyle });
@@ -121,22 +126,22 @@ const RoleList = () => {
     setShowEditAccessModal(true);
   };
 
-  // ✅ Handle role access updates from EditRoleAccess component
+  // Handle role access updates from EditRoleAccess component
   const handleRoleAccessUpdated = (roleId, roleName, updatedPermissions) => {
-    // Refresh the roles list to update summaries
     fetchRoles();
-    
-    // Dispatch role permissions updated event for notifications
-    const roleEvent = new CustomEvent('rolePermissionsUpdated', {
+
+    const roleEvent = new CustomEvent("rolePermissionsUpdated", {
       detail: {
-        action: 'updated',
+        action: "updated",
         roleId: roleId,
         roleName: roleName,
         permissions: updatedPermissions,
         timestamp: new Date().toISOString(),
         summary: `Role '${roleName}' permissions updated`,
-        permissionsCount: updatedPermissions ? Object.keys(updatedPermissions).length : 0
-      }
+        permissionsCount: updatedPermissions
+          ? Object.keys(updatedPermissions).length
+          : 0,
+      },
     });
     window.dispatchEvent(roleEvent);
   };
@@ -153,10 +158,13 @@ const RoleList = () => {
           </h2>
         </div>
 
-        {/* Right side: Button */}
+        {/* Right side: Create button with access control */}
         <button
-          onClick={() => setIsRoleFormVisible(true)}
-          className="btn btn-add"
+          onClick={() => {
+            if (canCreate("Roles")) setIsRoleFormVisible(true);
+          }}
+          className={`btn ${canCreate("Roles") ? "btn-add" : "btn-disabled"}`}
+          disabled={!canCreate("Roles")}
         >
           + Create Role
         </button>
@@ -164,7 +172,7 @@ const RoleList = () => {
 
       <div className="table-wrapper bg-white shadow-md rounded-lg">
         <table className="table table-hover">
-          <thead >
+          <thead>
             <tr>
               <th className="px-4 py-3 w-1/4">ROLE NAME</th>
               <th className="px-4 py-3 w-1/2">SUMMARY</th>
@@ -175,9 +183,15 @@ const RoleList = () => {
             {loading ? (
               [...Array(4)].map((_, i) => (
                 <tr key={i} className="border-t animate-pulse">
-                  <td className="text-left"><div className="h-4 w-32 bg-gray-200 rounded" /></td>
-                  <td><div className="h-4 w-24 bg-gray-200 rounded mx-auto" /></td>
-                  <td className="text-right"><div className="h-4 w-16 bg-gray-200 rounded inline-block" /></td>
+                  <td className="text-left">
+                    <div className="h-4 w-32 bg-gray-200 rounded" />
+                  </td>
+                  <td>
+                    <div className="h-4 w-24 bg-gray-200 rounded mx-auto" />
+                  </td>
+                  <td className="text-right">
+                    <div className="h-4 w-16 bg-gray-200 rounded inline-block" />
+                  </td>
                 </tr>
               ))
             ) : roles.length > 0 ? (
@@ -186,31 +200,58 @@ const RoleList = () => {
                   <td className="px-4 py-2">{role.name}</td>
                   <td className="px-4 py-2">
                     <span
-                      className={`inline-flex items-center text-xs font-medium px-2 py-1 rounded-full ${
-                        (roleSummaries[role.id] || "Custom") === "Full"
+                      className={`inline-flex items-center text-xs font-medium px-2 py-1 rounded-full ${(roleSummaries[role.id] || "Custom") === "Full"
                           ? "bg-green-100 text-green-700"
-                          : (roleSummaries[role.id] || "Custom") === "View-only"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
+                          : (roleSummaries[role.id] || "Custom") ===
+                            "View-only"
+                            ? "bg-blue-100 text-blue-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
                     >
                       {roleSummaries[role.id] || "Custom"}
                     </span>
                   </td>
                   <td className="px-3 py-2 space-x-2">
                     <div className="inline-flex justify-end items-center gap-3">
+                      {/* Edit Access button with access control */}
                       <button
-                        onClick={() => handleEditAccess(role.id)}
-                        className="icon-btn-edit"
-                        title="Edit Access"
+                        onClick={() => {
+                          if (canEdit("Roles")) handleEditAccess(role.id);
+                        }}
+                        className={`icon-btn ${canEdit("Roles")
+                            ? "icon-btn-edit"
+                            : "icon-btn-disabled"
+                          }`}
+                        title={
+                          canEdit("Roles")
+                            ? "Edit Access"
+                            : "No permission to edit roles"
+                        }
+                        disabled={!canEdit("Roles")}
                       >
                         <FaEdit size={20} />
                       </button>
+
+                      {/* Delete button with access control + Admin protection */}
                       <button
-                        onClick={() => !isProtected(role) && confirmDelete(role)}
-                        className={isProtected(role) ? "icon-btn-disabled" : "icon-btn-danger"}
-                        title={isProtected(role) ? "This role is protected" : "Delete Role"}
-                        disabled={isProtected(role)}
+                        onClick={() => {
+                          if (canDelete("Roles") && !isProtected(role)) {
+                            confirmDelete(role);
+                          }
+                        }}
+                        className={
+                          !canDelete("Roles") || isProtected(role)
+                            ? "icon-btn-disabled"
+                            : "icon-btn-danger"
+                        }
+                        title={
+                          isProtected(role)
+                            ? "This role is protected"
+                            : canDelete("Roles")
+                              ? "Delete Role"
+                              : "No permission to delete roles"
+                        }
+                        disabled={!canDelete("Roles") || isProtected(role)}
                       >
                         <FaTrash size={20} />
                       </button>
@@ -249,11 +290,15 @@ const RoleList = () => {
       {/* Delete Confirmation Modal */}
       {showDeleteModal && roleToDelete && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
-          <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
+          <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max
+          -h-[90vh] overflow-auto">
             <p className="text-lg font-semibold mb-2">
-              Are you sure you want to delete <strong>{roleToDelete.name}</strong>?
+              Are you sure you want to delete{" "}
+              <strong>{roleToDelete.name}</strong>?
             </p>
-            <p className="text-sm text-red-600 mb-6">This action cannot be undone.</p>
+            <p className="text-sm text-red-600 mb-6">
+              This action cannot be undone.
+            </p>
             <div className="flex justify-between">
               <button
                 className="btn btn-cancel"
@@ -264,10 +309,7 @@ const RoleList = () => {
               >
                 Cancel
               </button>
-              <button
-                className="btn btn-danger"
-                onClick={handleDelete}
-              >
+              <button className="btn btn-danger" onClick={handleDelete}>
                 Delete
               </button>
             </div>
