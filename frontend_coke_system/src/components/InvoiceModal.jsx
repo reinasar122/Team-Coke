@@ -871,10 +871,16 @@ const PaymentModal = ({
                       <span className="tabular-nums">- ₱{fmt(expensesTotal)}</span>
                     </div>
 
-                    <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-                      <span>Grand Total:</span>
-                      <span className="tabular-nums">₱{fmt(vl_grandTotal)}</span>
-                    </div>
+                    {(paymentMethod === "cash" || paymentMethod === "credit") && (
+                          <div className="flex justify-between font-bold text-gray-800">
+                            <span>Grand Total</span>
+
+                            <span className="text-3xl font-extrabold text-black">
+                              ₱{fmt(n(amountDue) || n(totalAmount))}
+                            </span>
+                          </div>
+
+                      )}
                   </div>
                 </div>
               </div>
