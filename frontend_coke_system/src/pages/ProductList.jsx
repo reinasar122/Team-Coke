@@ -1,8 +1,8 @@
-// ProductList.jsx - COMPLETE INTEGRATION WITH ALL OLD VERSION FEATURES
+// ProductList.jsx - COMPLETE INTEGRATION WITH ALL OLD VERSION FEATURES + SEARCH BAR
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
 import { Link } from 'react-router-dom';
-import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaChevronDown } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaChevronDown, FaSearch, FaTimes } from 'react-icons/fa';
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
 import { notifyProductChange } from '../utils/productNotifier';
 import { getCurrentWarehouse, findWarehouseByName, getWarehouseAxiosConfig } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
@@ -16,6 +16,7 @@ const ProductList = () => {
   const [viewMode, setViewMode] = useState('carousel');
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ KEPT: from old version
+  const [searchQuery, setSearchQuery] = useState('');
   const gridRef = useRef(null);
 
   useEffect(() => {
@@ -99,6 +100,19 @@ const ProductList = () => {
     return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
   }, [setupWarehouse]);
 
+  // Filter products based on search query
+  const filteredProducts = products.filter(product => {
+    if (!searchQuery.trim()) return true;
+    
+    const query = searchQuery.toLowerCase();
+    return (
+      product.product_name?.toLowerCase().includes(query) ||
+      product.system_code?.toLowerCase().includes(query) ||
+      product.supplier_code?.toLowerCase().includes(query) ||
+      product.product_category?.name?.toLowerCase().includes(query)
+    );
+  });
+
   // Calculate products per page based on zoom level (only for carousel mode)
   const calculateProductsPerPage = useCallback(() => {
     let zoomLevel = 1;
@@ -174,18 +188,18 @@ const ProductList = () => {
     if (viewMode === 'table') {
       setShowPagination(false);
     } else {
-      setShowPagination(products.length > productsPerPage);
+      setShowPagination(filteredProducts.length > productsPerPage);
     }
     setCurrentPage(0);
-  }, [products.length, productsPerPage, viewMode]);
+  }, [filteredProducts.length, productsPerPage, viewMode]);
 
-  const totalPages = Math.ceil(products.length / productsPerPage);
+  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
   const startIndex = currentPage * productsPerPage;
   const endIndex = startIndex + productsPerPage;
   
   const currentProducts = viewMode === 'table' 
-    ? products 
-    : products.slice(startIndex, endIndex);
+    ? filteredProducts 
+    : filteredProducts.slice(startIndex, endIndex);
 
   const nextPage = () => {
     setCurrentPage(prev => (prev + 1) % totalPages);
@@ -202,6 +216,16 @@ const ProductList = () => {
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
     setDropdownOpen(false);
+    setCurrentPage(0);
+  };
+
+  const handleSearchChange = (e) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(0); // Reset to first page when searching
+  };
+
+  const clearSearch = () => {
+    setSearchQuery('');
     setCurrentPage(0);
   };
 
@@ -478,6 +502,83 @@ const ProductList = () => {
         </Link>
       </div>
 
+      {/* Search Bar */}
+      <div style={{ marginBottom: '20px' }}>
+        <div style={{ position: 'relative', maxWidth: '500px' }}>
+          <div style={{ position: 'relative' }}>
+            <FaSearch style={{
+              position: 'absolute',
+              left: '12px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              color: '#9ca3af',
+              fontSize: '14px'
+            }} />
+            <input
+              type="text"
+              placeholder="Search products by name, system code, supplier code, or category..."
+              value={searchQuery}
+              onChange={handleSearchChange}
+              style={{
+                width: '100%',
+                padding: '12px 12px 12px 40px',
+                border: '1px solid #e5e7eb',
+                borderRadius: '8px',
+                fontSize: '14px',
+                background: '#fff',
+                color: '#374151',
+                paddingRight: searchQuery ? '40px' : '12px',
+                transition: 'all 0.2s ease',
+                outline: 'none'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = '#5D5CDE';
+                e.target.style.boxShadow = '0 0 0 3px rgba(93, 92, 222, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = '#e5e7eb';
+                e.target.style.boxShadow = 'none';
+              }}
+            />
+            {searchQuery && (
+              <button
+                onClick={clearSearch}
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  background: 'none',
+                  border: 'none',
+                  color: '#9ca3af',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  borderRadius: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
+                title="Clear search"
+                onMouseEnter={(e) => e.target.style.color = '#6b7280'}
+                onMouseLeave={(e) => e.target.style.color = '#9ca3af'}
+              >
+                <FaTimes style={{ fontSize: '12px' }} />
+              </button>
+            )}
+          </div>
+        </div>
+        {searchQuery && (
+          <div style={{
+            marginTop: '8px',
+            fontSize: '14px',
+            color: '#6b7280'
+          }}>
+            Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
+            {filteredProducts.length > 0 && ` matching "${searchQuery}"`}
+          </div>
+        )}
+      </div>
+
       {/* Close dropdown when clicking outside */}
       {dropdownOpen && (
         <div 
@@ -497,6 +598,33 @@ const ProductList = () => {
       {products.length === 0 ? (
         <div className="empty-state">
           <p className="text-muted">No products found for {currentWarehouse.name}.</p>
+        </div>
+      ) : filteredProducts.length === 0 ? (
+        <div className="empty-state">
+          <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+            <FaSearch style={{ fontSize: '48px', color: '#d1d5db', marginBottom: '16px' }} />
+            <h3 style={{ margin: '0 0 8px 0', color: '#374151', fontSize: '18px', fontWeight: '600' }}>
+              No products found
+            </h3>
+            <p className="text-muted" style={{ margin: '0 0 16px 0' }}>
+              No products match your search for "{searchQuery}"
+            </p>
+            <button
+              onClick={clearSearch}
+              style={{
+                padding: '8px 16px',
+                background: '#5D5CDE',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+            >
+              Clear search
+            </button>
+          </div>
         </div>
       ) : viewMode === 'table' ? (
         /* Table View */
@@ -608,7 +736,7 @@ const ProductList = () => {
             color: '#6b7280',
             fontSize: '14px'
           }}>
-            Showing all {products.length} products for {currentWarehouse.name}
+            Showing {searchQuery ? `${filteredProducts.length} filtered` : `all ${products.length}`} products for {currentWarehouse.name}
           </div>
         </>
       ) : (
@@ -864,7 +992,7 @@ const ProductList = () => {
               color: '#6b7280',
               fontSize: '14px'
             }}>
-              Showing {startIndex + 1}-{Math.min(endIndex, products.length)} of {products.length} products for {currentWarehouse.name}
+              Showing {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} of {filteredProducts.length} {searchQuery ? 'filtered ' : ''}products for {currentWarehouse.name}
               <span style={{ marginLeft: '8px', fontSize: '12px', opacity: 0.8 }}>
                 ({productsPerPage} per page)
               </span>
