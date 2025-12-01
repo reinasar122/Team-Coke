@@ -972,8 +972,12 @@ const PaymentModal = ({
 
                     <div className="border-t mt-2 pt-2 flex justify-between font-bold">
                       <span>Grand Total:</span>
-                      <span className="tabular-nums">₱{fmt(vl_grandTotal)}</span>
+
+                      <span className="tabular-nums text-3xl font-extrabold text-black">
+                        ₱{fmt(vl_grandTotal)}
+                      </span>
                     </div>
+
                   </div>
                 </div>
               </div>
@@ -1031,18 +1035,16 @@ const PaymentModal = ({
         <div className="mt-6 text-sm">
           <h3 className="font-semibold mb-2">Payment Method</h3>
           <div className="flex gap-4 mb-4">
-            {["cash", "bank"].map((method) => (
-              <button
-                key={method}
-                className={`px-4 py-2 rounded border ${
-                  paymentMethod === method ? "bg-blue-500 text-white" : "bg-gray-100"
-                }`}
-                onClick={() => setPaymentMethod(method)}
-              >
-                {method === "cash" ? "Cash" : "E-wallet"}
-              </button>
-            ))}
+            <button
+              className={`px-4 py-2 rounded border ${
+                paymentMethod === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"
+              }`}
+              onClick={() => setPaymentMethod("cash")}
+            >
+              Cash
+            </button>
           </div>
+
 
 
           {paymentMethod === "cash" && (
@@ -1417,17 +1419,27 @@ const PaymentModal = ({
 
 
       {showInvoiceModal && (
-        <InvoiceModal
-          transactionTypes={transactionTypes}
-          onClose={() => {
-            setShowInvoiceModal(false);
-            if (typeof onClose === "function") onClose();
-          }}
-              invoiceData={{
-                 ...invoiceData,
-                  id: transactionId || invoiceData?.id || null }}
-        />
-      )}
+  <InvoiceModal
+    transactionTypes={transactionTypes}
+    onClose={() => {
+      // close invoice
+      setShowInvoiceModal(false);
+
+      // close payment modal in parent (if provided)
+      if (typeof onClose === "function") onClose();
+
+      // go back to Trading list
+      window.location.href = "/coke/trading";
+      // if your base path is different, match what you see in the URL bar
+      // e.g. "/coke/trading"
+    }}
+    invoiceData={{
+      ...invoiceData,
+      id: transactionId || invoiceData?.id || null,
+    }}
+  />
+)}
+
     </div>
   );
 };
