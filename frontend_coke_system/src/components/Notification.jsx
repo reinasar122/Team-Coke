@@ -2042,7 +2042,7 @@ const Notification = () => {
               // NEW PRODUCT CREATED
               addNotification('product_created', { 
                 ...product, 
-                warehouse_id: warehouseId
+                warehouse_id: productId
               }, userRole);
             }
 
