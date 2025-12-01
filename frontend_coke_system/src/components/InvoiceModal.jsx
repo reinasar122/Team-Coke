@@ -930,13 +930,13 @@ const PaymentModal = ({
 
           {/* Single Cash pill, no E-wallet */}
           <div className="flex gap-4 mb-4">
-            <button
-              className="px-4 py-2 rounded border bg-blue-500 text-white cursor-default"
-              type="button"
-            >
-              Cash
-            </button>
-          </div>
+          <button
+            className="px-4 py-2 rounded border bg-blue-500 text-white cursor-default"
+            type="button"
+          >
+            Cash
+          </button>
+        </div>
 
           {paymentMethod === "cash" && (
             <div className="grid grid-cols-2 gap-4">
