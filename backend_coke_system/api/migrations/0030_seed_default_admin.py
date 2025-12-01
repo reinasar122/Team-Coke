@@ -61,7 +61,7 @@ def seed_default_admin(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0029_delete_invoice_merchandising_empties_price_total_and_more'),
+        ('api', '0030_alter_supplier_company_name'),
     ]
 
     operations = [
