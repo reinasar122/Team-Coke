@@ -490,8 +490,7 @@ const PaymentModal = ({
 
 
   // ------------- early return AFTER hooks -------------
-  // Keep component alive while invoice is open
-if (!open) return null;
+  if (!open) return null;
 
 
   const subtotalFromRows = tableRows.reduce((sum, r) => sum + getRowActual(r), 0);
@@ -1420,27 +1419,17 @@ if (!open) return null;
 
 
       {showInvoiceModal && (
-  <InvoiceModal
-    transactionTypes={transactionTypes}
-    onClose={() => {
-      // close invoice
-      setShowInvoiceModal(false);
-
-      // close payment modal in parent (if provided)
-      if (typeof onClose === "function") onClose();
-
-      // go back to Trading list
-      window.location.href = "/coke/trading";
-      // if your base path is different, match what you see in the URL bar
-      // e.g. "/coke/trading"
-    }}
-    invoiceData={{
-      ...invoiceData,
-      id: transactionId || invoiceData?.id || null,
-    }}
-  />
-)}
-
+        <InvoiceModal
+          transactionTypes={transactionTypes}
+          onClose={() => {
+            setShowInvoiceModal(false);
+            if (typeof onClose === "function") onClose();
+          }}
+              invoiceData={{
+                 ...invoiceData,
+                  id: transactionId || invoiceData?.id || null }}
+        />
+      )}
     </div>
   );
 };
