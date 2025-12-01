@@ -1028,17 +1028,18 @@ const PaymentModal = ({
 
 
         {/* Payment Method */}
-        <div className="flex gap-4 mb-4">
-          <button
-            className={`px-4 py-2 rounded border ${
-              paymentMethod === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"
-            }`}
-            onClick={() => setPaymentMethod("cash")}
-          >
-            Cash
-          </button>
-        </div>
-
+        <div className="mt-6 text-sm">
+          <h3 className="font-semibold mb-2">Payment Method</h3>
+          <div className="flex gap-4 mb-4">
+            <button
+              className={`px-4 py-2 rounded border ${
+                paymentMethod === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"
+              }`}
+              onClick={() => setPaymentMethod("cash")}
+            >
+              Cash
+            </button>
+          </div>
 
 
           {paymentMethod === "cash" && (
