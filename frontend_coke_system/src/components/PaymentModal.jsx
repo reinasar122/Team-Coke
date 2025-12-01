@@ -1418,7 +1418,7 @@ const PaymentModal = ({
       </div>
 
 
-      {showInvoiceModal && (
+      {showInvoiceModal && invoiceData && (
   <InvoiceModal
     transactionTypes={transactionTypes}
     onClose={() => {
@@ -1430,15 +1430,14 @@ const PaymentModal = ({
 
       // go back to Trading list
       window.location.href = "/coke/trading";
-      // if your base path is different, match what you see in the URL bar
-      // e.g. "/coke/trading"
     }}
     invoiceData={{
       ...invoiceData,
-      id: transactionId || invoiceData?.id || null,
+      id: transactionId || invoiceData.id || null,
     }}
   />
 )}
+
 
     </div>
   );
