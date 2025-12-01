@@ -6,7 +6,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0030_alter_supplier_company_name'),
+        ('api', '0030_seed_default_admin.py'),
     ]
 
     operations = [
