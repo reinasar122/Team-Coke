@@ -56,6 +56,26 @@ export default function SalesReport() {
     return () => (cancelled = true);
   }, []);
 
+
+  // Listen for warehouse changes from header
+  useEffect(() => {
+    const handleWarehouseChange = (event) => {
+      const { warehouse } = event.detail || {};
+      if (warehouse?.id) {
+        setFilters(prevFilters => ({
+          ...prevFilters,
+          warehouse: warehouse.id
+        }));
+      }
+    };
+
+    window.addEventListener("warehouseChanged", handleWarehouseChange);
+    
+    return () => {
+      window.removeEventListener("warehouseChanged", handleWarehouseChange);
+    };
+  }, []);
+
   // Fetch sales report data
   useEffect(() => {
     let alive = true;
