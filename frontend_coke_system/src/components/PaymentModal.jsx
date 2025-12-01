@@ -1012,10 +1012,14 @@ const PaymentModal = ({
                   </div>
 
 
-                  <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-                    <span>Total Amount Due:</span>
-                    <span className="tabular-nums">₱{fmt(totalAmountFinal)}</span>
-                  </div>
+                  {/* Karen changes */}
+                    <div className="border-t mt-2 pt-2 flex justify-between font-bold">
+                      <span>Total Amount Due:</span>
+
+                      <span className="tabular-nums text-3xl font-extrabold text-black">
+                        ₱{fmt(totalAmountFinal)}
+                      </span>
+                    </div>
                 </div>
               </>
             )}

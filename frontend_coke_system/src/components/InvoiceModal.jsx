@@ -956,12 +956,13 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                       {/* 🔹 Add a divider after Actual Sales */}
                       <div className="border-t border-gray-300 my-2"></div>
 
-                      {(paymentMethod === "cash" || paymentMethod === "credit") && (
-                        <div className="flex justify-between font-bold text-gray-800">
-                          <span>Amount Due:</span>
-                          <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
-                        </div>
-                      )}
+                      {/* Karen changes*/}
+                      <div className="flex justify-between font-bold text-gray-800">
+                        <span className="text-lg">Amount Due:</span>
+                        <span className="text-3xl font-extrabold text-black">
+                          ₱{fmt(n(amountDue) || n(totalAmount))}
+                        </span>
+                      </div>
 
                     </div>
                   )}
