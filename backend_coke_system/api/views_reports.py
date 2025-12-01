@@ -320,33 +320,40 @@ class SalesReportAPIView(APIView):
 
 
         # ------------------------------
-        # Return Rate (average)
+        # Return Rate (weighted by totals)
         # ------------------------------
-        DEC_RATE = DecimalField(max_digits=10, decimal_places=4)
-        ZRATE = Decimal("0.0")
-
         base_qs = MerchandisingItem.objects.filter(items_base_q)
-        shell_avg = base_qs.filter(dispatched_shell__gt=0).aggregate(
-            avg=Coalesce(
-                Avg(ExpressionWrapper(
-                    Cast(F("empty_return_shell"), DEC_RATE) / Cast(F("dispatched_shell"), DEC_RATE),
-                    output_field=DEC_RATE
-                )),
-                ZRATE
-            )
-        )["avg"] or Decimal("0.0")
 
-        pcs_avg = base_qs.filter(dispatched_pcs__gt=0).aggregate(
-            avg=Coalesce(
-                Avg(ExpressionWrapper(
-                    Cast(F("empty_return_pcs"), DEC_RATE) / Cast(F("dispatched_pcs"), DEC_RATE),
-                    output_field=DEC_RATE
-                )),
-                ZRATE
-            )
-        )["avg"] or Decimal("0.0")
+        totals = base_qs.aggregate(
+            total_disp_shell=Coalesce(Sum("dispatched_shell"), 0),
+            total_empty_shell=Coalesce(Sum("empty_return_shell"), 0),
+            total_disp_pcs=Coalesce(Sum("dispatched_pcs"), 0),
+            total_empty_pcs=Coalesce(Sum("empty_return_pcs"), 0),
+        )
 
-        returned_rate = float((shell_avg + pcs_avg) / Decimal("2"))  # averaged
+        # Convert to Decimal for safe division
+        total_disp_shell = Decimal(totals["total_disp_shell"] or 0)
+        total_empty_shell = Decimal(totals["total_empty_shell"] or 0)
+        total_disp_pcs = Decimal(totals["total_disp_pcs"] or 0)
+        total_empty_pcs = Decimal(totals["total_empty_pcs"] or 0)
+
+        shell_rate = Decimal("0")
+        if total_disp_shell > 0:
+            shell_rate = (total_empty_shell / total_disp_shell)
+
+        pcs_rate = Decimal("0")
+        if total_disp_pcs > 0:
+            pcs_rate = (total_empty_pcs / total_disp_pcs)
+
+        # If both exist, average them; otherwise use whichever is non-zero
+        if total_disp_shell > 0 and total_disp_pcs > 0:
+            avg_rate = (shell_rate + pcs_rate) / Decimal("2")
+        else:
+            avg_rate = shell_rate or pcs_rate
+
+        # Send as float (fraction; frontend multiplies by 100 for %)
+        returned_rate = float(avg_rate)
+
 
         # ------------------------------
         # By Route / Warehouse

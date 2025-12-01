@@ -17,7 +17,7 @@ export default function ProductBreakdownTable({
 }) {
   const headers = [
     { key: "product", label: "Product" },
-    { key: "qty", label: "Qty Sold" },
+    { key: "qty", label: "Dispatched Units" },
     { key: "revenue", label: "Net Revenue" },
     { key: "profit", label: "Product Profit" },
     { key: "cogs", label: "Cost of Sales" },
@@ -104,7 +104,7 @@ export default function ProductBreakdownTable({
         <table className="min-w-full text-sm border-collapse">
           <colgroup>
             <col className="w-[18%]" /> {/* Product */}
-            <col className="w-[10%]" /> {/* Qty */}
+            <col className="w-[10%]" /> {/* Dispatched Units */}
             <col className="w-[16%]" /> {/* Net Revenue */}
             <col className="w-[16%]" /> {/* Product Profit */}
             <col className="w-[15%]" /> {/* COGS */}
