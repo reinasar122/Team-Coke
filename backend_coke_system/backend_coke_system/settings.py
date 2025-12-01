@@ -99,6 +99,13 @@ DATABASES = {
          'PORT': '3306',
      }
  }
+# ✅ ADD THIS BLOCK
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.db.DatabaseCache",
+        "LOCATION": "otp_cache_table",
+    }
+}
  
 
 # Password validation
