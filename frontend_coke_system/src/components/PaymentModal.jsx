@@ -490,9 +490,7 @@ const PaymentModal = ({
 
 
   // ------------- early return AFTER hooks -------------
-  // Keep component alive while invoice is shown
-if (!open && !showInvoiceModal) return null;
-
+  if (!open) return null;
 
 
   const subtotalFromRows = tableRows.reduce((sum, r) => sum + getRowActual(r), 0);
@@ -1402,11 +1400,8 @@ if (!open && !showInvoiceModal) return null;
 
 
                 // 3) Show invoice
-                // 3) Show invoice
-                console.log("✅ Reached: showing invoice modal now", data);
                 setInvoiceData(data);
                 setShowInvoiceModal(true);
-
               } catch (e) {
                 console.error(e);
                
@@ -1423,27 +1418,18 @@ if (!open && !showInvoiceModal) return null;
       </div>
 
 
-      {showInvoiceModal && invoiceData && (
-  <InvoiceModal
-    transactionTypes={transactionTypes}
-    onClose={() => {
-      // close invoice
-      setShowInvoiceModal(false);
-
-      // close payment modal in parent (if provided)
-      if (typeof onClose === "function") onClose();
-
-      // go back to Trading list
-      window.location.href = "/coke/trading";
-    }}
-    invoiceData={{
-      ...invoiceData,
-      id: transactionId || invoiceData.id || null,
-    }}
-  />
-)}
-
-
+      {showInvoiceModal && (
+        <InvoiceModal
+          transactionTypes={transactionTypes}
+          onClose={() => {
+            setShowInvoiceModal(false);
+            if (typeof onClose === "function") onClose();
+          }}
+              invoiceData={{
+                 ...invoiceData,
+                  id: transactionId || invoiceData?.id || null }}
+        />
+      )}
     </div>
   );
 };
