@@ -490,7 +490,9 @@ const PaymentModal = ({
 
 
   // ------------- early return AFTER hooks -------------
-  if (!open) return null;
+  // Keep component alive while invoice is shown
+if (!open && !showInvoiceModal) return null;
+
 
 
   const subtotalFromRows = tableRows.reduce((sum, r) => sum + getRowActual(r), 0);
@@ -1400,8 +1402,11 @@ const PaymentModal = ({
 
 
                 // 3) Show invoice
+                // 3) Show invoice
+                console.log("✅ Reached: showing invoice modal now", data);
                 setInvoiceData(data);
                 setShowInvoiceModal(true);
+
               } catch (e) {
                 console.error(e);
                
