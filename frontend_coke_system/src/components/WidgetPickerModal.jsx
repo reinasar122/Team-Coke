@@ -27,7 +27,6 @@ export const SECTIONS = [
     label: "Report",
     items: [
       { id: "salesreport", name: "Sales Report", route: "/salesreport" },
-      { id: "inventoryreport", name: "Inventory Report", route: "/inventoryreport" },
     ],
   },
   {

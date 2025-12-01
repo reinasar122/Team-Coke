@@ -1,4 +1,4 @@
-// src/pages/Dashboard.jsx - FIXED VERSION WITH PROPER REACT ROUTER NAVIGATION
+// src/pages/Dashboard.jsx - FIXED VERSION WITH WAREHOUSE UTILS INTEGRATION + API IMPORT
 import React, {
   useEffect,
   useMemo,
@@ -8,7 +8,7 @@ import React, {
   memo,
   useRef,
 } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import axios from "axios";
 import "../styles/dashboard.scss";
 import Statistics, { getPeriodRange, periodOptions } from "../components/Statistics";
@@ -491,6 +491,27 @@ const SupplierReturnsWidget = memo(function SupplierReturnsWidget({ rows }) {
   );
 });
 
+const InvoiceWidget = memo(function InvoiceWidget({ rows }) {
+  return (
+    <TableShell
+      headers={[
+        { key: "invoice_no", label: "Invoice #" },
+        { key: "msp_no", label: "MSP No." },
+        { key: "transaction_type_name", label: "Type", truncate: true },
+        {
+          key: "date",
+          label: "Date",
+          right: true,
+          render: (v) => (v ? formatToManila(v) : "--"),
+        },
+      ]}
+      rows={rows}
+      emptyText="No recent invoices"
+    />
+  );
+});
+
+
 const ReturnEmptiesWidget = memo(function ReturnEmptiesWidget({ rows }) {
   return (
     <TableShell
@@ -513,14 +534,21 @@ const UsersWidget = memo(function UsersWidget({ rows }) {
     <TableShell
       headers={[
         { key: "name", label: "Name", truncate: true },
-        { key: "username", label: "Username" },
-        { key: "role", label: "Role", right: true },
+        { key: "role", label: "Role" },
+        { key: "warehouse", label: "Warehouse", truncate: true },
+        {
+          key: "is_active",
+          label: "Status",
+          right: true,
+          render: (v) => (v ? "Active" : "Inactive"),
+        },
       ]}
       rows={rows}
       emptyText="No users found"
     />
   );
 });
+
 
 const RolesWidget = memo(function RolesWidget({ rows }) {
   return (
@@ -616,7 +644,34 @@ const CreditWidget = memo(function CreditWidget({ rows, summary }) {
   );
 });
 
-/* -------------------- FIXED: generic sidebar widget with proper navigation -------------------- */
+
+const SalesReportWidget = memo(function SalesReportWidget({
+  revenue,
+  profit,
+  productsSold,
+}) {
+  return (
+    <div className="text-[11px] text-slate-700 space-y-1">
+      <div className="flex justify-between">
+        <span>Revenue</span>
+        <span className="font-semibold">{peso(revenue)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Profit</span>
+        <span className="font-semibold">{peso(profit)}</span>
+      </div>
+      <div className="flex justify-between">
+        <span>Products sold</span>
+        <span className="font-semibold">
+          {Number(productsSold || 0).toLocaleString()}
+        </span>
+      </div>
+    </div>
+  );
+});
+
+
+/* -------------------- generic sidebar widget -------------------- */
 const GenericSidebarWidget = memo(function GenericSidebarWidget({
   id,
   title,
@@ -624,16 +679,9 @@ const GenericSidebarWidget = memo(function GenericSidebarWidget({
   children,
   onRemove,
 }) {
-  const navigate = useNavigate();
   const handleClose = useCallback(() => onRemove?.(id), [onRemove, id]);
-  const handleClick = useCallback(() => {
-    if (route) {
-      navigate(route);
-    }
-  }, [navigate, route]);
-  
   return (
-    <MiniCard title={title} onClick={handleClick} onClose={handleClose} accentKey={id}>
+    <MiniCard title={title} onClick={() => (window.location.href = route)} onClose={handleClose} accentKey={id}>
       <div className="w-full">{children}</div>
     </MiniCard>
   );
@@ -678,9 +726,8 @@ const getDataAvailability = (lists) => {
     vans: hasData(lists.vansList),
     suppliers: hasData(lists.suppliersList),
     warehouses: hasData(lists.warehousesList),
-    invoice: false,
+    invoice: hasData(lists.invoiceList),
     salesreport: hasData(lists.salesPoints),
-    inventoryreport: hasData(lists.productsList),
     settings: true,
   };
 };
@@ -743,6 +790,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
         profitPoints: [],
         miscPoints: [],
         totals: { revenue: 0, cogs: 0, discounts: 0, misc: 0, profit: 0 },
+        invoiceList: [], 
       },
       availableWarehouses: [],
     };
@@ -947,9 +995,25 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   const supplierReturns = strictFilterByWarehouse(combinedData.supplierReturns, warehouseIds, 'supplierReturns');
   const merch = strictFilterByWarehouse(combinedData.merch, warehouseIds, 'merch');
   const suppliers = strictFilterByWarehouse(combinedData.suppliers, warehouseIds, 'suppliers');
-  const users = strictFilterByWarehouse(combinedData.users, warehouseIds, 'users');
+  let users = strictFilterByWarehouse(combinedData.users, warehouseIds, 'users');
   const roles = combinedData.roles; // Roles are global, don't filter
   const vans = strictFilterByWarehouse(combinedData.vans, warehouseIds, 'vans');
+
+  // 🔁 Fallback: if warehouse-filtered users is empty, load global users
+  if (!users.length) {
+    try {
+      const usersGlobalRes = await api.get("/users/");
+      const rawUsers = Array.isArray(usersGlobalRes.data)
+        ? usersGlobalRes.data
+        : usersGlobalRes.data?.results || usersGlobalRes.data?.data || [];
+      users = rawUsers;
+      console.log("ℹ️ Using global users list for dashboard:", users.length);
+    } catch (err) {
+      console.warn("⚠️ Failed to load global users list:", err);
+      users = [];
+    }
+  }
+
   
   console.log('✅ FINAL filtered data counts after strict warehouse filtering:', {
     stocks: stocks.length,
@@ -1051,6 +1115,28 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       source_warehouse_id: t.source_warehouse_id,
     }));
 
+  // 🔎 Invoice small list (from merch / merchandisings)
+  const invoiceList = [...merch]
+    .filter((m) => {
+      const date = m.date_time || m.created_at || m.updated_at;
+      const hasInvoiceRef = m.invoice_no || m.msp_no;
+      return hasInvoiceRef && (!date || isWithinDateRange(date));
+    })
+    .sort(
+      (a, b) =>
+        new Date(b.date_time || b.created_at || b.updated_at || 0) -
+        new Date(a.date_time || a.created_at || a.updated_at || 0)
+    )
+    .slice(0, 5)
+    .map((m) => ({
+      id: m.id,
+      invoice_no: m.invoice_no || "—",
+      msp_no: m.msp_no || `MSP-${m.id}`,
+      transaction_type_name: m.transaction_type_name || m.transaction_type || "--",
+      date: m.date_time || m.created_at || m.updated_at || null,
+    }));
+
+
   // DATE FILTERING: Apply to supplier returns
   const supplierReturnsList = [...supplierReturns]
     .filter((sr) => !sr.date || isWithinDateRange(sr.date))
@@ -1150,7 +1236,10 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       "--",
     username: u.username || "--",
     role: u.role?.name || u.role || u.role_name || "--",
+    warehouse: u.warehouse?.name || "—",
+    is_active: Boolean(u.is_active),
   }));
+
 
   const rolesList = roles.slice(0, 5).map((r) => ({
     id: r.id,
@@ -1388,6 +1477,8 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       profitPoints,
       miscPoints,
       totals,
+      invoiceList,   // ✅ add
+
     },
     availableWarehouses: warehouses.map(w => ({
       id: w.id,
@@ -1398,10 +1489,9 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   };
 }
 
-/* -------------------- Dashboard Component (Fixed with React Router navigation) -------------------- */
+/* -------------------- Dashboard Component (Fixed with warehouse utils) -------------------- */
 const Dashboard = () => {
   const location = useLocation();
-  const navigate = useNavigate(); // ✅ Added useNavigate hook
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(loadSelection());
 
@@ -1430,6 +1520,7 @@ const Dashboard = () => {
     profitPoints: [],
     miscPoints: [],
     totals: { revenue: 0, cogs: 0, discounts: 0, misc: 0, profit: 0 },
+    invoiceList: null,
   });
   const [lastUpdated, setLastUpdated] = useState(null);
   const [availableWarehouses, setAvailableWarehouses] = useState([]);
@@ -1514,6 +1605,7 @@ const Dashboard = () => {
             profitPoints: [],
             miscPoints: [],
             totals: { revenue: 0, cogs: 0, discounts: 0, misc: 0, profit: 0 },
+            invoiceList: [],
           });
           setLastUpdated(new Date());
         });
@@ -1669,6 +1761,15 @@ const Dashboard = () => {
     return { revenue, profit, misc };
   }, [lists, period, customStartDate, customEndDate]);
 
+  const smallSummary = {
+    revenue: periodSums.revenue ?? 0,
+    profit: periodSums.profit ?? 0,
+    misc: periodSums.misc ?? 0,
+    productsSold: metrics?.productsSold ?? 0,
+    todaysReturns: metrics?.todaysReturns ?? 0,
+  };
+
+
   // Debug logging
   console.log('📊 Dashboard Debug:', {
     totalProducts: metrics?.totalProducts,
@@ -1757,6 +1858,8 @@ const Dashboard = () => {
           />
         </div>
 
+        
+
         {/* STATISTICS CHART */}
         <Statistics
           metrics={metrics}
@@ -1804,6 +1907,24 @@ const Dashboard = () => {
               const id = item.id;
               const route = item.route;
               const uniqueKey = `widget-${id}-${widgetIndex}`;
+
+              if (id === "salesreport") {
+                return (
+                  <GenericSidebarWidget
+                    key={uniqueKey}
+                    id={id}
+                    title={item.name}
+                    route={route}
+                    onRemove={removeWidget}
+                  >
+                    <SalesReportWidget
+                      revenue={periodSums.revenue ?? 0}
+                      profit={periodSums.profit ?? 0}
+                      productsSold={metrics?.productsSold ?? 0}
+                    />
+                  </GenericSidebarWidget>
+                );
+              }
 
               if (id === "stocks") {
                 return (
@@ -1900,12 +2021,27 @@ const Dashboard = () => {
                   </GenericSidebarWidget>
                 );
               }
+              if (id === "invoice") {
+                return (
+                  <GenericSidebarWidget
+                    key={uniqueKey}
+                    id={id}
+                    title={item.name}
+                    route={route}
+                    onRemove={removeWidget}
+                  >
+                    <InvoiceWidget rows={lists.invoiceList} />
+                  </GenericSidebarWidget>
+                );
+              }
+
 
               return (
                 <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget} />
               );
             }),
-          [visibleSelectedItems, removeWidget, lists]
+          [visibleSelectedItems, removeWidget, lists, metrics, periodSums]
+
         )}
 
         {/* Empty state */}
