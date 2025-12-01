@@ -1028,21 +1028,17 @@ const PaymentModal = ({
 
 
         {/* Payment Method */}
-        <div className="mt-6 text-sm">
-          <h3 className="font-semibold mb-2">Payment Method</h3>
-          <div className="flex gap-4 mb-4">
-            {["cash", "bank"].map((method) => (
-              <button
-                key={method}
-                className={`px-4 py-2 rounded border ${
-                  paymentMethod === method ? "bg-blue-500 text-white" : "bg-gray-100"
-                }`}
-                onClick={() => setPaymentMethod(method)}
-              >
-                {method === "cash" ? "Cash" : "E-wallet"}
-              </button>
-            ))}
-          </div>
+        <div className="flex gap-4 mb-4">
+          <button
+            className={`px-4 py-2 rounded border ${
+              paymentMethod === "cash" ? "bg-blue-500 text-white" : "bg-gray-100"
+            }`}
+            onClick={() => setPaymentMethod("cash")}
+          >
+            Cash
+          </button>
+        </div>
+
 
 
           {paymentMethod === "cash" && (
