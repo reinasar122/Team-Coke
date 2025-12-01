@@ -8,7 +8,7 @@ import React, {
   memo,
   useRef,
 } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import axios from "axios";
 import "../styles/dashboard.scss";
 import Statistics, { getPeriodRange, periodOptions } from "../components/Statistics";
@@ -679,9 +679,16 @@ const GenericSidebarWidget = memo(function GenericSidebarWidget({
   children,
   onRemove,
 }) {
+  const navigate = useNavigate(); // ✅ Added useNavigate hook
   const handleClose = useCallback(() => onRemove?.(id), [onRemove, id]);
+  const handleClick = useCallback(() => {
+    if (route) {
+      navigate(route); // ✅ Uses React Router's client-side navigation
+    }
+  }, [navigate, route]); // ✅ Added navigate to dependencies
+  
   return (
-    <MiniCard title={title} onClick={() => (window.location.href = route)} onClose={handleClose} accentKey={id}>
+    <MiniCard title={title} onClick={handleClick} onClose={handleClose} accentKey={id}>
       <div className="w-full">{children}</div>
     </MiniCard>
   );
@@ -1492,6 +1499,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
 /* -------------------- Dashboard Component (Fixed with warehouse utils) -------------------- */
 const Dashboard = () => {
   const location = useLocation();
+   const navigate = useNavigate(); // ✅ Added useNavigate hook
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(loadSelection());
 
