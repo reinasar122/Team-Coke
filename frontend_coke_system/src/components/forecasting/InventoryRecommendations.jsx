@@ -2,7 +2,7 @@
 import React from "react";
 
 export const InventoryRecommendations = ({ data }) => {
-  const format = (n) => n.toLocaleString();
+  const format = (n) => Number(n || 0).toLocaleString();
 
   return (
     <>
@@ -40,7 +40,7 @@ export const InventoryRecommendations = ({ data }) => {
                   {format(row.forecast30Day)}
                 </td>
                 <td className="px-4 py-3 text-right text-gray-800">
-                  {format(row.currentStock)} {/* Display current stock here */}
+                  {format(row.currentStock)}
                 </td>
                 <td className="px-4 py-3 text-right">
                   {row.restock > 0 ? (

@@ -1,6 +1,5 @@
-// src/pages/ForecastingDashboard.jsx
 import React, { useMemo, useState, useEffect } from "react";
-import api from "../api"; // ✅ centralized API instance
+import { toast } from "react-toastify"; // Add toast to handle error messages
 
 import { ForecastOverviewCards } from "../components/forecasting/ForecastOverviewCards";
 import { ProductSelector } from "../components/forecasting/ProductSelector";
@@ -10,22 +9,15 @@ import { BestSellerRanking } from "../components/forecasting/BestSellerRanking";
 import { InventoryRecommendations } from "../components/forecasting/InventoryRecommendations";
 import { SeasonalInsights } from "../components/forecasting/SeasonalInsights";
 import { HolidayCalendar } from "../components/forecasting/HolidayCalendar";
+import api from "../api"; // Import the API helper
 
-// token helper
+const API_BASE = "http://127.0.0.1:8080/api";
+
 const getToken = () =>
   localStorage.getItem("accessToken") ||
   localStorage.getItem("token") ||
   localStorage.getItem("access");
 
-// attach Authorization header when token exists
-const authHeaders = () => {
-  const token = getToken();
-  return token
-    ? { headers: { Authorization: `Bearer ${token}` } }
-    : {};
-};
-
-// helper: if DRF uses pagination
 const extractList = (data) => {
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data.results)) return data.results;
@@ -44,24 +36,22 @@ export default function ForecastingDashboard() {
   const [bestSellerData, setBestSellerData] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
 
+  // NEW: stocks from backend
   const [stocks, setStocks] = useState([]);
 
+  // -----------------------
   // 1) Fetch product list
+  // -----------------------
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await api.get("/products/"); // ✅ api style
-
-        console.log("👉 /products/ response:", res.data);
-
+        const res = await api.get("products/"); // Use api helper
         const data = res.data;
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data.results)
-          ? data.results
-          : [];
-
-        console.log("👉 parsed product list:", list);
+            ? data.results
+            : [];
 
         setProducts(list);
 
@@ -83,21 +73,23 @@ export default function ForecastingDashboard() {
     fetchProducts();
   }, []);
 
-
   // -----------------------
   // 1b) Fetch stocks
   // -----------------------
   useEffect(() => {
     const fetchStocks = async () => {
       try {
-        const res = await api.get("/stocks/"); // Fetch stock data
+        const res = await api.get("stocks/"); // Use api helper
+        console.log("👉 /api/stocks/ response:", res.data);
+
         const data = res.data;
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data.results)
-          ? data.results
-          : [];
+            ? data.results
+            : [];
 
+        console.log("👉 parsed stocks list:", list);
         setStocks(list);
       } catch (err) {
         console.error("❌ Failed to load stocks:", err);
@@ -108,15 +100,84 @@ export default function ForecastingDashboard() {
   }, []);
 
 
+  // Build a fast lookup map: productId -> quantity
+  const stockByProductId = useMemo(() => {
+    const map = {};
+    stocks.forEach((s) => {
+      const id =
+        s.product?.id ??  // most likely shape
+        s.product_id ?? 
+        null;
+
+      if (id == null) return;
+
+      const qty =
+        s.quantity_available ?? 
+        s.quantity_available_pcs ?? 
+        s.quantity ?? 
+        s.current_stock ?? 
+        0;
+
+      map[Number(id)] = Number(qty) || 0;
+    });
+    return map;
+  }, [stocks]);
 
 
+  // somewhere near the top, get current warehouse id
+  const warehouseId =
+    JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
+
+  const getCurrentStock = (productName) => {
+    if (!productName || !stocks.length) return 0;
+
+    const normalized = productName.trim().toLowerCase();
+
+    // all rows for this product
+    const candidates = stocks.filter(
+      (s) =>
+        s.product_name &&
+        s.product_name.trim().toLowerCase() === normalized
+    );
+
+    if (!candidates.length) {
+      console.log("❌ No stock rows for", productName, "stocks:", stocks);
+      return 0;
+    }
+
+    // prefer matching warehouse; fallback to first
+    let row = candidates[0];
+    if (warehouseId != null) {
+      row =
+        candidates.find(
+          (s) => Number(s.warehouse) === Number(warehouseId)
+        ) || row;
+    } else {
+      row = candidates.find((s) => s.warehouse != null) || row;
+    }
+
+    const qty =
+      row.quantity_available ?? 
+      row.quantity_available_pcs ?? 
+      row.quantity ?? 
+      row.current_stock ?? 
+      0;
+
+    return Number(qty) || 0;
+  };
+
+
+  // -----------------------
   // 2) Fetch HOLIDAYS
+  // -----------------------
   useEffect(() => {
     const fetchHolidays = async () => {
       try {
-        const res = await api.get("/holidays/", authHeaders()); // ✅ api.get
+        const token = getToken();
 
-        console.log("👉 /holidays/ response:", res.data);
+        const res = await api.get("holidays/", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
         setHolidays(extractList(res.data));
       } catch (err) {
@@ -127,50 +188,113 @@ export default function ForecastingDashboard() {
     fetchHolidays();
   }, []);
 
-  // 3) Fetch FORECASTS when product changes
-useEffect(() => {
-  if (!selectedProductName || products.length === 0) return;
 
-  const fetchForecasts = async () => {
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    if (!selectedProductName || !products.length) return;
 
-    try {
-      const productObj = products.find(
-        (p) =>
-          (p.product_name || p.name || p.product) === selectedProductName
-      );
+    const fetchForecastForSelectedProduct = async () => {
+      setLoading(true);
+      setError(null);
 
-      if (!productObj) {
-        setForecastData([]);
+      try {
+        const token = getToken();
+
+        // Find the selected product
+        const productObj = products.find(
+          (p) => (p.product_name || p.name || p.product) === selectedProductName
+        );
+
+        if (!productObj) {
+          setForecastData([]);
+          setLoading(false);
+          return;
+        }
+
+        const res = await api.get("forecasts/", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+          params: { product_id: productObj.id },
+        });
+
+        setForecastData(extractList(res.data)); // Set forecast data for the selected product
+      } catch (err) {
+        console.error("❌ Failed to fetch forecasts:", err);
+        const msg =
+          err.response?.data?.detail ||
+          err.message ||
+          "Failed to fetch forecasts from API";
+        setError(msg);
+      } finally {
         setLoading(false);
-        return;
       }
+    };
 
-      const config = {
-        ...authHeaders(),
-        params: { product_id: productObj.id },
-      };
+    fetchForecastForSelectedProduct();
+  }, [selectedProductName, products]); // This only runs when a product is selected
 
-      const res = await api.get("/forecasts/", config); // ✅ api.get
 
-      setForecastData(extractList(res.data));
-    } catch (err) {
-      console.error("❌ Failed to fetch forecasts:", err);
-      const msg =
-        err.response?.data?.detail ||
-        err.message ||
-        "Failed to fetch forecasts from API";
-      setError(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  fetchForecasts();
-}, [selectedProductName, products]);
+  // -----------------------
+  // 3) Fetch FORECASTS when product changes
+  // -----------------------
+  useEffect(() => {
+    if (!products.length) return;
 
-  // Per-product best-seller + inventory
+    const fetchForecastsForAllProducts = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const token = getToken();
+
+        const allInventoryData = [];
+
+        // Loop over all products and fetch forecasts
+        for (const product of products) {
+          const res = await api.get("forecasts/", {
+            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            params: { product_id: product.id },
+          });
+
+          const forecasts = extractList(res.data);
+          const total30DayForecast = forecasts
+            .slice(0, 30)
+            .reduce((sum, row) => sum + (row.forecast || 0), 0);
+
+          // Fetch the current stock for each product
+          const currentStock = getCurrentStock(product.product_name);
+          const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
+
+          // Push the calculated data for each product
+          allInventoryData.push({
+            product: product.product_name,
+            forecast30Day: total30DayForecast,
+            currentStock,
+            restock: restockNeeded,
+          });
+        }
+
+        setInventoryData(allInventoryData); // Update inventory data state
+      } catch (err) {
+        console.error("❌ Failed to fetch forecasts:", err);
+        const msg =
+          err.response?.data?.detail ||
+          err.message ||
+          "Failed to fetch forecasts from API";
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchForecastsForAllProducts();
+  }, [products]); // Fetch all product forecasts when products change
+
+
+
+
+  // -----------------------
+  // 3b) Selected product summary + inventory
+  // -----------------------
   useEffect(() => {
     if (!forecastData.length || !selectedProductName) {
       setBestSellerData([]);
@@ -195,9 +319,8 @@ useEffect(() => {
       },
     ]);
 
-    // Getting the real stock (from your modified logic)
-    const currentStock = getCurrentStock(selectedProductName);  // <-- Check here
-    console.log("👉 Current stock for", selectedProductName, ":", currentStock); // Debugging log
+    // use REAL stock
+    const currentStock = getCurrentStock(selectedProductName);
     const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
 
     setInventoryData([
@@ -210,12 +333,17 @@ useEffect(() => {
     ]);
   }, [forecastData, selectedProductName, stocks]);
 
-
-  // GLOBAL BEST SELLER + INVENTORY FOR ALL PRODUCTS
+  // -----------------------
+  // GLOBAL BEST SELLER (all products)
+  // -----------------------
   useEffect(() => {
     const fetchGlobalForecasts = async () => {
       try {
-        const res = await api.get("/forecasts/", authHeaders()); // ✅ api.get
+        const token = getToken();
+
+        const res = await api.get("forecasts/", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
         const allForecasts = extractList(res.data);
         if (!allForecasts.length) return;
@@ -228,7 +356,6 @@ useEffect(() => {
         });
 
         const ranking = [];
-        const inventory = [];
 
         Object.keys(grouped).forEach((name) => {
           const forecast30 = grouped[name]
@@ -244,22 +371,15 @@ useEffect(() => {
             projectedSales: forecast30,
             speedCategory: speed,
           });
-
-          const currentStock = 500;
-          const restock = Math.max(forecast30 - currentStock, 0);
-
-          inventory.push({
-            product: name,
-            forecast30Day: forecast30,
-            currentStock,
-            restock,
-          });
         });
 
         ranking.sort((a, b) => b.projectedSales - a.projectedSales);
 
+        // Only update best sellers here
         setBestSellerData(ranking);
-        setInventoryData(inventory);
+
+        // Do NOT touch inventoryData here.
+        // It is handled by the selected-product effect.
       } catch (err) {
         console.log("❌ Global ranking failed:", err);
       }
@@ -268,12 +388,17 @@ useEffect(() => {
     fetchGlobalForecasts();
   }, [products, forecastData]);
 
-  // 4) Generate FORECAST (Prophet in backend)
+
+  // -----------------------
+  // 4) Generate FORECAST
+  // -----------------------
   const handleGenerateForecast = async (days = 30) => {
     setGenerating(true);
     setError(null);
 
     try {
+      const token = getToken();
+
       const productObj = products.find(
         (p) =>
           (p.product_name || p.name || p.product) === selectedProductName
@@ -286,15 +411,15 @@ useEffect(() => {
       }
 
       const res = await api.post(
-        "/forecasts/generate/",
+        "forecasts/generate/",
         {
           product: productObj.id,
           days,
         },
-        authHeaders() // ✅ api.post
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
       );
-
-      console.log("👉 /forecasts/generate/ response:", res.data);
 
       setForecastData(extractList(res.data));
     } catch (err) {
@@ -309,75 +434,19 @@ useEffect(() => {
     }
   };
 
-
-  // Function to get the current stock for a selected product
-  const getCurrentStock = (productName) => {
-  if (!productName || !stocks.length) {
-    console.log("❌ No product name or stocks data");
-    return 0;
-  }
-
-  const normalized = productName.trim().toLowerCase();
-
-  // Log stock candidates for debugging
-  console.log("👉 Searching for stock with product name:", normalized);
-
-  // Find the stock for this product
-  const candidates = stocks.filter(
-    (s) =>
-      s.product_name &&
-      s.product_name.trim().toLowerCase() === normalized
-  );
-
-  // Debug log the candidates
-  console.log("👉 Stock candidates for", productName, ":", candidates);
-
-  if (!candidates.length) {
-    console.log("❌ No stock rows for", productName, "stocks:", stocks);
-    return 0;
-  }
-
-  // Prefer matching warehouse; fallback to first stock row
-  let row = candidates[0];
-  const warehouseId = JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
-  
-  // Log warehouseId and candidates to debug warehouse selection
-  console.log("👉 Warehouse ID:", warehouseId);
-  if (warehouseId != null) {
-    row =
-      candidates.find(
-        (s) => Number(s.warehouse) === Number(warehouseId)
-      ) || row;
-  } else {
-    row = candidates.find((s) => s.warehouse != null) || row;
-  }
-
-  // Log the selected row for debugging
-  console.log("👉 Selected stock row:", row);
-
-  // Calculate the stock quantity
-  const qty =
-    row.quantity_available ?? 
-    row.quantity_available_pcs ?? 
-    row.quantity ?? 
-    row.current_stock ?? 
-    0;
-
-  console.log("👉 Returning current stock for", productName, ":", qty);
-  return Number(qty) || 0;
-};
-
-
-
-
-
+  // -----------------------
   // 5) Holiday handlers
+  // -----------------------
   const handleAddHoliday = async (holiday) => {
     try {
+      const token = getToken();
+
       const res = await api.post(
-        "/holidays/",
+        "holidays/",
         { name: holiday.name, date: holiday.date },
-        authHeaders() // ✅ api.post
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
       );
       setHolidays((prev) => [...prev, res.data]);
     } catch (err) {
@@ -387,14 +456,20 @@ useEffect(() => {
 
   const handleRemoveHoliday = async (id) => {
     try {
-      await api.delete(`/holidays/${id}/`, authHeaders()); // ✅ api.delete
+      const token = getToken();
+
+      await api.delete(`holidays/${id}/`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       setHolidays((prev) => prev.filter((h) => h.id !== id));
     } catch (err) {
       console.error("❌ Failed to remove holiday:", err);
     }
   };
 
+  // -----------------------
   // 6) Derived UI data
+  // -----------------------
   const productNames = products.map(
     (p) => p.product_name || p.name || p.product
   );
@@ -475,9 +550,7 @@ useEffect(() => {
     const yearlyPeakMonth = monthNames[peakMonthIdx];
 
     const first = Number(forecastData[0].forecast || 0);
-    const last = Number(
-      forecastData[forecastData.length - 1].forecast || 0
-    );
+    const last = Number(forecastData[forecastData.length - 1].forecast || 0);
     const diff = last - first;
     const threshold = first * 0.05;
 
@@ -494,10 +567,10 @@ useEffect(() => {
         row.actual != null
           ? Number(row.actual)
           : row.y != null
-          ? Number(row.y)
-          : row.real != null
-          ? Number(row.real)
-          : null;
+            ? Number(row.y)
+            : row.real != null
+              ? Number(row.real)
+              : null;
 
       const pred = Number(row.forecast || 0);
 
@@ -520,7 +593,9 @@ useEffect(() => {
     };
   }, [forecastData]);
 
+  // -----------------------
   // 7) Render
+  // -----------------------
   return (
     <div className="space-y-6">
       <ForecastOverviewCards {...overview} />
