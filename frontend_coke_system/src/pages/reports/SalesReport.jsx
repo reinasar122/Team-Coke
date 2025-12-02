@@ -305,7 +305,7 @@ export default function SalesReport() {
 
           <ProductBreakdownContainer
             key={`${filters.warehouse}-${filters.route}-${filters.period}-${filters.start}-${filters.end}`}
-            apiBase={API.replace("/api", "")}
+            apiBase={api.replace("/api", "")}
             warehouseId={filters.warehouse ?? "all"}
             routeId={filters.route ?? "all"}
             period={filters.period}
