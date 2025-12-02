@@ -93,11 +93,11 @@ export default function SalesReport() {
         const r = reportRes.data || {};
         setData({
           summary: {
-            gross_revenue: n(r?.summary?.revenue?.gross_revenue),
-            net_revenue: n(r?.summary?.revenue?.net_revenue),
-            net_profit: n(r?.summary?.revenue?.net_profit),
-            discounts: n(r?.summary?.discount?.total_amount),
-            returned_rate: n(r?.summary?.returned_rate ?? r?.summary?.return_rate),
+            gross_revenue: n(r?.summary?.revenue?.gross_revenue ?? 0),
+            net_revenue: n(r?.summary?.revenue?.net_revenue ?? 0),
+            net_profit: n(r?.summary?.revenue?.net_profit ?? 0),
+            discounts: n(r?.summary?.discount?.total_amount ?? 0),
+            returned_rate: n(r?.summary?.returned_rate ?? r?.summary?.return_rate ?? 0),
           },
           sales_by_warehouse: Array.isArray(r?.by_warehouse)
             ? r.by_warehouse.map((x) => ({
@@ -112,19 +112,19 @@ export default function SalesReport() {
               }))
             : [],
           returns_block: {
-            expected_sale: n(r?.returns?.expected_sale),
-            actual_sale: n(r?.returns?.actual_sale),
-            difference: n(r?.returns?.difference),
+            expected_sale: n(r?.returns?.expected_sale ?? 0),
+            actual_sale: n(r?.returns?.actual_sale ?? 0),
+            difference: n(r?.returns?.difference ?? 0),
             supplier_returnables: {
-              bottle: n(r?.returns?.supplier_returnables?.bottle),
-              shell: n(r?.returns?.supplier_returnables?.shell),
+              bottle: n(r?.returns?.supplier_returnables?.bottle ?? 0),
+              shell: n(r?.returns?.supplier_returnables?.shell ?? 0),
             },
           },
           misc_expenses: Array.isArray(r?.misc_expenses)
             ? r.misc_expenses.map((m) => ({
                 description: m.description ?? "—",
                 notes: m.notes ?? "",
-                amount: n(m.amount),
+                amount: n(m.amount ?? 0),
                 date: m.date ?? "",
               }))
             : [],
@@ -305,7 +305,7 @@ export default function SalesReport() {
 
           <ProductBreakdownContainer
             key={`${filters.warehouse}-${filters.route}-${filters.period}-${filters.start}-${filters.end}`}
-            apiBase={api.replace("/api", "")}
+            apiBase={API.replace("/api", "")}
             warehouseId={filters.warehouse ?? "all"}
             routeId={filters.route ?? "all"}
             period={filters.period}
@@ -360,18 +360,10 @@ export default function SalesReport() {
               <table className="min-w-full text-sm table-fixed">
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
-                    <th className="text-center font-semibold px-3 py-2 border-b">
-                      Description
-                    </th>
-                    <th className="text-center font-semibold px-3 py-2 border-b">
-                      Transaction Info
-                    </th>
-                    <th className="text-center font-semibold px-3 py-2 border-b">
-                      Amount
-                    </th>
-                    <th className="text-center font-semibold px-3 py-2 border-b">
-                      Date
-                    </th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">Description</th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">Transaction Info</th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">Amount</th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">Date</th>
                   </tr>
                 </thead>
                 <tbody>
