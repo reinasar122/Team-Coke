@@ -44,6 +44,9 @@ export default function ForecastingDashboard() {
   const [bestSellerData, setBestSellerData] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
 
+  // NEW: stocks from backend
+  const [stocks, setStocks] = useState([]);
+
   // 1) Fetch product list
   useEffect(() => {
     const fetchProducts = async () => {
@@ -80,6 +83,106 @@ export default function ForecastingDashboard() {
 
     fetchProducts();
   }, []);
+
+
+  // -----------------------
+  // 1b) Fetch stocks
+  // -----------------------
+  useEffect(() => {
+    const fetchStocks = async () => {
+      try {
+        // Use the same style as your Product page
+        const res = await api.get("/stocks/");
+        console.log("👉 /api/stocks/ response:", res.data);
+
+        const data = res.data;
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.results)
+            ? data.results
+            : [];
+
+        console.log("👉 parsed stocks list:", list);
+        setStocks(list);
+      } catch (err) {
+        console.error("❌ Failed to load stocks:", err);
+      }
+    };
+
+    fetchStocks();
+  }, []);
+
+
+  // Build a fast lookup map: productId -> quantity
+  const stockByProductId = useMemo(() => {
+    const map = {};
+    stocks.forEach((s) => {
+      const id =
+        s.product?.id ??  // most likely shape
+        s.product_id ??
+        null;
+
+      if (id == null) return;
+
+      const qty =
+        s.quantity_available ??
+        s.quantity_available_pcs ??
+        s.quantity ??
+        s.current_stock ??
+        0;
+
+      map[Number(id)] = Number(qty) || 0;
+    });
+    // console.log("stockByProductId:", map);
+    return map;
+  }, [stocks]);
+
+
+  // somewhere near the top, get current warehouse id
+  const warehouseId =
+    JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
+
+  const getCurrentStock = (productName) => {
+    if (!productName || !stocks.length) return 0;
+
+    const normalized = productName.trim().toLowerCase();
+
+    // all rows for this product
+    const candidates = stocks.filter(
+      (s) =>
+        s.product_name &&
+        s.product_name.trim().toLowerCase() === normalized
+    );
+
+    if (!candidates.length) {
+      console.log("❌ No stock rows for", productName, "stocks:", stocks);
+      return 0;
+    }
+
+    // prefer matching warehouse; fallback to first
+    let row = candidates[0];
+    if (warehouseId != null) {
+      row =
+        candidates.find(
+          (s) => Number(s.warehouse) === Number(warehouseId)
+        ) || row;
+    } else {
+      row = candidates.find((s) => s.warehouse != null) || row;
+    }
+
+    const qty =
+      row.quantity_available ??
+      row.quantity_available_pcs ??
+      row.quantity ??
+      row.current_stock ??
+      0;
+
+    return Number(qty) || 0;
+  };
+  // -----------------------
+
+
+
 
   // 2) Fetch HOLIDAYS
   useEffect(() => {
@@ -143,6 +246,7 @@ export default function ForecastingDashboard() {
     fetchForecasts();
   }, [selectedProductName, products]);
 
+
   // Per-product best-seller + inventory
   useEffect(() => {
     if (!forecastData.length || !selectedProductName) {
@@ -168,7 +272,9 @@ export default function ForecastingDashboard() {
       },
     ]);
 
-    const currentStock = 500;
+
+    // use REAL stock
+    const currentStock = getCurrentStock(selectedProductName);
     const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
 
     setInventoryData([
@@ -179,7 +285,7 @@ export default function ForecastingDashboard() {
         restock: restockNeeded,
       },
     ]);
-  }, [forecastData, selectedProductName]);
+  }, [forecastData, selectedProductName, stocks]);
 
   // GLOBAL BEST SELLER + INVENTORY FOR ALL PRODUCTS
   useEffect(() => {
