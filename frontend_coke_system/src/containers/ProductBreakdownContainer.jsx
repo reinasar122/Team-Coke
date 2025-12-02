@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import api from "../../api"; // Import the API helper
+import api from "../api"; // Import the API helper
 import ProductBreakdownTable from "../components/tables/ProductBreakdownTable";
 
 const SORTERS = {
