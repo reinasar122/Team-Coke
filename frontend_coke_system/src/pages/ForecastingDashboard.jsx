@@ -1,5 +1,6 @@
+// src/pages/ForecastingDashboard.jsx
 import React, { useMemo, useState, useEffect } from "react";
-import { toast } from "react-toastify"; // Add toast to handle error messages
+import axios from "axios";
 
 import { ForecastOverviewCards } from "../components/forecasting/ForecastOverviewCards";
 import { ProductSelector } from "../components/forecasting/ProductSelector";
@@ -9,7 +10,6 @@ import { BestSellerRanking } from "../components/forecasting/BestSellerRanking";
 import { InventoryRecommendations } from "../components/forecasting/InventoryRecommendations";
 import { SeasonalInsights } from "../components/forecasting/SeasonalInsights";
 import { HolidayCalendar } from "../components/forecasting/HolidayCalendar";
-import api from "../api"; // Import the API helper
 
 const API_BASE = "http://127.0.0.1:8080/api";
 
@@ -45,7 +45,7 @@ export default function ForecastingDashboard() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await api.get("products/"); // Use api helper
+        const res = await axios.get("http://127.0.0.1:8080/api/products/");
         const data = res.data;
         const list = Array.isArray(data)
           ? data
@@ -79,7 +79,8 @@ export default function ForecastingDashboard() {
   useEffect(() => {
     const fetchStocks = async () => {
       try {
-        const res = await api.get("stocks/"); // Use api helper
+        // Use the same style as your Product page
+        const res = await axios.get("http://127.0.0.1:8080/api/stocks/");
         console.log("👉 /api/stocks/ response:", res.data);
 
         const data = res.data;
@@ -106,16 +107,16 @@ export default function ForecastingDashboard() {
     stocks.forEach((s) => {
       const id =
         s.product?.id ??  // most likely shape
-        s.product_id ?? 
+        s.product_id ??
         null;
 
       if (id == null) return;
 
       const qty =
-        s.quantity_available ?? 
-        s.quantity_available_pcs ?? 
-        s.quantity ?? 
-        s.current_stock ?? 
+        s.quantity_available ??
+        s.quantity_available_pcs ??
+        s.quantity ??
+        s.current_stock ??
         0;
 
       map[Number(id)] = Number(qty) || 0;
@@ -158,10 +159,10 @@ export default function ForecastingDashboard() {
     }
 
     const qty =
-      row.quantity_available ?? 
-      row.quantity_available_pcs ?? 
-      row.quantity ?? 
-      row.current_stock ?? 
+      row.quantity_available ??
+      row.quantity_available_pcs ??
+      row.quantity ??
+      row.current_stock ??
       0;
 
     return Number(qty) || 0;
@@ -176,7 +177,7 @@ export default function ForecastingDashboard() {
       try {
         const token = getToken();
 
-        const res = await api.get("holidays/", {
+        const res = await axios.get(`${API_BASE}/holidays/`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
 
@@ -213,7 +214,7 @@ export default function ForecastingDashboard() {
           return;
         }
 
-        const res = await api.get("forecasts/", {
+        const res = await axios.get(`${API_BASE}/forecasts/`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
           params: { product_id: productObj.id },
         });
@@ -256,8 +257,8 @@ export default function ForecastingDashboard() {
           total30DayForecast > 1000
             ? "fast"
             : total30DayForecast > 300
-            ? "stable"
-            : "slow",
+              ? "stable"
+              : "slow",
       },
     ]);
 
@@ -274,6 +275,62 @@ export default function ForecastingDashboard() {
       },
     ]);
   }, [forecastData, selectedProductName, stocks]);
+
+  // -----------------------
+  // GLOBAL BEST SELLER (all products)
+  // -----------------------
+  useEffect(() => {
+    const fetchGlobalForecasts = async () => {
+      try {
+        const token = getToken();
+
+        const res = await axios.get(`${API_BASE}/forecasts/`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        const allForecasts = extractList(res.data);
+        if (!allForecasts.length) return;
+
+        const grouped = {};
+        allForecasts.forEach((row) => {
+          const pName = row.product_name || row.product;
+          if (!grouped[pName]) grouped[pName] = [];
+          grouped[pName].push(row);
+        });
+
+        const ranking = [];
+
+        Object.keys(grouped).forEach((name) => {
+          const forecast30 = grouped[name]
+            .slice(0, 30)
+            .reduce((sum, r) => sum + (r.forecast || 0), 0);
+
+          let speed = "slow";
+          if (forecast30 > 1000) speed = "fast";
+          else if (forecast30 > 300) speed = "stable";
+
+          ranking.push({
+            product: name,
+            projectedSales: forecast30,
+            speedCategory: speed,
+          });
+        });
+
+        ranking.sort((a, b) => b.projectedSales - a.projectedSales);
+
+        // Only update best sellers here
+        setBestSellerData(ranking);
+
+        // Do NOT touch inventoryData here.
+        // It is handled by the selected-product effect.
+      } catch (err) {
+        console.log("❌ Global ranking failed:", err);
+      }
+    };
+
+    fetchGlobalForecasts();
+  }, [products, forecastData]);
+
 
   // -----------------------
   // 4) Generate FORECAST
@@ -296,8 +353,8 @@ export default function ForecastingDashboard() {
         return;
       }
 
-      const res = await api.post(
-        "forecasts/generate/",
+      const res = await axios.post(
+        `${API_BASE}/forecasts/generate/`,
         {
           product: productObj.id,
           days,
@@ -327,8 +384,8 @@ export default function ForecastingDashboard() {
     try {
       const token = getToken();
 
-      const res = await api.post(
-        "holidays/",
+      const res = await axios.post(
+        `${API_BASE}/holidays/`,
         { name: holiday.name, date: holiday.date },
         {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
@@ -344,7 +401,7 @@ export default function ForecastingDashboard() {
     try {
       const token = getToken();
 
-      await api.delete(`holidays/${id}/`, {
+      await axios.delete(`${API_BASE}/holidays/${id}/`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       setHolidays((prev) => prev.filter((h) => h.id !== id));
