@@ -523,7 +523,7 @@ const VanLoadProductDetails = () => {
         </div>
       )}
 
-      {/* Bottom Actions (hidden on print) */}
+      {/* Bottom Actions (hidden on print) 
       {!loading && sale && (
         <div className="mt-4 flex justify-end gap-2 print:hidden">
           <button
@@ -540,6 +540,7 @@ const VanLoadProductDetails = () => {
           </button>
         </div>
       )}
+      */}
     </div>
   );
 };
