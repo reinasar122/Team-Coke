@@ -615,7 +615,7 @@ export default function ForecastingDashboard() {
           onGenerate={() => handleGenerateForecast(30)}
         />
 
-        <div className="mt-3">
+        {/*<div className="mt-3">
           <button
             onClick={() => handleGenerateForecast(30)}
             disabled={generating}
@@ -624,7 +624,7 @@ export default function ForecastingDashboard() {
             {generating ? "Generating..." : "Generate Forecast (30d)"}
           </button>
           {error && <div className="text-red-600 mt-2">{error}</div>}
-        </div>
+        </div>*/}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
