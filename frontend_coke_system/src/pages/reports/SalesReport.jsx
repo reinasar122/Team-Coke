@@ -1,5 +1,6 @@
+// src/pages/SalesReport.jsx
 import React, { useEffect, useRef, useState } from "react";
-import axios from "axios";
+import { FaChartBar } from "react-icons/fa";
 
 import Card from "../../components/common/Card";
 import Metric from "../../components/common/Metric";
@@ -9,9 +10,7 @@ import Empty from "../../components/common/Empty";
 import { n, peso, pct } from "../../utils/formatters";
 
 import ProductBreakdownContainer from "../../containers/ProductBreakdownContainer";
-import { FaChartBar } from "react-icons/fa";
-
-const API = process.env.REACT_APP_API_URL || "http://localhost:8080/api";
+import api from "../../api"; // Importing the api helper
 
 export default function SalesReport() {
   const [warehouses, setWarehouses] = useState([]);
@@ -38,15 +37,14 @@ export default function SalesReport() {
   const [unitsSold, setUnitsSold] = useState(0);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
 
-
   // Load dropdown options
   useEffect(() => {
     let ok = true;
     (async () => {
       try {
         const [wh, rt] = await Promise.allSettled([
-          axios.get(`${API}/warehouses/`),
-          axios.get(`${API}/routes/`),
+          api.get("warehouses/"), // Using the api helper
+          api.get("routes/"), // Using the api helper
         ]);
         if (!ok) return;
         setWarehouses(wh.status === "fulfilled" ? wh.value.data : []);
@@ -83,8 +81,8 @@ export default function SalesReport() {
         };
 
         const [rpt1, rpt2] = await Promise.allSettled([
-          axios.get(`${API}/sales_report/?${qs}`, { headers, timeout: 15000 }),
-          axios.get(`${API}/reports/sales/?${qs}`, { headers, timeout: 15000 }),
+          api.get(`sales_report/?${qs}`, { headers, timeout: 15000 }), // Using api helper
+          api.get(`reports/sales/?${qs}`, { headers, timeout: 15000 }), // Using api helper
         ]);
         if (!alive) return;
 
@@ -202,16 +200,15 @@ export default function SalesReport() {
         warehouses.find((w) => String(w.id) === String(filters.warehouse))?.warehouse_name ||
         null;
 
-    const miscTotal = data.misc_expenses.reduce(
-      (sum, m) => sum + (m.amount || 0),
-      0
-    );
+  const miscTotal = data.misc_expenses.reduce(
+    (sum, m) => sum + (m.amount || 0),
+    0
+  );
 
-    const previewLimit = 5;
-    const expensesToShow = showAllExpenses
-      ? data.misc_expenses
-      : data.misc_expenses.slice(0, previewLimit);
-
+  const previewLimit = 5;
+  const expensesToShow = showAllExpenses
+    ? data.misc_expenses
+    : data.misc_expenses.slice(0, previewLimit);
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6" ref={printRef}>
@@ -340,114 +337,102 @@ export default function SalesReport() {
       </div>
 
       {/* Bottom Section */}
-        <div className="space-y-4">
-          {/* Returns & Discrepancies – full width */}
-          <Card title="Returns & Discrepancies">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Metric
-                label="Actual Sales"
-                value={peso(data.returns_block.actual_sale)}
-              />
-              <Metric
-                label="Supplier Returnables (Bottle)"
-                value={n(data.returns_block.supplier_returnables.bottle)}
-              />
-              <Metric
-                label="Supplier Returnables (Shell)"
-                value={n(data.returns_block.supplier_returnables.shell)}
-              />
-            </div>
-          </Card>
+      <div className="space-y-4">
+        {/* Returns & Discrepancies – full width */}
+        <Card title="Returns & Discrepancies">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
+            <Metric
+              label="Supplier Returnables (Bottle)"
+              value={n(data.returns_block.supplier_returnables.bottle)}
+            />
+            <Metric
+              label="Supplier Returnables (Shell)"
+              value={n(data.returns_block.supplier_returnables.shell)}
+            />
+          </div>
+        </Card>
 
-          {/* Miscellaneous Expenses – full width */}
-          <Card title="Miscellaneous Expenses">
-            <div className="rounded-lg border border-slate-200 flex flex-col">
-              {/* Scrollable table area */}
-              <div className="max-h-72 overflow-y-auto">
-                <table className="min-w-full text-sm table-fixed">
-                  <thead className="bg-slate-50 text-slate-600">
+        {/* Miscellaneous Expenses – full width */}
+        <Card title="Miscellaneous Expenses">
+          <div className="rounded-lg border border-slate-200 flex flex-col">
+            {/* Scrollable table area */}
+            <div className="max-h-72 overflow-y-auto">
+              <table className="min-w-full text-sm table-fixed">
+                <thead className="bg-slate-50 text-slate-600">
+                  <tr>
+                    <th className="text-center font-semibold px-3 py-2 border-b">
+                      Description
+                    </th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">
+                      Transaction Info
+                    </th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">
+                      Amount
+                    </th>
+                    <th className="text-center font-semibold px-3 py-2 border-b">
+                      Date
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
                     <tr>
-                      <th className="text-center font-semibold px-3 py-2 border-b">
-                        Description
-                      </th>
-                      <th className="text-center font-semibold px-3 py-2 border-b">
-                        Transaction Info
-                      </th>
-                      <th className="text-center font-semibold px-3 py-2 border-b">
-                        Amount
-                      </th>
-                      <th className="text-center font-semibold px-3 py-2 border-b">
-                        Date
-                      </th>
+                      <td colSpan={4} className="px-3 py-8">
+                        <Empty text="Loading…" />
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {loading ? (
-                      <tr>
-                        <td colSpan={4} className="px-3 py-8">
-                          <Empty text="Loading…" />
+                  ) : data.misc_expenses.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-3 py-8">
+                        <Empty text="No expenses for the selected filters." />
+                      </td>
+                    </tr>
+                  ) : (
+                    expensesToShow.map((m, i) => (
+                      <tr key={i} className="odd:bg-white even:bg-slate-50/50">
+                        <td className="text-center px-3 py-2 border-b">{m.description}</td>
+                        <td className="text-center px-3 py-2 border-b">{m.notes}</td>
+                        <td className="text-center px-3 py-2 border-b whitespace-nowrap">
+                          {peso(m.amount)}
                         </td>
+                        <td className="text-center px-3 py-2 border-b whitespace-nowrap">{m.date}</td>
                       </tr>
-                    ) : data.misc_expenses.length === 0 ? (
-                      <tr>
-                        <td colSpan={4} className="px-3 py-8">
-                          <Empty text="No expenses for the selected filters." />
-                        </td>
-                      </tr>
-                   ) : (
-                      expensesToShow.map((m, i) => (
-                        <tr key={i} className="odd:bg-white even:bg-slate-50/50">
-                          <td className="text-center px-3 py-2 border-b">
-                            {m.description}
-                          </td>
-                          <td className="text-center px-3 py-2 border-b">
-                            {m.notes}
-                          </td>
-                          <td className="text-center px-3 py-2 border-b whitespace-nowrap">
-                            {peso(m.amount)}
-                          </td>
-                          <td className="text-center px-3 py-2 border-b whitespace-nowrap">
-                            {m.date}
-                          </td>
-                        </tr>
-                      ))
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Info + toggle */}
-              {data.misc_expenses.length > previewLimit && (
-                <div className="px-3 py-2 border-t border-slate-200 text-xs flex items-center justify-between text-slate-500">
-                  <span>
-                    Showing{" "}
-                    <span className="font-semibold">
-                      {showAllExpenses ? data.misc_expenses.length : previewLimit}
-                    </span>{" "}
-                    of{" "}
-                    <span className="font-semibold">{data.misc_expenses.length}</span>{" "}
-                    expenses
-                  </span>
-                  <button
-                    type="button"
-                    className="text-blue-600 font-semibold hover:underline"
-                    onClick={() => setShowAllExpenses((v) => !v)}
-                  >
-                    {showAllExpenses ? "Show less" : "View full expenses"}
-                  </button>
-                </div>
-              )}
-
-              {/* Total footer */}
-              <div className="px-3 py-2 border-t border-slate-200 text-xs text-right text-slate-500">
-                Total Miscellaneous:{" "}
-                <span className="font-semibold text-slate-700">
-                  {peso(miscTotal)}
-                </span>
-              </div>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          </Card>
-        </div>
-    </div>               
+
+            {/* Info + toggle */}
+            {data.misc_expenses.length > previewLimit && (
+              <div className="px-3 py-2 border-t border-slate-200 text-xs flex items-center justify-between text-slate-500">
+                <span>
+                  Showing{" "}
+                  <span className="font-semibold">
+                    {showAllExpenses ? data.misc_expenses.length : previewLimit}
+                  </span>{" "}
+                  of{" "}
+                  <span className="font-semibold">{data.misc_expenses.length}</span> expenses
+                </span>
+                <button
+                  type="button"
+                  className="text-blue-600 font-semibold hover:underline"
+                  onClick={() => setShowAllExpenses((v) => !v)}
+                >
+                  {showAllExpenses ? "Show less" : "View full expenses"}
+                </button>
+              </div>
+            )}
+
+            {/* Total footer */}
+            <div className="px-3 py-2 border-t border-slate-200 text-xs text-right text-slate-500">
+              Total Miscellaneous:{" "}
+              <span className="font-semibold text-slate-700">{peso(miscTotal)}</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+    </div>
   );
 }

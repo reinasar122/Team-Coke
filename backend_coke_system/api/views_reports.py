@@ -387,7 +387,7 @@ class SalesReportAPIView(APIView):
             .order_by("-revenue")
         )
         by_warehouse = [
-            {"name": r["merchandising__warehouse__name"], "revenue": float(r["revenue"])}
+            {"name": r["merchandising__warehouse__name"], "revenue": float(r["revenue"])} 
             for r in by_warehouse_qs if r["merchandising__warehouse__name"]
         ]
 
