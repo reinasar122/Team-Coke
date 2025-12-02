@@ -1,4 +1,3 @@
-// src/pages/SalesReport.jsx
 import React, { useEffect, useRef, useState } from "react";
 import { FaChartBar } from "react-icons/fa";
 
@@ -10,7 +9,7 @@ import Empty from "../../components/common/Empty";
 import { n, peso, pct } from "../../utils/formatters";
 
 import ProductBreakdownContainer from "../../containers/ProductBreakdownContainer";
-import api from "../../api"; // Importing the api helper
+import api from "../../api"; // Corrected to use the imported `api`
 
 export default function SalesReport() {
   const [warehouses, setWarehouses] = useState([]);
@@ -43,8 +42,8 @@ export default function SalesReport() {
     (async () => {
       try {
         const [wh, rt] = await Promise.allSettled([
-          api.get("warehouses/"), // Using the api helper
-          api.get("routes/"), // Using the api helper
+          api.get("warehouses/"), // Using the `api` helper
+          api.get("routes/"), // Using the `api` helper
         ]);
         if (!ok) return;
         setWarehouses(wh.status === "fulfilled" ? wh.value.data : []);
@@ -81,8 +80,8 @@ export default function SalesReport() {
         };
 
         const [rpt1, rpt2] = await Promise.allSettled([
-          api.get(`sales_report/?${qs}`, { headers, timeout: 15000 }), // Using api helper
-          api.get(`reports/sales/?${qs}`, { headers, timeout: 15000 }), // Using api helper
+          api.get(`sales_report/?${qs}`, { headers, timeout: 15000 }), // Using `api` helper
+          api.get(`reports/sales/?${qs}`, { headers, timeout: 15000 }), // Using `api` helper
         ]);
         if (!alive) return;
 
