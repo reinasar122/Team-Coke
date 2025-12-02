@@ -311,10 +311,16 @@ useEffect(() => {
 
 
   // Function to get the current stock for a selected product
-const getCurrentStock = (productName) => {
-  if (!productName || !stocks.length) return 0;
+  const getCurrentStock = (productName) => {
+  if (!productName || !stocks.length) {
+    console.log("❌ No product name or stocks data");
+    return 0;
+  }
 
   const normalized = productName.trim().toLowerCase();
+
+  // Log stock candidates for debugging
+  console.log("👉 Searching for stock with product name:", normalized);
 
   // Find the stock for this product
   const candidates = stocks.filter(
@@ -323,18 +329,20 @@ const getCurrentStock = (productName) => {
       s.product_name.trim().toLowerCase() === normalized
   );
 
+  // Debug log the candidates
+  console.log("👉 Stock candidates for", productName, ":", candidates);
+
   if (!candidates.length) {
     console.log("❌ No stock rows for", productName, "stocks:", stocks);
     return 0;
   }
 
-  // Log candidates to debug
-  console.log("👉 Stock candidates:", candidates);
-
   // Prefer matching warehouse; fallback to first stock row
   let row = candidates[0];
   const warehouseId = JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
   
+  // Log warehouseId and candidates to debug warehouse selection
+  console.log("👉 Warehouse ID:", warehouseId);
   if (warehouseId != null) {
     row =
       candidates.find(
@@ -344,16 +352,21 @@ const getCurrentStock = (productName) => {
     row = candidates.find((s) => s.warehouse != null) || row;
   }
 
+  // Log the selected row for debugging
+  console.log("👉 Selected stock row:", row);
+
+  // Calculate the stock quantity
   const qty =
-    row.quantity_available ??
-    row.quantity_available_pcs ??
-    row.quantity ??
-    row.current_stock ??
+    row.quantity_available ?? 
+    row.quantity_available_pcs ?? 
+    row.quantity ?? 
+    row.current_stock ?? 
     0;
 
   console.log("👉 Returning current stock for", productName, ":", qty);
   return Number(qty) || 0;
 };
+
 
 
 
