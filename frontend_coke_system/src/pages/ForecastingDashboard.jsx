@@ -171,43 +171,45 @@ useEffect(() => {
 }, [selectedProductName, products]);
 
   // Per-product best-seller + inventory
-useEffect(() => {
-  if (!forecastData.length || !selectedProductName) {
-    setBestSellerData([]);
-    setInventoryData([]);
-    return;
-  }
+  useEffect(() => {
+    if (!forecastData.length || !selectedProductName) {
+      setBestSellerData([]);
+      setInventoryData([]);
+      return;
+    }
 
-  const total30DayForecast = forecastData
-    .slice(0, 30)
-    .reduce((sum, row) => sum + (row.forecast || 0), 0);
+    const total30DayForecast = forecastData
+      .slice(0, 30)
+      .reduce((sum, row) => sum + (row.forecast || 0), 0);
 
-  setBestSellerData([
-    {
-      product: selectedProductName,
-      projectedSales: total30DayForecast,
-      speedCategory:
-        total30DayForecast > 1000
-          ? "fast"
-          : total30DayForecast > 300
-          ? "stable"
-          : "slow",
-    },
-  ]);
+    setBestSellerData([
+      {
+        product: selectedProductName,
+        projectedSales: total30DayForecast,
+        speedCategory:
+          total30DayForecast > 1000
+            ? "fast"
+            : total30DayForecast > 300
+            ? "stable"
+            : "slow",
+      },
+    ]);
 
-  // Getting the real stock (from your modified logic)
-  const currentStock = getCurrentStock(selectedProductName);  // <-- Check here
-  const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
+    // Getting the real stock (from your modified logic)
+    const currentStock = getCurrentStock(selectedProductName);  // <-- Check here
+    console.log("👉 Current stock for", selectedProductName, ":", currentStock); // Debugging log
+    const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
 
-  setInventoryData([
-    {
-      product: selectedProductName,
-      forecast30Day: total30DayForecast,
-      currentStock,
-      restock: restockNeeded,
-    },
-  ]);
-}, [forecastData, selectedProductName, stocks]);
+    setInventoryData([
+      {
+        product: selectedProductName,
+        forecast30Day: total30DayForecast,
+        currentStock,
+        restock: restockNeeded,
+      },
+    ]);
+  }, [forecastData, selectedProductName, stocks]);
+
 
   // GLOBAL BEST SELLER + INVENTORY FOR ALL PRODUCTS
   useEffect(() => {
