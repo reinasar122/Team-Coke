@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
 import { useNavigate } from "react-router-dom";
-import { FaChartLine} from "react-icons/fa";
+import { FaChartLine, FaSearch} from "react-icons/fa";
 import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ NEW IMPORT
 import "../styles/pages/merchandisinglist.scss";  // Import the custom styles
 
