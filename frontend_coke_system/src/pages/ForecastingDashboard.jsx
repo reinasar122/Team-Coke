@@ -1,6 +1,5 @@
-// src/pages/ForecastingDashboard.jsx
 import React, { useMemo, useState, useEffect } from "react";
-import api from "../api"; // ✅ centralized API instance
+import { toast } from "react-toastify"; // Add toast to handle error messages
 
 import { ForecastOverviewCards } from "../components/forecasting/ForecastOverviewCards";
 import { ProductSelector } from "../components/forecasting/ProductSelector";
@@ -10,22 +9,15 @@ import { BestSellerRanking } from "../components/forecasting/BestSellerRanking";
 import { InventoryRecommendations } from "../components/forecasting/InventoryRecommendations";
 import { SeasonalInsights } from "../components/forecasting/SeasonalInsights";
 import { HolidayCalendar } from "../components/forecasting/HolidayCalendar";
+import api from "../api"; // Import the API helper
 
-// token helper
+const API_BASE = "http://127.0.0.1:8080/api";
+
 const getToken = () =>
   localStorage.getItem("accessToken") ||
   localStorage.getItem("token") ||
   localStorage.getItem("access");
 
-// attach Authorization header when token exists
-const authHeaders = () => {
-  const token = getToken();
-  return token
-    ? { headers: { Authorization: `Bearer ${token}` } }
-    : {};
-};
-
-// helper: if DRF uses pagination
 const extractList = (data) => {
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data.results)) return data.results;
@@ -47,22 +39,19 @@ export default function ForecastingDashboard() {
   // NEW: stocks from backend
   const [stocks, setStocks] = useState([]);
 
+  // -----------------------
   // 1) Fetch product list
+  // -----------------------
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await api.get("/products/"); // ✅ api style
-
-        console.log("👉 /products/ response:", res.data);
-
+        const res = await api.get("products/"); // Use api helper
         const data = res.data;
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data.results)
-          ? data.results
-          : [];
-
-        console.log("👉 parsed product list:", list);
+            ? data.results
+            : [];
 
         setProducts(list);
 
@@ -84,15 +73,13 @@ export default function ForecastingDashboard() {
     fetchProducts();
   }, []);
 
-
   // -----------------------
   // 1b) Fetch stocks
   // -----------------------
   useEffect(() => {
     const fetchStocks = async () => {
       try {
-        // Use the same style as your Product page
-        const res = await api.get("/stocks/");
+        const res = await api.get("stocks/"); // Use api helper
         console.log("👉 /api/stocks/ response:", res.data);
 
         const data = res.data;
@@ -119,16 +106,16 @@ export default function ForecastingDashboard() {
     stocks.forEach((s) => {
       const id =
         s.product?.id ??  // most likely shape
-        s.product_id ??
+        s.product_id ?? 
         null;
 
       if (id == null) return;
 
       const qty =
-        s.quantity_available ??
-        s.quantity_available_pcs ??
-        s.quantity ??
-        s.current_stock ??
+        s.quantity_available ?? 
+        s.quantity_available_pcs ?? 
+        s.quantity ?? 
+        s.current_stock ?? 
         0;
 
       map[Number(id)] = Number(qty) || 0;
@@ -171,26 +158,27 @@ export default function ForecastingDashboard() {
     }
 
     const qty =
-      row.quantity_available ??
-      row.quantity_available_pcs ??
-      row.quantity ??
-      row.current_stock ??
+      row.quantity_available ?? 
+      row.quantity_available_pcs ?? 
+      row.quantity ?? 
+      row.current_stock ?? 
       0;
 
     return Number(qty) || 0;
   };
+
+
   // -----------------------
-
-
-
-
   // 2) Fetch HOLIDAYS
+  // -----------------------
   useEffect(() => {
     const fetchHolidays = async () => {
       try {
-        const res = await api.get("/holidays/", authHeaders()); // ✅ api.get
+        const token = getToken();
 
-        console.log("👉 /holidays/ response:", res.data);
+        const res = await api.get("holidays/", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
 
         setHolidays(extractList(res.data));
       } catch (err) {
@@ -201,7 +189,9 @@ export default function ForecastingDashboard() {
     fetchHolidays();
   }, []);
 
+  // -----------------------
   // 3) Fetch FORECASTS when product changes
+  // -----------------------
   useEffect(() => {
     if (!selectedProductName || products.length === 0) return;
 
@@ -210,6 +200,8 @@ export default function ForecastingDashboard() {
       setError(null);
 
       try {
+        const token = getToken();
+
         const productObj = products.find(
           (p) =>
             (p.product_name || p.name || p.product) === selectedProductName
@@ -221,14 +213,10 @@ export default function ForecastingDashboard() {
           return;
         }
 
-        const config = {
-          ...authHeaders(),
+        const res = await api.get("forecasts/", {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
           params: { product_id: productObj.id },
-        };
-
-        const res = await api.get("/forecasts/", config); // ✅ api.get
-
-        console.log("👉 /forecasts/ response:", res.data);
+        });
 
         setForecastData(extractList(res.data));
       } catch (err) {
@@ -246,8 +234,9 @@ export default function ForecastingDashboard() {
     fetchForecasts();
   }, [selectedProductName, products]);
 
-
-  // Per-product best-seller + inventory
+  // -----------------------
+  // 3b) Selected product summary + inventory
+  // -----------------------
   useEffect(() => {
     if (!forecastData.length || !selectedProductName) {
       setBestSellerData([]);
@@ -272,7 +261,6 @@ export default function ForecastingDashboard() {
       },
     ]);
 
-
     // use REAL stock
     const currentStock = getCurrentStock(selectedProductName);
     const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
@@ -287,69 +275,16 @@ export default function ForecastingDashboard() {
     ]);
   }, [forecastData, selectedProductName, stocks]);
 
-  // GLOBAL BEST SELLER + INVENTORY FOR ALL PRODUCTS
-  useEffect(() => {
-    const fetchGlobalForecasts = async () => {
-      try {
-        const res = await api.get("/forecasts/", authHeaders()); // ✅ api.get
-
-        const allForecasts = extractList(res.data);
-        if (!allForecasts.length) return;
-
-        const grouped = {};
-        allForecasts.forEach((row) => {
-          const pName = row.product_name || row.product;
-          if (!grouped[pName]) grouped[pName] = [];
-          grouped[pName].push(row);
-        });
-
-        const ranking = [];
-        const inventory = [];
-
-        Object.keys(grouped).forEach((name) => {
-          const forecast30 = grouped[name]
-            .slice(0, 30)
-            .reduce((sum, r) => sum + (r.forecast || 0), 0);
-
-          let speed = "slow";
-          if (forecast30 > 1000) speed = "fast";
-          else if (forecast30 > 300) speed = "stable";
-
-          ranking.push({
-            product: name,
-            projectedSales: forecast30,
-            speedCategory: speed,
-          });
-
-          const currentStock = 500;
-          const restock = Math.max(forecast30 - currentStock, 0);
-
-          inventory.push({
-            product: name,
-            forecast30Day: forecast30,
-            currentStock,
-            restock,
-          });
-        });
-
-        ranking.sort((a, b) => b.projectedSales - a.projectedSales);
-
-        setBestSellerData(ranking);
-        setInventoryData(inventory);
-      } catch (err) {
-        console.log("❌ Global ranking failed:", err);
-      }
-    };
-
-    fetchGlobalForecasts();
-  }, [products, forecastData]);
-
-  // 4) Generate FORECAST (Prophet in backend)
+  // -----------------------
+  // 4) Generate FORECAST
+  // -----------------------
   const handleGenerateForecast = async (days = 30) => {
     setGenerating(true);
     setError(null);
 
     try {
+      const token = getToken();
+
       const productObj = products.find(
         (p) =>
           (p.product_name || p.name || p.product) === selectedProductName
@@ -362,15 +297,15 @@ export default function ForecastingDashboard() {
       }
 
       const res = await api.post(
-        "/forecasts/generate/",
+        "forecasts/generate/",
         {
           product: productObj.id,
           days,
         },
-        authHeaders() // ✅ api.post
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
       );
-
-      console.log("👉 /forecasts/generate/ response:", res.data);
 
       setForecastData(extractList(res.data));
     } catch (err) {
@@ -385,13 +320,19 @@ export default function ForecastingDashboard() {
     }
   };
 
+  // -----------------------
   // 5) Holiday handlers
+  // -----------------------
   const handleAddHoliday = async (holiday) => {
     try {
+      const token = getToken();
+
       const res = await api.post(
-        "/holidays/",
+        "holidays/",
         { name: holiday.name, date: holiday.date },
-        authHeaders() // ✅ api.post
+        {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        }
       );
       setHolidays((prev) => [...prev, res.data]);
     } catch (err) {
@@ -401,14 +342,20 @@ export default function ForecastingDashboard() {
 
   const handleRemoveHoliday = async (id) => {
     try {
-      await api.delete(`/holidays/${id}/`, authHeaders()); // ✅ api.delete
+      const token = getToken();
+
+      await api.delete(`holidays/${id}/`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
       setHolidays((prev) => prev.filter((h) => h.id !== id));
     } catch (err) {
       console.error("❌ Failed to remove holiday:", err);
     }
   };
 
+  // -----------------------
   // 6) Derived UI data
+  // -----------------------
   const productNames = products.map(
     (p) => p.product_name || p.name || p.product
   );
@@ -489,9 +436,7 @@ export default function ForecastingDashboard() {
     const yearlyPeakMonth = monthNames[peakMonthIdx];
 
     const first = Number(forecastData[0].forecast || 0);
-    const last = Number(
-      forecastData[forecastData.length - 1].forecast || 0
-    );
+    const last = Number(forecastData[forecastData.length - 1].forecast || 0);
     const diff = last - first;
     const threshold = first * 0.05;
 
@@ -508,10 +453,10 @@ export default function ForecastingDashboard() {
         row.actual != null
           ? Number(row.actual)
           : row.y != null
-          ? Number(row.y)
-          : row.real != null
-          ? Number(row.real)
-          : null;
+            ? Number(row.y)
+            : row.real != null
+              ? Number(row.real)
+              : null;
 
       const pred = Number(row.forecast || 0);
 
@@ -534,7 +479,9 @@ export default function ForecastingDashboard() {
     };
   }, [forecastData]);
 
+  // -----------------------
   // 7) Render
+  // -----------------------
   return (
     <div className="space-y-6">
       <ForecastOverviewCards {...overview} />
