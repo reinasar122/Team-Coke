@@ -128,88 +128,86 @@ export default function ForecastingDashboard() {
   }, []);
 
   // 3) Fetch FORECASTS when product changes
-  useEffect(() => {
-    if (!selectedProductName || products.length === 0) return;
+useEffect(() => {
+  if (!selectedProductName || products.length === 0) return;
 
-    const fetchForecasts = async () => {
-      setLoading(true);
-      setError(null);
+  const fetchForecasts = async () => {
+    setLoading(true);
+    setError(null);
 
-      try {
-        const productObj = products.find(
-          (p) =>
-            (p.product_name || p.name || p.product) === selectedProductName
-        );
+    try {
+      const productObj = products.find(
+        (p) =>
+          (p.product_name || p.name || p.product) === selectedProductName
+      );
 
-        if (!productObj) {
-          setForecastData([]);
-          setLoading(false);
-          return;
-        }
-
-        const config = {
-          ...authHeaders(),
-          params: { product_id: productObj.id },
-        };
-
-        const res = await api.get("/forecasts/", config); // ✅ api.get
-
-        console.log("👉 /forecasts/ response:", res.data);
-
-        setForecastData(extractList(res.data));
-      } catch (err) {
-        console.error("❌ Failed to fetch forecasts:", err);
-        const msg =
-          err.response?.data?.detail ||
-          err.message ||
-          "Failed to fetch forecasts from API";
-        setError(msg);
-      } finally {
+      if (!productObj) {
+        setForecastData([]);
         setLoading(false);
+        return;
       }
-    };
 
-    fetchForecasts();
-  }, [selectedProductName, products]);
+      const config = {
+        ...authHeaders(),
+        params: { product_id: productObj.id },
+      };
+
+      const res = await api.get("/forecasts/", config); // ✅ api.get
+
+      setForecastData(extractList(res.data));
+    } catch (err) {
+      console.error("❌ Failed to fetch forecasts:", err);
+      const msg =
+        err.response?.data?.detail ||
+        err.message ||
+        "Failed to fetch forecasts from API";
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  fetchForecasts();
+}, [selectedProductName, products]);
 
   // Per-product best-seller + inventory
-  useEffect(() => {
-    if (!forecastData.length || !selectedProductName) {
-      setBestSellerData([]);
-      setInventoryData([]);
-      return;
-    }
+useEffect(() => {
+  if (!forecastData.length || !selectedProductName) {
+    setBestSellerData([]);
+    setInventoryData([]);
+    return;
+  }
 
-    const total30DayForecast = forecastData
-      .slice(0, 30)
-      .reduce((sum, row) => sum + (row.forecast || 0), 0);
+  const total30DayForecast = forecastData
+    .slice(0, 30)
+    .reduce((sum, row) => sum + (row.forecast || 0), 0);
 
-    setBestSellerData([
-      {
-        product: selectedProductName,
-        projectedSales: total30DayForecast,
-        speedCategory:
-          total30DayForecast > 1000
-            ? "fast"
-            : total30DayForecast > 300
-            ? "stable"
-            : "slow",
-      },
-    ]);
+  setBestSellerData([
+    {
+      product: selectedProductName,
+      projectedSales: total30DayForecast,
+      speedCategory:
+        total30DayForecast > 1000
+          ? "fast"
+          : total30DayForecast > 300
+          ? "stable"
+          : "slow",
+    },
+  ]);
 
-    // Getting the real stock (from your modified logic)
-    const currentStock = getCurrentStock(selectedProductName);
-    const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
+  // Getting the real stock (from your modified logic)
+  const currentStock = getCurrentStock(selectedProductName);  // <-- Check here
+  const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
 
-    setInventoryData([
-      {
-        product: selectedProductName,
-        forecast30Day: total30DayForecast,
-        currentStock,
-        restock: restockNeeded,
-      },
-    ]);
-  }, [forecastData, selectedProductName, stocks]);
+  setInventoryData([
+    {
+      product: selectedProductName,
+      forecast30Day: total30DayForecast,
+      currentStock,
+      restock: restockNeeded,
+    },
+  ]);
+}, [forecastData, selectedProductName, stocks]);
 
   // GLOBAL BEST SELLER + INVENTORY FOR ALL PRODUCTS
   useEffect(() => {
@@ -311,42 +309,49 @@ export default function ForecastingDashboard() {
 
 
   // Function to get the current stock for a selected product
-  const getCurrentStock = (productName) => {
-    if (!productName || !stocks.length) return 0;
+const getCurrentStock = (productName) => {
+  if (!productName || !stocks.length) return 0;
 
-    const normalized = productName.trim().toLowerCase();
+  const normalized = productName.trim().toLowerCase();
 
-    // Find the stock for this product
-    const candidates = stocks.filter(
-      (s) =>
-        s.product_name &&
-        s.product_name.trim().toLowerCase() === normalized
-    );
+  // Find the stock for this product
+  const candidates = stocks.filter(
+    (s) =>
+      s.product_name &&
+      s.product_name.trim().toLowerCase() === normalized
+  );
 
-    if (!candidates.length) {
-      console.log("❌ No stock rows for", productName, "stocks:", stocks);
-      return 0;
-    }
+  if (!candidates.length) {
+    console.log("❌ No stock rows for", productName, "stocks:", stocks);
+    return 0;
+  }
 
-    // Prefer matching warehouse; fallback to first
-    let row = candidates[0];
-    const warehouseId = JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
-    if (warehouseId != null) {
-      row =
-        candidates.find(
-          (s) => Number(s.warehouse) === Number(warehouseId)
-        ) || row;
-    }
+  // Log candidates to debug
+  console.log("👉 Stock candidates:", candidates);
 
-    const qty =
-      row.quantity_available ??
-      row.quantity_available_pcs ??
-      row.quantity ??
-      row.current_stock ??
-      0;
+  // Prefer matching warehouse; fallback to first stock row
+  let row = candidates[0];
+  const warehouseId = JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
+  
+  if (warehouseId != null) {
+    row =
+      candidates.find(
+        (s) => Number(s.warehouse) === Number(warehouseId)
+      ) || row;
+  } else {
+    row = candidates.find((s) => s.warehouse != null) || row;
+  }
 
-    return Number(qty) || 0;
-  };
+  const qty =
+    row.quantity_available ??
+    row.quantity_available_pcs ??
+    row.quantity ??
+    row.current_stock ??
+    0;
+
+  console.log("👉 Returning current stock for", productName, ":", qty);
+  return Number(qty) || 0;
+};
 
 
 
