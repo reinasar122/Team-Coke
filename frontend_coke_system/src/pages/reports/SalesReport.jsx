@@ -11,6 +11,9 @@ import { n, peso, pct } from "../../utils/formatters";
 import ProductBreakdownContainer from "../../containers/ProductBreakdownContainer";
 import api from "../../api"; // Corrected to use the imported `api`
 
+
+const API = api.defaults.baseURL || "coke/api";
+
 export default function SalesReport() {
   const [warehouses, setWarehouses] = useState([]);
   const [routes, setRoutes] = useState([]);
