@@ -2,6 +2,8 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
 import axios from "axios";
 import { FaTrash } from 'react-icons/fa';
+import { toast } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 import '../../styles/global.scss';
 import ProductSearchSelect from "../common/ProductSearchSelect"; // adjust path
 import api from "../../api";
@@ -283,60 +285,56 @@ const VanLoadTable = ({
 
 
   const handleRowChange = (index, field, value) => {
-  const updated = [...rows];
-  const row = { ...updated[index] };
+    const updated = [...rows];
+    const row = { ...updated[index] };
 
-  const n = (v) => parseFloat(v) || 0;
+    const n = (v) => parseFloat(v) || 0;
 
+    const qtyFields = [
+      "dispatchedShell", "dispatchedPcs", "soldShell", "soldPcs", 
+      "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty", "discount"
+    ];
 
-  const qtyFields = [
-    "dispatchedShell", "dispatchedPcs", "soldShell", "soldPcs", 
-    "expectedReturnShellEmpty", "expectedReturnPcsEmpty", "expectedReturnShellNonempty", "expectedReturnPcsNonempty", "discount"
-  ];
+    // Prevent input if no product is selected
+    if (!row.productId && qtyFields.includes(field) && value !== null && value !== "") {
+      alert("Product required");
+      return;
+    }
 
-  // Prevent input if no product is selected
-  if (!row.productId && qtyFields.includes(field) && value !== null && value !== "") {
-    alert("Product required");
-    return;
-  }
+    if (value === null) {
+      row[field] = null;
+      updated[index] = row;
+      setRows(updated);
+      return;
+    }
 
+    row[field] = value;
 
+    // Get product & conversion
+    const productId = Number(row.productId);
+    const product = products.find(p => p.id === productId);
+    const conversion = n(product?.unit_type?.content_no || 1);
+    const price = n(row.unitPrice || product?.price?.selling_price);
 
-  if (value === null) {
-    row[field] = null;
-    updated[index] = row;
-    setRows(updated);
-    return;
-  }
+    row.unitPrice = price;
+    row.conversion = conversion;
 
-  row[field] = value;
+    const discountPercent = n(row.discount); // Discount in %
 
-  // Get product & conversion
-  const productId = Number(row.productId);
-  const product = products.find(p => p.id === productId);
-  const conversion = n(product?.unit_type?.content_no || 1);
-  const price = n(row.unitPrice || product?.price?.selling_price);
-
-  row.unitPrice = price;
-  row.conversion = conversion;
-
-  const discountPercent = n(row.discount); // Discount in %
-
-  // --- Update dispatched quantities ---
-  if (["dispatchedPcs", "dispatchedShell"].includes(field)) {
-    if (field === "dispatchedShell") {
-      const shellQty = Math.floor(n(value));
-      row.dispatchedShell = shellQty;
-      row.dispatchedPcs = shellQty * conversion;
-    } else if (field === "dispatchedPcs") {
+    // --- Update dispatched quantities ---
+    if (["dispatchedPcs", "dispatchedShell"].includes(field)) {
+      if (field === "dispatchedShell") {
+        const shellQty = Math.floor(n(value));
+        row.dispatchedShell = shellQty;
+        row.dispatchedPcs = shellQty * conversion;
+      } else if (field === "dispatchedPcs") {
         const pcsQty = n(value);
         row.dispatchedPcs = pcsQty;
         // 🚫 Do not auto-change Shell when PCS changes
       }
+    }
 
-  }
-
-  // ✅ Stock availability check (same as ProductTable)
+    // ✅ Stock availability check (same as ProductTable)
     const stockQty = availableStock[productId];
     if (stockQty !== undefined && stockQty !== null) {
       if (row.dispatchedPcs > stockQty) {
@@ -347,18 +345,40 @@ const VanLoadTable = ({
         row.expectedSale = 0;
       }
     }
-  
 
-  // --- Calculate expectedSale with discount ---
-  const baseSale = price * row.dispatchedPcs;
-  row.expectedSale = Number((baseSale * (1 - discountPercent / 100)).toFixed(2));
+    // --- Calculate expectedSale with discount ---
+    const baseSale = price * row.dispatchedPcs;
+    const discountAmt = (baseSale * discountPercent) / 100;
+    const expectedSale = Number((baseSale - discountAmt).toFixed(2));
 
-  updated[index] = row;
-  setRows(updated);
+    // **Validation for discount exceeding actual sale**
+    if (discountAmt > baseSale) {
+      toast.error("Discount cannot exceed the total amount of the product.", {
+        autoClose: 3000, // Close after 3 seconds
+        hideProgressBar: true,
+        className: 'toast-error',  // Custom class for styling
+      });
 
-  const totalExpected = updated.reduce((sum, r) => sum + n(r.expectedSale), 0);
-  setTotalExpectedSale(totalExpected);
-};
+      // Reset the discount to 0
+      row.discount = 0;
+
+      // Manually reset the actualSale to the original value (before discount)
+      row.expectedSale = baseSale;
+
+      // Recalculate discrepancy based on the original expectedSale
+      row.discrepancy = Number((row.expectedSale - row.expectedSale).toFixed(2));
+    } else {
+      // Valid discount: Update actual sale and discrepancy as usual
+      row.expectedSale = expectedSale;
+      row.discrepancy = Number((row.expectedSale - row.expectedSale).toFixed(2));  // Recalculate discrepancy
+    }
+
+    updated[index] = row;
+    setRows(updated);
+
+    const totalExpected = updated.reduce((sum, r) => sum + n(r.expectedSale), 0);
+    setTotalExpectedSale(totalExpected);
+  };
 
 
 
@@ -406,6 +426,7 @@ const VanLoadTable = ({
             const productId = Number(row.productId);
             const avail = availableStock[productId];
             const showAvail = (avail === 0 || typeof avail === "number") ? avail : "--";
+            const hasProduct = !!row.productId;
 
             return (
               <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
@@ -427,11 +448,12 @@ const VanLoadTable = ({
                     min="0"
                     step="0.01"
                     placeholder="0"
-                    className="input-always-spinner input text-center bg-yellow-50"
+                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : "bg-yellow-50"}`}
                     value={row.dispatchedShell === null || row.dispatchedShell === undefined ? "" : row.dispatchedShell}
-                  onChange={(e) =>
-                    handleRowChange(index, "dispatchedShell", e.target.value === "" ? null : e.target.value)
-                  }
+                    onChange={(e) =>
+                      handleRowChange(index, "dispatchedShell", e.target.value === "" ? null : e.target.value)
+                    }
+                    disabled={!hasProduct} // Disabled if no product is selected
                   />
                 </td>
 
@@ -442,11 +464,12 @@ const VanLoadTable = ({
                     min="0"
                     step="1"
                     placeholder="0"
-                    className="input-always-spinner input text-center bg-yellow-50"
+                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : "bg-yellow-50"}`}
                     value={row.dispatchedPcs === null || row.dispatchedPcs === undefined ? "" : row.dispatchedPcs}
-                  onChange={(e) =>
-                    handleRowChange(index, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
-                  }
+                    onChange={(e) =>
+                      handleRowChange(index, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
+                    }
+                    disabled={!hasProduct} // Disabled if no product is selected
                   />
                 </td>
 
@@ -456,11 +479,9 @@ const VanLoadTable = ({
                     type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={
-                      row.sellingPrice !== "" && row.sellingPrice != null
-                        ? `₱${Number(row.sellingPrice).toFixed(2)}`
-                        : ""
-                    }
+                    value={row.sellingPrice !== "" && row.sellingPrice != null
+                      ? `₱${Number(row.sellingPrice).toFixed(2)}`
+                      : ""}
                   />
                 </td>
 
@@ -470,11 +491,9 @@ const VanLoadTable = ({
                     type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={
-                      row.shellPrice !== "" && row.shellPrice != null
-                        ? `₱${Number(row.shellPrice).toFixed(2)}`
-                        : ""
-                    }
+                    value={row.shellPrice !== "" && row.shellPrice != null
+                      ? `₱${Number(row.shellPrice).toFixed(2)}`
+                      : ""}
                   />
                 </td>
 
@@ -484,14 +503,11 @@ const VanLoadTable = ({
                     type="text"
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
-                    value={
-                      row.bottlePrice !== "" && row.bottlePrice != null
-                        ? `₱${Number(row.bottlePrice).toFixed(2)}`
-                        : ""
-                    }
+                    value={row.bottlePrice !== "" && row.bottlePrice != null
+                      ? `₱${Number(row.bottlePrice).toFixed(2)}`
+                      : ""}
                   />
                 </td>
-
 
                 {/* DISCOUNT (%) — editable */}
                 <td className="border border-gray-200 py-1 px-1">
@@ -501,9 +517,10 @@ const VanLoadTable = ({
                     max="100"
                     step="0.01"
                     placeholder="0"
-                    className="input-always-spinner input text-center bg-yellow-50"
+                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : "bg-yellow-50"}`}
                     value={row.discount ?? ""}
                     onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+                    disabled={!hasProduct} // Disabled if no product is selected
                   />
                 </td>
 
@@ -512,14 +529,12 @@ const VanLoadTable = ({
                   <input
                     className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
                     disabled
-                    value={
-                      Number.isFinite(parseFloat(row.expectedSale))
-                        ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}`
-                        : ""
-                    }
+                    value={Number.isFinite(parseFloat(row.expectedSale))
+                      ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}`
+                      : ""}
                   />
                 </td>
 
