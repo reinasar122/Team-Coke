@@ -341,7 +341,7 @@ export default function SalesReport() {
       {/* Bottom Section */}
       <div className="space-y-4">
         {/* Returns & Discrepancies – full width */}
-        <Card title="Returns & Discrepancies">
+        <Card title="Returns">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
             <Metric
