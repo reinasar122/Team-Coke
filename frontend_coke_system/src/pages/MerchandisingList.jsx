@@ -19,7 +19,7 @@ const formatToManila = (isoString) => {
     minute: "2-digit",
     hour12: true,
   }).format(d);
-}; 
+};
 
 // YYYY-MM-DD in Asia/Manila (safe for comparisons)
 const toYMD_PH = (d) =>
@@ -46,22 +46,23 @@ const MerchandisingList = () => {
   const [sales, setSales] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ NEW STATE
   const [loading, setLoading] = useState(true); // ✅ NEW STATE
+  const [searchTerm, setSearchTerm] = useState(""); // NEW: Search functionality
   const navigate = useNavigate();
   const asYmd = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : "");
 
   // ✅ FIXED: Proper warehouse setup like ProductList
   const setupWarehouse = useCallback(async () => {
     console.log('🏭 Setting up warehouse for MerchandisingList...');
-    
+   
     const warehouse = getCurrentWarehouse();
-    
+   
     if (!warehouse) {
       console.warn('⚠️ No warehouse found for user');
       setCurrentWarehouse(null);
       setLoading(false);
       return;
     }
-    
+   
     // If warehouse needs ID lookup, find it by name
     if (warehouse.needsIdLookup) {
       const foundWarehouse = await findWarehouseByName(warehouse.name);
@@ -69,7 +70,7 @@ const MerchandisingList = () => {
     } else {
       setCurrentWarehouse(warehouse);
     }
-    
+   
     setLoading(false);
   }, []);
 
@@ -83,7 +84,7 @@ const MerchandisingList = () => {
     try {
       setLoading(true);
       console.log(`🏪 Fetching transactions for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`);
-      
+     
       const response = await api.get("/merchandisings/", { // ✅ NEW: from new version (was: axios.get("http://localhost:8080/api/merchandisings/"))
         params: { warehouse: currentWarehouse.id },
         headers: {
@@ -94,20 +95,20 @@ const MerchandisingList = () => {
 
       const transactions = response.data || [];
       console.log(`✅ Loaded ${transactions.length} transactions for warehouse ${currentWarehouse.name}`);
-      
+     
       // Extra client-side filtering for safety
       const filteredTransactions = transactions.filter(transaction => {
-        const warehouseMatch = 
+        const warehouseMatch =
           transaction.warehouse === currentWarehouse.id ||
           transaction.warehouse_id === currentWarehouse.id ||
           (transaction.warehouse && transaction.warehouse.id === currentWarehouse.id);
-        
+       
         if (!warehouseMatch) {
           console.warn(`⚠️ Transaction ${transaction.msp_no} doesn't belong to current warehouse, filtering out`);
         }
         return warehouseMatch;
       });
-      
+     
       console.log(`📋 After filtering: ${filteredTransactions.length} transactions for warehouse ${currentWarehouse.name}`);
       setSales(filteredTransactions);
     } catch (err) {
@@ -135,7 +136,7 @@ const MerchandisingList = () => {
       console.log('🏭 Warehouse change detected in MerchandisingList:', event.detail);
       setupWarehouse();
     };
-    
+   
     window.addEventListener("warehouseChanged", handleWarehouseChange);
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, [setupWarehouse]);
@@ -203,8 +204,28 @@ const MerchandisingList = () => {
 
   const displayRows = useMemo(() => {
     const merged = [...groupedWarehouseRows, ...nonWarehouseRows];
-    return merged.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
-  }, [groupedWarehouseRows, nonWarehouseRows]);
+    const sorted = merged.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
+   
+    // NEW: Apply search filtering
+    if (!searchTerm.trim()) return sorted;
+   
+    const searchLower = searchTerm.toLowerCase().trim();
+    return sorted.filter(row => {
+      if (row._kind === "warehouse-group") {
+        return row.msp_no?.toLowerCase().includes(searchLower);
+      }
+     
+      const sale = row.record;
+      return (
+        sale.msp_no?.toLowerCase().includes(searchLower) ||
+        sale.transaction_type_name?.toLowerCase().includes(searchLower) ||
+        sale.handled_by_name?.toLowerCase().includes(searchLower) ||
+        sale.handled_by_username?.toLowerCase().includes(searchLower) ||
+        sale.handled_by?.toLowerCase().includes(searchLower) ||
+        sale.status?.toLowerCase().includes(searchLower)
+      );
+    });
+  }, [groupedWarehouseRows, nonWarehouseRows, searchTerm]);
 
   const handleCreateNew = () => navigate("/merchandising-sale");
 
@@ -277,13 +298,13 @@ const MerchandisingList = () => {
           <h1 className="text-2xl flex items-center gap-2">
             <FaChartLine /> Trading
           </h1>
-          
+         
           {/* ✅ NEW: Show current warehouse */}
           {currentWarehouse && (
-            <div style={{ 
-              padding: '4px 8px', 
-              background: '#f3f4f6', 
-              borderRadius: '6px', 
+            <div style={{
+              padding: '4px 8px',
+              background: '#f3f4f6',
+              borderRadius: '6px',
               fontSize: '12px',
               color: '#6b7280'
             }}>
@@ -310,8 +331,6 @@ const MerchandisingList = () => {
               </button>
             )}
           </div>
-        
-
         </div>
 
         <button
@@ -345,12 +364,14 @@ const MerchandisingList = () => {
                 </td>
               </tr>
             )}
-            
+           
             {!loading && displayRows.length === 0 && (
               <tr>
                 <td colSpan="5" className="p-4 text-center text-gray-500">
-                  {currentWarehouse ? 
-                    `No transactions found for ${currentWarehouse.name}` : 
+                  {searchTerm ? (
+                    `No transactions found matching "${searchTerm}"`
+                  ) : currentWarehouse ?
+                    `No transactions found for ${currentWarehouse.name}` :
                     'No warehouse selected. Please select a warehouse to view transactions.'
                   }
                 </td>
