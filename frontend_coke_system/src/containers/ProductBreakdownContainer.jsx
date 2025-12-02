@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import api from '../api';  // Import the custom axios instance
+import api from "../../api"; // Import the API helper
 import ProductBreakdownTable from "../components/tables/ProductBreakdownTable";
 
 const SORTERS = {
@@ -11,6 +11,7 @@ const SORTERS = {
 };
 
 export default function ProductBreakdownContainer({
+  apiBase = "api/coke", // Default API base
   warehouseId = "all",
   routeId = "all",
   period = "this_week",
@@ -23,15 +24,13 @@ export default function ProductBreakdownContainer({
   const [query, setQuery] = useState("");
   const [sortKey, setSortKey] = useState("revenue");
   const [err, setErr] = useState("");
-  const [showFull, setShowFull] = useState(false); // Modal toggle
+  const [showFull, setShowFull] = useState(false); // Modal toggle state
 
   useEffect(() => {
     let cancelled = false;
-
-    const fetchData = async () => {
+    (async () => {
       setLoading(true);
-      setErr(""); // Reset error state
-
+      setErr("");
       try {
         const params = {
           warehouse_id: String(warehouseId ?? "all"),
@@ -43,21 +42,49 @@ export default function ProductBreakdownContainer({
           if (end) params.end = end;
         }
 
-        const response = await api.get("/sales_report/", { params });  // Use the custom api instance
-        const data = response.data;
+        const token = localStorage.getItem("token");
+        const headers = {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        };
 
-        const products = data?.products ?? data?.product_breakdown ?? data?.rows ?? [];
+        const urls = [
+          `${apiBase}/api/sales_report/`,
+          `${apiBase}/api/reports/sales/`,
+        ];
 
-        // --- Normalize rows
+        let data;
+        let lastError;
+        for (const url of urls) {
+          try {
+            console.log("[ProductBreakdown] GET:", url, params);
+            const res = await api.get(url, { params, headers, timeout: 15000 });
+            data = res.data;
+            break;
+          } catch (e) {
+            lastError = e;
+          }
+        }
+        if (!data) {
+          throw new Error(
+            lastError?.response?.data?.detail ||
+              lastError?.message ||
+              "Failed to fetch product breakdown"
+          );
+        }
+
+        const products =
+          data?.products ?? data?.product_breakdown ?? data?.rows ?? [];
+
+        // --- Normalize rows (NOW includes discount_amount) ---
         let rows = products.map((p) => ({
           product_id:
-            p.product_id ??
-            p.productId ??
-            (typeof p.product === "object" ? p.product?.id : undefined),
+            p.product_id ?? p.productId ?? (typeof p.product === "object" ? p.product?.id : undefined),
           product: p.product_name ?? p.product ?? "—",
           qty: Number(p.qty_sold ?? p.qty ?? 0),
           revenue: Number(p.revenue ?? p.net_revenue ?? 0),
           profit: Number(p.profit ?? p.revenue ?? 0),
+          discount_amount: Number(p.discount_amount ?? 0),   // NEW: Track discount sum
           discount_rate: Number(p.discount_rate ?? 0),
           return_rate: Number(p.return_rate ?? 0),
           _raw: p,
@@ -66,7 +93,7 @@ export default function ProductBreakdownContainer({
         // 🧹 Filter out junk rows
         rows = rows.filter((r) => r.product && r.product.toLowerCase() !== "product");
 
-        // --- If "All Warehouses" -> merge duplicates by product (sum qty/revenue/profit)
+        // --- Merge products when warehouse == "all" ---
         if (!warehouseId || warehouseId === "all") {
           const merged = new Map();
           for (const r of rows) {
@@ -79,6 +106,7 @@ export default function ProductBreakdownContainer({
                 qty: 0,
                 revenue: 0,
                 profit: 0,
+                discount_amount: 0, // Track sum of discounts
                 _w_rev: 0,
                 _sum_discount_rev: 0,
                 _sum_return_rev: 0,
@@ -88,6 +116,8 @@ export default function ProductBreakdownContainer({
             m.qty += Number(r.qty || 0);
             m.revenue += Number(r.revenue || 0);
             m.profit += Number(r.profit || 0);
+            m.discount_amount += Number(r.discount_amount || 0); // Sum discounts
+
             const rev = Number(r.revenue || 0);
             m._w_rev += rev;
             m._sum_discount_rev += rev * Number(r.discount_rate || 0);
@@ -99,30 +129,27 @@ export default function ProductBreakdownContainer({
             qty: m.qty,
             revenue: m.revenue,
             profit: m.profit,
+            discount_amount: m.discount_amount, // Forward discount sum
             discount_rate: m._w_rev ? m._sum_discount_rev / m._w_rev : 0,
             return_rate: m._w_rev ? m._sum_return_rev / m._w_rev : 0,
           }));
         }
 
-        if (!cancelled) setRawRows(rows); // Set the rows in state
-
+        if (!cancelled) setRawRows(rows);
       } catch (e) {
         console.error("[ProductBreakdown] load error:", e);
         if (!cancelled) {
           setErr(typeof e?.message === "string" ? e.message : "Load error");
-          setRawRows([]); // Clear rows on error
+          setRawRows([]);
         }
       } finally {
-        if (!cancelled) setLoading(false); // Stop loading
+        if (!cancelled) setLoading(false);
       }
-    };
-
-    fetchData();
-
+    })();
     return () => {
-      cancelled = true; // Cleanup on unmount
+      cancelled = true;
     };
-  }, [warehouseId, routeId, period, start, end]);
+  }, [apiBase, warehouseId, routeId, period, start, end]);
 
   // 🔎 Apply search + sort + totals
   const rows = useMemo(() => {
@@ -132,7 +159,7 @@ export default function ProductBreakdownContainer({
       : rawRows.slice();
 
     const get = SORTERS[sortKey] ?? SORTERS.revenue;
-    filtered.sort((a, b) => get(b) - get(a)); // desc
+    filtered.sort((a, b) => get(b) - get(a)); // Sorting in descending order
 
     const totals = filtered.reduce(
       (acc, r) => {
@@ -148,7 +175,6 @@ export default function ProductBreakdownContainer({
     return filtered;
   }, [rawRows, query, sortKey, onTotalsChange]);
 
-  // 👀 Preview: only show top 10 in main card
   const previewRows = useMemo(() => rows.slice(0, 10), [rows]);
 
   const onExportCSV = () => {
@@ -181,7 +207,6 @@ export default function ProductBreakdownContainer({
 
   return (
     <>
-      {/* 🧊 Preview card (Top 10) */}
       <ProductBreakdownTable
         loading={loading}
         rows={previewRows}
@@ -197,7 +222,6 @@ export default function ProductBreakdownContainer({
         variant="card"
       />
 
-      {/* 🪟 Full breakdown modal */}
       {showFull && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-2xl max-w-6xl w-[94vw] max-h-[90vh] flex flex-col">
@@ -239,6 +263,7 @@ function csvSafe(val) {
   const s = String(val ?? "");
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
+
 function fixed(n) {
   return Number(n ?? 0).toFixed(2);
 }
