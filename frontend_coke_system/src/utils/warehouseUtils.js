@@ -1,5 +1,5 @@
 // src/utils/warehouseUtils.js - Warehouse utility functions
-import axios from 'axios';
+import api from '../api'; // Import the API helper
 
 export const getCurrentWarehouse = () => {
   const userData = JSON.parse(localStorage.getItem("user") || "{}");
@@ -58,7 +58,7 @@ export const getWarehouseQueryParam = (warehouse) => {
 export const findWarehouseByName = async (warehouseName) => {
   try {
     console.log('🔍 Looking up warehouse by name:', warehouseName);
-    const response = await axios.get("http://localhost:8080/api/warehouses/");
+    const response = await api.get("warehouses/"); // Use the api helper
     const warehouses = response.data;
     
     const found = warehouses.find(w => 
