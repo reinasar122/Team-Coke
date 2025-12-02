@@ -181,6 +181,11 @@ class SalesReportAPIView(APIView):
                 "qty_sold": qty_sold,
                 "revenue": float(net_revenue),
                 "profit": float(profit),
+
+                # NEW: exact peso discount per product
+                "discount_amount": float(discount),
+
+                # Keep the rate for charts if needed
                 "discount_rate": float(discount_pct),
             })
 
@@ -353,7 +358,6 @@ class SalesReportAPIView(APIView):
 
         # Send as float (fraction; frontend multiplies by 100 for %)
         returned_rate = float(avg_rate)
-
 
         # ------------------------------
         # By Route / Warehouse
@@ -558,9 +562,11 @@ class ProductBreakdownReport(APIView):
                 qty=Coalesce(Sum("sold_pcs"), 0),
                 revenue=Coalesce(Sum("line_net"), DEC0),   # Net revenue per product
                 cogs=Coalesce(Sum("line_cogs"), DEC0),
+                discount_amount=Coalesce(Sum("line_discount"), DEC0),  # new
             )
             .order_by("-revenue")
         )
+
 
         rows = []
         for g in grouped:
@@ -575,6 +581,8 @@ class ProductBreakdownReport(APIView):
                 "qty": g["qty"],
                 "revenue": float(revenue),
                 "profit": float(profit),
+                "discount_amount": float(g.get("discount_amount") or 0),  # new
             })
+
 
         return Response({"rows": rows})

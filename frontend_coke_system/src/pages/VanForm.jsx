@@ -47,10 +47,10 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => { // ✅ KEPT: onVanAdde
       }
 
       const newVan = res.data;
-      toast.success(
-        `Van '${newVan.plate_number}' ${vanToEdit ? "updated" : "registered"} successfully!`,
-        { style: successStyle }
-      );
+      // toast.success(
+      //   `Van '${newVan.plate_number}' ${vanToEdit ? "updated" : "registered"} successfully!`,
+      //   { style: successStyle }
+      // );
 
       // ✅ KEPT: Pass the new van data to the callback (from old version)
       onVanAdded?.(newVan);

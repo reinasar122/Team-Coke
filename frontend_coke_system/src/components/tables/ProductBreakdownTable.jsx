@@ -1,27 +1,29 @@
 import Empty from "../common/Empty";
-import { n, peso, pct } from "../../utils/formatters";
+import { n, peso } from "../../utils/formatters";
 
-export default function ProductBreakdownTable({
-  loading = false,
-  rows = [],
-  query = "",
-  sortKey = "revenue",
-  onQuery,
-  onSort,
-  onExportCSV,
-  error = "",
-  totalCount = 0,
-  isPreview = false,
-  onOpenFull,
-  variant = "card", // "card" | "modal"
-}) {
+export default function ProductBreakdownTable(props) {
+  const {
+    loading = false,
+    rows = [],
+    query = "",
+    sortKey = "revenue",
+    onQuery,
+    onSort,
+    onExportCSV,
+    error = "",
+    totalCount = 0,
+    isPreview = false,
+    onOpenFull,
+    variant = "card"  // "card" or "modal"
+  } = props;
+
   const headers = [
     { key: "product", label: "Product" },
-    { key: "qty", label: "Dispatched Units" },
+    { key: "qty", label: "Qty Sold" },
     { key: "revenue", label: "Net Revenue" },
     { key: "profit", label: "Product Profit" },
     { key: "cogs", label: "Cost of Sales" },
-    { key: "discount_amount", label: "Discount ₱" },
+    { key: "discount_amount", label: "Discount ₱" }
   ];
 
   const isNumeric = (k) =>
@@ -30,14 +32,13 @@ export default function ProductBreakdownTable({
   const isCentered = (k) => ["margin"].includes(k);
 
   const containerClass =
-  variant === "modal"
-    ? "h-full overflow-y-auto rounded-lg border border-slate-200 shadow-sm"
-    : "max-h-[400px] overflow-y-auto rounded-lg border border-slate-200 shadow-sm";
+    variant === "modal"
+      ? "h-full overflow-y-auto rounded-lg border border-slate-200 shadow-sm"
+      : "max-h-[400px] overflow-y-auto rounded-lg border border-slate-200 shadow-sm";
 
   const theadClass =
     "bg-slate-50 border-b text-slate-600 " +
     (variant === "modal" ? "sticky top-0 z-10" : "");
-
 
   return (
     <div id="product-breakdown-section">
@@ -51,6 +52,7 @@ export default function ProductBreakdownTable({
             value={query}
             onChange={(e) => onQuery?.(e.target.value)}
           />
+
           <div className="flex items-center gap-1 text-xs text-slate-500">
             <span>Sort by:</span>
             <select
@@ -88,23 +90,16 @@ export default function ProductBreakdownTable({
       {isPreview && totalCount > rows.length && (
         <p className="mb-2 text-xs text-slate-500">
           Showing top <span className="font-semibold">{rows.length}</span> of{" "}
-          <span className="font-semibold">{totalCount}</span> products based on{" "}
-          {sortKey === "profit"
-            ? "Product Profit"
-            : sortKey === "qty"
-            ? "Qty Sold"
-            : "Net Revenue"}
-          .
+          <span className="font-semibold">{totalCount}</span> products.
         </p>
       )}
-    
 
-      {/* Table */}
+      {/* TABLE */}
       <div className={containerClass}>
         <table className="min-w-full text-sm border-collapse">
           <colgroup>
             <col className="w-[18%]" /> {/* Product */}
-            <col className="w-[10%]" /> {/* Dispatched Units */}
+            <col className="w-[10%]" /> {/* Qty */}
             <col className="w-[16%]" /> {/* Net Revenue */}
             <col className="w-[16%]" /> {/* Product Profit */}
             <col className="w-[15%]" /> {/* COGS */}
@@ -140,31 +135,19 @@ export default function ProductBreakdownTable({
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={headers.length} className="px-3 py-8">
-                  <Empty text={error || "No data for the selected filters."} />
+                  <Empty text={error || "No data."} />
                 </td>
               </tr>
             ) : (
               rows.map((r, i) => {
                 const revenue = r.revenue || 0;
                 const profit = r.profit || 0;
-
-                // Margin % = profit / revenue
-                // const marginRatio = revenue > 0 ? profit / revenue : 0;
-
-                // COGS ≈ revenue - profit
                 const cogs = revenue - profit;
 
-                // Discount amount (₱)
-                let discountAmount =
-                  typeof r.discount_amount === "number" ? r.discount_amount : 0;
-
-                const discountRateRatio = (r.discount_rate ?? 0) / 100;
-
-                // If backend didn't send discount_amount, estimate it
-                if (!discountAmount && revenue > 0 && discountRateRatio > 0 && discountRateRatio < 1) {
-                  const gross = revenue / (1 - discountRateRatio);
-                  discountAmount = gross - revenue;
-                }
+                const discountAmount =
+                  typeof r.discount_amount === "number"
+                    ? r.discount_amount
+                    : 0;
 
                 return (
                   <tr
@@ -193,17 +176,10 @@ export default function ProductBreakdownTable({
                       {peso(profit)}
                     </td>
 
-                    {/*
-                    <td className="px-4 py-2 text-center tabular-nums">
-                      {pct(marginRatio)}
-                    </td> */}
-
-                    {/* COGS */}
                     <td className="px-4 py-2 text-right tabular-nums">
                       {peso(cogs)}
                     </td>
 
-                    {/* Discount ₱ */}
                     <td className="px-4 py-2 text-right tabular-nums">
                       {peso(discountAmount)}
                     </td>
@@ -217,7 +193,3 @@ export default function ProductBreakdownTable({
     </div>
   );
 }
-
-
-
-/*export NODE_OPTIONS=--no-experimental-webstorage*/

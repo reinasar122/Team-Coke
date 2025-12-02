@@ -5,7 +5,11 @@ import axios from "axios";
 // import "../../styles/pages/receivinglist.scss"; // reuse your existing styles
 import api from "../api"; // ✅ correct
 
-const peso = (v) => `₱${Number(v || 0).toFixed(2)}`;
+const peso = (v) => {
+  const number = Number(v || 0);
+  return `₱${number.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 
 export default function ReceivingDetails() {
   const { id } = useParams();

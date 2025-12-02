@@ -54,6 +54,15 @@ const ReceivingForm = () => {
     ],
   });
 
+  const formatAmount = (value) => {
+    const num = Number(value || 0);
+    return num.toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
+
+
   // Show notice function
   const showNotice = (text, type = "success") => {
     setNotice({ open: true, type, text });
@@ -838,7 +847,7 @@ const ReceivingForm = () => {
                 <span className="currency">₱</span>
                 <input
                   type="text"
-                  value={parseFloat(totalReceiving || 0).toFixed(2)}
+                  value={formatAmount(totalReceiving)}
                   readOnly
                   className="form-input with-currency font-semibold"
                 />
@@ -855,7 +864,7 @@ const ReceivingForm = () => {
                 <span className="currency">₱</span>
                 <input
                   type="text"
-                  value={parseFloat(form.return_total_amount || 0).toFixed(2)}
+                  value={formatAmount(form.return_total_amount)}
                   readOnly
                   className={`form-input with-currency font-semibold ${
                     parseFloat(form.return_total_amount) > 0 ? "text-danger" : "text"
@@ -869,7 +878,7 @@ const ReceivingForm = () => {
                 <span className="currency">₱</span>
                 <input
                   type="text"
-                  value={parseFloat(form.net_amount || 0).toFixed(2)}
+                  value={formatAmount(form.net_amount)}
                   readOnly
                   className="form-input with-currency font-semibold"
                 />
@@ -896,7 +905,7 @@ const ReceivingForm = () => {
                     <tr key={i}>
                       <td>{r.sup_no || "N/A"}</td>
                       <td>{r.date ? new Date(r.date).toLocaleDateString() : "N/A"}</td>
-                      <td className="text-danger font-semibold">₱{parseFloat(r.total_amount || 0).toFixed(2)}</td>
+                      <td className="text-danger font-semibold">₱{formatAmount(r.total_amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -906,7 +915,7 @@ const ReceivingForm = () => {
                       Total Return Amount:
                     </td>
                     <td className="text-right font-bold text-danger">
-                      ₱{parseFloat(form.return_total_amount || 0).toFixed(2)}
+                      ₱{formatAmount(form.return_total_amount)}
                     </td>
                   </tr>
                 </tfoot>
@@ -1004,8 +1013,8 @@ const ReceivingForm = () => {
                       />
                     </td>
 
-                    <td className="text-center">₱{parseFloat(row.unit_cost || 0).toFixed(2)}</td>
-                    <td className="text-center font-bold">₱{parseFloat(row.total || 0).toFixed(2)}</td>
+                    <td className="text-center">₱{formatAmount(row.unit_cost)}</td>
+                    <td className="text-center font-bold">₱{formatAmount(row.total)}</td>
                   </tr>
                 ))}
               </tbody>
