@@ -44,6 +44,8 @@ export default function ForecastingDashboard() {
   const [bestSellerData, setBestSellerData] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
 
+  const [stocks, setStocks] = useState([]);
+
   // 1) Fetch product list
   useEffect(() => {
     const fetchProducts = async () => {
@@ -80,6 +82,33 @@ export default function ForecastingDashboard() {
 
     fetchProducts();
   }, []);
+
+
+  // -----------------------
+  // 1b) Fetch stocks
+  // -----------------------
+  useEffect(() => {
+    const fetchStocks = async () => {
+      try {
+        const res = await api.get("/stocks/"); // Fetch stock data
+        const data = res.data;
+        const list = Array.isArray(data)
+          ? data
+          : Array.isArray(data.results)
+          ? data.results
+          : [];
+
+        setStocks(list);
+      } catch (err) {
+        console.error("❌ Failed to load stocks:", err);
+      }
+    };
+
+    fetchStocks();
+  }, []);
+
+
+
 
   // 2) Fetch HOLIDAYS
   useEffect(() => {
@@ -168,7 +197,8 @@ export default function ForecastingDashboard() {
       },
     ]);
 
-    const currentStock = 500;
+    // Getting the real stock (from your modified logic)
+    const currentStock = getCurrentStock(selectedProductName);
     const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
 
     setInventoryData([
@@ -179,7 +209,7 @@ export default function ForecastingDashboard() {
         restock: restockNeeded,
       },
     ]);
-  }, [forecastData, selectedProductName]);
+  }, [forecastData, selectedProductName, stocks]);
 
   // GLOBAL BEST SELLER + INVENTORY FOR ALL PRODUCTS
   useEffect(() => {
@@ -278,6 +308,48 @@ export default function ForecastingDashboard() {
       setGenerating(false);
     }
   };
+
+
+  // Function to get the current stock for a selected product
+  const getCurrentStock = (productName) => {
+    if (!productName || !stocks.length) return 0;
+
+    const normalized = productName.trim().toLowerCase();
+
+    // Find the stock for this product
+    const candidates = stocks.filter(
+      (s) =>
+        s.product_name &&
+        s.product_name.trim().toLowerCase() === normalized
+    );
+
+    if (!candidates.length) {
+      console.log("❌ No stock rows for", productName, "stocks:", stocks);
+      return 0;
+    }
+
+    // Prefer matching warehouse; fallback to first
+    let row = candidates[0];
+    const warehouseId = JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
+    if (warehouseId != null) {
+      row =
+        candidates.find(
+          (s) => Number(s.warehouse) === Number(warehouseId)
+        ) || row;
+    }
+
+    const qty =
+      row.quantity_available ??
+      row.quantity_available_pcs ??
+      row.quantity ??
+      row.current_stock ??
+      0;
+
+    return Number(qty) || 0;
+  };
+
+
+
 
   // 5) Holiday handlers
   const handleAddHoliday = async (holiday) => {
