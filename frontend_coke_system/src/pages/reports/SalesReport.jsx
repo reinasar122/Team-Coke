@@ -100,7 +100,7 @@ export default function SalesReport() {
             net_revenue: n(r?.summary?.revenue?.net_revenue ?? 0),
             net_profit: n(r?.summary?.revenue?.net_profit ?? 0),
             discounts: n(r?.summary?.discount?.total_amount ?? 0),
-            returned_rate: n(r?.summary?.returned_rate ?? r?.summary?.return_rate ?? 0),
+            returned_rate: n(r?.summary?.revenue?.returned_rate),
           },
           sales_by_warehouse: Array.isArray(r?.by_warehouse)
             ? r.by_warehouse.map((x) => ({
@@ -296,7 +296,7 @@ export default function SalesReport() {
         <Metric label="Net Revenue" value={peso(data.summary.net_revenue ?? 0)} />
         <Metric label="Net Income" value={peso(data.summary.net_profit ?? 0)} />
         <Metric label="Discounts" value={peso(data.summary.discounts ?? 0)} />
-        <Metric label="Returned Rate" value={pct(data.summary.returned_rate ?? 0)} />
+        <Metric label="Returned Rate" value={pct(data.summary.returned_rate)} />
       </div>
 
       {/* Product Breakdown */}
