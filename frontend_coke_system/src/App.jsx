@@ -231,14 +231,14 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 />
 
                 {/* ✅ Sales Report page title */}
-                <Route
+                {/* <Route
                   path="/reports/sales"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
                       <FaChartBar /> Sales Report
                     </h1>
                   }
-                />
+                /> */}
 
                 <Route path="/expenses" />
               </Routes>
