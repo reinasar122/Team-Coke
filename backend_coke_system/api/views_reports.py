@@ -25,6 +25,7 @@ from .models import (
     Product,
     ReceivingItem,
     ReturnableStock,   # 👈 use latest unit_cost from receiving lines
+    UnitType,
 )
 
 # ---------- helpers ----------
@@ -158,6 +159,54 @@ class SalesReportAPIView(APIView):
         total_qty = total_return_qty = 0
         products = []
 
+
+        # ------------------------------
+        # Filter returnable products
+        # ------------------------------
+        returnable_products = Product.objects.filter(unit_type__returnable=True)
+
+        # Now, modify the base queryset to only consider returnable products for the return rate calculation.
+        base_qs = MerchandisingItem.objects.filter(
+            items_base_q,
+            product__in=returnable_products  # Only include returnable products
+        )
+
+        # Aggregate the totals for returnable products only
+        totals = base_qs.aggregate(
+            total_disp_shell=Coalesce(Sum("dispatched_shell"), 0),
+            total_empty_shell=Coalesce(Sum("empty_return_shell"), 0),
+            total_disp_pcs=Coalesce(Sum("dispatched_pcs"), 0),
+            total_empty_pcs=Coalesce(Sum("empty_return_pcs"), 0),
+        )
+
+        # Convert to Decimal for safe division
+        total_disp_shell = Decimal(totals["total_disp_shell"] or 0)
+        total_empty_shell = Decimal(totals["total_empty_shell"] or 0)
+        total_disp_pcs = Decimal(totals["total_disp_pcs"] or 0)
+        total_empty_pcs = Decimal(totals["total_empty_pcs"] or 0)
+
+        # Weighted average rate calculation for returnables only
+        shell_rate = Decimal("0")
+        if total_disp_shell > 0:
+            shell_rate = (total_empty_shell / total_disp_shell)
+
+        pcs_rate = Decimal("0")
+        if total_disp_pcs > 0:
+            pcs_rate = (total_empty_pcs / total_disp_pcs)
+
+        # If both exist, average them; otherwise use whichever is non-zero
+        if total_disp_shell > 0 and total_disp_pcs > 0:
+            avg_rate = (shell_rate + pcs_rate) / Decimal("2")
+        else:
+            avg_rate = shell_rate or pcs_rate
+
+        # Send as float (fraction; frontend multiplies by 100 for %)
+        returned_rate = float(avg_rate)
+
+        # Now proceed with the return rate
+
+
+
         for p in products_with_cost:
             a = by_product_id.get(p.id) or {}
             qty_sold = int(a.get("qty_sold", 0) or 0)
@@ -197,8 +246,6 @@ class SalesReportAPIView(APIView):
             total_revenue += net_revenue
             total_qty += qty_sold
             total_return_qty += returned_qty
-
- 
 
         # ------------------------------------
         # Misc Expenses (MSP only in notes)
@@ -265,18 +312,20 @@ class SalesReportAPIView(APIView):
         # KPI SUMMARY (aligned with product breakdown)
         # ------------------------------
         qs = MerchandisingItem.objects.filter(items_base_q).annotate(
-            line_gross=F("sold_pcs") * F("selling_price"),
-            line_discount=F("sold_pcs") * F("selling_price") * (F("discount_percent") / Value(100, output_field=DECIMAL)),
-            line_returns=F("actual_return_pcs") * F("selling_price"),
+            line_gross=F("sold_pcs") * F("selling_price"),  # Gross Revenue
+            line_discount=F("sold_pcs") * F("selling_price") * (F("discount_percent") / Value(100, output_field=DECIMAL)),  # Discount
+            line_returns=F("actual_return_pcs") * F("selling_price"),  # This is returns, but we won't use it for Net Revenue anymore
             last_unit_cost=Subquery(
                 ReceivingItem.objects.filter(product=OuterRef("product")).order_by("-id").values("unit_cost")[:1]
             ),
+            # ✅ Line COGS: Don't subtract returns from COGS (remove returns from here)
             line_cogs=ExpressionWrapper(
-                (F("sold_pcs") - Coalesce(F("actual_return_pcs"), 0)) * Coalesce(F("last_unit_cost"), 0),
+                F("sold_pcs") * Coalesce(F("last_unit_cost"), 0),
                 output_field=DECIMAL,
             ),
+            # ✅ Net Revenue = Gross Revenue - Discount (remove returns from Net Revenue calculation)
             line_net=ExpressionWrapper(
-                F("line_gross") - Coalesce(F("line_discount"), 0) - Coalesce(F("line_returns"), 0),
+                F("line_gross") - Coalesce(F("line_discount"), 0),
                 output_field=DECIMAL,
             ),
         )
@@ -285,9 +334,9 @@ class SalesReportAPIView(APIView):
         sums = qs.aggregate(
             gross_revenue=Sum(Cast("line_gross", DECIMAL)),
             discount_total=Sum(Cast("line_discount", DECIMAL)),
-            returns_total=Sum(Cast("line_returns", DECIMAL)),
-            net_revenue=Sum(Cast("line_net", DECIMAL)),
-            cogs=Sum(Cast("line_cogs", DECIMAL)),
+            returns_total=Sum(Cast("line_returns", DECIMAL)),  # We still calculate returns but won't use it for Net Revenue
+            net_revenue=Sum(Cast("line_net", DECIMAL)),  # Net Revenue is now gross - discount
+            cogs=Sum(Cast("line_cogs", DECIMAL)),  # COGS will not include returns
         )
 
         # helper for safe conversion
@@ -297,44 +346,45 @@ class SalesReportAPIView(APIView):
                     return Decimal("0.00")
                 if isinstance(v, (int, float, Decimal)):
                     return Decimal(v)
-                # force evaluation if it's an expression (CombinedExpression)
                 return Decimal(str(v))
             except Exception:
                 return Decimal("0.00")
 
+        # Get the totals for the summary
         gross_val = _to_decimal(sums.get("gross_revenue"))
-        net_val = _to_decimal(sums.get("net_revenue"))
-        cogs_val = _to_decimal(sums.get("cogs"))
+        net_val = _to_decimal(sums.get("net_revenue"))  # Total Net Revenue (now gross - discount)
+        cogs_val = _to_decimal(sums.get("cogs"))  # COGS is now calculated without returns
         disc_val = _to_decimal(sums.get("discount_total"))
 
-        # ✅ compute net profit after misc
-        net_profit_value = (net_val - cogs_val - misc_total)
+        # ✅ Compute net profit after miscellaneous expenses (excluding returned value from the COGS)
+        net_profit_value = (net_val - cogs_val - misc_total)  # Net Profit = Net Revenue - COGS - Misc Expenses
 
-        # ✅ now everything is guaranteed numeric
+        # KPI summary (Net Revenue & Profit)
         revenue_summary = {
             "gross_revenue": float(gross_val),
-            "net_revenue": float(net_val),
-            "cogs": float(cogs_val),
-            "misc_expenses": float(misc_total),
-            "net_profit": float(net_profit_value),
+            "net_revenue": float(net_val),  # The final Net Revenue (Gross - Discount)
+            "cogs": float(cogs_val),  # COGS without returns
+            "misc_expenses": float(misc_total),  # Total Miscellaneous Expenses
+            "net_profit": float(net_profit_value),  # Final Net Profit (after COGS and Misc Expenses)
+            "returned_rate": returned_rate,  # Add the return rate for returnable products
         }
 
         discount_summary = {
-            "total_amount": float(disc_val),  # exact peso value
+            "total_amount": float(disc_val),  # Total Discount Applied
         }
 
 
         # ------------------------------
         # Return Rate (weighted by totals)
         # ------------------------------
-        base_qs = MerchandisingItem.objects.filter(items_base_q)
+        # base_qs = MerchandisingItem.objects.filter(items_base_q)
 
-        totals = base_qs.aggregate(
-            total_disp_shell=Coalesce(Sum("dispatched_shell"), 0),
-            total_empty_shell=Coalesce(Sum("empty_return_shell"), 0),
-            total_disp_pcs=Coalesce(Sum("dispatched_pcs"), 0),
-            total_empty_pcs=Coalesce(Sum("empty_return_pcs"), 0),
-        )
+        # totals = base_qs.aggregate(
+        #     total_disp_shell=Coalesce(Sum("dispatched_shell"), 0),
+        #     total_empty_shell=Coalesce(Sum("empty_return_shell"), 0),
+        #     total_disp_pcs=Coalesce(Sum("dispatched_pcs"), 0),
+        #     total_empty_pcs=Coalesce(Sum("empty_return_pcs"), 0),
+        # )
 
         # Convert to Decimal for safe division
         total_disp_shell = Decimal(totals["total_disp_shell"] or 0)
@@ -387,7 +437,7 @@ class SalesReportAPIView(APIView):
             .order_by("-revenue")
         )
         by_warehouse = [
-            {"name": r["merchandising__warehouse__name"], "revenue": float(r["revenue"])} 
+            {"name": r["merchandising__warehouse__name"], "revenue": float(r["revenue"])}
             for r in by_warehouse_qs if r["merchandising__warehouse__name"]
         ]
 
@@ -458,7 +508,7 @@ class SalesReportAPIView(APIView):
         summary = {
             "revenue": revenue_summary,
             "discount": discount_summary,
-            "returned_rate": returned_rate,
+            # "returned_rate": returned_rate,
         }
 
         payload = {
@@ -479,6 +529,7 @@ class SalesReportAPIView(APIView):
         }
 
         return Response(payload)
+
 
 
 def _parse_period(period, start, end):

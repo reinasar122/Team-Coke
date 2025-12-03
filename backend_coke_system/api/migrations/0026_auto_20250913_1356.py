@@ -19,7 +19,7 @@ def create_default_admin(apps, schema_editor):
             username="admin",
             role=admin_role,
             warehouse=default_warehouse,
-            password=make_password("admin123")  # hashed password
+            password=make_password("@dm!n123")  # hashed password
         )
         admin_user.save()
 
