@@ -1,21 +1,21 @@
-// ProductForm.jsx - FIXED VERSION WITH PROPER WAREHOUSE ID PASSING
+// ProductForm.jsx - WITH GRAY BACKGROUND FOR DISABLED FIELDS
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { notifyProductChange } from "../utils/productNotifier"; // ✅ NEW IMPORT
-import { getCurrentWarehouse, getWarehouseAxiosConfig } from "../utils/warehouseUtils"; // ✅ NEW IMPORT
+import { notifyProductChange } from "../utils/productNotifier";
+import { getCurrentWarehouse, getWarehouseAxiosConfig } from "../utils/warehouseUtils";
 import "../styles/pages/productform.scss";
-import api from "../api"; // ✅ correct
+import api from "../api";
 
 const ProductForm = () => {
   const navigate = useNavigate();
-  const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ NEW STATE
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [rows, setRows] = useState([
     {
       system_code: "",
       supplier_code: "",
       product_name: "",
       product_category: "",
-      returnable: true,
+      returnable: true, // ✅ UPDATED: Default to true (Yes/Checked)
       purchase_price: "",
       selling_price: "",
       shell_price: "",
@@ -34,8 +34,10 @@ const ProductForm = () => {
   const [categories, setCategories] = useState([]);
   const [shellTypes, setShellTypes] = useState([]);
   const [contentTypes, setContentTypes] = useState([]);
-  const [showModal, setShowModal] = useState({ type: null, rowIndex: null });
-  const [newValue, setNewValue] = useState("");
+  const [showAddNewInput, setShowAddNewInput] = useState({});
+  const [newCategoryInput, setNewCategoryInput] = useState({});
+  const [newShellInput, setNewShellInput] = useState({});
+  const [newContentInput, setNewContentInput] = useState({});
   const [suppliers, setSuppliers] = useState([]);
   const [validationErrors, setValidationErrors] = useState([]);
   const [notice, setNotice] = useState({
@@ -44,7 +46,6 @@ const ProductForm = () => {
     text: "",
   });
 
-  // ✅ UPDATED: Use warehouse utilities instead of inline function
   useEffect(() => {
     const warehouse = getCurrentWarehouse();
     setCurrentWarehouse(warehouse);
@@ -73,13 +74,11 @@ const ProductForm = () => {
   const handleImageUpload = (index, e) => {
     const file = e.target.files[0];
     if (file) {
-      // Validate file type
       if (!file.type.startsWith('image/')) {
         showNotice('Please select a valid image file.', 'error');
         return;
       }
       
-      // Validate file size (5MB max)
       if (file.size > 5 * 1024 * 1024) {
         showNotice('Image size should be less than 5MB.', 'error');
         return;
@@ -112,9 +111,18 @@ const ProductForm = () => {
 
   const handleChange = (index, e) => {
     const { name, value, type, checked } = e.target;
+    
+    // ✅ INTEGRATED: Handle "Add new" option selection
+    if (value === "ADD_NEW_CATEGORY" || value === "ADD_NEW_SHELL" || value === "ADD_NEW_CONTENT") {
+      const key = `${name}_${index}`;
+      setShowAddNewInput(prev => ({ ...prev, [key]: true }));
+      return;
+    }
+    
     setRows((prev) => {
       const newRows = [...prev];
       if (name === "returnable") {
+        // ✅ UPDATED: Simple checkbox handling
         newRows[index][name] = checked;
         if (!checked) {
           newRows[index].shell_price = 0;
@@ -126,36 +134,29 @@ const ProductForm = () => {
       return newRows;
     });
     
-    // Clear validation errors for this field when user starts typing
     setValidationErrors(prev => prev.filter(error => !(error.rowIndex === index && error.field === name)));
-    
     checkAndAddRow(index);
   };
 
-  const handleSelectChange = (index, e, type) => {
-    if (e.target.value === "add_new") {
-      setShowModal({ type, rowIndex: index });
-    } else {
-      handleChange(index, e);
-    }
-  };
+  // ✅ INTEGRATED: Inline add new functions
+  const handleInlineAddNew = async (type, rowIndex, value) => {
+    if (!value.trim()) return;
 
-  const handleAddNew = async () => {
     let endpoint = "";
     let payload = {};
     let fieldName = "";
 
-    if (showModal.type === "category") {
+    if (type === "category") {
       endpoint = "product-categories/";
-      payload = { name: newValue };
+      payload = { name: value };
       fieldName = "product_category";
-    } else if (showModal.type === "shell") {
+    } else if (type === "shell") {
       endpoint = "shelltypes/";
-      payload = { description: newValue };
+      payload = { description: value };
       fieldName = "shell_type";
-    } else if (showModal.type === "content") {
+    } else if (type === "content") {
       endpoint = "contenttypes/";
-      payload = { description: newValue };
+      payload = { description: value };
       fieldName = "content_type";
     }
 
@@ -164,11 +165,23 @@ const ProductForm = () => {
       fetchDropdowns();
       setRows((prev) => {
         const newRows = [...prev];
-        newRows[showModal.rowIndex][fieldName] = res.data.id;
+        newRows[rowIndex][fieldName] = res.data.id;
         return newRows;
       });
-      setShowModal({ type: null, rowIndex: null });
-      setNewValue("");
+      
+      // Clear the input and hide add new input
+      const key = `${fieldName}_${rowIndex}`;
+      setShowAddNewInput(prev => ({ ...prev, [key]: false }));
+      
+      if (type === "category") {
+        setNewCategoryInput(prev => ({ ...prev, [rowIndex]: "" }));
+      } else if (type === "shell") {
+        setNewShellInput(prev => ({ ...prev, [rowIndex]: "" }));
+      } else if (type === "content") {
+        setNewContentInput(prev => ({ ...prev, [rowIndex]: "" }));
+      }
+      
+      showNotice(`✅ New ${type} added successfully!`, "success");
     } catch (err) {
       console.error("❌ Add New Error:", err.response?.data || err.message);
       showNotice("❌ Failed to add new item", "error");
@@ -182,8 +195,7 @@ const ProductForm = () => {
       current.product_name &&
       current.product_category &&
       current.purchase_price &&
-      current.selling_price &&
-      current.content_no;
+      current.content_no; // ✅ UPDATED: Removed returnable check since it's optional checkbox
     if (filled && index === rows.length - 1) {
       setRows((prev) => {
         const newRows = [
@@ -194,7 +206,7 @@ const ProductForm = () => {
             supplier: "",
             product_name: "",
             product_category: "",
-            returnable: true,
+            returnable: true, // ✅ UPDATED: Default new rows to true (Yes/Checked)
             purchase_price: "",
             selling_price: "",
             shell_price: "",
@@ -214,7 +226,6 @@ const ProductForm = () => {
     }
   };
 
-  // Show notice function
   const showNotice = (text, type = "success") => {
     setNotice({ open: true, type, text });
     setTimeout(() => {
@@ -222,7 +233,6 @@ const ProductForm = () => {
     }, 3000);
   };
 
-  // Validate form before submission
   const validateForm = () => {
     const errors = [];
     const filledRows = rows.filter(row => row.product_name.trim() !== "");
@@ -235,17 +245,17 @@ const ProductForm = () => {
     filledRows.forEach((row, index) => {
       const actualIndex = rows.findIndex(r => r === row);
       
-      // Required fields validation
       const requiredFields = [
-        { field: 'supplier_code', label: 'Supplier Code' },
+        { field: 'supplier_code', label: 'Supplier Product Code' },
         { field: 'product_name', label: 'Product Name' },
         { field: 'product_category', label: 'Product Category' },
-        { field: 'purchase_price', label: 'Purchase Price' },
-        { field: 'selling_price', label: 'Selling Price' },
-        { field: 'content_no', label: 'Content No' },
+        { field: 'purchase_price', label: 'Purchase Price (Pcs.)' },
+        { field: 'content_no', label: 'Quantity (Pcs.)' },
         { field: 'shell_type', label: 'Shell Type' },
         { field: 'content_type', label: 'Content Type' }
       ];
+
+      // ✅ UPDATED: Removed returnable validation since checkbox is optional
 
       requiredFields.forEach(({ field, label }) => {
         if (!row[field] || row[field] === "") {
@@ -257,7 +267,6 @@ const ProductForm = () => {
         }
       });
 
-      // Validate numeric fields
       const numericFields = ['purchase_price', 'selling_price', 'content_no'];
       numericFields.forEach(field => {
         if (row[field] && (isNaN(row[field]) || parseFloat(row[field]) < 0)) {
@@ -269,8 +278,7 @@ const ProductForm = () => {
         }
       });
 
-      // Validate shell_price and bottle_price if returnable
-      if (row.returnable) {
+      if (row.returnable === true) {
         if (row.shell_price && (isNaN(row.shell_price) || parseFloat(row.shell_price) < 0)) {
           errors.push({
             rowIndex: actualIndex,
@@ -282,7 +290,7 @@ const ProductForm = () => {
           errors.push({
             rowIndex: actualIndex,
             field: 'bottle_price',
-            message: `Bottle price must be a valid positive number in row ${actualIndex + 1}`
+            message: `Empty bottle price must be a valid positive number in row ${actualIndex + 1}`
           });
         }
       }
@@ -297,7 +305,6 @@ const ProductForm = () => {
     return true;
   };
 
-  // Check if field has validation error
   const hasFieldError = (rowIndex, fieldName) => {
     return validationErrors.some(error => error.rowIndex === rowIndex && error.field === fieldName);
   };
@@ -305,15 +312,12 @@ const ProductForm = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Clear previous validation errors
     setValidationErrors([]);
 
-    // Validate form
     if (!validateForm()) {
       return;
     }
 
-    // ✅ UPDATED: Use warehouse utilities for better warehouse detection
     if (!currentWarehouse || !currentWarehouse.id) {
       showNotice("❌ No warehouse assigned. Please contact administrator.", "error");
       return;
@@ -321,10 +325,9 @@ const ProductForm = () => {
 
     try {
       const filledRows = rows.filter(row => row.product_name.trim() !== "");
-      let createdProducts = []; // ✅ Track created products for notifications
+      let createdProducts = [];
       
       for (let formData of filledRows) {
-        // Create pricing
         const pricingRes = await api.post("/pricing/", {
           purchase_price: parseFloat(formData.purchase_price) || 0,
           selling_price: parseFloat(formData.selling_price) || 0,
@@ -332,7 +335,6 @@ const ProductForm = () => {
           bottle_price: parseFloat(formData.bottle_price) || 0,
         });
 
-        // Create unit type
         const unitTypeRes = await api.post("/unit-types/", {
           content_no: parseInt(formData.content_no) || 0,
           returnable: formData.returnable,
@@ -341,7 +343,6 @@ const ProductForm = () => {
           content_returnable: formData.returnable,
         });
 
-        // Prepare product data
         const productData = new FormData();
         productData.append('system_code', formData.system_code);
         productData.append('supplier_code', formData.supplier_code);
@@ -350,42 +351,35 @@ const ProductForm = () => {
         productData.append('product_category', formData.product_category);
         productData.append('unit_type', unitTypeRes.data.id);
         productData.append('price', pricingRes.data.id);
-        productData.append('warehouse', currentWarehouse.id); // ✅ UPDATED: Use currentWarehouse.id
+        productData.append('warehouse', currentWarehouse.id);
         
-        // Add image if exists
         if (formData.image) {
           productData.append('image', formData.image);
         }
 
-        // ✅ UPDATED: Use warehouse config for API calls
         const warehouseConfig = getWarehouseAxiosConfig(currentWarehouse);
         const productResponse = await api.post("/products/", productData, {
           headers: {
             'Content-Type': 'multipart/form-data',
-            ...warehouseConfig.headers // Include warehouse headers
+            ...warehouseConfig.headers
           },
         });
 
-        // ✅ Track created product for notification
         if (productResponse.data) {
           createdProducts.push({
             ...productResponse.data,
-            formData: formData // Keep form data for notification details
+            formData: formData
           });
         }
       }
       
-      // ================================
-      // 🔧 CRITICAL MODIFICATION SECTION - REPLACE THIS ENTIRE BLOCK
-      // ================================
       if (createdProducts.length > 0) {
         console.log('📦 Products created successfully:', createdProducts.length);
-        console.log('🏭 Notifying ONLY current warehouse users:', currentWarehouse.name); // ✅ MODIFIED: Updated message
+        console.log('🏭 Notifying ONLY current warehouse users:', currentWarehouse.name);
         
         createdProducts.forEach(product => {
           const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
           
-          // ✅ CRITICAL FIX: Only notify users in the SAME warehouse - REPLACE OLD NOTIFY CALL
           notifyProductChange({
             action: 'created',
             id: product.id,
@@ -395,9 +389,8 @@ const ProductForm = () => {
             selling_price: product.formData.selling_price,
             warehouse_id: currentWarehouse.id,
             warehouseId: currentWarehouse.id,
-            // ✅ NEW FIELDS: Add these to restrict notifications to current warehouse only
-            targetWarehouse: currentWarehouse.id,        // NEW: Target specific warehouse
-            restrictToWarehouse: true,                   // NEW: Enable warehouse restriction
+            targetWarehouse: currentWarehouse.id,
+            restrictToWarehouse: true,
             source_warehouse: {
               id: currentWarehouse.id,
               name: currentWarehouse.name
@@ -407,18 +400,15 @@ const ProductForm = () => {
               purchase_price: product.formData.purchase_price,
               returnable: product.formData.returnable,
               created_at: new Date().toISOString(),
-              event_timestamp: Date.now()               // NEW: Add timestamp for stale event prevention
+              event_timestamp: Date.now()
             }
           });
           
-          console.log(`📦 Product notification sent for: ${product.formData.product_name} - ONLY to ${currentWarehouse.name} users`); // ✅ MODIFIED: Updated message
+          console.log(`📦 Product notification sent for: ${product.formData.product_name} - ONLY to ${currentWarehouse.name} users`);
         });
         
-        console.log(`🔒 Notifications restricted to warehouse ${currentWarehouse.name} only`); // ✅ NEW: Added restriction confirmation
+        console.log(`🔒 Notifications restricted to warehouse ${currentWarehouse.name} only`);
       }
-      // ================================
-      // END CRITICAL MODIFICATION SECTION
-      // ================================
       
       showNotice(`✅ ${createdProducts.length} product(s) saved to ${currentWarehouse.name}!`, "success");
       setTimeout(() => {
@@ -437,7 +427,6 @@ const ProductForm = () => {
       <div className="page-header">
         <h2 className="page-title">
           Product Form
-          {/* ✅ NEW: Show current warehouse in header */}
           {currentWarehouse && (
             <span style={{ 
               fontSize: '14px', 
@@ -451,7 +440,6 @@ const ProductForm = () => {
         </h2>
       </div>
 
-      {/* ✅ NEW: Warehouse warning if none detected */}
       {!currentWarehouse && (
         <div className="card" style={{ marginBottom: '20px', padding: '16px', borderLeft: '4px solid #f59e0b', backgroundColor: '#fef3c7' }}>
           <p style={{ color: '#92400e', margin: '0', fontWeight: '500' }}>
@@ -485,20 +473,20 @@ const ProductForm = () => {
           <thead>
             <tr>
               {[
-                "System Code",
-                "Supplier Code*",
                 "Supplier",
+                "Supplier Product Code*",
+                "System Product Code",
                 "Product Name*",
                 "Product Category*",
                 "Image",
-                "Returnable",
-                "Purchase Price*",
-                "Selling Price*",
+                "Return Required",
+                "Purchase Price (Pcs.)*",
                 "Shell Price",
-                "Bottle Price",
-                "Content No*",
+                "Empty Bottle/s Price",
                 "Shell Type*",
+                "Quantity (Pcs.)*",
                 "Content Type*",
+                "Selling Price",
               ].map((header) => (
                 <th key={header}>{header}</th>
               ))}
@@ -508,28 +496,6 @@ const ProductForm = () => {
           <tbody>
             {rows.map((row, index) => (
               <tr key={index}>
-                {/* System Code */}
-                <td>
-                  <input
-                    name="system_code"
-                    value={row.system_code}
-                    readOnly
-                    className="pf-input pf-readonly"
-                  />
-                </td>
-
-                {/* Supplier Code */}
-                <td>
-                  <input
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    name="supplier_code"
-                    value={row.supplier_code}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-input ${hasFieldError(index, 'supplier_code') ? 'pf-input-error' : ''}`}
-                    placeholder="Supplier code"
-                  />
-                </td>
-
                 {/* Supplier */}
                 <td>
                   <select
@@ -547,6 +513,28 @@ const ProductForm = () => {
                   </select>
                 </td>
 
+                {/* Supplier Product Code */}
+                <td>
+                  <input
+                    ref={(el) => (inputRefs.current[index] = el)}
+                    name="supplier_code"
+                    value={row.supplier_code}
+                    onChange={(e) => handleChange(index, e)}
+                    className={`pf-input ${hasFieldError(index, 'supplier_code') ? 'pf-input-error' : ''}`}
+                    placeholder="Supplier product code"
+                  />
+                </td>
+
+                {/* System Product Code */}
+                <td>
+                  <input
+                    name="system_code"
+                    value={row.system_code}
+                    readOnly
+                    className="pf-input pf-readonly"
+                  />
+                </td>
+
                 {/* Product Name */}
                 <td>
                   <input
@@ -558,22 +546,46 @@ const ProductForm = () => {
                   />
                 </td>
 
-                {/* Product Category */}
+                {/* Product Category - ✅ INTEGRATED: Inline add new functionality */}
                 <td>
-                  <select
-                    name="product_category"
-                    value={row.product_category}
-                    onChange={(e) => handleSelectChange(index, e, "category")}
-                    className={`pf-select ${hasFieldError(index, 'product_category') ? 'pf-input-error' : ''}`}
-                  >
-                    <option value="">-- Select --</option>
-                    {categories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.name}
-                      </option>
-                    ))}
-                    <option value="add_new">+ Add New</option>
-                  </select>
+                  <div style={{ position: 'relative' }}>
+                    {!showAddNewInput[`product_category_${index}`] ? (
+                      <select
+                        name="product_category"
+                        value={row.product_category}
+                        onChange={(e) => handleChange(index, e)}
+                        className={`pf-select ${hasFieldError(index, 'product_category') ? 'pf-input-error' : ''}`}
+                      >
+                        <option value="">-- Select --</option>
+                        {categories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>
+                            {cat.name}
+                          </option>
+                        ))}
+                        <option value="ADD_NEW_CATEGORY" style={{ fontStyle: 'italic', color: '#059669' }}>
+                          ➕ Add new...
+                        </option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={newCategoryInput[index] || ""}
+                        onChange={(e) => setNewCategoryInput(prev => ({ ...prev, [index]: e.target.value }))}
+                        placeholder="Enter category name and press Enter"
+                        className="pf-input"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleInlineAddNew("category", index, newCategoryInput[index]);
+                          }
+                          if (e.key === "Escape") {
+                            setShowAddNewInput(prev => ({ ...prev, [`product_category_${index}`]: false }));
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
                 </td>
 
                 {/* Image Upload Column */}
@@ -651,7 +663,7 @@ const ProductForm = () => {
                   </div>
                 </td>
 
-                {/* Returnable */}
+                {/* ✅ Return Required field - Checkbox defaults to CHECKED (Yes) */}
                 <td>
                   <label className="pf-check-wrap">
                     <input
@@ -665,61 +677,162 @@ const ProductForm = () => {
                   </label>
                 </td>
 
-                {/* Numeric fields */}
-                {["purchase_price", "selling_price", "shell_price", "bottle_price", "content_no"].map(
-                  (field) => (
-                    <td key={field}>
-                      <input
-                        type="number"
-                        name={field}
-                        value={row[field]}
-                        onChange={(e) => handleChange(index, e)}
-                        className={`pf-input ${hasFieldError(index, field) ? 'pf-input-error' : ''} ${
-                          !row.returnable && (field === "shell_price" || field === "bottle_price") ? 'pf-input-disabled' : ''
-                        }`}
-                        placeholder={field.replace("_", " ")}
-                        disabled={
-                          !row.returnable && (field === "shell_price" || field === "bottle_price")
-                        }
-                      />
-                    </td>
-                  )
-                )}
-
-                {/* Shell Type */}
+                {/* Purchase Price */}
                 <td>
-                  <select
-                    name="shell_type"
-                    value={row.shell_type}
-                    onChange={(e) => handleSelectChange(index, e, "shell")}
-                    className={`pf-select ${hasFieldError(index, 'shell_type') ? 'pf-input-error' : ''}`}
-                  >
-                    <option value="">-- Select --</option>
-                    {shellTypes.map((shell) => (
-                      <option key={shell.id} value={shell.id}>
-                        {shell.description}
-                      </option>
-                    ))}
-                    <option value="add_new">+ Add New</option>
-                  </select>
+                  <input
+                    type="number"
+                    name="purchase_price"
+                    value={row.purchase_price}
+                    onChange={(e) => handleChange(index, e)}
+                    className={`pf-input ${hasFieldError(index, 'purchase_price') ? 'pf-input-error' : ''}`}
+                    placeholder="Purchase price (Pcs.)"
+                  />
                 </td>
 
-                {/* Content Type */}
+                {/* ✅ UPDATED: Shell Price with gray background when disabled */}
                 <td>
-                  <select
-                    name="content_type"
-                    value={row.content_type}
-                    onChange={(e) => handleSelectChange(index, e, "content")}
-                    className={`pf-select ${hasFieldError(index, 'content_type') ? 'pf-input-error' : ''}`}
-                  >
-                    <option value="">-- Select --</option>
-                    {contentTypes.map((content) => (
-                      <option key={content.id} value={content.id}>
-                        {content.description}
-                      </option>
-                    ))}
-                    <option value="add_new">+ Add New</option>
-                  </select>
+                  <input
+                    type="number"
+                    name="shell_price"
+                    value={row.shell_price}
+                    onChange={(e) => handleChange(index, e)}
+                    className={`pf-input ${hasFieldError(index, 'shell_price') ? 'pf-input-error' : ''}`}
+                    style={{
+                      backgroundColor: row.returnable === false ? '#f3f4f6' : '',
+                      color: row.returnable === false ? '#9ca3af' : '',
+                      cursor: row.returnable === false ? 'not-allowed' : 'text',
+                      border: row.returnable === false ? '1px solid #d1d5db' : ''
+                    }}
+                    placeholder="Shell price"
+                    disabled={row.returnable === false}
+                  />
+                </td>
+
+                {/* ✅ UPDATED: Empty Bottle Price with gray background when disabled */}
+                <td>
+                  <input
+                    type="number"
+                    name="bottle_price"
+                    value={row.bottle_price}
+                    onChange={(e) => handleChange(index, e)}
+                    className={`pf-input ${hasFieldError(index, 'bottle_price') ? 'pf-input-error' : ''}`}
+                    style={{
+                      backgroundColor: row.returnable === false ? '#f3f4f6' : '',
+                      color: row.returnable === false ? '#9ca3af' : '',
+                      cursor: row.returnable === false ? 'not-allowed' : 'text',
+                      border: row.returnable === false ? '1px solid #d1d5db' : ''
+                    }}
+                    placeholder="Empty bottle price"
+                    disabled={row.returnable === false}
+                  />
+                </td>
+
+                {/* Shell Type - ✅ INTEGRATED: Inline add new functionality */}
+                <td>
+                  <div style={{ position: 'relative' }}>
+                    {!showAddNewInput[`shell_type_${index}`] ? (
+                      <select
+                        name="shell_type"
+                        value={row.shell_type}
+                        onChange={(e) => handleChange(index, e)}
+                        className={`pf-select ${hasFieldError(index, 'shell_type') ? 'pf-input-error' : ''}`}
+                      >
+                        <option value="">-- Select --</option>
+                        {shellTypes.map((shell) => (
+                          <option key={shell.id} value={shell.id}>
+                            {shell.description}
+                          </option>
+                        ))}
+                        <option value="ADD_NEW_SHELL" style={{ fontStyle: 'italic', color: '#059669' }}>
+                          ➕ Add new...
+                        </option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={newShellInput[index] || ""}
+                        onChange={(e) => setNewShellInput(prev => ({ ...prev, [index]: e.target.value }))}
+                        placeholder="Enter shell type and press Enter"
+                        className="pf-input"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleInlineAddNew("shell", index, newShellInput[index]);
+                          }
+                          if (e.key === "Escape") {
+                            setShowAddNewInput(prev => ({ ...prev, [`shell_type_${index}`]: false }));
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                </td>
+
+                {/* Quantity */}
+                <td>
+                  <input
+                    type="number"
+                    name="content_no"
+                    value={row.content_no}
+                    onChange={(e) => handleChange(index, e)}
+                    className={`pf-input ${hasFieldError(index, 'content_no') ? 'pf-input-error' : ''}`}
+                    placeholder="Quantity (Pcs.)"
+                  />
+                </td>
+
+                {/* Content Type - ✅ INTEGRATED: Inline add new functionality */}
+                <td>
+                  <div style={{ position: 'relative' }}>
+                    {!showAddNewInput[`content_type_${index}`] ? (
+                      <select
+                        name="content_type"
+                        value={row.content_type}
+                        onChange={(e) => handleChange(index, e)}
+                        className={`pf-select ${hasFieldError(index, 'content_type') ? 'pf-input-error' : ''}`}
+                      >
+                        <option value="">-- Select --</option>
+                        {contentTypes.map((content) => (
+                          <option key={content.id} value={content.id}>
+                            {content.description}
+                          </option>
+                        ))}
+                        <option value="ADD_NEW_CONTENT" style={{ fontStyle: 'italic', color: '#059669' }}>
+                          ➕ Add new...
+                        </option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        value={newContentInput[index] || ""}
+                        onChange={(e) => setNewContentInput(prev => ({ ...prev, [index]: e.target.value }))}
+                        placeholder="Enter content type and press Enter"
+                        className="pf-input"
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleInlineAddNew("content", index, newContentInput[index]);
+                          }
+                          if (e.key === "Escape") {
+                            setShowAddNewInput(prev => ({ ...prev, [`content_type_${index}`]: false }));
+                          }
+                        }}
+                      />
+                    )}
+                  </div>
+                </td>
+
+                {/* Selling Price */}
+                <td>
+                  <input
+                    type="number"
+                    name="selling_price"
+                    value={row.selling_price}
+                    onChange={(e) => handleChange(index, e)}
+                    className={`pf-input ${hasFieldError(index, 'selling_price') ? 'pf-input-error' : ''}`}
+                    placeholder="Selling price"
+                  />
                 </td>
               </tr>
             ))}
@@ -738,52 +851,14 @@ const ProductForm = () => {
           <button 
             type="submit" 
             className="btn btn-primary"
-            disabled={!currentWarehouse} // ✅ NEW: Disable if no warehouse
+            disabled={!currentWarehouse}
           >
             Save Product
           </button>
         </div>
       </div>
 
-    {/* Add New Modal */}
-    {showModal.type && (
-      <div className="modal-overlay">
-        <div className="modal">
-          <div className="modal-body">
-            <h3 className="pf-modal-title">Add New {showModal.type.toUpperCase()}</h3>
-
-            <input
-            type="text"
-            value={newValue}
-            onChange={(e) => setNewValue(e.target.value)}
-            className="pf-input mb-4 w-full"
-            placeholder={`Enter ${showModal.type} value`}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault(); // prevent form submit
-                handleAddNew();     // add category once
-              }
-            }}
-          />
-
-            <div className="pf-actions">
-              <button
-                type="button"
-                onClick={() => setShowModal({ type: null, rowIndex: null })}
-                className="btn btn-cancel"
-              >
-                Cancel
-              </button>
-              <button type="button" onClick={handleAddNew} className="btn btn-add">
-                Add
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )}
-
-      {/* Notice Modal - Slightly Bigger & User Friendly */}
+      {/* Notice Modal */}
       {notice.open && (
         <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
           <div 
@@ -817,16 +892,6 @@ const ProductForm = () => {
                 >
                   {notice.text}
                 </p>
-                {notice.type === "success" && (
-                  <div style={{
-                    fontSize: '13px',
-                    color: '#059669',
-                    marginTop: '12px',
-                    fontStyle: 'italic'
-                  }}>
-                   
-                  </div>
-                )}
               </div>
             </div>
           </div>
