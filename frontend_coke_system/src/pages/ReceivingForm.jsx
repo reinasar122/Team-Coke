@@ -795,17 +795,33 @@ const ReceivingForm = () => {
         )}
 
         {/* Basic Info */}
-        <div className="grid md:grid-cols-2 gap-6">
+        <div className="grid gap-6">
           <div>
             <label className="form-label">Receiving No:</label>
-            <input type="text" value={receiveNo} readOnly className="form-input" />
+            <input type="text" value={receiveNo} readOnly className="form-input" style={{width: '30%'}} />
           </div>
+          
           <div>
+            <label className="form-label">Receipt No: <span className="text-red-500">*</span></label>
+            <input
+              type="text"
+              value={form.invoice_no}
+              onChange={(e) => setForm({ ...form, invoice_no: e.target.value })}
+              className="form-input"
+              style={{width: '30%'}}
+              placeholder="Enter receipt number"
+              required
+            />
+          </div>
+        </div>
+
+        <div>
             <label className="form-label">Supplier:</label>
             <select
               value={form.supplier}
               onChange={(e) => handleSupplierChange(e.target.value)}
               className="form-input"
+              style={{width: '30%'}}
             >
               <option value="">Select Supplier</option>
               {suppliers.map((s) => (
@@ -824,68 +840,8 @@ const ReceivingForm = () => {
               <p className="text-edit text-sm mt-1">No products found for this supplier in {currentWarehouse.name}</p>
             )}
           </div>
-          <div>
-            <label className="form-label">Receipt No: <span className="text-red-500">*</span></label>
-            <input
-              type="text"
-              value={form.invoice_no}
-              onChange={(e) => setForm({ ...form, invoice_no: e.target.value })}
-              className="form-input"
-              placeholder="Enter receipt number"
-              required
-            />
-          </div>
-        </div>
 
-        {/* Financial Summary */}
-        <div className="financial-summary">
-          <h3>Financial Summary</h3>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div>
-              <label className="form-label">Total Receiving Amount:</label>
-              <div className="relative">
-                <span className="currency">₱</span>
-                <input
-                  type="text"
-                  value={formatAmount(totalReceiving)}
-                  readOnly
-                  className="form-input with-currency font-semibold"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="form-label">
-                Return Total Amount:
-                {supplierReturns.length > 0 && (
-                  <span className="ml-2 text-sm text-primary">({supplierReturns.length} returns)</span>
-                )}
-              </label>
-              <div className="relative">
-                <span className="currency">₱</span>
-                <input
-                  type="text"
-                  value={formatAmount(form.return_total_amount)}
-                  readOnly
-                  className={`form-input with-currency font-semibold ${
-                    parseFloat(form.return_total_amount) > 0 ? "text-danger" : "text"
-                  }`}
-                />
-              </div>
-            </div>
-            <div>
-              <label className="form-label">Net Amount:</label>
-              <div className="relative">
-                <span className="currency">₱</span>
-                <input
-                  type="text"
-                  value={formatAmount(form.net_amount)}
-                  readOnly
-                  className="form-input with-currency font-semibold"
-                />
-              </div>
-            </div>
-          </div>
-        </div>
+      
 
         {/* Supplier Returns */}
         {supplierReturns.length > 0 && (
@@ -1021,7 +977,64 @@ const ReceivingForm = () => {
             </table>
           </div>
         </div>
-
+  {/* Financial Summary */}
+        <div className="financial-summary">
+          <h3>Financial Summary</h3>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div>
+              <label className="form-label"> Amount Payable:</label>
+              <div className="relative">
+                <span className="currency">₱</span>
+                <input
+                  type="text"
+                  value={formatAmount(totalReceiving)}
+                  readOnly
+                  className="form-input with-currency font-semibold"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="form-label">
+                Return Total Amount (Less):
+                {supplierReturns.length > 0 && (
+                  <span className="ml-2 text-sm text-primary">({supplierReturns.length} returns)</span>
+                )}
+              </label>
+              <div className="relative">
+                <span className="currency">₱</span>
+                <input
+                  type="text"
+                  value={formatAmount(form.return_total_amount)}
+                  readOnly
+                  className={`form-input with-currency font-semibold ${
+                    parseFloat(form.return_total_amount) > 0 ? "text-danger" : "text"
+                  }`}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="form-label">Net Payable:</label>
+              <div className="relative">
+                <span className="currency">₱</span>
+                <input
+                  type="text"
+                  value={formatAmount(form.net_amount)}
+                  readOnly
+                  className="form-input with-currency font-semibold"
+                />
+              </div>
+            </div>
+          </div>
+          <div>
+            <div className="card formula-explanation mt-5" style={{ width: '30%' }} >
+            <p><strong>Note:</strong>
+              This is the formula used in calculating the Total:</p>
+            <p><strong>Total = Unit Cost * (Pcs - Bo/Pcs)</strong></p>
+            <p>Where:</p>
+            <p><strong>Unit Cost = Purchase Price + Bottle Price + (Shell Price / Content No)</strong></p>
+          </div>
+          </div>
+        </div>
         {/* Footer */}
         <div className="grid md:grid-cols-2 gap-6 mt-10">
           <div>
