@@ -743,7 +743,7 @@ useEffect(() => {
             <td className="border">Bottle</td>
             {Array(3).fill(null).map((_, i) => (
               <td key={i} >
-                {i % 2 === 0 ? "Shell" : "PCS"}
+                {i % 2 === 0 ? "Shell" : "Item Qty"}
               </td>
             ))}
             <td className="border">Item Qty</td>
