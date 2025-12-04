@@ -1062,6 +1062,8 @@ const PaymentModal = ({
                   onChange={(e) => setCashReceived(e.target.value)}
                 />
               </div>
+              
+              {/* 
               <div>
                 <label className="block mb-1">Amount Due</label>
                 <input
@@ -1069,7 +1071,7 @@ const PaymentModal = ({
                   value={`₱${fmt(amountDueFinal)}`}
                   readOnly
                 />
-              </div>
+              </div>*/}
 
               {showChange && n(cashReceived) >= amountDueFinal && (
                 <div>
