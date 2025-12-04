@@ -724,7 +724,7 @@ useEffect(() => {
             <th className="border" colSpan={2}>Dispatched</th>
             <th className="border">Selling Price</th>
             <th className="border" colSpan={2}>Sold</th>
-            <th className="border" colSpan={2}>Empty Price (Shell/Bottle)</th>
+            <th className="border" colSpan={2}>Empty Price</th>
             <th className="border" colSpan={2}>Returned (Empty)</th>
             <th className="border" colSpan={2}>Discrepancy (Empty)</th>
             <th className="border">Discount (%)</th>
@@ -739,8 +739,8 @@ useEffect(() => {
             <td className="border"></td>
             <td >Shell</td>
             <td className="border" >Item Qty</td>
-            <td >Shell</td>
-            <td className="border">Bottle</td>
+            <td >Per Shell</td>
+            <td className="border">Per Bottle</td>
             {Array(3).fill(null).map((_, i) => (
               <td key={i} >
                 {i % 2 === 0 ? "Shell" : "Item Qty"}
