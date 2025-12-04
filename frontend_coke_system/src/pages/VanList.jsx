@@ -5,8 +5,8 @@ import { toast } from "react-toastify";
 import VanForm from "./VanForm";
 import { errorStyle, successStyle } from "../utils/toastStyles";
 import { canCreate, canEdit, canDelete, canView } from "../utils/accessControl";
-import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
-import api from "../api"; // ✅ NEW: from new version
+import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils';
+import api from "../api";
 import "../styles/pages/vanlist.scss";
 
 const VanList = () => {
@@ -15,7 +15,7 @@ const VanList = () => {
   const [isVanFormVisible, setIsVanFormVisible] = useState(false);
   const [editingVan, setEditingVan] = useState(null);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
-  const [loading, setLoading] = useState(true); // ✅ KEPT: from old version
+  const [loading, setLoading] = useState(true);
 
   // ✅ KEPT: Proper warehouse setup using utilities (from old version)
   const setupWarehouse = useCallback(async () => {
@@ -51,7 +51,6 @@ const VanList = () => {
     try {
       console.log('🚐 Fetching vans for warehouse:', currentWarehouse);
 
-      // ✅ NEW: Use api.get() instead of fetch() (from new version)
       const { data } = await api.get(`/vans/?warehouse=${currentWarehouse.id}`);
       console.log(`✅ Loaded ${data.length} vans for warehouse ${currentWarehouse.name}`);
       setVans(data);
@@ -83,22 +82,14 @@ const VanList = () => {
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, [setupWarehouse]);
 
-  // ✅ UPDATED: Added toast success messages from new version
+  // ✅ FIXED: Removed duplicate success messages
   const handleVanAdded = (newVan) => {
     const exists = vans.find((v) => v.id === newVan.id);
 
     if (exists) {
       setVans((prev) => prev.map((v) => (v.id === newVan.id ? newVan : v)));
-      // ✅ NEW: Toast success message (from new version)
-      toast.success(`Van '${newVan.plate_number}' has been updated successfully!`, {
-        style: successStyle,
-      });
     } else {
       setVans((prev) => [...prev, newVan]);
-      // ✅ NEW: Toast success message (from new version)
-      toast.success(`Van '${newVan.plate_number}' has been added successfully!`, {
-        style: successStyle,
-      });
     }
 
     setIsVanFormVisible(false);
@@ -132,7 +123,6 @@ const VanList = () => {
   const handleDelete = async (id) => {
     showConfirmDialog("Are you sure you want to delete this van?", async () => {
       try {
-        // ✅ NEW: Use api.delete() instead of fetch() (from new version)
         await api.delete(`/vans/${id}/`);
 
         setVans((prev) => prev.filter((v) => v.id !== id));
@@ -212,7 +202,7 @@ const VanList = () => {
         {/* Add Van Button */}
         <button
           onClick={() => canCreate("Van") && setIsVanFormVisible(true)}
-          disabled={!canCreate("Van") || !currentWarehouse?.id} // ✅ KEPT: from old version
+          disabled={!canCreate("Van") || !currentWarehouse?.id}
           className={`px-4 py-2 rounded-lg text-white font-semibold ${
             canCreate("Van") && currentWarehouse?.id
               ? "bg-green-500 hover:bg-green-600 cursor-pointer"
