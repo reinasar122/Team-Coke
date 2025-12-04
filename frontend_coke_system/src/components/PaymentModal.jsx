@@ -1079,7 +1079,9 @@ const PaymentModal = ({
                 <div>
                   <label className="block mb-1">Change</label>
                   <input
-                    className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
+                    className={`w-full border-[2px] rounded px-2 py-1 text-xl font-bold ${
+                      n(change) < 0 ? "border-red-600 bg-red-100 text-red-600" : "border-slate-200"
+                    }`}
                     value={`₱${fmt(change)}`}
                     readOnly
                   />
