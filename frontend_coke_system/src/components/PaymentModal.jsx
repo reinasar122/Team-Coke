@@ -1178,7 +1178,7 @@ const PaymentModal = ({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting}
+            disabled={submitting || n(cashReceived) <= 0}
            onClick={async () => {
               console.log("🏪 Button clicked - warehouse:", warehouse);
 
@@ -1372,6 +1372,11 @@ const PaymentModal = ({
 
 
                 // 2) Existing save logic
+                if (n(cashReceived) <= 0) {
+                  showAlert("Please enter a valid amount for Cash Received.");
+                  return; // Stop further execution if validation fails
+                }
+
                 if (isVanLoad && paymentOk && typeof onPaymentSuccess === "function") {
                   await onPaymentSuccess(data);
                 }
