@@ -498,7 +498,13 @@ const VanLoadUpdate = () => {
 
   const totalDiscrepancyNonEmpty = useMemo(() => {
     return (rows || []).reduce((sum, r) => {
+      // Retrieve the unit price and apply discount
       const unitPrice = Number(r?.unitPrice ?? r?.selling_price ?? r?.price ?? 0);
+      const discount = parseFloat(r.discount ?? 0) / 100; // Get the discount as a decimal (e.g., 20% becomes 0.2)
+
+      // Apply discount to unit price
+      const discountedUnitPrice = unitPrice * (1 - discount);
+
       const contentNo =
         Number(r?.contentNo ?? (r?.unitTypeId != null ? unitTypeMap?.[r.unitTypeId] : undefined)) || 1;
 
@@ -510,9 +516,11 @@ const VanLoadUpdate = () => {
         ? Number(r.discrepancy_full_pcs) || 0
         : (Number(r?.discrepancy_full_shell) || 0) * contentNo;
 
-      return sum + discPcs * unitPrice;
+      // Calculate the discrepancy value using discounted price
+      return sum + discPcs * discountedUnitPrice;
     }, 0);
   }, [rows, unitTypeMap]);
+  
 
   const overallDiscrepancy = useMemo(
     () => totalDiscrepancyEmpty + totalDiscrepancyNonEmpty,
