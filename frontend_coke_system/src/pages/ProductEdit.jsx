@@ -1,10 +1,9 @@
-
-// ProductEdit.jsx - COMPLETE UPDATED VERSION WITH NOTIFICATIONS
+// ProductEdit.jsx - FIXED VERSION WITH WORKING NOTIFICATIONS
 import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
-import { notifyProductChange } from "../utils/productNotifier"; // ✅ NEW IMPORT
-import api from "../api"; // ✅ correct
+import { notifyProductChange } from "../utils/productNotifier";
+import api from "../api";
 
 import "../styles/pages/productedit.scss";
 
@@ -36,10 +35,9 @@ const ProductEdit = () => {
     removeImage: false
   });
 
-  // ✅ NEW: Store original data for change detection
   const [originalData, setOriginalData] = useState({});
-
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [categories, setCategories] = useState([]);
   const [shellTypes, setShellTypes] = useState([]);
   const [contentTypes, setContentTypes] = useState([]);
@@ -91,32 +89,48 @@ const ProductEdit = () => {
           ...prev,
           image: file,
           imagePreview: event.target.result,
-          removeImage: false // Reset remove flag when new image is selected
+          removeImage: false
         }));
       };
       reader.readAsDataURL(file);
     }
   };
 
-  const handleRemoveImage = () => {
-    // Update local state to mark image for removal
-    setFormData(prev => ({
-      ...prev,
-      image: null,
-      imagePreview: null,
-      currentImage: null,
-      removeImage: true // Flag to indicate image should be removed
-    }));
-    
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+  const handleRemoveImage = (e) => {
+    // Prevent event bubbling that might interfere with form
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
     }
 
-    setNotice({
-      open: true,
-      type: "success",
-      text: "✅ Image will be removed when you save the product!",
-    });
+    try {
+      setFormData(prev => ({
+        ...prev,
+        image: null,
+        imagePreview: null,
+        removeImage: true
+      }));
+      
+      // Clear file input safely
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+
+      // Show brief confirmation
+      setNotice({
+        open: true,
+        type: "success",
+        text: "✅ Image marked for removal",
+      });
+      
+      // Auto-hide notice after 2 seconds
+      setTimeout(() => {
+        setNotice(prev => ({ ...prev, open: false }));
+      }, 2000);
+
+    } catch (error) {
+      console.error("Error in handleRemoveImage:", error);
+    }
   };
 
   const fetchDropdowns = async () => {
@@ -146,7 +160,6 @@ const ProductEdit = () => {
         const res = await api.get(`/products/${id}/?warehouse_id=${warehouseId}`);
         const product = res.data;
 
-        // Guard: product must belong to current warehouse
         if (product.warehouse !== warehouseId) {
           setNotice({
             open: true,
@@ -184,7 +197,6 @@ const ProductEdit = () => {
 
         setFormData(productData);
         
-        // ✅ NEW: Store original data for change detection
         setOriginalData({
           product_name: product.product_name || "",
           supplier_code: product.supplier_code || "",
@@ -199,28 +211,11 @@ const ProductEdit = () => {
           shell_type: product.unit_type?.shell_type || "",
           content_type: product.unit_type?.content_type || "",
           currentImage: product.image || null,
-          // Also store names for better change detection
           category_name: product.product_category?.name || "",
           supplier_name: "",
           shell_type_name: "",
           content_type_name: ""
         });
-
-        // Fetch related names after setting dropdowns
-        setTimeout(() => {
-          const categoryName = categories.find(c => c.id === categoryId)?.name || "";
-          const supplierName = suppliers.find(s => s.id === product.supplier)?.company_name || "";
-          const shellTypeName = shellTypes.find(s => s.id === product.unit_type?.shell_type)?.description || "";
-          const contentTypeName = contentTypes.find(c => c.id === product.unit_type?.content_type)?.description || "";
-          
-          setOriginalData(prev => ({
-            ...prev,
-            category_name: categoryName,
-            supplier_name: supplierName,
-            shell_type_name: shellTypeName,
-            content_type_name: contentTypeName
-          }));
-        }, 100);
 
       } catch (err) {
         console.error("❌ Failed to load product:", err);
@@ -238,45 +233,29 @@ const ProductEdit = () => {
     fetchData();
   }, [id, navigate]);
 
-  // Update original data when dropdowns are loaded
-  useEffect(() => {
-    if (categories.length > 0 && shellTypes.length > 0 && contentTypes.length > 0 && suppliers.length > 0 && originalData.product_category) {
-      const categoryName = categories.find(c => c.id.toString() === originalData.product_category.toString())?.name || "";
-      const supplierName = suppliers.find(s => s.id.toString() === originalData.supplier.toString())?.company_name || "";
-      const shellTypeName = shellTypes.find(s => s.id.toString() === originalData.shell_type.toString())?.description || "";
-      const contentTypeName = contentTypes.find(c => c.id.toString() === originalData.content_type.toString())?.description || "";
-      
-      setOriginalData(prev => ({
-        ...prev,
-        category_name: categoryName,
-        supplier_name: supplierName,
-        shell_type_name: shellTypeName,
-        content_type_name: contentTypeName
-      }));
-    }
-  }, [categories, shellTypes, contentTypes, suppliers, originalData.product_category, originalData.supplier, originalData.shell_type, originalData.content_type]);
-
   const handleChange = (e) => {
-    const { name, value, type, checked } = e.target;
-    const val = type === "checkbox" ? checked : value;
+    try {
+      const { name, value, type, checked } = e.target;
+      const val = type === "checkbox" ? checked : value;
 
-    if (name === "returnable" && !checked) {
-      setFormData((prev) => ({
-        ...prev,
-        returnable: false,
-        shell_price: 0,
-        bottle_price: 0,
-      }));
-    } else {
-      setFormData((prev) => ({ ...prev, [name]: val }));
+      if (name === "returnable" && !checked) {
+        setFormData((prev) => ({
+          ...prev,
+          returnable: false,
+          shell_price: 0,
+          bottle_price: 0,
+        }));
+      } else {
+        setFormData((prev) => ({ ...prev, [name]: val }));
+      }
+    } catch (error) {
+      console.error("Error in handleChange:", error);
     }
   };
 
-  // ✅ NEW: Function to detect and format changes
   const detectChanges = () => {
     const changes = {};
     
-    // Check each field for changes
     if (originalData.product_name !== formData.product_name) {
       changes.name = { old: originalData.product_name, new: formData.product_name };
     }
@@ -289,7 +268,7 @@ const ProductEdit = () => {
       const newCategoryName = categories.find(c => c.id.toString() === formData.product_category.toString())?.name || 'Unknown';
       changes.category = { old: originalData.category_name, new: newCategoryName };
     }
-    
+
     if (originalData.returnable !== formData.returnable) {
       changes.returnable = { old: originalData.returnable, new: formData.returnable };
     }
@@ -314,17 +293,6 @@ const ProductEdit = () => {
       changes.content_no = { old: originalData.content_no, new: formData.content_no };
     }
     
-    if (originalData.shell_type.toString() !== formData.shell_type.toString()) {
-      const newShellTypeName = shellTypes.find(s => s.id.toString() === formData.shell_type.toString())?.description || 'Unknown';
-      changes.shell_type = { old: originalData.shell_type_name, new: newShellTypeName };
-    }
-    
-    if (originalData.content_type.toString() !== formData.content_type.toString()) {
-      const newContentTypeName = contentTypes.find(c => c.id.toString() === formData.content_type.toString())?.description || 'Unknown';
-      changes.content_type = { old: originalData.content_type_name, new: newContentTypeName };
-    }
-    
-    // Check image changes
     if (formData.removeImage && originalData.currentImage) {
       changes.image = { old: 'has image', new: 'removed' };
     } else if (formData.image && !originalData.currentImage) {
@@ -336,63 +304,75 @@ const ProductEdit = () => {
     return changes;
   };
 
+  // ✅ FIXED: handleUpdate with working notifications
   const handleUpdate = async (e) => {
     e.preventDefault();
+    setSaving(true);
 
     try {
-      // 1) Pricing
-      await api.put(`/pricing/${formData.price_id}/`, {
-        purchase_price: parseFloat(formData.purchase_price) || 0,
-        selling_price: parseFloat(formData.selling_price) || 0,
-        shell_price: parseFloat(formData.shell_price) || 0,
-        bottle_price: parseFloat(formData.bottle_price) || 0,
-      });
-
-      // 2) Unit type
-      await api.put(`/unit-types/${formData.unit_type_id}/`, {
-        content_no: formData.content_no,
-        returnable: formData.returnable,
-        shell_type: formData.shell_type,
-        content_type: formData.content_type,
-        content_returnable: formData.returnable,
-      });
-
-      // 3) Product with image handling
-      const productFormData = new FormData();
-      productFormData.append('system_code', formData.system_code);
-      productFormData.append('supplier_code', formData.supplier_code);
-      productFormData.append('supplier', formData.supplier);
-      productFormData.append('product_name', formData.product_name);
-      productFormData.append('product_category', formData.product_category);
-      productFormData.append('unit_type', formData.unit_type_id);
-      productFormData.append('price', formData.price_id);
-      productFormData.append('warehouse', formData.warehouse);
-
-      // Handle image logic
-      if (formData.removeImage) {
-        // Send empty string or special value to indicate image removal
-        productFormData.append('remove_image', 'true');
-      } else if (formData.image) {
-        // Add new image if one was selected
-        productFormData.append('image', formData.image);
+      // Validate required fields
+      if (!formData.product_name?.trim()) {
+        throw new Error("Product name is required");
       }
 
-      await api.put(`/products/${id}/`, productFormData, {
+      // 1) Update pricing
+      if (formData.price_id) {
+        await api.put(`/pricing/${formData.price_id}/`, {
+          purchase_price: parseFloat(formData.purchase_price) || 0,
+          selling_price: parseFloat(formData.selling_price) || 0,
+          shell_price: parseFloat(formData.shell_price) || 0,
+          bottle_price: parseFloat(formData.bottle_price) || 0,
+        });
+      }
+
+      // 2) Update unit type
+      if (formData.unit_type_id) {
+        await api.put(`/unit-types/${formData.unit_type_id}/`, {
+          content_no: formData.content_no || '',
+          returnable: Boolean(formData.returnable),
+          shell_type: formData.shell_type || null,
+          content_type: formData.content_type || null,
+          content_returnable: Boolean(formData.returnable),
+        });
+      }
+
+      // 3) Update product with proper image handling
+      const updateData = new FormData();
+      
+      updateData.append('system_code', formData.system_code || '');
+      updateData.append('supplier_code', formData.supplier_code || '');
+      updateData.append('supplier', formData.supplier || '');
+      updateData.append('product_name', formData.product_name || '');
+      updateData.append('product_category', formData.product_category || '');
+      updateData.append('unit_type', formData.unit_type_id || '');
+      updateData.append('price', formData.price_id || '');
+      updateData.append('warehouse', formData.warehouse || '');
+
+      // Handle image removal/upload
+      if (formData.removeImage) {
+        updateData.append('remove_image', 'true');
+        console.log('🗑️ Sending remove_image=true to backend');
+      } else if (formData.image) {
+        updateData.append('image', formData.image);
+        console.log('📷 Uploading new image file');
+      }
+
+      const config = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
-      });
+        timeout: 30000,
+      };
 
-      // ✅ NEW: Detect changes and trigger notification
+      await api.put(`/products/${id}/`, updateData, config);
+
+      // ✅ FIXED: Detect changes and send notification WITH warehouse info
       const changes = detectChanges();
       
       if (Object.keys(changes).length > 0) {
-        console.log('📦 Product changes detected:', changes);
-        
-        // Get current user for updated_by field
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
         
-        // Trigger notification immediately
+        // ✅ CRITICAL FIX: Include warehouse information for notification filtering
         notifyProductChange({
           action: 'updated',
           id: id,
@@ -401,10 +381,22 @@ const ProductEdit = () => {
           category: categories.find(c => c.id.toString() === formData.product_category.toString())?.name || 'Unknown',
           selling_price: formData.selling_price,
           changes: changes,
-          updated_by: userData.username || userData.name || 'Admin'
+          updated_by: userData.username || userData.name || 'Admin',
+          // ✅ MISSING FIELDS THAT CAUSED NOTIFICATION TO NOT SHOW:
+          warehouse_id: formData.warehouse,
+          warehouseId: formData.warehouse,
+          targetWarehouse: formData.warehouse,
+          restrictToWarehouse: true,
+          metadata: {
+            supplier_code: formData.supplier_code,
+            purchase_price: formData.purchase_price,
+            returnable: formData.returnable,
+            created_at: new Date().toISOString(),
+            event_timestamp: Date.now()
+          }
         });
         
-        console.log('📦 Product update notification sent!');
+        console.log('📦 Product update notification sent for warehouse:', formData.warehouse);
       } else {
         console.log('📦 No changes detected in product update');
       }
@@ -418,16 +410,31 @@ const ProductEdit = () => {
       setTimeout(() => {
         navigate("/products", { state: { refresh: true, timestamp: Date.now() }, replace: true });
       }, 1200);
+
     } catch (err) {
-      console.error("❌ Update Error:", err.response?.data || err.message);
+      console.error("❌ Update Error:", err);
+      
+      let errorMessage = "❌ Failed to update product";
+      
+      if (err.response?.data) {
+        if (typeof err.response.data === 'string') {
+          errorMessage += `: ${err.response.data}`;
+        } else if (err.response.data.message) {
+          errorMessage += `: ${err.response.data.message}`;
+        } else if (err.response.data.detail) {
+          errorMessage += `: ${err.response.data.detail}`;
+        }
+      } else if (err.message) {
+        errorMessage += `: ${err.message}`;
+      }
+      
       setNotice({
         open: true,
         type: "error",
-        text:
-          "❌ Failed to update product: " +
-          (err.response?.data?.message ||
-            (typeof err.response?.data === "string" ? err.response.data : err.message)),
+        text: errorMessage,
       });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -493,12 +500,21 @@ const ProductEdit = () => {
     <form onSubmit={handleUpdate} className="page">
       <div className="page-header">
         <h2 className="page-title">Product Edit</h2>
-        <div className="actions">
-          <button type="button" className="btn btn-back" onClick={() => navigate("/products")}>
+        <div className="actions" style={{ gap: '20px' }}>
+          <button 
+            type="button" 
+            className="btn btn-back" 
+            onClick={() => navigate("/products")}
+            disabled={saving}
+          >
             Back
           </button>
-          <button type="submit" className="btn btn-primary">
-            Save Product
+          <button 
+            type="submit" 
+            className="btn btn-primary"
+            disabled={saving}
+          >
+            {saving ? "Saving..." : "Save Product"}
           </button>
         </div>
       </div>
@@ -508,20 +524,20 @@ const ProductEdit = () => {
           <thead>
             <tr>
               {[
-                "System Code",
-                "Supplier Code",
                 "Supplier",
+                "Supplier Product Code",
+                "System Product Code", 
                 "Product Name",
                 "Product Category",
                 "Image",
-                "Returnable",
-                "Purchase Price",
-                "Selling Price",
+                "Return Required",
+                "Purchase Price (Pcs.)",
                 "Shell Price",
-                "Bottle Price",
-                "Content No",
+                "Empty Bottle/s Price", 
                 "Shell Type",
+                "Quantity (Pcs.)",
                 "Content Type",
+                "Selling Price",
               ].map((h) => (
                 <th key={h}>{h}</th>
               ))}
@@ -531,29 +547,12 @@ const ProductEdit = () => {
           <tbody>
             <tr>
               <td>
-                <input
-                  name="system_code"
-                  value={formData.system_code}
-                  readOnly
-                  className="pe-input pe-input--readonly"
-                />
-              </td>
-
-              <td>
-                <input
-                  name="supplier_code"
-                  value={formData.supplier_code}
-                  onChange={handleChange}
-                  className="pe-input"
-                />
-              </td>
-
-              <td>
                 <select
                   name="supplier"
                   value={formData.supplier || ""}
                   onChange={(e) => handleSelectWithAddNew(e, "supplier")}
                   className="pe-select"
+                  disabled={saving}
                 >
                   <option value="">--Supplier--</option>
                   {suppliers.map((s) => (
@@ -567,10 +566,31 @@ const ProductEdit = () => {
 
               <td>
                 <input
+                  name="supplier_code"
+                  value={formData.supplier_code}
+                  onChange={handleChange}
+                  className="pe-input"
+                  disabled={saving}
+                />
+              </td>
+
+              <td>
+                <input
+                  name="system_code"
+                  value={formData.system_code}
+                  readOnly
+                  className="pe-input pe-input--readonly"
+                />
+              </td>
+
+              <td>
+                <input
                   name="product_name"
                   value={formData.product_name}
                   onChange={handleChange}
                   className="pe-input"
+                  disabled={saving}
+                  required
                 />
               </td>
 
@@ -580,6 +600,7 @@ const ProductEdit = () => {
                   value={formData.product_category}
                   onChange={(e) => handleSelectWithAddNew(e, "category")}
                   className="pe-select"
+                  disabled={saving}
                 >
                   <option value="">-- Select --</option>
                   {categories.map((cat) => (
@@ -591,10 +612,51 @@ const ProductEdit = () => {
                 </select>
               </td>
 
-              {/* Image Upload for Edit */}
+              {/* Fixed Image display logic that won't break UI */}
               <td>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
-                  {(formData.imagePreview || formData.currentImage) && !formData.removeImage ? (
+                  {formData.removeImage ? (
+                    // Show removal state
+                    <>
+                      <div style={{
+                        width: '80px',
+                        height: '80px',
+                        background: '#fee2e2',
+                        border: '2px dashed #dc2626',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#dc2626',
+                        fontSize: '12px',
+                        textAlign: 'center',
+                        padding: '4px'
+                      }}>
+                        Will be removed on save
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setFormData(prev => ({ ...prev, removeImage: false }));
+                        }}
+                        disabled={saving}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          cursor: saving ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        Undo Remove
+                      </button>
+                    </>
+                  ) : (formData.imagePreview || formData.currentImage) ? (
+                    // Show existing or new image
                     <>
                       <img
                         src={formData.imagePreview || formData.currentImage}
@@ -610,7 +672,12 @@ const ProductEdit = () => {
                       <div style={{ display: 'flex', gap: '4px' }}>
                         <button
                           type="button"
-                          onClick={() => fileInputRef.current?.click()}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                          }}
+                          disabled={saving}
                           style={{
                             padding: '4px 8px',
                             fontSize: '12px',
@@ -618,7 +685,7 @@ const ProductEdit = () => {
                             color: '#374151',
                             border: '1px solid #d1d5db',
                             borderRadius: '4px',
-                            cursor: 'pointer'
+                            cursor: saving ? 'not-allowed' : 'pointer'
                           }}
                         >
                           Change
@@ -626,6 +693,7 @@ const ProductEdit = () => {
                         <button
                           type="button"
                           onClick={handleRemoveImage}
+                          disabled={saving}
                           style={{
                             padding: '4px 8px',
                             fontSize: '12px',
@@ -633,7 +701,7 @@ const ProductEdit = () => {
                             color: '#dc2626',
                             border: '1px solid #fecaca',
                             borderRadius: '4px',
-                            cursor: 'pointer'
+                            cursor: saving ? 'not-allowed' : 'pointer'
                           }}
                         >
                           Remove
@@ -641,6 +709,7 @@ const ProductEdit = () => {
                       </div>
                     </>
                   ) : (
+                    // Show upload state
                     <>
                       <div style={{
                         width: '80px',
@@ -658,7 +727,12 @@ const ProductEdit = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={() => fileInputRef.current?.click()}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                        disabled={saving}
                         style={{
                           padding: '4px 8px',
                           fontSize: '12px',
@@ -666,7 +740,7 @@ const ProductEdit = () => {
                           color: '#374151',
                           border: '1px solid #d1d5db',
                           borderRadius: '4px',
-                          cursor: 'pointer'
+                          cursor: saving ? 'not-allowed' : 'pointer'
                         }}
                       >
                         Upload
@@ -679,6 +753,7 @@ const ProductEdit = () => {
                     accept="image/*"
                     onChange={handleImageUpload}
                     style={{ display: 'none' }}
+                    disabled={saving}
                   />
                 </div>
               </td>
@@ -691,6 +766,7 @@ const ProductEdit = () => {
                     checked={formData.returnable}
                     onChange={handleChange}
                     className="pf-checkbox"
+                    disabled={saving}
                   />
                   <span className="pf-check-label">Yes</span>
                 </label>
@@ -703,16 +779,7 @@ const ProductEdit = () => {
                   value={formData.purchase_price}
                   onChange={handleChange}
                   className="pe-input"
-                />
-              </td>
-
-              <td>
-                <input
-                  type="number"
-                  name="selling_price"
-                  value={formData.selling_price}
-                  onChange={handleChange}
-                  className="pe-input"
+                  disabled={saving}
                 />
               </td>
 
@@ -722,7 +789,7 @@ const ProductEdit = () => {
                   name="shell_price"
                   value={formData.shell_price}
                   onChange={handleChange}
-                  disabled={!formData.returnable}
+                  disabled={!formData.returnable || saving}
                   className={`pe-input ${!formData.returnable ? "pe-input--disabled" : ""}`}
                 />
               </td>
@@ -733,18 +800,8 @@ const ProductEdit = () => {
                   name="bottle_price"
                   value={formData.bottle_price}
                   onChange={handleChange}
-                  disabled={!formData.returnable}
+                  disabled={!formData.returnable || saving}
                   className={`pe-input ${!formData.returnable ? "pe-input--disabled" : ""}`}
-                />
-              </td>
-
-              <td>
-                <input
-                  type="text"
-                  name="content_no"
-                  value={formData.content_no}
-                  onChange={handleChange}
-                  className="pe-input"
                 />
               </td>
 
@@ -754,6 +811,7 @@ const ProductEdit = () => {
                   value={formData.shell_type}
                   onChange={(e) => handleSelectWithAddNew(e, "shell")}
                   className="pe-select"
+                  disabled={saving}
                 >
                   <option value="">-- Select --</option>
                   {shellTypes.map((shell) => (
@@ -766,11 +824,23 @@ const ProductEdit = () => {
               </td>
 
               <td>
+                <input
+                  type="text"
+                  name="content_no"
+                  value={formData.content_no}
+                  onChange={handleChange}
+                  className="pe-input"
+                  disabled={saving}
+                />
+              </td>
+
+              <td>
                 <select
                   name="content_type"
                   value={formData.content_type}
                   onChange={(e) => handleSelectWithAddNew(e, "content")}
                   className="pe-select"
+                  disabled={saving}
                 >
                   <option value="">-- Select --</option>
                   {contentTypes.map((content) => (
@@ -781,10 +851,23 @@ const ProductEdit = () => {
                   <option value="add_new">+ Add New</option>
                 </select>
               </td>
+
+              <td>
+                <input
+                  type="number"
+                  name="selling_price"
+                  value={formData.selling_price}
+                  onChange={handleChange}
+                  className="pe-input"
+                  disabled={saving}
+                />
+              </td>
             </tr>
           </tbody>
         </table>
       </div>
+
+      <div style={{ height: '32px' }}></div>
 
       {/* Add New modal */}
       {showModal.type && (
@@ -814,14 +897,41 @@ const ProductEdit = () => {
         </div>
       )}
 
-      {/* Notice modal */}
-      {notice.open && (
+      {/* Notice modal - only show for errors or important messages */}
+      {notice.open && notice.type === "error" && (
         <div className="modal-overlay">
-          <div className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}>
+          <div className="modal modal--error">
             <div className="modal-body">
               <p className="pe-modal-text text-center">{notice.text}</p>
+              <div style={{ textAlign: 'center', marginTop: '16px' }}>
+                <button 
+                  onClick={() => setNotice(prev => ({ ...prev, open: false }))}
+                  className="btn btn-back"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Success notice as overlay that doesn't block interaction */}
+      {notice.open && notice.type === "success" && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          background: '#10b981',
+          color: 'white',
+          padding: '12px 16px',
+          borderRadius: '6px',
+          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+          zIndex: 9999,
+          fontSize: '14px',
+          fontWeight: '500'
+        }}>
+          {notice.text}
         </div>
       )}
     </form>
