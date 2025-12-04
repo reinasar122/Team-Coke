@@ -632,7 +632,7 @@ const ProductEdit = () => {
                         textAlign: 'center',
                         padding: '4px'
                       }}>
-                        Will be removed on save
+                       📷
                       </div>
                       <button
                         type="button"
