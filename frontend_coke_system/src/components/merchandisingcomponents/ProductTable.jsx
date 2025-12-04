@@ -735,10 +735,10 @@ useEffect(() => {
           <tr className="bg-slate-100">
             <td className="border"></td>
             <td >Shell</td>
-            <td className="border" >PCS</td>
+            <td className="border" >Item Qty</td>
             <td className="border"></td>
             <td >Shell</td>
-            <td className="border" >PCS</td>
+            <td className="border" >Item Qty</td>
             <td >Shell</td>
             <td className="border">Bottle</td>
             {Array(3).fill(null).map((_, i) => (
@@ -746,7 +746,7 @@ useEffect(() => {
                 {i % 2 === 0 ? "Shell" : "PCS"}
               </td>
             ))}
-            <td className="border"></td>
+            <td className="border">Item Qty</td>
             <td className="border"></td>
             <td className="border"></td>
             <td className="border"></td>

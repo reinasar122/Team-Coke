@@ -798,7 +798,7 @@ const ReceivingForm = () => {
         <div className="grid gap-6">
           <div>
             <label className="form-label">Receiving No:</label>
-            <input type="text" value={receiveNo} readOnly className="form-input" style={{width: '30%'}} />
+            <input type="text" value={receiveNo} readOnly className="form-input" style={{width: '30%' , color: 'gray'}} />
           </div>
           
           <div>

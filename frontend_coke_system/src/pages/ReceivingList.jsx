@@ -297,7 +297,7 @@ const ReceivingList = () => {
         </div> */}
 
         <div className="actions">
-          <Link to="/receiving/new" className="btn btn-add">+ New Receiving</Link>
+          <Link to="/receiving/new" className="btn btn-add">+ Receiving</Link>
         </div>
       </div>
 
