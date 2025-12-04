@@ -498,7 +498,7 @@ const ProductList = () => {
           className={`btn ${canCreate("Product") ? 'btn-add' : 'btn-disabled'}`}
           onClick={(e) => { if (!canCreate("Product")) e.preventDefault(); }}
         >
-          + Add Product
+          + Product
         </Link>
       </div>
 
