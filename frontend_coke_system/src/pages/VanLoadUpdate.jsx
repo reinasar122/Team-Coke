@@ -534,7 +534,10 @@ const VanLoadUpdate = () => {
 
   const totalReturnedWithContent = useMemo(() => {
     return (rows || []).reduce((sum, row) => {
+      // Retrieve the selling price, and apply discount
       const price = parseFloat(row.unitPrice ?? row.selling_price ?? row.price ?? 0);
+      const discount = parseFloat(row.discount ?? 0) / 100;  // Get the discount as a decimal (e.g., 20% becomes 0.2)
+      
       const contentNo =
         parseFloat(row.contentNo ?? '') ||
         parseFloat(row.unitTypeId != null ? unitTypeMap?.[row.unitTypeId] ?? '' : '') ||
@@ -548,7 +551,11 @@ const VanLoadUpdate = () => {
         ? parseFloat(row.actual_return_pcs) || 0
         : (parseFloat(row.actual_return_shell) || 0) * contentNo;
 
-      return sum + actualPcs * price;
+      // Apply discount to returned product value
+      const discountedPrice = price * (1 - discount); // Apply discount to the product price
+
+      // Calculate the total returned value (actual pcs * discounted price)
+      return sum + actualPcs * discountedPrice;
     }, 0);
   }, [rows, unitTypeMap]);
 
