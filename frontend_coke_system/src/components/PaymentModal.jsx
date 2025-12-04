@@ -1056,10 +1056,12 @@ const PaymentModal = ({
               <div>
                 <label className="block mb-1">Cash Amount Received</label>
                 <input
-                  type="number"
-                  className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
-                  value={cashReceived}
-                  onChange={(e) => setCashReceived(e.target.value)}
+                  type="text"
+                  className={`w-full border-[2px] rounded px-2 py-1 text-xl font-bold ${
+                    n(cashReceived) < n(amountDueFinal) ? "border-red-600 bg-red-100 text-red-600" : "border-slate-200"
+                  }`}
+                  value={`₱${cashReceived}`}
+                  onChange={(e) => setCashReceived(e.target.value.replace("₱", ""))} // Removes the symbol on change
                 />
               </div>
               
