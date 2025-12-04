@@ -500,12 +500,12 @@ export default function MerchandisingSaleDetailPage() {
             <tr className="bg-slate-100">
               <td className="border px-2 py-1"></td>
               <td className="border px-2 py-1 text-center">Shell</td>
-              <td className="border px-2 py-1 text-center">PCS</td>
+              <td className="border px-2 py-1 text-center">Item Qty</td>
               <td className="border px-2 py-1"></td>
-              <td className="border px-2 py-1 text-center">Shell</td>
-              <td className="border px-2 py-1 text-center">PCS</td>
+              <td className="border px-2 py-1 text-center">Per Shell</td>
+              <td className="border px-2 py-1 text-center">Per Bottle</td>
               <td className="border px-2 py-1 text-center">%</td> {/* ✅ clearer indicator */}
-              <td className="border px-2 py-1 text-center">PCS</td>
+              <td className="border px-2 py-1 text-center"></td>
               <td className="border px-2 py-1 text-center">PCS</td>
             </tr>
           </thead>

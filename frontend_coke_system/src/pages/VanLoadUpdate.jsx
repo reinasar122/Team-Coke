@@ -816,19 +816,19 @@ const VanLoadUpdate = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <div>
           <label className="font-semibold">MSP No:</label>
-          <div className="p-2 border rounded">{sale.msp_no}</div>
+          <div className="p-2 border rounded text-gray">{sale.msp_no}</div>
         </div>
         <div>
           <label className="font-semibold">Transaction Type:</label>
-          <div className="p-2 border rounded">{sale.transaction_type_name}</div>
+          <div className="p-2 border rounded text-gray">{sale.transaction_type_name}</div>
         </div>
         <div>
           <label className="font-semibold">Handled By:</label>
-          <div className="p-2 border rounded">{sale.handled_by}</div>
+          <div className="p-2 border rounded text-gray">{sale.handled_by}</div>
         </div>
         <div>
           <label className="font-semibold">Date Created:</label>
-          <div className="p-2 border rounded">
+          <div className="p-2 border rounded text-gray">
             {sale.date_time ? new Date(sale.date_time).toLocaleString() : '--'}
           </div>
         </div>
@@ -856,16 +856,16 @@ const VanLoadUpdate = () => {
             <tr className="bg-slate-100">
               <td className="border border-gray-300 py-1"></td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Item Qty</td>
               <td className="border border-gray-300 py-1"></td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Item Qty</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Per Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Per Bottle</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Item Qty</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Item Qty</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
