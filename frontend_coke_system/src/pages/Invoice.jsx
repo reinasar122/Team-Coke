@@ -155,11 +155,11 @@ const InvoiceList = () => {
             <table className="w-full border-collapse border border-gray-300">
               <thead>
                 <tr className="bg-gray-100">
-                  <th className="border p-2 text-left">Invoice #</th>
-                  <th className="border p-2 text-left">MSP #</th>
-                  <th className="border p-2 text-left">Transaction Type</th>
-                  <th className="border p-2 text-left">Date</th>
-                  <th className="border p-2 text-left">Actions</th>
+                  <th className="border p-2 text-center">Invoice #</th>
+                  <th className="border p-2 text-center">MSP #</th>
+                  <th className="border p-2 text-center">Transaction Type</th>
+                  <th className="border p-2 text-center">Date</th>
+                  <th className="border p-2 text-center">Actions</th>
                 </tr>
               </thead>
               <tbody>
