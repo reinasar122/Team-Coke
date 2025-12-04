@@ -500,7 +500,7 @@ const ProductEdit = () => {
     <form onSubmit={handleUpdate} className="page">
       <div className="page-header">
         <h2 className="page-title">Product Edit</h2>
-        <div className="actions" style={{ gap: '20px' }}>
+        <div className="actions" style={{ gap: '5px', display: 'flex', alignItems: 'center' }}>
           <button 
             type="button" 
             className="btn btn-back" 
@@ -897,43 +897,50 @@ const ProductEdit = () => {
         </div>
       )}
 
-      {/* Notice modal - only show for errors or important messages */}
-      {notice.open && notice.type === "error" && (
-        <div className="modal-overlay">
-          <div className="modal modal--error">
-            <div className="modal-body">
-              <p className="pe-modal-text text-center">{notice.text}</p>
-              <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                <button 
-                  onClick={() => setNotice(prev => ({ ...prev, open: false }))}
-                  className="btn btn-back"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
+     {/* Centered notification overlay */}
+{notice.open && (
+  <div style={{
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+    backgroundColor: notice.type === "error" ? 'rgba(0, 0, 0, 0.5)' : 'rgba(0, 0, 0, 0.1)',
+    pointerEvents: notice.type === "error" ? 'auto' : 'none'
+  }}>
+    <div style={{
+      background: notice.type === "error" ? '#fef2f2' : '#f0fdf4',
+      color: notice.type === "error" ? '#991b1b' : '#065f46',
+      padding: '20px 24px',
+      borderRadius: '8px',
+      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+      borderLeft: `4px solid ${notice.type === "error" ? '#ef4444' : '#10b981'}`,
+      minWidth: '320px',
+      maxWidth: '500px',
+      textAlign: 'center',
+      pointerEvents: 'auto',
+      transform: 'translateY(0)',
+      animation: 'slideIn 0.3s ease-out'
+    }}>
+      <p style={{ margin: '0 0 16px 0', fontSize: '14px', lineHeight: '1.5' }}>
+        {notice.text}
+      </p>
+      {notice.type === "error" && (
+        <button 
+          onClick={() => setNotice(prev => ({ ...prev, open: false }))}
+          className="btn btn-back"
+          style={{ fontSize: '14px', padding: '8px 16px' }}
+        >
+          Close
+        </button>
       )}
-
-      {/* Success notice as overlay that doesn't block interaction */}
-      {notice.open && notice.type === "success" && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '20px',
-          background: '#10b981',
-          color: 'white',
-          padding: '12px 16px',
-          borderRadius: '6px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-          zIndex: 9999,
-          fontSize: '14px',
-          fontWeight: '500'
-        }}>
-          {notice.text}
-        </div>
-      )}
+    </div>
+  </div>
+)}
     </form>
   );
 };
