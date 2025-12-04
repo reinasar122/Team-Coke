@@ -863,13 +863,13 @@ const VanLoadUpdate = () => {
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Per Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Per Bottle</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">Item Qty</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Bottle</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Bottle</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Item Qty</td>
               <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">Shell</td>
-              <td className="border border-gray-300 py-1 text-[11px] font-medium">PCS</td>
+              <td className="border border-gray-300 py-1 text-[11px] font-medium">Item Qty</td>
               <td className="border border-gray-300 py-1"></td>
               <td className="border border-gray-300 py-1"></td>
               <td className="border border-gray-300 py-1"></td>
@@ -1074,7 +1074,7 @@ const VanLoadUpdate = () => {
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
+      <div className="flex justify-end gap-4 mt-6 mx-auto">
         <button 
           className='btn btn-back'
            onClick={() => navigate("/trading")}

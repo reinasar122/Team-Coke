@@ -1026,7 +1026,7 @@ const ReceivingForm = () => {
             </div>
           </div>
           <div>
-            <div className="card formula-explanation mt-5" style={{ width: '30%' }} >
+            <div className="card formula-explanation mt-5 text-blue-700" style={{ width: '30%' }} >
             <p><strong>Note:</strong>
               This is the formula used in calculating the Total:</p>
             <p><strong>Total = Unit Cost * (Pcs - Bo/Pcs)</strong></p>
