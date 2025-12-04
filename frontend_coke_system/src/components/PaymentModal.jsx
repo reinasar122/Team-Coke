@@ -135,7 +135,10 @@ const PaymentModal = ({
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const [customerInput, setCustomerInput] = useState(customerName || "Walk-in");
+
+  const [customerInput, setCustomerInput] = useState(
+  transactionTypeName && /van\s*load/i.test(transactionTypeName) ? "" : customerName || "Walk-in"
+);
 
 
   // ------------ helpers ------------
@@ -515,7 +518,7 @@ const PaymentModal = ({
             <strong>Date</strong>: {formatLocalToManila(transactionDate) || "--"}
           </div>
           <div>
-            <strong>Customer</strong>: {(customerName ?? "").trim() || "Walk-in"}
+            <strong>Customer</strong>: {isVanLoad ? "VAN" : (customerName ?? "").trim() || "Walk-in"} 
           </div>
           <div>
             <strong>Handled By</strong>: {handledBy || "--"}
