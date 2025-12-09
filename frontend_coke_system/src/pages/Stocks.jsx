@@ -1,6 +1,6 @@
-// Stocks.jsx - INTEGRATED VERSION WITH API IMPROVEMENTS
+// Stocks.jsx - INTEGRATED VERSION WITH DYNAMIC STOCK THRESHOLDS (Clean UI)
 import React, { useEffect, useState, useCallback } from "react";
-import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
+import api from "../api";
 import {
   FaExclamationTriangle,
   FaCheckCircle,
@@ -9,7 +9,8 @@ import {
   FaWarehouse, // eslint-disable-line no-unused-vars
   FaBell, // eslint-disable-line no-unused-vars
 } from "react-icons/fa";
-import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
+import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils';
+import { getStockThresholds, calculateStockStatus } from '../utils/stockThresholds';
 
 import "../styles/pages/stocks.scss";
 
@@ -42,12 +43,22 @@ const getStatusIcon = (s) => {
   }
 };
 
-// ✅ UPDATED: Utility function to check and store low stock notifications (use api.get)
+// Function to process stocks with dynamic threshold calculation
+const processStocksWithThresholds = (stocksData) => {
+  return stocksData.map(item => ({
+    ...item,
+    stock_status: calculateStockStatus(item.quantity_available)
+  }));
+};
+
+// Utility function to check and store low stock notifications with dynamic thresholds
 const checkAndStoreNotifications = async (warehouseId) => {
   try {
-    // ✅ NEW: Use api.get() instead of axios.get() (from new version)
     const response = await api.get(`/stocks/?warehouse=${warehouseId}`);
-    const stocks = response.data;
+    const rawStocks = response.data;
+    
+    // Process stocks with current thresholds
+    const stocks = processStocksWithThresholds(rawStocks);
     
     const criticalStocks = stocks.filter(item => 
       item.stock_status === "Low" || item.stock_status === "Out of Stock"
@@ -97,7 +108,7 @@ export const checkStockAfterTransaction = async (warehouseId) => {
   await checkAndStoreNotifications(warehouseId);
 };
 
-// ✅ KEPT: Export function to be called on login (from old version - better warehouse handling)
+// Export function to be called on login
 export const checkStockOnLogin = async () => {
   const warehouse = getCurrentWarehouse();
   
@@ -109,9 +120,9 @@ export const checkStockOnLogin = async () => {
 const Stocks = () => {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ KEPT: from old version
+  const [currentWarehouse, setCurrentWarehouse] = useState(null);
 
-  // ✅ KEPT: Proper warehouse setup using utilities (from old version)
+  // Proper warehouse setup using utilities
   const setupWarehouse = useCallback(async () => {
     console.log('🏭 Setting up warehouse for Stocks...');
     
@@ -146,12 +157,14 @@ const Stocks = () => {
       setLoading(true);
       console.log('📦 Fetching stocks for warehouse:', currentWarehouse);
 
-      // ✅ NEW: Use api.get() instead of axios.get() (from new version)
       const response = await api.get(`/stocks/?warehouse=${currentWarehouse.id}`);
-      const stockData = response.data;
+      const rawStockData = response.data;
       
-      console.log(`✅ Loaded ${stockData.length} stock items for warehouse ${currentWarehouse.name}`);
-      setStocks(stockData);
+      // Process stocks with current thresholds
+      const processedStocks = processStocksWithThresholds(rawStockData);
+      
+      console.log(`✅ Loaded ${processedStocks.length} stock items for warehouse ${currentWarehouse.name}`);
+      setStocks(processedStocks);
 
       // Check for notifications when stocks are loaded
       await checkAndStoreNotifications(currentWarehouse.id);
@@ -163,7 +176,26 @@ const Stocks = () => {
     }
   }, [currentWarehouse]);
 
-  // ✅ KEPT: Setup warehouse first, then fetch stocks (from old version)
+  // Function to refresh stock statuses when thresholds change
+  const refreshStockStatuses = useCallback(() => {
+    if (stocks.length > 0) {
+      console.log('🔄 Refreshing stock statuses with new thresholds');
+      
+      const updatedStocks = stocks.map(item => ({
+        ...item,
+        stock_status: calculateStockStatus(item.quantity_available)
+      }));
+      
+      setStocks(updatedStocks);
+      
+      // Check for new notifications with updated statuses
+      if (currentWarehouse?.id) {
+        checkAndStoreNotifications(currentWarehouse.id);
+      }
+    }
+  }, [stocks, currentWarehouse]);
+
+  // Setup warehouse first, then fetch stocks
   useEffect(() => {
     setupWarehouse();
   }, [setupWarehouse]);
@@ -174,7 +206,7 @@ const Stocks = () => {
     }
   }, [currentWarehouse, fetchStocks]);
 
-  // ✅ KEPT: Listen for warehouse changes (from old version)
+  // Listen for warehouse changes
   useEffect(() => {
     const handleWarehouseChange = (event) => {
       console.log('🏭 Warehouse change detected in Stocks:', event.detail);
@@ -185,11 +217,22 @@ const Stocks = () => {
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, [setupWarehouse]);
 
+  // Listen for threshold changes
+  useEffect(() => {
+    const handleThresholdChange = (event) => {
+      console.log('⚙️ Stock thresholds changed:', event.detail);
+      refreshStockStatuses();
+    };
+    
+    window.addEventListener("stockThresholdsChanged", handleThresholdChange);
+    return () => window.removeEventListener("stockThresholdsChanged", handleThresholdChange);
+  }, [refreshStockStatuses]);
+
   const sortedStocks = [...stocks].sort(
     (a, b) => statusOrder[a.stock_status] - statusOrder[b.stock_status]
   );
 
-  // ✅ KEPT: Show loading state while setting up warehouse (from old version)
+  // Show loading state while setting up warehouse
   if (loading && !currentWarehouse) {
     return (
       <div className="stocks-container">
@@ -219,7 +262,7 @@ const Stocks = () => {
           🧾 Stocks Table
         </h2>
         
-        {/* ✅ KEPT: Show current warehouse (from old version) */}
+        {/* Show current warehouse */}
         {currentWarehouse && (
           <div style={{ 
             padding: '4px 8px', 

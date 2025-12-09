@@ -1,218 +1,256 @@
 import { useState, useEffect } from "react";
-import axios from "axios";
 import { toast } from "react-toastify";
-import { FaUser, FaLock, FaCog, FaBell } from "react-icons/fa";
+import { FaCog, FaExclamationTriangle, FaCubes, FaCheckCircle } from "react-icons/fa";
+import { getStockThresholds } from "../utils/stockThresholds"; // Import the utils
 
 function Settings() {
-  const [activeTab, setActiveTab] = useState("profile");
-
-  const [user, setUser] = useState({
-    username: "",
-    email: "",
-    full_name: "",
+  const [stockThresholds, setStockThresholds] = useState({
+    low_threshold: 10,
+    moderate_threshold: 50,
+    high_threshold: 100,
   });
 
-  const [passwords, setPasswords] = useState({
-    current_password: "",
-    new_password: "",
-    confirm_password: "",
-  });
-
-  const [preferences, setPreferences] = useState({
-    darkMode: false,
-    notifications: true,
-  });
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // Load user info from localStorage or API
-    const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
-    setUser({
-      username: storedUser.username || "",
-      email: storedUser.email || "",
-      full_name: storedUser.full_name || "",
-    });
-
-    // Example: load saved preferences
-    setPreferences({
-      darkMode: storedUser.darkMode || false,
-      notifications: storedUser.notifications ?? true,
-    });
+    fetchStockThresholds();
   }, []);
 
-  const handleProfileChange = (e) => {
-    setUser({ ...user, [e.target.name]: e.target.value });
-  };
-
-  const handlePasswordChange = (e) => {
-    setPasswords({ ...passwords, [e.target.name]: e.target.value });
-  };
-
-  const handlePreferenceChange = (e) => {
-    const { name, checked } = e.target;
-    setPreferences({ ...preferences, [name]: checked });
-  };
-
-  const updateProfile = async () => {
+  const fetchStockThresholds = async () => {
+    setLoading(true);
     try {
-      await axios.put(`/api/users/${user.id}/`, user); // adjust API
-      toast.success("Profile updated successfully!");
-      localStorage.setItem("user", JSON.stringify({ ...user, ...preferences }));
+      // Use the utils function to get saved thresholds
+      const savedThresholds = getStockThresholds();
+      setStockThresholds(savedThresholds);
     } catch (error) {
-      toast.error("Failed to update profile.");
+      console.error("Error loading thresholds:", error);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const changePassword = async () => {
-    if (passwords.new_password !== passwords.confirm_password) {
-      toast.error("Passwords do not match.");
+  const handleThresholdChange = (e) => {
+    const { name, value } = e.target;
+    // Allow empty value while typing, convert to number when valid
+    const numValue = value === '' ? '' : parseInt(value);
+    setStockThresholds({ 
+      ...stockThresholds, 
+      [name]: numValue
+    });
+  };
+
+  const saveStockThresholds = async () => {
+    // Validation - check if all values are numbers and not empty
+    const { low_threshold, moderate_threshold, high_threshold } = stockThresholds;
+    
+    if (low_threshold === '' || moderate_threshold === '' || high_threshold === '') {
+      toast.error("All threshold values must be filled");
       return;
     }
+
+    if (low_threshold >= moderate_threshold) {
+      toast.error("Low threshold must be less than moderate threshold");
+      return;
+    }
+    if (moderate_threshold >= high_threshold) {
+      toast.error("Moderate threshold must be less than high threshold");
+      return;
+    }
+    if (low_threshold < 0 || moderate_threshold < 0 || high_threshold < 0) {
+      toast.error("Thresholds cannot be negative");
+      return;
+    }
+
+    setSaving(true);
     try {
-      await axios.post(`/api/change-password/`, passwords);
-      toast.success("Password changed successfully!");
-      setPasswords({ current_password: "", new_password: "", confirm_password: "" });
+      // Save to localStorage (since API endpoint doesn't exist yet)
+      localStorage.setItem("stockThresholds", JSON.stringify(stockThresholds));
+      
+      toast.success("Stock thresholds updated successfully!");
+      
+      // Dispatch event to refresh stocks if needed
+      window.dispatchEvent(new CustomEvent('stockThresholdsChanged', { 
+        detail: stockThresholds 
+      }));
+      
     } catch (error) {
-      toast.error("Failed to change password.");
+      toast.error("Failed to save thresholds");
+      console.error("Save error:", error);
+    } finally {
+      setSaving(false);
     }
   };
 
-  return (
-    <div className="max-w-4xl mx-auto p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-3xl font-bold mb-6 text-gray-800">Settings</h1>
+  const resetToDefaults = () => {
+    setStockThresholds({
+      low_threshold: 10,
+      moderate_threshold: 50,
+      high_threshold: 100,
+    });
+    toast.info("Thresholds reset to default values");
+  };
 
-      {/* Tabs */}
-      <div className="flex space-x-4 mb-6 border-b">
-        <button
-          className={`flex items-center px-4 py-2 font-medium ${
-            activeTab === "profile" ? "border-b-2 border-blue-600 text-blue-600" : "text-gray-600"
-          }`}
-          onClick={() => setActiveTab("profile")}
-        >
-          <FaUser className="mr-2" /> Profile
-        </button>
-        <button
-          className={`flex items-center px-4 py-2 font-medium ${
-            activeTab === "password" ? "border-b-2 border-green-600 text-green-600" : "text-gray-600"
-          }`}
-          onClick={() => setActiveTab("password")}
-        >
-          <FaLock className="mr-2" /> Password
-        </button>
-        <button
-          className={`flex items-center px-4 py-2 font-medium ${
-            activeTab === "preferences" ? "border-b-2 border-purple-600 text-purple-600" : "text-gray-600"
-          }`}
-          onClick={() => setActiveTab("preferences")}
-        >
-          <FaCog className="mr-2" /> Preferences
-        </button>
+  if (loading) {
+    return (
+      <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+        <div className="flex items-center justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <span className="ml-3 text-gray-600 dark:text-gray-300">Loading settings...</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-4xl mx-auto p-6 bg-gray-50 dark:bg-gray-900 min-h-screen">
+      <div className="flex items-center gap-3 mb-6">
+        <FaCog className="text-3xl text-gray-800 dark:text-white" />
+        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Stock Threshold Settings</h1>
       </div>
 
-      {/* Tab Content */}
-      <div className="bg-white p-6 rounded shadow-md">
-        {/* Profile Tab */}
-        {activeTab === "profile" && (
-          <div className="space-y-4">
-            <input
-              type="text"
-              name="full_name"
-              value={user.full_name}
-              onChange={handleProfileChange}
-              placeholder="Full Name"
-              className="w-full p-3 border rounded focus:ring focus:ring-blue-200"
-            />
-            <input
-              type="text"
-              name="username"
-              value={user.username}
-              onChange={handleProfileChange}
-              placeholder="Username"
-              className="w-full p-3 border rounded focus:ring focus:ring-blue-200"
-            />
-            <input
-              type="email"
-              name="email"
-              value={user.email}
-              onChange={handleProfileChange}
-              placeholder="Email"
-              className="w-full p-3 border rounded focus:ring focus:ring-blue-200"
-            />
-            <button
-              onClick={updateProfile}
-              className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-            >
-              Save Profile
-            </button>
-          </div>
-        )}
+      <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-md">
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-2">
+            Configure Stock Level Thresholds
+          </h2>
+          <p className="text-gray-600 dark:text-gray-300">
+            Set the quantity thresholds that determine when products are considered Low, Moderate, or High stock.
+          </p>
+        </div>
 
-        {/* Password Tab */}
-        {activeTab === "password" && (
-          <div className="space-y-4">
-            <input
-              type="password"
-              name="current_password"
-              value={passwords.current_password}
-              onChange={handlePasswordChange}
-              placeholder="Current Password"
-              className="w-full p-3 border rounded focus:ring focus:ring-green-200"
-            />
-            <input
-              type="password"
-              name="new_password"
-              value={passwords.new_password}
-              onChange={handlePasswordChange}
-              placeholder="New Password"
-              className="w-full p-3 border rounded focus:ring focus:ring-green-200"
-            />
-            <input
-              type="password"
-              name="confirm_password"
-              value={passwords.confirm_password}
-              onChange={handlePasswordChange}
-              placeholder="Confirm New Password"
-              className="w-full p-3 border rounded focus:ring focus:ring-green-200"
-            />
-            <button
-              onClick={changePassword}
-              className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            >
-              Change Password
-            </button>
-          </div>
-        )}
-
-        {/* Preferences Tab */}
-        {activeTab === "preferences" && (
-          <div className="space-y-4">
-            <label className="flex items-center space-x-3">
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          {/* Low Threshold */}
+          <div className="p-6 border-2 border-red-200 dark:border-red-800 rounded-lg bg-red-50 dark:bg-red-900/20">
+            <div className="flex items-center mb-3">
+              <FaExclamationTriangle className="text-red-600 mr-2" />
+              <h3 className="text-lg font-semibold text-red-700 dark:text-red-300">Low Stock</h3>
+            </div>
+            <p className="text-sm text-red-600 dark:text-red-400 mb-3">
+              Products with quantity ≤ this value will be marked as "Low Stock"
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-red-700 dark:text-red-300 mb-2">
+                Low Threshold
+              </label>
               <input
-                type="checkbox"
-                name="darkMode"
-                checked={preferences.darkMode}
-                onChange={handlePreferenceChange}
+                type="number"
+                name="low_threshold"
+                value={stockThresholds.low_threshold}
+                onChange={handleThresholdChange}
+                min="1"
+                className="w-full p-3 border border-red-300 dark:border-red-600 rounded-lg focus:ring-2 focus:ring-red-500 focus:border-red-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Enter low threshold"
               />
-              <span>Enable Dark Mode</span>
-            </label>
+            </div>
+          </div>
 
-            <label className="flex items-center space-x-3">
+          {/* Moderate Threshold */}
+          <div className="p-6 border-2 border-yellow-200 dark:border-yellow-800 rounded-lg bg-yellow-50 dark:bg-yellow-900/20">
+            <div className="flex items-center mb-3">
+              <FaCubes className="text-yellow-600 mr-2" />
+              <h3 className="text-lg font-semibold text-yellow-700 dark:text-yellow-300">Moderate Stock</h3>
+            </div>
+            <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-3">
+              Products with quantity between Low and High thresholds
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-yellow-700 dark:text-yellow-300 mb-2">
+                Moderate Threshold
+              </label>
               <input
-                type="checkbox"
-                name="notifications"
-                checked={preferences.notifications}
-                onChange={handlePreferenceChange}
+                type="number"
+                name="moderate_threshold"
+                value={stockThresholds.moderate_threshold}
+                onChange={handleThresholdChange}
+                min="1"
+                className="w-full p-3 border border-yellow-300 dark:border-yellow-600 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Enter moderate threshold"
               />
-              <span>Enable Notifications</span>
-            </label>
+            </div>
+          </div>
 
-            <button
-              onClick={() => toast.success("Preferences saved!")}
-              className="px-6 py-2 bg-purple-600 text-white rounded hover:bg-purple-700"
-            >
-              Save Preferences
-            </button>
+          {/* High Threshold */}
+          <div className="p-6 border-2 border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-900/20">
+            <div className="flex items-center mb-3">
+              <FaCheckCircle className="text-green-600 mr-2" />
+              <h3 className="text-lg font-semibold text-green-700 dark:text-green-300">High Stock</h3>
+            </div>
+            <p className="text-sm text-green-600 dark:text-green-400 mb-3">
+              Products with quantity ≥ this value will be marked as "High Stock"
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-green-700 dark:text-green-300 mb-2">
+                High Threshold
+              </label>
+              <input
+                type="number"
+                name="high_threshold"
+                value={stockThresholds.high_threshold}
+                onChange={handleThresholdChange}
+                min="1"
+                className="w-full p-3 border border-green-300 dark:border-green-600 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                placeholder="Enter high threshold"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Preview Section */}
+        {stockThresholds.low_threshold !== '' && stockThresholds.moderate_threshold !== '' && stockThresholds.high_threshold !== '' && (
+          <div className="mb-8 p-4 bg-gray-100 dark:bg-gray-700 rounded-lg">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-white mb-3">Current Settings Preview:</h3>
+            <div className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
+              <p><strong>Out of Stock:</strong> Quantity = 0</p>
+              <p><strong>Low Stock:</strong> Quantity = 1 to {stockThresholds.low_threshold}</p>
+              <p><strong>Moderate Stock:</strong> Quantity = {Number(stockThresholds.low_threshold) + 1} to {stockThresholds.moderate_threshold}</p>
+              <p><strong>High Stock:</strong> Quantity = {Number(stockThresholds.moderate_threshold) + 1} to {stockThresholds.high_threshold}</p>
+              <p><strong>Very High Stock:</strong> Quantity &gt; {stockThresholds.high_threshold}</p>
+            </div>
           </div>
         )}
+
+        {/* Action Buttons */}
+        <div className="flex justify-between items-center">
+          <button
+            onClick={resetToDefaults}
+            className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors duration-200"
+          >
+            Reset to Defaults
+          </button>
+
+          <div className="space-x-3">
+            <button
+              onClick={saveStockThresholds}
+              disabled={saving}
+              className={`px-8 py-3 rounded-lg text-white font-semibold transition-all duration-200 ${
+                saving 
+                  ? 'bg-gray-400 cursor-not-allowed' 
+                  : 'bg-blue-600 hover:bg-blue-700 hover:shadow-md'
+              }`}
+            >
+              {saving ? (
+                <span className="flex items-center">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Saving...
+                </span>
+              ) : (
+                'Save Settings'
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Info Section */}
+        <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 dark:border-blue-600">
+          <h4 className="text-blue-800 dark:text-blue-300 font-semibold mb-2">📝 How it works:</h4>
+          <ul className="text-blue-700 dark:text-blue-300 text-sm space-y-1">
+            <li>• These thresholds determine the color-coding and status of products in your stock table</li>
+            <li>• Low stock items will trigger notifications to help you reorder in time</li>
+            <li>• Settings are saved locally and applied to all warehouses</li>
+            <li>• Changes take effect immediately on your stock displays</li>
+          </ul>
+        </div>
       </div>
     </div>
   );

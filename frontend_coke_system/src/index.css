@@ -2,17 +2,267 @@
 @tailwind components;
 @tailwind utilities;
 
-
 body {
-  margin:0 ;
+  margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
     monospace;
+}
+
+/* ===== DARK MODE COMPREHENSIVE STYLES ===== */
+
+/* Base dark mode setup */
+.dark {
+  color-scheme: dark;
+}
+
+.dark body {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+}
+
+/* Text elements - Force visibility */
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  color: #f1f5f9 !important;
+}
+
+.dark p, .dark span, .dark div, .dark label {
+  color: #cbd5e1 !important;
+}
+
+.dark small, .dark .text-sm {
+  color: #94a3b8 !important;
+}
+
+/* Table styling */
+.dark table {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+.dark th {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+.dark td {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #475569 !important;
+}
+
+.dark tr:hover {
+  background-color: #334155 !important;
+}
+
+.dark tbody tr:nth-child(odd) {
+  background-color: #1e293b !important;
+}
+
+.dark tbody tr:nth-child(even) {
+  background-color: #334155 !important;
+}
+
+/* Cards and containers */
+.dark .bg-white {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .bg-gray-50 {
+  background-color: #0f172a !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .bg-gray-100 {
+  background-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+.dark .bg-gray-200 {
+  background-color: #475569 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Text color overrides */
+.dark .text-black { color: #f1f5f9 !important; }
+.dark .text-gray-900 { color: #f1f5f9 !important; }
+.dark .text-gray-800 { color: #f1f5f9 !important; }
+.dark .text-gray-700 { color: #cbd5e1 !important; }
+.dark .text-gray-600 { color: #cbd5e1 !important; }
+.dark .text-gray-500 { color: #94a3b8 !important; }
+.dark .text-gray-400 { color: #94a3b8 !important; }
+
+/* Form inputs */
+.dark input[type="text"],
+.dark input[type="email"], 
+.dark input[type="password"],
+.dark input[type="number"],
+.dark input[type="search"],
+.dark select,
+.dark textarea {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+.dark input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.dark input:focus {
+  background-color: #334155 !important;
+  border-color: #3b82f6 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Borders */
+.dark .border { border-color: #475569 !important; }
+.dark .border-gray-200 { border-color: #475569 !important; }
+.dark .border-gray-300 { border-color: #475569 !important; }
+.dark .border-b { border-bottom-color: #475569 !important; }
+.dark .border-t { border-top-color: #475569 !important; }
+
+/* Buttons - preserve functionality but ensure visibility */
+.dark button:not(.btn-primary):not(.btn-success):not(.btn-danger):not(.bg-blue-600):not(.bg-green-500):not(.bg-red-500) {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+.dark button:hover:not(.btn-primary):not(.btn-success):not(.btn-danger) {
+  background-color: #475569 !important;
+}
+
+/* Modals */
+.dark .modal-overlay > div,
+.dark .modal,
+.dark .bg-white.p-6,
+.dark .bg-white.p-8 {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #475569 !important;
+}
+
+/* Dropdown menus */
+.dark .dropdown-menu {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+.dark .dropdown-item {
+  color: #cbd5e1 !important;
+}
+
+.dark .dropdown-item:hover {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Navigation and headers */
+.dark .nav-link {
+  color: #cbd5e1 !important;
+}
+
+.dark .nav-link:hover {
+  color: #f1f5f9 !important;
+}
+
+/* Status badges - preserve colors but ensure readability */
+.dark .badge {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Dashboard cards */
+.dark .stats-card,
+.dark .card {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+  border-color: #475569 !important;
+}
+
+/* Product cards */
+.dark .product-card {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+/* Warehouse selector */
+.dark .warehouse-selector {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+/* Loading states */
+.dark .loading-text {
+  color: #cbd5e1 !important;
+}
+
+/* Search inputs */
+.dark .search-input {
+  background-color: #334155 !important;
+  color: #f1f5f9 !important;
+  border-color: #475569 !important;
+}
+
+/* Van management table */
+.dark .table-wrapper {
+  background-color: #1e293b !important;
+  border-color: #475569 !important;
+}
+
+/* Ensure all text is visible by default in dark mode */
+.dark * {
+  border-color: #475569 !important;
+}
+
+.dark *:not(button):not(.btn):not(.badge):not(.bg-blue-600):not(.bg-green-500):not(.bg-red-500):not(.bg-yellow-500):not(.bg-purple-600) {
+  color: #cbd5e1 !important;
+}
+
+/* Force override for any remaining invisible text */
+.dark [style*="color: #000"],
+.dark [style*="color: black"],
+.dark [style*="color: #333"],
+.dark [style*="color: rgb(0"],
+.dark .text-dark {
+  color: #cbd5e1 !important;
+}
+
+/* Force override for white backgrounds */
+.dark [style*="background: #fff"],
+.dark [style*="background: white"],
+.dark [style*="background-color: #fff"],
+.dark [style*="background-color: white"] {
+  background-color: #1e293b !important;
+  color: #cbd5e1 !important;
+}
+
+/* Icons should inherit color */
+.dark svg, .dark i {
+  color: inherit;
+}
+
+/* Scrollbars for dark mode */
+.dark ::-webkit-scrollbar {
+  background-color: #1e293b;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background-color: #475569;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background-color: #64748b;
 }
