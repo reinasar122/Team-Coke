@@ -1,7 +1,7 @@
 {
   "name": "frontend_coke_system",
   "version": "0.1.0",
-  "homepage": "/coke", 
+  "homepage": "/coke",
   "private": true,
   "dependencies": {
     "@fortawesome/fontawesome-free": "^6.7.2",
@@ -25,6 +25,7 @@
     "react-dom": "^19.1.0",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.0",
+    "react-script": "^2.0.5",
     "react-toastify": "^11.0.5",
     "recharts": "^2.15.4",
     "sass-loader": "^16.0.5",

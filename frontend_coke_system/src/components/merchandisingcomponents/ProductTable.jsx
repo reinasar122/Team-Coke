@@ -760,6 +760,18 @@ useEffect(() => {
             const hasProduct = !!product;
             const isMissing = (value) => value == null || value === "";
 
+
+            const shellFromProd = product?.price?.shell_price ?? 0;
+                const bottleFromProd = product?.price?.bottle_price ?? 0;
+
+                const isReturnable =
+                  !!product &&
+                  (
+                    product.returnable === true ||
+                    Number(shellFromProd) > 0 ||
+                    Number(bottleFromProd) > 0
+                  );
+
             return (
               <tr key={row.id ?? index} className="bg-white hover:bg-slate-100 transition duration-150">
                 {/* PRODUCT SELECT */}
@@ -885,19 +897,27 @@ useEffect(() => {
                       type="number"
                       placeholder="0"
                       className={`w-full p-1 text-sm text-center rounded
-                        ${["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)
-                          ? "input-always-spinner bg-yellow-50"
-                          : "bg-gray-100"}
-                        ${field.includes("discrepancy") && parseFloat(row[field]) !== 0
-                          ? "bg-red-100 text-red-700 font-semibold"
-                          : ""}
-                        ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : ""}
+                        ${
+                          // Style returned empty + discrepancy empty the same
+                          ["expectedReturnShellEmpty","expectedReturnPcsEmpty","discrepancyShellEmpty","discrepancyPcsEmpty"].includes(field)
+                            ? isReturnable
+                              ? // Returnable → show yellow input for returned fields but gray readonly for discrepancy
+                                (field.includes("expectedReturn") ? "input-always-spinner bg-yellow-50" : "bg-gray-100")
+                              : // NON-returnable → ALL these fields disabled and gray
+                                "bg-gray-200 cursor-not-allowed"
+                            : "bg-gray-100"
+                        }
+                        ${
+                          field.includes("discrepancy") && parseFloat(row[field]) !== 0
+                            ? "bg-red-100 text-red-700 font-semibold"
+                            : ""
+                        }
                       `}
                       value={
                         row[field] === "" || row[field] === "0" || row[field] === null
                           ? ""
                           : row[field]
-                      } // Handle empty and "0"
+                      }
                       onChange={(e) =>
                         handleRowChange(
                           index,
@@ -905,8 +925,17 @@ useEffect(() => {
                           e.target.value === "" ? null : e.target.value
                         )
                       }
-                      readOnly={["discrepancyShellEmpty", "discrepancyPcsEmpty"].includes(field)} // ⬅️ Make discrepancy fields non-editable
-                      disabled={!hasProduct} // Disabled if no product is selected
+                      readOnly={field.includes("discrepancy")}
+                      disabled={
+                        !hasProduct ||
+                        (
+                          !isReturnable &&
+                          (
+                            ["expectedReturnShellEmpty","expectedReturnPcsEmpty","discrepancyShellEmpty","discrepancyPcsEmpty"]
+                              .includes(field)
+                          )
+                        )
+                      }
                     />
                   </td>
                 ))}

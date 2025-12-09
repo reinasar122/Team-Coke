@@ -29,6 +29,29 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     email: null,
   });
 
+
+  useEffect(() => {
+    setFormData((prev) => {
+      // If region already set (e.g., when editing), do nothing
+      if (prev.region) return prev;
+
+      // Find Region VII (Central Visayas) in PSGC data
+      const defaultRegion = psgcData.find((r) =>
+        r.region_name.toLowerCase().includes("central visayas")
+      );
+
+      if (defaultRegion) {
+        return {
+          ...prev,
+          region: defaultRegion.region_name, // exact text from JSON
+        };
+      }
+
+      return prev;
+    });
+  }, []);
+
+
   // ✅ Cascading PSGC dropdowns
   useEffect(() => {
     const selectedRegion = psgcData.find((r) => r.region_name === formData.region);
