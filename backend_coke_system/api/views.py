@@ -88,6 +88,12 @@ from django.db.models.functions import TruncDate
 from datetime import timedelta
 
 
+from math import floor, ceil
+from datetime import date
+from collections import defaultdict
+
+
+
 
 # ✅ HELPER FUNCTION: Get user warehouse filtering
 def get_user_warehouse_filter(user, query_param_warehouse=None):
@@ -2072,6 +2078,39 @@ class ForecastViewSet(viewsets.ModelViewSet):
     serializer_class = ForecastSerializer
     permission_classes = [AllowAny]  # allow testing
 
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+        serializer = self.get_serializer(queryset, many=True)
+        data = serializer.data
+
+        # 1) Build actual sales map in Python (not using TruncDate)
+        items = (
+            MerchandisingItem.objects
+            .select_related("merchandising")
+            .values("product_id", "merchandising__date_time", "sold_pcs")
+        )
+
+        actual_map = defaultdict(int)  # key = (product_id, date) -> total sold_pcs
+
+        for row in items:
+            dt = row["merchandising__date_time"]
+            if dt is None:
+                continue
+
+            d = dt.date()  # convert to plain date
+            key = (row["product_id"], d)
+            actual_map[key] += row["sold_pcs"] or 0
+
+        # 2) Attach "actual" to each forecast row
+        for item in data:
+            d = date.fromisoformat(item["date"])  # "2025-08-19" -> date
+            key = (item["product"], d)
+            item["actual"] = actual_map.get(key)
+
+        return Response(data)
+
+
+
     def get_queryset(self):
         queryset = self.queryset
         product_id = self.request.query_params.get("product_id")
@@ -2084,6 +2123,7 @@ class ForecastViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(date__range=[start_date, end_date])
 
         return queryset.order_by("date")
+    
 
 
 # ----------------------
@@ -2105,16 +2145,20 @@ class GenerateForecastAPIView(APIView):
         qs = (
             MerchandisingItem.objects
             .filter(product_id=product_id)
-            .annotate(sale_date=TruncDate("merchandising__date_time"))
-            .values("sale_date")
+            .values("merchandising__date_time__date")
             .annotate(y=Sum("sold_pcs"))
-            .order_by("sale_date")
+            .order_by("merchandising__date_time__date")
         )
 
-        rows = list(qs)
-
-        # 🔥 FIX: Remove rows where sale_date is None
-        rows = [r for r in rows if r["sale_date"] is not None]
+        # Build rows with a clean 'sale_date' key
+        rows = [
+            {
+                "sale_date": r["merchandising__date_time__date"],
+                "y": r["y"],
+            }
+            for r in qs
+            if r["merchandising__date_time__date"] is not None
+        ]
 
         # ------------------------------------------
         # Padding logic
@@ -2170,19 +2214,18 @@ class GenerateForecastAPIView(APIView):
         created = []
         last_hist_date = df["ds"].max().date()
 
+
         for _, row in forecast.iterrows():
             ds = pd.to_datetime(row["ds"]).date()
-            if ds < last_hist_date:
-                continue
 
             f = Forecast.objects.update_or_create(
                 product_id=product_id,
                 date=ds,
-                defaults={
+                defaults = {
                     "forecast": int(max(0, round(row["yhat"]))),
-                    "lower": int(max(0, round(row["yhat_lower"]))),
-                    "upper": int(max(0, round(row["yhat_upper"]))),
-                },
+                    "lower": int(max(0, floor(row["yhat_lower"]))),
+                    "upper": int(max(0, ceil(row["yhat_upper"]))),
+                    },
             )[0]
 
             created.append(f)
