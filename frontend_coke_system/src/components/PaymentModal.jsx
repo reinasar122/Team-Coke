@@ -1092,7 +1092,7 @@ const PaymentModal = ({
                 {n(cashReceived || 0) < amountDueFinal && (
                   <div className="col-span-2 mt-6 space-y-4">
                     <div className="bg-blue-100 border border-blue-300 p-4 rounded">
-                      <div className="font-semibold text-blue-700">Credit Amount:</div>
+                      <div className="font-semibold text-blue-700">Amount Payable:</div>
                       <div className="flex justify-between items-center mt-1 text-sm">
                         <div className="flex flex-col gap-2">
                           {isVanLoad ? (
@@ -1100,7 +1100,7 @@ const PaymentModal = ({
                             <div>
                               <label className="font-semibold mr-2">Customer:</label>
                               <input
-                                type="text"
+                                type="text" 
                                 className="border border-blue-300 rounded px-2 py-1 w-48"
                                 placeholder="Enter customer name"
                                 value={customerInput}
