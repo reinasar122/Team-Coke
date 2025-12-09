@@ -191,11 +191,12 @@ const ProductForm = () => {
   const checkAndAddRow = (index) => {
     const current = rows[index];
     const filled =
+      current.supplier &&
       current.supplier_code &&
       current.product_name &&
       current.product_category &&
       current.purchase_price &&
-      current.content_no; // ✅ UPDATED: Removed returnable check since it's optional checkbox
+      current.content_no; // ✅ UPDATED: Added supplier check
     if (filled && index === rows.length - 1) {
       setRows((prev) => {
         const newRows = [
@@ -246,6 +247,7 @@ const ProductForm = () => {
       const actualIndex = rows.findIndex(r => r === row);
       
       const requiredFields = [
+        { field: 'supplier', label: 'Supplier' },
         { field: 'supplier_code', label: 'Supplier Product Code' },
         { field: 'product_name', label: 'Product Name' },
         { field: 'product_category', label: 'Product Category' },
@@ -346,7 +348,7 @@ const ProductForm = () => {
         const productData = new FormData();
         productData.append('system_code', formData.system_code);
         productData.append('supplier_code', formData.supplier_code);
-        productData.append('supplier', formData.supplier || '');
+        productData.append('supplier', formData.supplier);
         productData.append('product_name', formData.product_name);
         productData.append('product_category', formData.product_category);
         productData.append('unit_type', unitTypeRes.data.id);
@@ -473,7 +475,7 @@ const ProductForm = () => {
           <thead>
             <tr>
               {[
-                "Supplier",
+                "Supplier*",
                 "Supplier Product Code*",
                 "System Product Code",
                 "Product Name*",
@@ -496,15 +498,15 @@ const ProductForm = () => {
           <tbody>
             {rows.map((row, index) => (
               <tr key={index}>
-                {/* Supplier */}
+                {/* Supplier - NOW REQUIRED */}
                 <td>
                   <select
                     name="supplier"
                     value={row.supplier || ""}
                     onChange={(e) => handleChange(index, e)}
-                    className="pf-select"
+                    className={`pf-select ${hasFieldError(index, 'supplier') ? 'pf-input-error' : ''}`}
                   >
-                    <option value="">-- Supplier --</option>
+                    <option value="">-- Select Supplier --</option>
                     {suppliers.map((s) => (
                       <option key={s.id} value={s.id}>
                         {s.company_name}
