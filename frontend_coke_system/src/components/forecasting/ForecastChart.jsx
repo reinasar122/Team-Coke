@@ -11,12 +11,17 @@ import {
   CartesianGrid,
 } from "recharts";
 
+
+
+
 const CustomTooltip = ({ active, payload, label }) => {
   if (!active || !payload || payload.length === 0) return null;
 
   const upper = payload.find((p) => p.dataKey === "upper")?.value;
   const lower = payload.find((p) => p.dataKey === "lower")?.value;
   const forecast = payload.find((p) => p.dataKey === "forecast")?.value;
+  const actual = payload.find((p) => p.dataKey === "actual")?.value;
+
 
   const fmt = (v) => Math.round(v);
 
@@ -32,6 +37,10 @@ const CustomTooltip = ({ active, payload, label }) => {
       {forecast != null && (
         <p className="text-emerald-700">Forecast : {fmt(forecast)}</p>
       )}
+
+      {actual != null && (
+        <p className="text-blue-700">Actual Sale : {fmt(actual)}</p> // Karen Changes
+      )} 
     </div>
   );
 };
@@ -56,9 +65,10 @@ export const ForecastChart = ({ product, data }) => {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="date"
-              tickFormatter={(d) => d.slice(5)}
+              tickFormatter={(d) => (d ? d.slice(5) : "")} // Karen Changes
               tick={{ fontSize: 11 }}
             />
+
             <YAxis tick={{ fontSize: 11 }} />
             <Tooltip content={<CustomTooltip />} />
 
@@ -123,6 +133,9 @@ export const ForecastChart = ({ product, data }) => {
           <span className="w-3 h-3 rounded-full bg-emerald-600" />
           <span>Forecast</span>
         </div>
+
+
+
       </div>
     </>
   );

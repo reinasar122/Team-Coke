@@ -1,5 +1,5 @@
+// src/pages/ForecastingDashboard.jsx
 import React, { useMemo, useState, useEffect } from "react";
-import { toast } from "react-toastify"; // Add toast to handle error messages
 
 import { ForecastOverviewCards } from "../components/forecasting/ForecastOverviewCards";
 import { ProductSelector } from "../components/forecasting/ProductSelector";
@@ -9,20 +9,32 @@ import { BestSellerRanking } from "../components/forecasting/BestSellerRanking";
 import { InventoryRecommendations } from "../components/forecasting/InventoryRecommendations";
 import { SeasonalInsights } from "../components/forecasting/SeasonalInsights";
 import { HolidayCalendar } from "../components/forecasting/HolidayCalendar";
-import api from "../api"; // Import the API helper
-
-const API_BASE = "http://127.0.0.1:8080/api";
-
-const getToken = () =>
-  localStorage.getItem("accessToken") ||
-  localStorage.getItem("token") ||
-  localStorage.getItem("access");
+import api from "../api"; // ✅ use shared API instance
 
 const extractList = (data) => {
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data.results)) return data.results;
   return [];
 };
+
+// Karen Changes: Normalize forecast rows coming from API
+const normalizeForecastRows = (rows) =>
+  (rows || []).map((r) => ({
+    date: r.date || r.ds || "",
+
+    // Forecast band from backend
+    forecast: Number(r.forecast ?? r.yhat ?? 0),
+    lower: Number(r.lower ?? r.yhat_lower ?? 0),
+    upper: Number(r.upper ?? r.yhat_upper ?? 0),
+
+    // Actual sales (attached in ForecastViewSet.list)
+    actual:
+      r.actual != null
+        ? Number(r.actual)
+        : r.y != null
+        ? Number(r.y)
+        : null,
+  }));
 
 export default function ForecastingDashboard() {
   const [products, setProducts] = useState([]);
@@ -45,13 +57,13 @@ export default function ForecastingDashboard() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await api.get("products/"); // Use api helper
+        const res = await api.get("products/");
         const data = res.data;
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data.results)
-            ? data.results
-            : [];
+          ? data.results
+          : [];
 
         setProducts(list);
 
@@ -79,15 +91,15 @@ export default function ForecastingDashboard() {
   useEffect(() => {
     const fetchStocks = async () => {
       try {
-        const res = await api.get("stocks/"); // Use api helper
+        const res = await api.get("stocks/");
         console.log("👉 /api/stocks/ response:", res.data);
 
         const data = res.data;
         const list = Array.isArray(data)
           ? data
           : Array.isArray(data.results)
-            ? data.results
-            : [];
+          ? data.results
+          : [];
 
         console.log("👉 parsed stocks list:", list);
         setStocks(list);
@@ -99,23 +111,18 @@ export default function ForecastingDashboard() {
     fetchStocks();
   }, []);
 
-
   // Build a fast lookup map: productId -> quantity
   const stockByProductId = useMemo(() => {
     const map = {};
     stocks.forEach((s) => {
-      const id =
-        s.product?.id ??  // most likely shape
-        s.product_id ?? 
-        null;
-
+      const id = s.product?.id ?? s.product_id ?? null;
       if (id == null) return;
 
       const qty =
-        s.quantity_available ?? 
-        s.quantity_available_pcs ?? 
-        s.quantity ?? 
-        s.current_stock ?? 
+        s.quantity_available ??
+        s.quantity_available_pcs ??
+        s.quantity ??
+        s.current_stock ??
         0;
 
       map[Number(id)] = Number(qty) || 0;
@@ -123,8 +130,7 @@ export default function ForecastingDashboard() {
     return map;
   }, [stocks]);
 
-
-  // somewhere near the top, get current warehouse id
+  // warehouse id (for picking correct stock row)
   const warehouseId =
     JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
 
@@ -133,7 +139,6 @@ export default function ForecastingDashboard() {
 
     const normalized = productName.trim().toLowerCase();
 
-    // all rows for this product
     const candidates = stocks.filter(
       (s) =>
         s.product_name &&
@@ -145,7 +150,6 @@ export default function ForecastingDashboard() {
       return 0;
     }
 
-    // prefer matching warehouse; fallback to first
     let row = candidates[0];
     if (warehouseId != null) {
       row =
@@ -157,15 +161,14 @@ export default function ForecastingDashboard() {
     }
 
     const qty =
-      row.quantity_available ?? 
-      row.quantity_available_pcs ?? 
-      row.quantity ?? 
-      row.current_stock ?? 
+      row.quantity_available ??
+      row.quantity_available_pcs ??
+      row.quantity ??
+      row.current_stock ??
       0;
 
     return Number(qty) || 0;
   };
-
 
   // -----------------------
   // 2) Fetch HOLIDAYS
@@ -173,12 +176,7 @@ export default function ForecastingDashboard() {
   useEffect(() => {
     const fetchHolidays = async () => {
       try {
-        const token = getToken();
-
-        const res = await api.get("holidays/", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-
+        const res = await api.get("holidays/");
         setHolidays(extractList(res.data));
       } catch (err) {
         console.error("❌ Failed to load holidays:", err);
@@ -188,7 +186,7 @@ export default function ForecastingDashboard() {
     fetchHolidays();
   }, []);
 
-
+  // Fetch forecasts for selected product
   useEffect(() => {
     if (!selectedProductName || !products.length) return;
 
@@ -197,9 +195,6 @@ export default function ForecastingDashboard() {
       setError(null);
 
       try {
-        const token = getToken();
-
-        // Find the selected product
         const productObj = products.find(
           (p) => (p.product_name || p.name || p.product) === selectedProductName
         );
@@ -211,11 +206,12 @@ export default function ForecastingDashboard() {
         }
 
         const res = await api.get("forecasts/", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
           params: { product_id: productObj.id },
         });
 
-        setForecastData(extractList(res.data)); // Set forecast data for the selected product
+        const raw = extractList(res.data);
+        const normalized = normalizeForecastRows(raw); // Karen Changes
+        setForecastData(normalized);
       } catch (err) {
         console.error("❌ Failed to fetch forecasts:", err);
         const msg =
@@ -229,12 +225,10 @@ export default function ForecastingDashboard() {
     };
 
     fetchForecastForSelectedProduct();
-  }, [selectedProductName, products]); // This only runs when a product is selected
-
-
+  }, [selectedProductName, products]);
 
   // -----------------------
-  // 3) Fetch FORECASTS when product changes
+  // 3) Fetch FORECASTS for ALL products (for inventory table)
   // -----------------------
   useEffect(() => {
     if (!products.length) return;
@@ -244,14 +238,10 @@ export default function ForecastingDashboard() {
       setError(null);
 
       try {
-        const token = getToken();
-
         const allInventoryData = [];
 
-        // Loop over all products and fetch forecasts
         for (const product of products) {
           const res = await api.get("forecasts/", {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
             params: { product_id: product.id },
           });
 
@@ -260,11 +250,9 @@ export default function ForecastingDashboard() {
             .slice(0, 30)
             .reduce((sum, row) => sum + (row.forecast || 0), 0);
 
-          // Fetch the current stock for each product
           const currentStock = getCurrentStock(product.product_name);
           const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
 
-          // Push the calculated data for each product
           allInventoryData.push({
             product: product.product_name,
             forecast30Day: total30DayForecast,
@@ -273,7 +261,7 @@ export default function ForecastingDashboard() {
           });
         }
 
-        setInventoryData(allInventoryData); // Update inventory data state
+        setInventoryData(allInventoryData);
       } catch (err) {
         console.error("❌ Failed to fetch forecasts:", err);
         const msg =
@@ -287,10 +275,7 @@ export default function ForecastingDashboard() {
     };
 
     fetchForecastsForAllProducts();
-  }, [products]); // Fetch all product forecasts when products change
-
-
-
+  }, [products]);
 
   // -----------------------
   // 3b) Selected product summary + inventory
@@ -319,7 +304,6 @@ export default function ForecastingDashboard() {
       },
     ]);
 
-    // use REAL stock
     const currentStock = getCurrentStock(selectedProductName);
     const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
 
@@ -339,12 +323,7 @@ export default function ForecastingDashboard() {
   useEffect(() => {
     const fetchGlobalForecasts = async () => {
       try {
-        const token = getToken();
-
-        const res = await api.get("forecasts/", {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        });
-
+        const res = await api.get("forecasts/");
         const allForecasts = extractList(res.data);
         if (!allForecasts.length) return;
 
@@ -374,12 +353,7 @@ export default function ForecastingDashboard() {
         });
 
         ranking.sort((a, b) => b.projectedSales - a.projectedSales);
-
-        // Only update best sellers here
         setBestSellerData(ranking);
-
-        // Do NOT touch inventoryData here.
-        // It is handled by the selected-product effect.
       } catch (err) {
         console.log("❌ Global ranking failed:", err);
       }
@@ -387,7 +361,6 @@ export default function ForecastingDashboard() {
 
     fetchGlobalForecasts();
   }, [products, forecastData]);
-
 
   // -----------------------
   // 4) Generate FORECAST
@@ -397,8 +370,6 @@ export default function ForecastingDashboard() {
     setError(null);
 
     try {
-      const token = getToken();
-
       const productObj = products.find(
         (p) =>
           (p.product_name || p.name || p.product) === selectedProductName
@@ -410,18 +381,19 @@ export default function ForecastingDashboard() {
         return;
       }
 
-      const res = await api.post(
-        "forecasts/generate/",
-        {
-          product: productObj.id,
-          days,
-        },
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }
-      );
+      await api.post("forecasts/generate/", {
+        product: productObj.id,
+        days,
+      });
 
-      setForecastData(extractList(res.data));
+      // Karen Changes: after generating, re-fetch via GET so we include `actual`
+      const res2 = await api.get("forecasts/", {
+        params: { product_id: productObj.id },
+      });
+
+      const raw2 = extractList(res2.data);
+      const normalized2 = normalizeForecastRows(raw2);
+      setForecastData(normalized2);
     } catch (err) {
       console.error("❌ Generate forecast failed:", err);
       const msg =
@@ -439,15 +411,10 @@ export default function ForecastingDashboard() {
   // -----------------------
   const handleAddHoliday = async (holiday) => {
     try {
-      const token = getToken();
-
-      const res = await api.post(
-        "holidays/",
-        { name: holiday.name, date: holiday.date },
-        {
-          headers: token ? { Authorization: `Bearer ${token}` } : {},
-        }
-      );
+      const res = await api.post("holidays/", {
+        name: holiday.name,
+        date: holiday.date,
+      });
       setHolidays((prev) => [...prev, res.data]);
     } catch (err) {
       console.error("❌ Failed to create holiday:", err);
@@ -456,11 +423,7 @@ export default function ForecastingDashboard() {
 
   const handleRemoveHoliday = async (id) => {
     try {
-      const token = getToken();
-
-      await api.delete(`holidays/${id}/`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      });
+      await api.delete(`holidays/${id}/`);
       setHolidays((prev) => prev.filter((h) => h.id !== id));
     } catch (err) {
       console.error("❌ Failed to remove holiday:", err);
@@ -550,7 +513,9 @@ export default function ForecastingDashboard() {
     const yearlyPeakMonth = monthNames[peakMonthIdx];
 
     const first = Number(forecastData[0].forecast || 0);
-    const last = Number(forecastData[forecastData.length - 1].forecast || 0);
+    const last = Number(
+      forecastData[forecastData.length - 1].forecast || 0
+    );
     const diff = last - first;
     const threshold = first * 0.05;
 
@@ -567,10 +532,10 @@ export default function ForecastingDashboard() {
         row.actual != null
           ? Number(row.actual)
           : row.y != null
-            ? Number(row.y)
-            : row.real != null
-              ? Number(row.real)
-              : null;
+          ? Number(row.y)
+          : row.real != null
+          ? Number(row.real)
+          : null;
 
       const pred = Number(row.forecast || 0);
 
@@ -581,15 +546,18 @@ export default function ForecastingDashboard() {
       }
     });
 
+    // Karen Changes
     if (mapeCount > 0) {
       mape = (mapeSum / mapeCount) * 100;
+    } else {
+      mape = 0;
     }
 
     return {
       weeklyPeakDay,
       yearlyPeakMonth,
       trendDirection,
-      mape: mape ? mape.toFixed(2) : 0,
+      mape: mape || 0,
     };
   }, [forecastData]);
 
@@ -614,17 +582,6 @@ export default function ForecastingDashboard() {
           onChange={(name) => setSelectedProductName(name)}
           onGenerate={() => handleGenerateForecast(30)}
         />
-
-        {/*<div className="mt-3">
-          <button
-            onClick={() => handleGenerateForecast(30)}
-            disabled={generating}
-            className="inline-flex items-center justify-center rounded-xl bg-red-500 text-white px-4 py-2 text-sm"
-          >
-            {generating ? "Generating..." : "Generate Forecast (30d)"}
-          </button>
-          {error && <div className="text-red-600 mt-2">{error}</div>}
-        </div>*/}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

@@ -4,12 +4,14 @@ import React from "react";
 export const ForecastTable = ({ product, data }) => {
   const handleExport = () => {
     const header = ["Date", "Forecast", "Lower", "Upper"];
+    // Karen Changes: guard against undefined
     const rows = data.map((row) => [
       row.date,
-      Math.round(row.forecast),
-      Math.round(row.lower),
-      Math.round(row.upper),
+      Math.round(Number(row.forecast || 0)),
+      Math.round(Number(row.lower || 0)),
+      Math.round(Number(row.upper || 0)),
     ]);
+
 
     const csv =
       [header, ...rows]
@@ -67,14 +69,15 @@ export const ForecastTable = ({ product, data }) => {
                 >
                   <td className="px-4 py-3 text-gray-800">{row.date}</td>
                   <td className="px-4 py-3 text-right text-gray-800">
-                    {Math.round(row.forecast)}
+                    {Math.round(Number(row.forecast || 0))}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500">
-                    {Math.round(row.lower)}
+                    {Math.round(Number(row.lower || 0))}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500">
-                    {Math.round(row.upper)}
+                    {Math.round(Number(row.upper || 0))}
                   </td>
+
                 </tr>
               ))}
             </tbody>

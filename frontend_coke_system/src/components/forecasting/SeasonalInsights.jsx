@@ -20,8 +20,8 @@ export const SeasonalInsights = ({ insights }) => {
       valueClass: "text-emerald-600",
     },
     {
-      label: "MAPE Accuracy",
-      value: `${insights.mape.toFixed(2)}%`,
+      label: "MAPE Accuracy", //Karen Changes
+      value: `${Number(insights.mape || 0).toFixed(2)}%`,
       icon: "🎯",
     },
   ];
