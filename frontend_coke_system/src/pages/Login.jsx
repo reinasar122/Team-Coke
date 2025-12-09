@@ -197,7 +197,7 @@ const Login = () => {
             <div className="w-52 h-52 rounded-full bg-white flex items-center justify-center mb-4">
               <img src={logoSrc} alt="Logo" className="w-80 h-80 rounded-full object-cover mb-1" />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-1">Welcome back</h1>
+            <h1 className="text-3xl font-bold text-white mb-1">Welcome</h1>
             <p className="text-sm text-gray-200 text-center">Sign in to Continue</p>
           </div>
 
