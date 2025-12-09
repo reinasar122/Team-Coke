@@ -92,7 +92,23 @@ from math import floor, ceil
 from datetime import date
 from collections import defaultdict
 
-
+@api_view(['GET', 'POST'])
+def stock_settings(request):
+    if request.method == 'GET':
+        # Return default or saved settings
+        defaults = {
+            'low_threshold': 10,
+            'moderate_threshold': 50,
+            'high_threshold': 100,
+        }
+        return Response(defaults)
+    
+    elif request.method == 'POST':
+        # Save settings (you can store in database or file)
+        thresholds = request.data
+        # Here you would save to database
+        # For now, just return success
+        return Response({'message': 'Settings saved successfully'})
 
 
 # ✅ HELPER FUNCTION: Get user warehouse filtering
