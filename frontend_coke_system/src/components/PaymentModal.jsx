@@ -840,7 +840,7 @@ const PaymentModal = ({
 
             {/* EMPTY PRICE */}
             <div className="mt-6">
-              <h4 className="font-bold mb-2 text-gray-700">EMPTY BOTTLE PRICE</h4>
+              <h4 className="font-bold mb-2 text-gray-700">EMPTY PRICE</h4>
               <table className="w-full text-sm border border-gray-300">
                 <thead className="bg-gray-100">
                   <tr>
