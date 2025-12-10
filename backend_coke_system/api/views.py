@@ -820,11 +820,13 @@ class CustomerListCreateView(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         warehouse_param = self.request.query_params.get('warehouse')
         warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
-        
+
         if warehouse_id:
-            serializer.save(warehouse_id=warehouse_id)
+            # pass the FK id using the field name "warehouse"
+            serializer.save(warehouse=warehouse_id)
         else:
             serializer.save()
+
 
 class CustomerRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CustomerSerializer

@@ -600,7 +600,7 @@ class TransactionTypeSerializer(serializers.ModelSerializer):
 class CustomerSerializer(serializers.ModelSerializer):
     class Meta:
         model = Customer
-        fields = ['id', 'name', 'warehouse']
+        fields = ['id', 'name', 'warehouse', 'address', 'phone']
 
 class MerchandisingItemSerializer(serializers.ModelSerializer):
     product = serializers.PrimaryKeyRelatedField(queryset=Product.objects.all())  # Accept ID

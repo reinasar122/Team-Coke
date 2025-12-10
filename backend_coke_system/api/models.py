@@ -480,13 +480,22 @@ def create_default_transaction_types(sender, **kwargs):
 
 class Customer(models.Model):
     name = models.CharField(max_length=255)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
+    address = models.CharField(max_length=255, blank=True, default="")
+    phone = models.CharField(max_length=20, blank=True, default="")
+    
+    warehouse = models.ForeignKey(
+        'Warehouse',
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
 
     def __str__(self):
         return self.name
-    
+
     class Meta:
         ordering = ['name']
+
     
 
 
