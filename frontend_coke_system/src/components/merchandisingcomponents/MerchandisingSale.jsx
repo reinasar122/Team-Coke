@@ -113,13 +113,10 @@ const MerchandisingSale = () => {
   const toUtcValue = (date) => new Date(date).toISOString();
 
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
-    name: "",
-    address: "",
-    phone_number: "",
-  });
-  const [savingCustomer, setSavingCustomer] = useState(false);
+  const [newCustomer, setNewCustomer] = useState({ name: "", address: "", phone_number: "" });
   const [customerErrors, setCustomerErrors] = useState({});
+  const [savingCustomer, setSavingCustomer] = useState(false);
+
 
 
   const [stocks, setStocks] = useState([]);
@@ -1084,9 +1081,14 @@ const MerchandisingSale = () => {
     const errors = {};
     if (!newCustomer.name.trim()) errors.name = "Name is required";
     if (!newCustomer.address.trim()) errors.address = "Address is required";
-    if (!newCustomer.phone_number.trim()) errors.phone_number = "Phone number is required";
+    if (!newCustomer.phone_number.trim()) {
+      errors.phone_number = "Phone number is required";
+    } else if (!/^0\d{10}$/.test(newCustomer.phone_number.trim())) {
+      errors.phone_number = "Use 11 digits starting with 0";
+    }
     return errors;
   };
+
 
   const handleSaveNewCustomer = async () => {
     const errors = validateNewCustomer();
@@ -1095,9 +1097,9 @@ const MerchandisingSale = () => {
       return;
     }
 
-    // prevent duplicates by name
+    // prevent duplicates by name (case-insensitive)
     const exists = customers.some(
-      (c) => c.name?.toLowerCase() === newCustomer.name.trim().toLowerCase()
+      (c) => String(c.name || "").toLowerCase() === newCustomer.name.trim().toLowerCase()
     );
     if (exists) {
       showAlert(`Customer "${newCustomer.name}" already exists.`);
@@ -1106,26 +1108,38 @@ const MerchandisingSale = () => {
 
     try {
       setSavingCustomer(true);
-      const res = await axios.post("http://localhost:8080/api/customers/", {
+
+      // map phone_number -> phone for backend
+      const payload = {
         name: newCustomer.name.trim(),
         address: newCustomer.address.trim(),
-        phone: newCustomer.phone_number.trim(),
-        warehouse: currentWarehouse?.id,
-      });
+        phone: newCustomer.phone_number.trim(),   // <-- backend expects 'phone'
+        warehouse: Number(currentWarehouse?.id),  // keep warehouse link
+      };
 
-      console.log("✅ New customer created:", res.data);
+      // use your configured axios instance
+      const res = await api.post("/customers/", payload);
 
       setCustomers((prev) => [...prev, res.data]);
       setSelectedCustomerId(res.data.id);
       setIsCustomerModalOpen(false);
       showAlert("Customer registered successfully.");
     } catch (error) {
-      console.error("❌ Error saving new customer:", error);
-      showAlert("Failed to save customer. Please try again.");
+      // try to surface DRF validation nicely
+      const data = error?.response?.data;
+      const msg =
+        data?.detail ||
+        data?.name?.[0] ||
+        data?.phone?.[0] ||
+        data?.address?.[0] ||
+        "Failed to save customer. Please try again.";
+      showAlert(msg);
+      console.error("Error saving customer:", data || error.message);
     } finally {
       setSavingCustomer(false);
     }
   };
+
 
 
 
@@ -1216,11 +1230,9 @@ const MerchandisingSale = () => {
                   value={selectedCustomerId}
                   onChange={(e) => {
                     if (e.target.value === "add_new") {
-                      // open modal to register full customer info
-                      openCustomerModal();
-                      // keep selectedCustomerId as is until save
+                      openCustomerModal();           // open modal
+                      // don't change selectedCustomerId yet
                     } else {
-                      console.log("👤 Customer selected:", e.target.value);
                       setSelectedCustomerId(e.target.value);
                     }
                   }}
@@ -1234,6 +1246,7 @@ const MerchandisingSale = () => {
                   ))}
                   <option value="add_new">+ New Customer</option>
                 </select>
+
               </div>
             )}
 
