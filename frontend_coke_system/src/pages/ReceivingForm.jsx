@@ -1,7 +1,7 @@
-// Updated ReceivingForm.jsx - Fixed warehouse filtering logic + single return refactor + receipt number validation + removed unused users state + fixed mouse wheel scroll issue
+// Updated ReceivingForm.jsx - Fixed warehouse filtering logic + single return refactor + receipt number validation + removed unused users state + fixed mouse wheel scroll issue + ADD PRODUCT IN DROPDOWN + RETURN NAVIGATION + AUTO-SELECT NEW PRODUCT + FORM STATE PRESERVATION + FIXED AUTO-SELECTION
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import api from "../api"; // ✅ correct
 
 import "../styles/global.scss";
@@ -9,6 +9,7 @@ import "../styles/pages/receivingform.scss";
 
 const ReceivingForm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [suppliers, setSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
@@ -33,6 +34,12 @@ const ReceivingForm = () => {
 
   // Use ref to track if we've already fetched for this supplier
   const lastFetchedSupplier = useRef(null);
+  
+  // NEW: Refs for focusing on input fields
+  const shellQtyRefs = useRef([]);
+
+  // NEW: State to prevent form reset during auto-selection
+  const [isAutoSelecting, setIsAutoSelecting] = useState(false);
 
   const [form, setForm] = useState({
     supplier: "",
@@ -62,7 +69,6 @@ const ReceivingForm = () => {
     });
   };
 
-
   // Show notice function
   const showNotice = (text, type = "success") => {
     setNotice({ open: true, type, text });
@@ -70,6 +76,92 @@ const ReceivingForm = () => {
       setNotice({ open: false, type: "success", text: "" });
     }, 3000);
   };
+
+  // NEW: Handle return from product form and refresh products + auto-select new product + restore form state
+  useEffect(() => {
+    if (location.state?.message && location.state?.refreshProducts && currentWarehouse?.id) {
+      // Show success message from product form
+      showNotice(location.state.message, "success");
+      
+      // Reload products to include the newly added product
+      const config = getAxiosConfig();
+      api.get("/products/", config)
+        .then((res) => {
+          console.log(`🔄 Reloaded ${res.data.length} products after adding new product`);
+          setProducts(res.data);
+          
+          // Restore previous form state if it exists
+          if (location.state?.savedFormState) {
+            console.log('🔄 Restoring previous form state...');
+            const savedState = location.state.savedFormState;
+            
+            setForm(savedState);
+            setReceiveNo(savedState.receive_no);
+            setSupplierReturns(savedState.supplier_returns || []);
+            setReceivedByName(savedState.received_by_name || "");
+            
+            console.log('✅ Form state restored successfully');
+            
+            // NEW: Auto-select the newly created product AFTER form state is restored
+            if (location.state?.newProduct) {
+              const newProductId = location.state.newProduct.id;
+              const newProductName = location.state.newProduct.name;
+              
+              console.log(`🎯 Auto-selecting new product: ${newProductName} (ID: ${newProductId})`);
+              
+              // Set flag to prevent form reset during auto-selection
+              setIsAutoSelecting(true);
+              
+              // Wait a bit for form state and filtered products to settle
+              setTimeout(() => {
+                setForm(prev => {
+                  const newForm = { ...prev };
+                  const firstEmptyRowIndex = newForm.details.findIndex(row => !row.product_id || row.product_id === "");
+                  
+                  if (firstEmptyRowIndex !== -1) {
+                    // Set the product in the first empty row
+                    newForm.details[firstEmptyRowIndex].product_id = newProductId;
+                    
+                    // Calculate costs for the new product
+                    const product = res.data.find(p => p.id === newProductId);
+                    if (product?.price) {
+                      const { purchase_price = 0, shell_price = 0, bottle_price = 0 } = product.price;
+                      const content_no = product?.unit_type?.content_no || 1;
+                      const unit_cost = purchase_price + bottle_price + (shell_price / content_no);
+                      newForm.details[firstEmptyRowIndex].unit_cost = unit_cost.toFixed(2);
+                    }
+                    
+                    console.log(`✅ Auto-selected product "${newProductName}" in row ${firstEmptyRowIndex + 1}`);
+                    
+                    // Focus on the shell quantity field after a short delay
+                    setTimeout(() => {
+                      if (shellQtyRefs.current[firstEmptyRowIndex]) {
+                        shellQtyRefs.current[firstEmptyRowIndex].focus();
+                        console.log(`🎯 Focused on shell quantity field for row ${firstEmptyRowIndex + 1}`);
+                      }
+                      // Clear the auto-selecting flag
+                      setIsAutoSelecting(false);
+                    }, 300);
+                  } else {
+                    console.log('⚠️ No empty rows found for auto-selection');
+                    setIsAutoSelecting(false);
+                  }
+                  
+                  return newForm;
+                });
+              }, 500); // Wait longer for everything to settle
+            }
+          }
+        })
+        .catch((err) => {
+          console.error("❌ Error reloading products:", err);
+          setIsAutoSelecting(false);
+        });
+      
+      // Clear the message from state to prevent showing it again
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location.state?.message, location.state?.refreshProducts, location.state?.newProduct, location.state?.savedFormState, currentWarehouse?.id, navigate]);
 
   // NEW: Reset form when warehouse changes
   const resetForm = useCallback(() => {
@@ -397,21 +489,23 @@ const ReceivingForm = () => {
 
       setFilteredProducts(warehouseFilteredProducts);
 
-      // Reset product details when filtering changes
-      setForm((prev) => ({
-        ...prev,
-        details: [
-          {
-            product_id: "",
-            pcs_qty: 0,
-            shell_qty: 0,
-            bottle_qty: 0,
-            bad_order_pcs: 0,
-            unit_cost: 0,
-            total: 0,
-          },
-        ],
-      }));
+      // UPDATED: Only reset product details when NOT auto-selecting
+      if (!isAutoSelecting) {
+        setForm((prev) => ({
+          ...prev,
+          details: [
+            {
+              product_id: "",
+              pcs_qty: 0,
+              shell_qty: 0,
+              bottle_qty: 0,
+              bad_order_pcs: 0,
+              unit_cost: 0,
+              total: 0,
+            },
+          ],
+        }));
+      }
     } else {
       setFilteredProducts([]);
       if (!form.supplier) {
@@ -424,7 +518,7 @@ const ReceivingForm = () => {
         console.log("🔍 No warehouse selected");
       }
     }
-  }, [form.supplier, products, suppliers, currentWarehouse?.id, currentWarehouse?.name]);
+  }, [form.supplier, products, suppliers, currentWarehouse?.id, currentWarehouse?.name, isAutoSelecting]);
 
   // Function to update form with return amount calculation
   const updateFormWithReturnAmount = useCallback((returnAmount) => {
@@ -758,6 +852,32 @@ const ReceivingForm = () => {
 
   const totalReceiving = form.details.reduce((sum, row) => sum + parseFloat(row.total || 0), 0);
 
+  // Function to save and navigate to product form
+  const navigateToAddProduct = () => {
+    const selectedSupplier = suppliers.find(s => s.id === Number(form.supplier));
+    
+    // Save current form state before navigating
+    const currentFormState = {
+      ...form,
+      receive_no: receiveNo,
+      supplier_returns: supplierReturns,
+      received_by_name: receivedByName
+    };
+    
+    // Navigate to product form with supplier context and saved form state
+    navigate('/products/new', { 
+      state: { 
+        preSelectedSupplier: {
+          id: form.supplier,
+          name: selectedSupplier?.company_name
+        },
+        returnTo: '/receiving/new',
+        message: `Adding products for ${selectedSupplier?.company_name}`,
+        savedFormState: currentFormState
+      }
+    });
+  };
+
   // ---------- Single return: pick what to render ----------
   let content;
 
@@ -837,11 +957,23 @@ const ReceivingForm = () => {
               </p>
             )}
             {form.supplier && suppliers.length > 0 && filteredProducts.length === 0 && (
-              <p className="text-edit text-sm mt-1">No products found for this supplier in {currentWarehouse.name}</p>
+              <div className="mt-2 p-3 bg-yellow-50 border-l-4 border-yellow-400 rounded">
+                <p className="text-yellow-700 text-sm mb-2">
+                  No products found for this supplier in {currentWarehouse.name}
+                </p>
+                <button
+                  type="button"
+                  onClick={navigateToAddProduct}
+                  className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Add Products for this Supplier
+                </button>
+              </div>
             )}
-          </div>
-
-      
+        </div>
 
         {/* Supplier Returns */}
         {supplierReturns.length > 0 && (
@@ -898,37 +1030,51 @@ const ReceivingForm = () => {
                 {form.details.map((row, index) => (
                   <tr key={index}>
                     <td>
-                     <select
-                      value={row.product_id || ""}
-                      onChange={(e) => handleRowChange(index, "product_id", e.target.value)}
-                      className="form-input"
-                      disabled={!form.supplier}
-                    >
-                      <option value="">
-                        {!form.supplier
-                          ? "Select Supplier First"
-                          : filteredProducts.length === 0
-                          ? `No products from this supplier in ${currentWarehouse.name}`
-                          : `Select Product (${filteredProducts.length} available)` }
-                      </option>
+                      <select
+                        value={row.product_id || ""}
+                        onChange={(e) => {
+                          if (e.target.value === "ADD_NEW_PRODUCT") {
+                            navigateToAddProduct();
+                          } else {
+                            handleRowChange(index, "product_id", e.target.value);
+                          }
+                        }}
+                        className="form-input"
+                        disabled={!form.supplier}
+                      >
+                        <option value="">
+                          {!form.supplier
+                            ? "Select Supplier First"
+                            : filteredProducts.length === 0
+                            ? `No products from this supplier in ${currentWarehouse.name}`
+                            : `Select Product (${filteredProducts.length} available)` }
+                        </option>
 
-                      {filteredProducts
-                        .filter(
-                          (p) =>
-                            // Hide if already selected in another row
-                            !(form.details || []).some(
-                              (item, i) => i !== index && String(item.product_id) === String(p.id)
-                            )
-                        )
-                        .map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.product_name}
+                        {filteredProducts
+                          .filter(
+                            (p) =>
+                              // Hide if already selected in another row
+                              !(form.details || []).some(
+                                (item, i) => i !== index && String(item.product_id) === String(p.id)
+                              )
+                          )
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.product_name}
+                            </option>
+                          ))}
+
+                        {/* Add new product option - only show if supplier is selected */}
+                        {form.supplier && (
+                          <option value="ADD_NEW_PRODUCT" style={{ fontStyle: 'italic', color: '#059669', borderTop: '1px solid #e5e7eb' }}>
+                            ➕ Add new product for this supplier...
                           </option>
-                        ))}
-                    </select>
+                        )}
+                      </select>
                     </td>
                     <td>
                       <input
+                        ref={(el) => (shellQtyRefs.current[index] = el)}
                         type="number"
                         disabled={!row.product_id}
                         value={
@@ -977,7 +1123,8 @@ const ReceivingForm = () => {
             </table>
           </div>
         </div>
-  {/* Financial Summary */}
+        
+        {/* Financial Summary */}
         <div className="financial-summary">
           <h3>Financial Summary</h3>
           <div className="grid md:grid-cols-3 gap-6">

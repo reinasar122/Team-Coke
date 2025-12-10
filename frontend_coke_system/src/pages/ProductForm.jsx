@@ -1,6 +1,6 @@
-// ProductForm.jsx - WITH GRAY BACKGROUND FOR DISABLED FIELDS
+// ProductForm.jsx - WITH LEFT-ALIGNED HEADER MESSAGE AND REMOVED PRE-SELECTED TEXT
 import React, { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { notifyProductChange } from "../utils/productNotifier";
 import { getCurrentWarehouse, getWarehouseAxiosConfig } from "../utils/warehouseUtils";
 import "../styles/pages/productform.scss";
@@ -8,6 +8,11 @@ import api from "../api";
 
 const ProductForm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  
+  // Get the state data passed from receiving form
+  const { preSelectedSupplier, returnTo, message, savedFormState } = location.state || {};
+  
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [rows, setRows] = useState([
     {
@@ -54,6 +59,25 @@ const ProductForm = () => {
     fetchDropdowns();
     generateSystemCode(0);
   }, []);
+
+  // NEW: Pre-fill supplier if passed from receiving form
+  useEffect(() => {
+    if (preSelectedSupplier && suppliers.length > 0) {
+      console.log('🔄 Pre-filling supplier:', preSelectedSupplier);
+      setRows(prev => {
+        const newRows = [...prev];
+        newRows[0].supplier = preSelectedSupplier.id;
+        return newRows;
+      });
+    }
+  }, [preSelectedSupplier, suppliers]);
+
+  // NEW: Show message if passed from receiving form - FIXED: Shorter timeout and non-blocking
+  useEffect(() => {
+    if (message) {
+      showNotice(message, "info");
+    }
+  }, [message]);
 
   const fetchDropdowns = () => {
     api.get("/product-categories/").then((res) => setCategories(res.data));
@@ -227,11 +251,21 @@ const ProductForm = () => {
     }
   };
 
+  // FIXED: Updated showNotice with different timeouts for different types
   const showNotice = (text, type = "success") => {
     setNotice({ open: true, type, text });
+    
+    // Different timeouts based on message type
+    let timeout = 3000; // Default 3 seconds
+    if (type === "info") {
+      timeout = 1500; // Shorter for info messages (1.5 seconds)
+    } else if (type === "error") {
+      timeout = 4000; // Longer for errors (4 seconds)
+    }
+    
     setTimeout(() => {
       setNotice({ open: false, type: "success", text: "" });
-    }, 3000);
+    }, timeout);
   };
 
   const validateForm = () => {
@@ -379,10 +413,12 @@ const ProductForm = () => {
         console.log('📦 Products created successfully:', createdProducts.length);
         console.log('🏭 Notifying ONLY current warehouse users:', currentWarehouse.name);
         
+        // ✅ FIXED: Force immediate notification persistence
         createdProducts.forEach(product => {
           const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
           
-          notifyProductChange({
+          // Create the notification with immediate persistence flag
+          const notificationData = {
             action: 'created',
             id: product.id,
             product_name: product.formData.product_name,
@@ -402,9 +438,12 @@ const ProductForm = () => {
               purchase_price: product.formData.purchase_price,
               returnable: product.formData.returnable,
               created_at: new Date().toISOString(),
-              event_timestamp: Date.now()
+              event_timestamp: Date.now(),
+              persist_immediate: true // ✅ ADDED: Flag for immediate persistence
             }
-          });
+          };
+          
+          notifyProductChange(notificationData);
           
           console.log(`📦 Product notification sent for: ${product.formData.product_name} - ONLY to ${currentWarehouse.name} users`);
         });
@@ -413,8 +452,32 @@ const ProductForm = () => {
       }
       
       showNotice(`✅ ${createdProducts.length} product(s) saved to ${currentWarehouse.name}!`, "success");
+      
+      // NEW: Navigate based on whether we came from receiving form or not
       setTimeout(() => {
-        navigate("/products/");
+        if (returnTo) {
+          // Navigate back to receiving form with success message and created product info
+          const firstCreatedProduct = createdProducts[0];
+          const navigationState = { 
+            message: `Product "${firstCreatedProduct.formData.product_name}" added successfully!`,
+            refreshProducts: true,
+            newProduct: {
+              id: firstCreatedProduct.id,
+              name: firstCreatedProduct.formData.product_name,
+              supplier_id: firstCreatedProduct.formData.supplier
+            }
+          };
+          
+          // NEW: Pass back the saved form state
+          if (savedFormState) {
+            navigationState.savedFormState = savedFormState;
+          }
+          
+          navigate(returnTo, { state: navigationState });
+        } else {
+          // Default navigation to products list
+          navigate("/products/");
+        }
       }, 1500);
     } catch (err) {
       console.log("Form values when saving:", rows);
@@ -423,9 +486,29 @@ const ProductForm = () => {
     }
   };
 
+  // NEW: Handle cancel button with return navigation
+  const handleCancel = () => {
+    if (returnTo && savedFormState) {
+      // Return to receiving form with preserved state
+      navigate(returnTo, { 
+        state: { 
+          savedFormState: savedFormState,
+          message: "Product creation cancelled - returning to receiving form",
+          refreshProducts: false
+        }
+      });
+    } else if (returnTo) {
+      // Return to receiving form without saving
+      navigate(returnTo);
+    } else {
+      // Default cancel navigation
+      navigate("/products");
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="page pf-form">
-      {/* Header */}
+      {/* Header - LEFT ALIGNED MESSAGE */}
       <div className="page-header">
         <h2 className="page-title">
           Product Form
@@ -437,6 +520,21 @@ const ProductForm = () => {
               marginLeft: '12px'
             }}>
               📍 {currentWarehouse.name}
+            </span>
+          )}
+          {/* LEFT ALIGNED return context message */}
+          {returnTo && (
+            <span style={{ 
+              fontSize: '12px', 
+              fontWeight: 'normal', 
+              color: '#059669',
+              marginLeft: '8px',
+              background: '#f0fdf4',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              border: '1px solid #bbf7d0'
+            }}>
+              ℹ️ Adding new product for {preSelectedSupplier?.name || 'Receiving Form'}
             </span>
           )}
         </h2>
@@ -498,13 +596,17 @@ const ProductForm = () => {
           <tbody>
             {rows.map((row, index) => (
               <tr key={index}>
-                {/* Supplier - NOW REQUIRED */}
+                {/* Supplier - REMOVED "Pre-selected from receiving form" text */}
                 <td>
                   <select
                     name="supplier"
                     value={row.supplier || ""}
                     onChange={(e) => handleChange(index, e)}
                     className={`pf-select ${hasFieldError(index, 'supplier') ? 'pf-input-error' : ''}`}
+                    style={{
+                      backgroundColor: preSelectedSupplier && index === 0 ? '#f0fdf4' : '',
+                      border: preSelectedSupplier && index === 0 ? '2px solid #bbf7d0' : ''
+                    }}
                   >
                     <option value="">-- Select Supplier --</option>
                     {suppliers.map((s) => (
@@ -513,6 +615,7 @@ const ProductForm = () => {
                       </option>
                     ))}
                   </select>
+                  {/* REMOVED: Pre-selected from receiving form text */}
                 </td>
 
                 {/* Supplier Product Code */}
@@ -846,7 +949,7 @@ const ProductForm = () => {
           <button
             type="button"
             className="btn btn-back"
-            onClick={() => navigate("/products")}
+            onClick={handleCancel}
           >
             Cancel
           </button>
@@ -860,41 +963,54 @@ const ProductForm = () => {
         </div>
       </div>
 
-      {/* Notice Modal */}
+      {/* FIXED: Notice Modal - Now properly centered */}
       {notice.open && (
-        <div className="modal-overlay" style={{ zIndex: 9999, backgroundColor: 'rgba(0, 0, 0, 0.6)' }}>
+        <div 
+          className="modal-overlay" 
+          style={{ 
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            backgroundColor: notice.type === "info" ? 'rgba(0, 0, 0, 0.3)' : 'rgba(0, 0, 0, 0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: notice.type === "info" ? 1000 : 9999
+          }}
+        >
           <div 
-            className={`modal ${notice.type === "success" ? "modal--success" : "modal--error"}`}
+            className={`modal ${notice.type === "success" ? "modal--success" : notice.type === "info" ? "modal--info" : "modal--error"}`}
             style={{
               minWidth: '320px',
               maxWidth: '450px',
-              padding: '24px 20px',
-              borderRadius: '8px',
-              boxShadow: '0 10px 40px rgba(0, 0, 0, 0.15)',
-              border: notice.type === "success" ? '2px solid #10b981' : '2px solid #ef4444'
+              margin: '0 20px',
+              padding: notice.type === "info" ? '16px 20px' : '24px 20px',
+              borderRadius: '12px',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              border: notice.type === "success" ? '3px solid #10b981' : notice.type === "info" ? '3px solid #3b82f6' : '3px solid #ef4444',
+              backgroundColor: 'white'
             }}
           >
-            <div className="modal-body">
-              <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  fontSize: '32px',
-                  marginBottom: '12px'
-                }}>
-                  {notice.type === "success" ? "✅" : "❌"}
-                </div>
-                <p 
-                  className="pf-modal-text" 
-                  style={{
-                    fontSize: '16px',
-                    lineHeight: '1.5',
-                    margin: '0',
-                    color: notice.type === "success" ? '#065f46' : '#991b1b',
-                    fontWeight: '500'
-                  }}
-                >
-                  {notice.text}
-                </p>
+            <div className="modal-body" style={{ textAlign: 'center' }}>
+              <div style={{
+                fontSize: notice.type === "info" ? '24px' : '32px',
+                marginBottom: '12px'
+              }}>
+                {notice.type === "success" ? "✅" : notice.type === "info" ? "ℹ️" : "❌"}
               </div>
+              <p 
+                style={{
+                  fontSize: '16px',
+                  lineHeight: '1.5',
+                  margin: '0',
+                  color: notice.type === "success" ? '#065f46' : notice.type === "info" ? '#1e40af' : '#991b1b',
+                  fontWeight: '600'
+                }}
+              >
+                {notice.text}
+              </p>
             </div>
           </div>
         </div>
