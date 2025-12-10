@@ -4,11 +4,10 @@ import ProductTable from "./ProductTable";
 import ActionButtons from "./ActionButtons";
 import VanLoadTable from "./VanLoadTable";
 import PaymentModal from "../PaymentModal";
-import ExpensesSection from "./ExpensesSection"; // adjust path if it's elsewhere
 import "../../styles/components/merchandisingSale.scss";
-import api from "../../api"; // ✅ centralized API instance
+import api from "../../api"; // centralized API instance
 
-// ✅ NEW: Van Load notification helper
+// Van Load notification helper
 const notifyVanLoadCreated = (vanLoadData) => {
   console.log("🚛 Notifying van load creation:", vanLoadData);
 
@@ -31,7 +30,7 @@ const notifyVanLoadCreated = (vanLoadData) => {
   window.dispatchEvent(event);
 };
 
-// ✅ NEW: Warehouse MSP notification helper
+// Warehouse MSP notification helper
 const notifyWarehouseMspCreated = (mspData) => {
   console.log("🏭 Notifying warehouse MSP creation:", mspData);
 
@@ -98,7 +97,7 @@ const MerchandisingSale = () => {
   const [route, setRoute] = useState("");
   const [selectedVan, setSelectedVan] = useState("");
   const [isAddingRoute, setIsAddingRoute] = useState(false);
-  //const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [vans, setVans] = useState([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
@@ -113,11 +112,13 @@ const MerchandisingSale = () => {
   const toUtcValue = (date) => new Date(date).toISOString();
 
   const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({ name: "", address: "", phone_number: "" });
-  const [customerErrors, setCustomerErrors] = useState({});
+  const [newCustomer, setNewCustomer] = useState({
+    name: "",
+    address: "",
+    phone_number: "",
+  });
   const [savingCustomer, setSavingCustomer] = useState(false);
-
-
+  const [customerErrors, setCustomerErrors] = useState({});
 
   const [stocks, setStocks] = useState([]);
   const initTxTypeOnce = useRef(false);
@@ -215,7 +216,7 @@ const MerchandisingSale = () => {
     }
   }, []);
 
-  // ✅ Load stocks + products using centralized api
+  // Load stocks + products using centralized api
   const loadStocksAndProducts = async () => {
     const warehouseId = getCurrentWarehouse();
     console.log("Current warehouse ID:", warehouseId);
@@ -223,7 +224,7 @@ const MerchandisingSale = () => {
 
     try {
       // 1) Load stocks
-      const stockRes = await api.get("/stocks/", {
+      const stockRes = await api.get("stocks/", {
         params: { warehouse: warehouseId },
       });
       let stockData = stockRes.data;
@@ -239,15 +240,14 @@ const MerchandisingSale = () => {
       console.log("Stocks retrieved:", stockData);
 
       // 2) Load products
-      const productRes = await api.get("/products/");
+      const productRes = await api.get("products/");
       const allProducts = Array.isArray(productRes.data) ? productRes.data : [];
       setAllProductsRaw(allProducts);
       console.log("All products retrieved:", allProducts);
 
       const getPidFromStock = (s) =>
         Number(
-          s.product_id ??
-            (typeof s.product === "object" ? s.product?.id : s.product)
+          s.product_id ?? (typeof s.product === "object" ? s.product?.id : s.product)
         );
 
       const getWidFromStock = (s) => Number(s.warehouse_id ?? s.warehouse);
@@ -325,7 +325,7 @@ const MerchandisingSale = () => {
     );
 
     api
-      .get("/users/")
+      .get("users/")
       .then((res) => {
         console.log(`✅ Loaded ${res.data.length} users`);
         setUsers(res.data);
@@ -336,7 +336,7 @@ const MerchandisingSale = () => {
   useEffect(() => {
     if (selectedTransactionTypeName === "Van Load") {
       api
-        .get("/vans/")
+        .get("vans/")
         .then((res) => setVans(res.data))
         .catch((err) => console.error("Failed to fetch vans:", err));
     }
@@ -476,12 +476,12 @@ const MerchandisingSale = () => {
     const warehouseId = currentWarehouse.id;
 
     api
-      .get(`/routes/?warehouse=${warehouseId}`)
+      .get("routes/", { params: { warehouse: warehouseId } })
       .then((res) => setRoutes(res.data))
       .catch((err) => console.error("Failed to fetch routes:", err));
 
     api
-      .get(`/customers/?warehouse=${warehouseId}`)
+      .get("customers/", { params: { warehouse: warehouseId } })
       .then((res) => {
         console.log("✅ Customers loaded:", res.data);
         setCustomers(res.data);
@@ -491,7 +491,7 @@ const MerchandisingSale = () => {
 
   useEffect(() => {
     api
-      .get("/transaction-types/")
+      .get("transaction-types/")
       .then((res) => {
         console.log("Transaction Types:", res.data);
         setTransactionTypes(res.data);
@@ -507,7 +507,7 @@ const MerchandisingSale = () => {
     if (editMode || editingExistingRef.current) return;
 
     api
-      .get("/merchandisings/msp-next/", {
+      .get("merchandisings/msp-next/", {
         params: { transaction_type: transactionType, warehouse: warehouseId },
       })
       .then((res) => setMspNo(res.data.msp_no || ""))
@@ -605,8 +605,8 @@ const MerchandisingSale = () => {
 
     (async () => {
       const urls = [
-        `/merchandisings/${sale.id}/`,
-        `/merchandising/${sale.id}/`,
+        `merchandisings/${sale.id}/`,
+        `merchandising/${sale.id}/`,
       ];
 
       let data = null;
@@ -823,7 +823,7 @@ const MerchandisingSale = () => {
     console.log("🧾 misc_items about to POST:", payload.misc_items);
 
     try {
-      const response = await api.post("/merchandisings/", payload);
+      const response = await api.post("merchandisings/", payload);
       const merchandising = response.data;
       console.log(
         "✅ Step 1: Transaction created successfully:",
@@ -859,7 +859,7 @@ const MerchandisingSale = () => {
 
         try {
           const paymentResponse = await api.post(
-            "/payments/",
+            "payments/",
             paymentPayload
           );
           console.log(
@@ -959,7 +959,7 @@ const MerchandisingSale = () => {
     }
 
     try {
-      await api.post("/stocks/bulk-adjust/", {
+      await api.post("stocks/bulk-adjust/", {
         warehouse: Number(wid),
         items: dispatchAdjustments,
         reason: "van_load_dispatch",
@@ -1035,7 +1035,7 @@ const MerchandisingSale = () => {
 
     try {
       await api.patch(
-        `/merchandisings/${incomingSale.id}/`,
+        `merchandisings/${incomingSale.id}/`,
         payload
       );
 
@@ -1055,7 +1055,6 @@ const MerchandisingSale = () => {
       showAlert("Failed to save changes.");
     }
   };
-
 
   const openCustomerModal = () => {
     setNewCustomer({
@@ -1081,14 +1080,9 @@ const MerchandisingSale = () => {
     const errors = {};
     if (!newCustomer.name.trim()) errors.name = "Name is required";
     if (!newCustomer.address.trim()) errors.address = "Address is required";
-    if (!newCustomer.phone_number.trim()) {
-      errors.phone_number = "Phone number is required";
-    } else if (!/^0\d{10}$/.test(newCustomer.phone_number.trim())) {
-      errors.phone_number = "Use 11 digits starting with 0";
-    }
+    if (!newCustomer.phone_number.trim()) errors.phone_number = "Phone number is required";
     return errors;
   };
-
 
   const handleSaveNewCustomer = async () => {
     const errors = validateNewCustomer();
@@ -1097,9 +1091,9 @@ const MerchandisingSale = () => {
       return;
     }
 
-    // prevent duplicates by name (case-insensitive)
+    // prevent duplicates by name
     const exists = customers.some(
-      (c) => String(c.name || "").toLowerCase() === newCustomer.name.trim().toLowerCase()
+      (c) => c.name?.toLowerCase() === newCustomer.name.trim().toLowerCase()
     );
     if (exists) {
       showAlert(`Customer "${newCustomer.name}" already exists.`);
@@ -1108,42 +1102,26 @@ const MerchandisingSale = () => {
 
     try {
       setSavingCustomer(true);
-
-      // map phone_number -> phone for backend
-      const payload = {
+      const res = await api.post("customers/", {
         name: newCustomer.name.trim(),
         address: newCustomer.address.trim(),
-        phone: newCustomer.phone_number.trim(),   // <-- backend expects 'phone'
-        warehouse: Number(currentWarehouse?.id),  // keep warehouse link
-      };
+        phone: newCustomer.phone_number.trim(),
+        warehouse: currentWarehouse?.id,
+      });
 
-      // use your configured axios instance
-      const res = await api.post("/customers/", payload);
+      console.log("✅ New customer created:", res.data);
 
       setCustomers((prev) => [...prev, res.data]);
       setSelectedCustomerId(res.data.id);
       setIsCustomerModalOpen(false);
       showAlert("Customer registered successfully.");
     } catch (error) {
-      // try to surface DRF validation nicely
-      const data = error?.response?.data;
-      const msg =
-        data?.detail ||
-        data?.name?.[0] ||
-        data?.phone?.[0] ||
-        data?.address?.[0] ||
-        "Failed to save customer. Please try again.";
-      showAlert(msg);
-      console.error("Error saving customer:", data || error.message);
+      console.error("❌ Error saving new customer:", error);
+      showAlert("Failed to save customer. Please try again.");
     } finally {
       setSavingCustomer(false);
     }
   };
-
-
-
-
-
 
   return (
     <div className="p-6">
@@ -1223,113 +1201,111 @@ const MerchandisingSale = () => {
           </div>
 
           {/* Warehouse: CUSTOMER FIELD WITH ADD OPTION */}
-            {selectedTransactionTypeName === "Warehouse" && (
-              <div>
-                <label className="text-sm mb-1 block">Customer</label>
-                <select
-                  value={selectedCustomerId}
-                  onChange={(e) => {
-                    if (e.target.value === "add_new") {
-                      openCustomerModal();           // open modal
-                      // don't change selectedCustomerId yet
-                    } else {
-                      setSelectedCustomerId(e.target.value);
-                    }
-                  }}
-                  className="border w-full rounded-md px-2 py-1 text-black text-base"
-                >
-                  <option value="">Walk-in Customer</option>
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                  <option value="add_new">+ New Customer</option>
-                </select>
+          {selectedTransactionTypeName === "Warehouse" && (
+            <div>
+              <label className="text-sm mb-1 block">Customer</label>
+              <select
+                value={selectedCustomerId}
+                onChange={(e) => {
+                  if (e.target.value === "add_new") {
+                    openCustomerModal();
+                  } else {
+                    console.log("👤 Customer selected:", e.target.value);
+                    setSelectedCustomerId(e.target.value);
+                  }
+                }}
+                className="border w-full rounded-md px-2 py-1 text-black text-base"
+              >
+                <option value="">Walk-in Customer</option>
+                {customers.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+                <option value="add_new">+ New Customer</option>
+              </select>
+            </div>
+          )}
 
-              </div>
-            )}
+          {isCustomerModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+              <div className="bg-white w-full max-w-md rounded-lg shadow-lg p-6">
+                <h2 className="text-lg font-semibold mb-4">New Customer</h2>
 
-
-            {isCustomerModalOpen && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-                <div className="bg-white w-full max-w-md rounded-lg shadow-lg p-6">
-                  <h2 className="text-lg font-semibold mb-4">New Customer</h2>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="text-sm block mb-1">Name</label>
-                      <input
-                        type="text"
-                        name="name"
-                        value={newCustomer.name}
-                        onChange={handleNewCustomerChange}
-                        className={`border w-full rounded-md px-2 py-1 text-sm ${
-                          customerErrors.name ? "border-red-500" : ""
-                        }`}
-                        placeholder="Customer name"
-                      />
-                      {customerErrors.name && (
-                        <p className="text-xs text-red-500 mt-1">{customerErrors.name}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-sm block mb-1">Address</label>
-                      <textarea
-                        name="address"
-                        value={newCustomer.address}
-                        onChange={handleNewCustomerChange}
-                        className={`border w-full rounded-md px-2 py-1 text-sm resize-none ${
-                          customerErrors.address ? "border-red-500" : ""
-                        }`}
-                        rows={2}
-                        placeholder="Street, Barangay, City"
-                      />
-                      {customerErrors.address && (
-                        <p className="text-xs text-red-500 mt-1">{customerErrors.address}</p>
-                      )}
-                    </div>
-
-                    <div>
-                      <label className="text-sm block mb-1">Phone Number</label>
-                      <input
-                        type="text"
-                        name="phone_number"
-                        value={newCustomer.phone_number}
-                        onChange={handleNewCustomerChange}
-                        className={`border w-full rounded-md px-2 py-1 text-sm ${
-                          customerErrors.phone_number ? "border-red-500" : ""
-                        }`}
-                        placeholder="09XXXXXXXXX"
-                      />
-                      {customerErrors.phone_number && (
-                        <p className="text-xs text-red-500 mt-1">{customerErrors.phone_number}</p>
-                      )}
-                    </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-sm block mb-1">Name</label>
+                    <input
+                      type="text"
+                      name="name"
+                      value={newCustomer.name}
+                      onChange={handleNewCustomerChange}
+                      className={`border w-full rounded-md px-2 py-1 text-sm ${
+                        customerErrors.name ? "border-red-500" : ""
+                      }`}
+                      placeholder="Customer name"
+                    />
+                    {customerErrors.name && (
+                      <p className="text-xs text-red-500 mt-1">{customerErrors.name}</p>
+                    )}
                   </div>
 
-                  <div className="flex justify-end gap-2 mt-6">
-                    <button
-                      type="button"
-                      onClick={closeCustomerModal}
-                      className="px-4 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-100"
-                      disabled={savingCustomer}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveNewCustomer}
-                      className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                      disabled={savingCustomer}
-                    >
-                      {savingCustomer ? "Saving..." : "Save Customer"}
-                    </button>
+                  <div>
+                    <label className="text-sm block mb-1">Address</label>
+                    <textarea
+                      name="address"
+                      value={newCustomer.address}
+                      onChange={handleNewCustomerChange}
+                      className={`border w-full rounded-md px-2 py-1 text-sm resize-none ${
+                        customerErrors.address ? "border-red-500" : ""
+                      }`}
+                      rows={2}
+                      placeholder="Street, Barangay, City"
+                    />
+                    {customerErrors.address && (
+                      <p className="text-xs text-red-500 mt-1">{customerErrors.address}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="text-sm block mb-1">Phone Number</label>
+                    <input
+                      type="text"
+                      name="phone_number"
+                      value={newCustomer.phone_number}
+                      onChange={handleNewCustomerChange}
+                      className={`border w-full rounded-md px-2 py-1 text-sm ${
+                        customerErrors.phone_number ? "border-red-500" : ""
+                      }`}
+                      placeholder="09XXXXXXXXX"
+                    />
+                    {customerErrors.phone_number && (
+                      <p className="text-xs text-red-500 mt-1">{customerErrors.phone_number}</p>
+                    )}
                   </div>
                 </div>
+
+                <div className="flex justify-end gap-2 mt-6">
+                  <button
+                    type="button"
+                    onClick={closeCustomerModal}
+                    className="px-4 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-100"
+                    disabled={savingCustomer}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveNewCustomer}
+                    className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                    disabled={savingCustomer}
+                  >
+                    {savingCustomer ? "Saving..." : "Save Customer"}
+                  </button>
+                </div>
               </div>
-            )}
+            </div>
+          )}
 
           {selectedTransactionTypeName === "Van Load" && (
             <>
@@ -1379,7 +1355,7 @@ const MerchandisingSale = () => {
                         }
 
                         try {
-                          const res = await api.post("/routes/", {
+                          const res = await api.post("routes/", {
                             route_name: newRouteName,
                             warehouse: currentWarehouse?.id,
                           });
