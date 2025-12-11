@@ -415,38 +415,84 @@ const ProductForm = () => {
         
         // ✅ FIXED: Force immediate notification persistence
         createdProducts.forEach(product => {
-          const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
-          
-          // Create the notification with immediate persistence flag
-          const notificationData = {
-            action: 'created',
-            id: product.id,
-            product_name: product.formData.product_name,
-            product_code: product.formData.system_code,
-            category: categoryName,
-            selling_price: product.formData.selling_price,
-            warehouse_id: currentWarehouse.id,
-            warehouseId: currentWarehouse.id,
-            targetWarehouse: currentWarehouse.id,
-            restrictToWarehouse: true,
-            source_warehouse: {
-              id: currentWarehouse.id,
-              name: currentWarehouse.name
-            },
-            metadata: {
-              supplier_code: product.formData.supplier_code,
-              purchase_price: product.formData.purchase_price,
-              returnable: product.formData.returnable,
-              created_at: new Date().toISOString(),
-              event_timestamp: Date.now(),
-              persist_immediate: true // ✅ ADDED: Flag for immediate persistence
-            }
-          };
-          
-          notifyProductChange(notificationData);
-          
-          console.log(`📦 Product notification sent for: ${product.formData.product_name} - ONLY to ${currentWarehouse.name} users`);
-        });
+  const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
+  
+  // Create the notification with immediate persistence flag
+  const notificationData = {
+    action: 'created',
+    id: product.id,
+    product_name: product.formData.product_name,
+    product_code: product.formData.system_code,
+    category: categoryName,
+    selling_price: product.formData.selling_price,
+    warehouse_id: currentWarehouse.id,
+    warehouseId: currentWarehouse.id,
+    targetWarehouse: currentWarehouse.id,
+    restrictToWarehouse: true,
+    source_warehouse: {
+      id: currentWarehouse.id,
+      name: currentWarehouse.name
+    },
+    metadata: {
+      supplier_code: product.formData.supplier_code,
+      purchase_price: product.formData.purchase_price,
+      returnable: product.formData.returnable,
+      created_at: new Date().toISOString(),
+      event_timestamp: Date.now(),
+      persist_immediate: true
+    }
+  };
+  
+  notifyProductChange(notificationData);
+  
+  // ✅ CRITICAL FIX: Immediately persist to localStorage to survive refresh
+  setTimeout(() => {
+    try {
+      const warehouseKey = `persistedNotifications_warehouse_${currentWarehouse.id}`;
+      const existingNotifications = JSON.parse(localStorage.getItem(warehouseKey) || '[]');
+      
+      // Create the notification object that matches your notification system structure
+      const persistentNotification = {
+        id: `product_created_${product.id}_${Date.now()}`,
+        type: 'product_created',
+        category: 'products',
+        title: '📦 New Product Added',
+        message: `${product.formData.product_name} has been added to inventory`,
+        details: `Product Code: ${product.formData.system_code}`,
+        priority: 'medium',
+        timestamp: new Date().toISOString(),
+        is_read: false,
+        data: {
+          id: product.id,
+          product_name: product.formData.product_name,
+          product_code: product.formData.system_code,
+          category: categoryName,
+          selling_price: product.formData.selling_price,
+          warehouse_id: currentWarehouse.id,
+          created_at: new Date().toISOString(),
+          supplier_code: product.formData.supplier_code,
+          purchase_price: product.formData.purchase_price,
+          returnable: product.formData.returnable
+        }
+      };
+      
+      // Add to the beginning of the array (most recent first)
+      const updatedNotifications = [persistentNotification, ...existingNotifications];
+      
+      // Keep only the last 50 notifications per warehouse
+      const trimmedNotifications = updatedNotifications.slice(0, 50);
+      
+      // Save immediately to localStorage
+      localStorage.setItem(warehouseKey, JSON.stringify(trimmedNotifications));
+      
+      console.log(`💾 IMMEDIATE SAVE: Product notification persisted for ${product.formData.product_name}`);
+    } catch (error) {
+      console.error('❌ Failed to immediately persist product notification:', error);
+    }
+  }, 200);
+  
+  console.log(`📦 Product notification sent for: ${product.formData.product_name} - ONLY to ${currentWarehouse.name} users`);
+});
         
         console.log(`🔒 Notifications restricted to warehouse ${currentWarehouse.name} only`);
       }
