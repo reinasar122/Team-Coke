@@ -341,6 +341,12 @@ const VanLoadUpdate = () => {
     if (field === "sold_shell") {
       row.sold_shell = shellInt(value);
 
+    // Clamp sold_shell so it can’t exceed dispatched_shell
+    if (row.sold_shell > row.dispatched_shell) {
+        row.sold_shell = row.dispatched_shell;
+    }
+
+
       // ✅ Calculate pcs based on contentNo
       row.sold_pcs = pcsInt(row.sold_shell * contentNo);
 
@@ -377,6 +383,13 @@ const VanLoadUpdate = () => {
 
       // ✅ Calculate pcs based on contentNo
       row.empty_return_pcs = pcsInt(row.empty_return_shell * contentNo);
+
+      // Clamp so it can't exceed sold_shell
+      if (row.empty_return_shell > row.sold_shell) {
+        row.empty_return_shell = row.sold_shell;
+      }
+
+
 
       // Clamp so it can’t exceed sold pcs
       if (row.empty_return_pcs > row.sold_pcs) {
