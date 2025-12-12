@@ -1,4 +1,4 @@
-// Stocks.jsx - INTEGRATED VERSION WITH DYNAMIC STOCK THRESHOLDS (Clean UI)
+// Stocks.jsx - UPDATED WITHOUT SUPPLIER PRODUCT CODE COLUMN
 import React, { useEffect, useState, useCallback } from "react";
 import api from "../api";
 import {
@@ -281,6 +281,7 @@ const Stocks = () => {
           <thead>
             <tr>
               <th>Product</th>
+              <th>System Product Code</th>
               <th className="text-center">Quantity</th>
               <th className="text-center">Last Updated</th>
               <th className="text-center">Status</th>
@@ -290,7 +291,7 @@ const Stocks = () => {
           <tbody>
             {stocks.length === 0 ? (
               <tr>
-                <td colSpan="4" className="empty">
+                <td colSpan="5" className="empty">
                   {currentWarehouse
                     ? `No stock data available for ${currentWarehouse.name}.`
                     : "No warehouse selected. Please select a warehouse to view stocks."}
@@ -307,6 +308,9 @@ const Stocks = () => {
                 >
                   <td className="cell-left nowrap">
                     {item.product_name}
+                  </td>
+                  <td className="cell-left nowrap">
+                    {item.system_product_code || 'N/A'}
                   </td>
                   <td className="text-center">
                     <span className={item.quantity_available === 0 ? "quantity--zero" : ""}>
