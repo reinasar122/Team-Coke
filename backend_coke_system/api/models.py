@@ -853,3 +853,166 @@ class Forecast(models.Model):
 
     def __str__(self):
         return f"{self.product.name} - {self.date}"
+    
+class NotificationType(models.TextChoices):
+    # Inventory notifications
+    LOW_STOCK = 'low_stock', 'Low Stock'
+    OUT_OF_STOCK = 'out_of_stock', 'Out of Stock'
+    STOCK_ADJUSTMENT = 'stock_adjustment', 'Stock Adjustment'
+    NEW_RECEIVING = 'new_receiving', 'New Receiving'
+    
+    # Expense notifications
+    EXPENSE_CREATED = 'expense_created', 'Expense Created'
+    EXPENSE_UPDATED = 'expense_updated', 'Expense Updated'
+    EXPENSE_DELETED = 'expense_deleted', 'Expense Deleted'
+    LARGE_EXPENSE = 'large_expense', 'Large Expense'
+    
+    # Credit notifications
+    CREDIT_CREATED = 'credit_created', 'Credit Created'
+    CREDIT_OVERDUE = 'credit_overdue', 'Credit Overdue'
+    PAID_CREDIT = 'paid_credit', 'Paid Credit'
+    
+    # Supplier notifications
+    SUPPLIER_ADDED = 'supplier_added', 'Supplier Added'
+    SUPPLIER_UPDATED = 'supplier_updated', 'Supplier Updated'
+    SUPPLIER_RETURN_PROCESSED = 'supplier_return_processed', 'Supplier Return Processed'
+    
+    # Warehouse/MSP notifications
+    WAREHOUSE_MSP_CREATED = 'warehouse_msp_created', 'Warehouse MSP Created'
+    WAREHOUSE_MSP_UPDATED = 'warehouse_msp_updated', 'Warehouse MSP Updated'
+    
+    # System notifications
+    ROLE_UPDATED = 'role_updated', 'Role Updated'
+    ADMIN_SETTINGS_CHANGED = 'admin_settings_changed', 'Admin Settings Changed'
+    
+    # Sales notifications
+    NEW_SALE = 'new_sale', 'New Sale'
+    SALE_VOIDED = 'sale_voided', 'Sale Voided'
+    
+    # Product notifications
+    PRODUCT_CREATED = 'product_created', 'Product Created'
+    PRODUCT_UPDATED = 'product_updated', 'Product Updated'
+    PRODUCT_DELETED = 'product_deleted', 'Product Deleted'
+    
+    # Returns notifications
+    RETURN_PROCESSED = 'return_processed', 'Return Processed'
+    REFUND_ISSUED = 'refund_issued', 'Refund Issued'
+    RETURN_REJECTED = 'return_rejected', 'Return Rejected'
+    EXCHANGE_PROCESSED = 'exchange_processed', 'Exchange Processed'
+
+class NotificationCategory(models.TextChoices):
+    INVENTORY = 'inventory', 'Inventory'
+    EXPENSES = 'expenses', 'Expenses'
+    PAYMENTS = 'payments', 'Payments'
+    SUPPLIERS = 'suppliers', 'Suppliers'
+    WAREHOUSE = 'warehouse', 'Warehouse'
+    SYSTEM = 'system', 'System'
+    SALES = 'sales', 'Sales'
+    PRODUCTS = 'products', 'Products'
+    RETURNS = 'returns', 'Returns'
+
+class NotificationPriority(models.TextChoices):
+    LOW = 'low', 'Low'
+    MEDIUM = 'medium', 'Medium'
+    HIGH = 'high', 'High'
+
+class Notification(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    type = models.CharField(max_length=50, choices=NotificationType.choices)
+    category = models.CharField(max_length=20, choices=NotificationCategory.choices)
+    title = models.CharField(max_length=255)
+    message = models.TextField()
+    details = models.TextField(blank=True, null=True)
+    priority = models.CharField(max_length=10, choices=NotificationPriority.choices, default=NotificationPriority.MEDIUM)
+    
+    # User and role targeting
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)  # Specific user
+    target_roles = models.JSONField(default=list)  # List of roles that can see this notification
+    
+    # Warehouse context
+    warehouse_id = models.PositiveIntegerField(null=True, blank=True)
+    
+    # Notification data
+    data = models.JSONField(default=dict)  # Store the notification payload
+    
+    # Status
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
+    
+    # Timestamps
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    # Metadata
+    source_id = models.CharField(max_length=100, blank=True, null=True)  # ID of the source object
+    source_type = models.CharField(max_length=50, blank=True, null=True)  # Type of source object
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['user', 'is_read', 'warehouse_id']),
+            models.Index(fields=['warehouse_id', 'created_at']),
+            models.Index(fields=['type', 'warehouse_id']),
+            models.Index(fields=['category', 'priority']),
+            models.Index(fields=['is_deleted', 'created_at']),
+        ]
+    
+    def __str__(self):
+        return f"{self.title} - {self.type}"
+    
+    def mark_as_read(self, user=None):
+        """Mark notification as read"""
+        if not self.is_read:
+            self.is_read = True
+            self.read_at = timezone.now()
+            self.save(update_fields=['is_read', 'read_at'])
+    
+    def soft_delete(self):
+        """Soft delete the notification"""
+        if not self.is_deleted:
+            self.is_deleted = True
+            self.deleted_at = timezone.now()
+            self.save(update_fields=['is_deleted', 'deleted_at'])
+
+class NotificationPreference(models.Model):
+    """User preferences for notifications"""
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='notification_preferences')
+    warehouse_id = models.PositiveIntegerField(null=True, blank=True)
+    
+    # Notification type preferences
+    enabled_types = models.JSONField(default=list)  # List of enabled notification types
+    disabled_types = models.JSONField(default=list)  # List of disabled notification types
+    
+    # Browser notification settings
+    browser_notifications = models.BooleanField(default=True)
+    high_priority_only = models.BooleanField(default=False)
+    
+    # Email notification settings
+    email_notifications = models.BooleanField(default=False)
+    email_digest = models.BooleanField(default=False)
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return f"Notification preferences for {self.user.username}"
+
+class ProcessedNotification(models.Model):
+    """Track processed notifications to avoid duplicates"""
+    identifier = models.CharField(max_length=255, unique=True)
+    notification_type = models.CharField(max_length=50)
+    warehouse_id = models.PositiveIntegerField(null=True, blank=True)
+    source_id = models.CharField(max_length=100)
+    processed_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        indexes = [
+            models.Index(fields=['identifier']),
+            models.Index(fields=['notification_type', 'warehouse_id']),
+            models.Index(fields=['processed_at']),
+        ]
+    
+    def __str__(self):
+        return f"Processed: {self.identifier}"

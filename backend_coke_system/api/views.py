@@ -92,6 +92,13 @@ from math import floor, ceil
 from datetime import date
 from collections import defaultdict
 
+from .models import Notification, NotificationPreference, ProcessedNotification
+from .serializers import (
+    NotificationSerializer, NotificationCreateSerializer, NotificationUpdateSerializer,
+    BulkNotificationUpdateSerializer, NotificationPreferenceSerializer,
+    NotificationStatsSerializer, CreateNotificationRequestSerializer
+)
+
 @api_view(['GET', 'POST'])
 def stock_settings(request):
     if request.method == 'GET':
@@ -2250,3 +2257,473 @@ class GenerateForecastAPIView(APIView):
 
         serializer = ForecastSerializer(created, many=True)
         return Response(serializer.data, status=201)        
+    
+
+class NotificationViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificationSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        """Filter notifications based on user role and warehouse"""
+        user = self.request.user
+        queryset = Notification.objects.filter(is_deleted=False)
+        
+        # Get user role and warehouse
+        user_role = getattr(user, 'role', 'staff').lower()
+        warehouse_id = self.request.query_params.get('warehouse')
+        
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        # Filter based on user role and targeting
+        if user_role == 'admin':
+            # Admin can see all notifications in their warehouse context
+            pass
+        else:
+            # Other roles see notifications targeted to them or their role
+            queryset = queryset.filter(
+                Q(user=user) | Q(target_roles__contains=[user_role])
+            )
+        
+        # Apply additional filters
+        notification_type = self.request.query_params.get('type')
+        if notification_type:
+            queryset = queryset.filter(type=notification_type)
+        
+        category = self.request.query_params.get('category')
+        if category:
+            queryset = queryset.filter(category=category)
+        
+        priority = self.request.query_params.get('priority')
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        
+        is_read = self.request.query_params.get('is_read')
+        if is_read is not None:
+            queryset = queryset.filter(is_read=is_read.lower() == 'true')
+        
+        return queryset.order_by('-created_at')
+    
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return NotificationCreateSerializer
+        elif self.action in ['update', 'partial_update']:
+            return NotificationUpdateSerializer
+        return NotificationSerializer
+    
+    @action(detail=True, methods=['post'])
+    def mark_read(self, request, pk=None):
+        """Mark a notification as read"""
+        notification = self.get_object()
+        notification.mark_as_read(request.user)
+        return Response({'status': 'marked as read'})
+    
+    @action(detail=True, methods=['post'])
+    def mark_unread(self, request, pk=None):
+        """Mark a notification as unread"""
+        notification = self.get_object()
+        notification.is_read = False
+        notification.read_at = None
+        notification.save(update_fields=['is_read', 'read_at'])
+        return Response({'status': 'marked as unread'})
+    
+    @action(detail=False, methods=['post'])
+    def bulk_update(self, request):
+        """Bulk update notifications"""
+        serializer = BulkNotificationUpdateSerializer(data=request.data)
+        if serializer.is_valid():
+            notification_ids = serializer.validated_data['notification_ids']
+            action = serializer.validated_data['action']
+            
+            queryset = self.get_queryset().filter(id__in=notification_ids)
+            
+            if action == 'mark_read':
+                queryset.update(
+                    is_read=True,
+                    read_at=timezone.now()
+                )
+            elif action == 'mark_unread':
+                queryset.update(
+                    is_read=False,
+                    read_at=None
+                )
+            elif action == 'delete':
+                queryset.update(
+                    is_deleted=True,
+                    deleted_at=timezone.now()
+                )
+            
+            return Response({'status': f'{action} completed for {queryset.count()} notifications'})
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    @action(detail=False, methods=['post'])
+    def mark_all_read(self, request):
+        """Mark all user's notifications as read"""
+        warehouse_id = request.data.get('warehouse_id')
+        queryset = self.get_queryset().filter(is_read=False)
+        
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        count = queryset.update(
+            is_read=True,
+            read_at=timezone.now()
+        )
+        
+        return Response({'status': f'marked {count} notifications as read'})
+    
+    @action(detail=False, methods=['post'])
+    def clear_all(self, request):
+        """Clear all user's notifications"""
+        warehouse_id = request.data.get('warehouse_id')
+        queryset = self.get_queryset()
+        
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        count = queryset.update(
+            is_deleted=True,
+            deleted_at=timezone.now()
+        )
+        
+        return Response({'status': f'cleared {count} notifications'})
+    
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get notification statistics"""
+        queryset = self.get_queryset()
+        warehouse_id = request.query_params.get('warehouse')
+        
+        if warehouse_id:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        
+        total = queryset.count()
+        unread = queryset.filter(is_read=False).count()
+        
+        # Group by type
+        by_type = dict(
+            queryset.values('type')
+            .annotate(count=Count('type'))
+            .values_list('type', 'count')
+        )
+        
+        # Group by priority
+        by_priority = dict(
+            queryset.values('priority')
+            .annotate(count=Count('priority'))
+            .values_list('priority', 'count')
+        )
+        
+        # Group by category
+        by_category = dict(
+            queryset.values('category')
+            .annotate(count=Count('category'))
+            .values_list('category', 'count')
+        )
+        
+        stats_data = {
+            'total': total,
+            'unread': unread,
+            'by_type': by_type,
+            'by_priority': by_priority,
+            'by_category': by_category
+        }
+        
+        serializer = NotificationStatsSerializer(data=stats_data)
+        if serializer.is_valid():
+            return Response(serializer.data)
+        
+        return Response(stats_data)
+    
+    @action(detail=False, methods=['delete'])
+    def cleanup_old(self, request):
+        """Clean up old notifications (7+ days)"""
+        if not request.user.is_staff:
+            return Response({'error': 'Permission denied'}, status=status.HTTP_403_FORBIDDEN)
+        
+        cutoff_date = timezone.now() - timedelta(days=7)
+        
+        # Only delete read notifications or low priority notifications
+        count = Notification.objects.filter(
+            Q(created_at__lt=cutoff_date) & 
+            (Q(is_read=True) | Q(priority='low'))
+        ).update(
+            is_deleted=True,
+            deleted_at=timezone.now()
+        )
+        
+        return Response({'status': f'cleaned up {count} old notifications'})
+
+class CreateNotificationAPIView(APIView):
+    """API endpoint for creating notifications from frontend events"""
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        serializer = CreateNotificationRequestSerializer(data=request.data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
+        notification_type = serializer.validated_data['notification_type']
+        data = serializer.validated_data['data']
+        user_role = serializer.validated_data['user_role']
+        warehouse_id = serializer.validated_data.get('warehouse_id')
+        target_user_id = serializer.validated_data.get('target_user_id')
+        
+        # Create notification using the factory method
+        notification = self.create_notification(
+            notification_type, data, user_role, warehouse_id, target_user_id
+        )
+        
+        if notification:
+            serializer = NotificationSerializer(notification)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        return Response({'error': 'Failed to create notification'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    def create_notification(self, notification_type, data, user_role, warehouse_id=None, target_user_id=None):
+        """Factory method to create notifications based on type"""
+        
+        # Check if this notification was already processed
+        source_id = data.get('id', str(timezone.now().timestamp()))
+        identifier = f"{notification_type}-{source_id}-{warehouse_id}"
+        
+        if ProcessedNotification.objects.filter(identifier=identifier).exists():
+            return None
+        
+        # Determine target roles based on notification type and user role
+        target_roles = self.get_target_roles(notification_type, user_role)
+        
+        # Get notification configuration
+        config = self.get_notification_config(notification_type, data)
+        if not config:
+            return None
+        
+        # Create the notification
+        notification_data = {
+            'type': notification_type,
+            'category': config['category'],
+            'title': config['title'],
+            'message': config['message'],
+            'details': config.get('details'),
+            'priority': config.get('priority', 'medium'),
+            'target_roles': target_roles,
+            'warehouse_id': warehouse_id,
+            'data': data,
+            'source_id': source_id,
+            'source_type': config.get('source_type'),
+        }
+        
+        if target_user_id:
+            try:
+                notification_data['user'] = User.objects.get(id=target_user_id)
+            except User.DoesNotExist:
+                pass
+        
+        notification = Notification.objects.create(**notification_data)
+        
+        # Mark as processed
+        ProcessedNotification.objects.create(
+            identifier=identifier,
+            notification_type=notification_type,
+            warehouse_id=warehouse_id,
+            source_id=source_id
+        )
+        
+        return notification
+    
+    def get_target_roles(self, notification_type, user_role):
+        """Determine which roles should see this notification"""
+        role_permissions = {
+            'admin': ['inventory', 'expenses', 'suppliers', 'warehouse', 'system', 'sales', 'payments', 'products', 'returns'],
+            'supervisor': ['inventory', 'expenses', 'suppliers', 'warehouse', 'payments'],
+            'cashier': ['inventory', 'payments'],
+            'staff': ['inventory', 'payments']
+        }
+        
+        notification_categories = {
+            'low_stock': 'inventory',
+            'out_of_stock': 'inventory',
+            'stock_adjustment': 'inventory',
+            'new_receiving': 'inventory',
+            'expense_created': 'expenses',
+            'expense_updated': 'expenses',
+            'expense_deleted': 'expenses',
+            'large_expense': 'expenses',
+            'credit_created': 'payments',
+            'credit_overdue': 'payments',
+            'paid_credit': 'payments',
+            'supplier_added': 'suppliers',
+            'supplier_updated': 'suppliers',
+            'supplier_return_processed': 'suppliers',
+            'warehouse_msp_created': 'warehouse',
+            'warehouse_msp_updated': 'warehouse',
+            'role_updated': 'system',
+            'admin_settings_changed': 'system',
+            'product_created': 'products',
+            'product_updated': 'products',
+            'product_deleted': 'products',
+            'return_processed': 'returns',
+            'refund_issued': 'returns',
+        }
+        
+        category = notification_categories.get(notification_type, 'inventory')
+        target_roles = []
+        
+        for role, permissions in role_permissions.items():
+            if category in permissions:
+                target_roles.append(role)
+        
+        return target_roles
+    
+    def get_notification_config(self, notification_type, data):
+        """Get notification configuration based on type"""
+        configs = {
+            'low_stock': {
+                'category': 'inventory',
+                'title': 'Low Stock Alert',
+                'message': f"{data.get('product_name', 'Unknown Product')} is running low",
+                'details': f"Current quantity: {data.get('quantity_available', 0)} PCS",
+                'priority': 'high',
+                'source_type': 'stock'
+            },
+            'out_of_stock': {
+                'category': 'inventory',
+                'title': 'Out of Stock Alert',
+                'message': f"{data.get('product_name', 'Unknown Product')} is out of stock",
+                'details': "Immediate restocking required - Current quantity: 0 units",
+                'priority': 'high',
+                'source_type': 'stock'
+            },
+            'stock_adjustment': {
+                'category': 'inventory',
+                'title': data.get('custom_title', 'Stock Adjustment Made'),
+                'message': data.get('custom_message', f"Stock adjusted for {data.get('product_name', 'Unknown Product')}"),
+                'details': self.format_stock_adjustment_details(data),
+                'priority': 'high' if data.get('new_quantity') == 0 else 'medium',
+                'source_type': 'stock'
+            },
+            'credit_created': {
+                'category': 'payments',
+                'title': 'New Credit Sale Created',
+                'message': f"Credit sale created for {data.get('customer_name', 'Unknown Customer')}",
+                'details': self.format_credit_details(data, 'created'),
+                'priority': 'medium',
+                'source_type': 'credit'
+            },
+            'credit_overdue': {
+                'category': 'payments',
+                'title': 'Credit Payment Overdue',
+                'message': f"Overdue payment: {data.get('customer_name', 'Unknown Customer')} - {data.get('days_overdue', 0)} days late",
+                'details': self.format_credit_details(data, 'overdue'),
+                'priority': 'high' if data.get('days_overdue', 0) > 30 else 'medium',
+                'source_type': 'credit'
+            },
+            'paid_credit': {
+                'category': 'payments',
+                'title': 'Credit Payment Received',
+                'message': self.format_credit_payment_message(data),
+                'details': self.format_credit_details(data, 'paid'),
+                'priority': 'low',
+                'source_type': 'credit'
+            },
+            'expense_created': {
+                'category': 'expenses',
+                'title': 'New Expense Created',
+                'message': f"Expense: {data.get('description', 'New expense recorded')}",
+                'details': self.format_expense_details(data),
+                'priority': 'high' if float(data.get('amount', 0)) > 10000 else 'low',
+                'source_type': 'expense'
+            },
+            'large_expense': {
+                'category': 'expenses',
+                'title': 'Large Expense Alert',
+                'message': f"High-value expense flagged: {data.get('description', 'Large expense')}",
+                'details': f"Amount: ₱{float(data.get('amount', 0)):,.2f} - Exceeds threshold",
+                'priority': 'high',
+                'source_type': 'expense'
+            }
+        }
+        
+        return configs.get(notification_type)
+    
+    def format_stock_adjustment_details(self, data):
+        """Format stock adjustment details"""
+        old_qty = data.get('old_quantity')
+        new_qty = data.get('new_quantity')
+        
+        if old_qty is not None and new_qty is not None:
+            old_qty = int(old_qty)
+            new_qty = int(new_qty)
+            change_diff = abs(new_qty - old_qty)
+            change_type = 'increased' if new_qty > old_qty else 'decreased'
+            
+            if new_qty == 0:
+                return f"Stock depleted: {old_qty} → 0 units ({change_diff} units removed)"
+            elif change_type == 'increased':
+                return f"Stock increased: {old_qty} → {new_qty} units (+{change_diff} units added)"
+            else:
+                return f"Stock reduced: {old_qty} → {new_qty} units (-{change_diff} units removed)"
+        
+        return data.get('reason', 'Manual stock adjustment detected')
+    
+    def format_credit_details(self, data, action):
+        """Format credit notification details"""
+        msp_no = data.get('msp_no') or f"Credit #{data.get('id')}"
+        balance = float(data.get('balance', 0))
+        
+        if action == 'created':
+            return f"MSP: {msp_no} - Amount: ₱{balance:,.2f}"
+        elif action == 'overdue':
+            return f"Outstanding: ₱{balance:,.2f}"
+        elif action == 'paid':
+            customer = data.get('customer_name', 'Unknown')
+            return f"Customer: {customer} - Amount: ₱{balance:,.2f}"
+        
+        return f"MSP: {msp_no}"
+    
+    def format_credit_payment_message(self, data):
+        """Format credit payment message"""
+        msp_no = data.get('msp_no')
+        credit_id = data.get('id')
+        
+        if msp_no:
+            return f"Payment received for {msp_no}"
+        elif credit_id:
+            return f"Payment received for Credit #{credit_id}"
+        else:
+            return "Credit payment received"
+    
+    def format_expense_details(self, data):
+        """Format expense details"""
+        amount = float(data.get('amount', 0))
+        category = data.get('category', 'General')
+        return f"Amount: ₱{amount:,.2f} - Category: {category}"
+
+class NotificationPreferenceViewSet(viewsets.ModelViewSet):
+    serializer_class = NotificationPreferenceSerializer
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def get_queryset(self):
+        return NotificationPreference.objects.filter(user=self.request.user)
+    
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+class NotificationCleanupAPIView(APIView):
+    """API for cleaning up old processed notifications"""
+    permission_classes = [permissions.IsAdminUser]
+    
+    def post(self, request):
+        days = request.data.get('days', 30)
+        cutoff_date = timezone.now() - timedelta(days=days)
+        
+        # Delete old processed notifications
+        deleted_count = ProcessedNotification.objects.filter(
+            processed_at__lt=cutoff_date
+        ).delete()[0]
+        
+        return Response({
+            'message': f'Cleaned up {deleted_count} old processed notifications',
+            'cutoff_date': cutoff_date
+        })

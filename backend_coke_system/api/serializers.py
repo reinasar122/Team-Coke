@@ -24,7 +24,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.utils.http import urlsafe_base64_decode
 from .models import User
 from django.utils.timezone import localtime
-
+from .models import Notification, NotificationPreference, ProcessedNotification
 
 
 class CreditLedgerCreateSerializer(serializers.ModelSerializer):
@@ -575,16 +575,18 @@ class ReceivingSerializer(serializers.ModelSerializer):
 class StockSerializer(serializers.ModelSerializer):
     product_name = serializers.CharField(source='product.product_name', read_only=True)
     warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
+    system_product_code = serializers.CharField(source='product.system_code', read_only=True)
+    supplier_product_code = serializers.CharField(source='product.supplier_code', read_only=True)
     stock_status = serializers.SerializerMethodField()
 
     class Meta:
         model = Stock
         fields = ['id', 'product', 'product_name', 'warehouse', 'warehouse_name', 
-                 'quantity_available', 'last_updated', 'stock_status']
+                 'quantity_available', 'last_updated', 'stock_status', 
+                 'system_product_code', 'supplier_product_code']
 
     def get_stock_status(self, obj):
         return obj.stock_status()
-
 
 
 class RouteSerializer(serializers.ModelSerializer):
@@ -1187,3 +1189,73 @@ class ForecastSerializer(serializers.ModelSerializer):
     class Meta:
         model = Forecast
         fields = ["id", "product", "product_name", "date", "forecast", "lower", "upper"]
+
+class NotificationSerializer(serializers.ModelSerializer):
+    timestamp = serializers.DateTimeField(source='created_at', read_only=True)
+    warehouse_id = serializers.IntegerField(source='warehouse_id', read_only=True)
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'id', 'type', 'category', 'title', 'message', 'details',
+            'priority', 'target_roles', 'warehouse_id', 'data',
+            'is_read', 'read_at', 'timestamp', 'created_at', 'updated_at'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'read_at']
+
+class NotificationCreateSerializer(serializers.ModelSerializer):
+    """Serializer for creating notifications"""
+    
+    class Meta:
+        model = Notification
+        fields = [
+            'type', 'category', 'title', 'message', 'details',
+            'priority', 'user', 'target_roles', 'warehouse_id',
+            'data', 'source_id', 'source_type'
+        ]
+    
+    def validate(self, data):
+        """Validate notification data"""
+        if not data.get('target_roles') and not data.get('user'):
+            raise serializers.ValidationError("Either target_roles or user must be specified")
+        return data
+
+class NotificationUpdateSerializer(serializers.ModelSerializer):
+    """Serializer for updating notifications"""
+    
+    class Meta:
+        model = Notification
+        fields = ['is_read', 'is_deleted']
+
+class BulkNotificationUpdateSerializer(serializers.Serializer):
+    """Serializer for bulk operations on notifications"""
+    notification_ids = serializers.ListField(
+        child=serializers.UUIDField(),
+        allow_empty=False
+    )
+    action = serializers.ChoiceField(choices=['mark_read', 'mark_unread', 'delete'])
+
+class NotificationPreferenceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NotificationPreference
+        fields = [
+            'user', 'warehouse_id', 'enabled_types', 'disabled_types',
+            'browser_notifications', 'high_priority_only',
+            'email_notifications', 'email_digest'
+        ]
+
+class NotificationStatsSerializer(serializers.Serializer):
+    """Serializer for notification statistics"""
+    total = serializers.IntegerField()
+    unread = serializers.IntegerField()
+    by_type = serializers.DictField()
+    by_priority = serializers.DictField()
+    by_category = serializers.DictField()
+
+class CreateNotificationRequestSerializer(serializers.Serializer):
+    """Serializer for notification creation requests from frontend"""
+    notification_type = serializers.CharField()
+    data = serializers.DictField()
+    user_role = serializers.CharField()
+    warehouse_id = serializers.IntegerField(required=False, allow_null=True)
+    target_user_id = serializers.IntegerField(required=False, allow_null=True)

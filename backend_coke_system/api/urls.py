@@ -1,4 +1,4 @@
-from django.urls import path
+from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
     WarehouseListCreateView, WarehouseDetailView,
@@ -54,6 +54,14 @@ from .views import ProcessEmptiesReturnView
 
 #from .views_reports import RevenueSummaryView, SalesAndReturnables, SalesReportAPIView
 from .views_reports import SalesReportAPIView, ProductBreakdownReport
+from .views import (
+    NotificationViewSet, NotificationPreferenceViewSet, 
+    CreateNotificationAPIView, NotificationCleanupAPIView
+)
+
+router = DefaultRouter()
+router.register(r'notifications', NotificationViewSet, basename='notification')
+router.register(r'notification-preferences', NotificationPreferenceViewSet, basename='notification-preference')
 
 
 urlpatterns = [
@@ -180,6 +188,11 @@ urlpatterns = [
     #path('reports/returns-and-discrepancies/', SalesAndReturnables.as_view(), name='sales-and-returnables'),
 
     path("forecasts/generate/", GenerateForecastAPIView.as_view(), name="generate-forecast"),
+
+    path('api/', include(router.urls)),
+    path('api/notifications/create/', CreateNotificationAPIView.as_view(), name='create-notification'),
+    path('api/notifications/cleanup/', NotificationCleanupAPIView.as_view(), name='notification-cleanup'),
+
 
 ]
 
