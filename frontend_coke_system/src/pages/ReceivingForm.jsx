@@ -914,11 +914,11 @@ const ReceivingForm = () => {
           </div>
         )}
 
-        {/* Basic Info */}
-        <div className="grid gap-6">
+        {/* Basic Info - UPDATED: Both fields on same row, Supplier receiving no. left, Receipt No. right */}
+        <div className="grid md:grid-cols-2 gap-6">
           <div>
-            <label className="form-label">Receiving No:</label>
-            <input type="text" value={receiveNo} readOnly className="form-input" style={{width: '30%' , color: 'gray'}} />
+            <label className="form-label">Supplier Receiving No.:</label>
+            <input type="text" value={receiveNo} readOnly className="form-input" style={{width: '60%' , color: 'gray'}} />
           </div>
           
           <div>
@@ -928,7 +928,7 @@ const ReceivingForm = () => {
               value={form.invoice_no}
               onChange={(e) => setForm({ ...form, invoice_no: e.target.value })}
               className="form-input"
-              style={{width: '30%'}}
+              style={{width: '60%'}}
               placeholder="Enter receipt number"
               required
             />
@@ -1124,12 +1124,12 @@ const ReceivingForm = () => {
           </div>
         </div>
         
-        {/* Financial Summary */}
+        {/* Financial Summary - UPDATED: Changed terminology */}
         <div className="financial-summary">
           <h3>Financial Summary</h3>
           <div className="grid md:grid-cols-3 gap-6">
             <div>
-              <label className="form-label"> Amount Payable:</label>
+              <label className="form-label">Total Payable:</label>
               <div className="relative">
                 <span className="currency">₱</span>
                 <input
@@ -1142,7 +1142,7 @@ const ReceivingForm = () => {
             </div>
             <div>
               <label className="form-label">
-                Return Total Amount (Less):
+                Less Returnable Value:
                 {supplierReturns.length > 0 && (
                   <span className="ml-2 text-sm text-primary">({supplierReturns.length} returns)</span>
                 )}
