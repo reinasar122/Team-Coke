@@ -251,16 +251,16 @@ const ProductForm = () => {
     }
   };
 
-  // FIXED: Updated showNotice with different timeouts for different types
+  // FIXED: Updated showNotice with much shorter timeouts for super fast notifications
   const showNotice = (text, type = "success") => {
     setNotice({ open: true, type, text });
     
-    // Different timeouts based on message type
-    let timeout = 3000; // Default 3 seconds
+    // Very short timeouts - notifications disappear quickly
+    let timeout = 1000; // Default 1 seconds for success
     if (type === "info") {
-      timeout = 1500; // Shorter for info messages (1.5 seconds)
+      timeout = 800; // Very short for info messages (0.8 seconds)  
     } else if (type === "error") {
-      timeout = 4000; // Longer for errors (4 seconds)
+      timeout = 2000; // Still short for errors (2 seconds)
     }
     
     setTimeout(() => {
@@ -524,7 +524,7 @@ const ProductForm = () => {
           // Default navigation to products list
           navigate("/products/");
         }
-      }, 1500);
+      }, 1200); // Shortened from 1500 to match notification timeout
     } catch (err) {
       console.log("Form values when saving:", rows);
       console.error("❌ Save Error:", err.response?.data || err.message);
@@ -1009,7 +1009,7 @@ const ProductForm = () => {
         </div>
       </div>
 
-      {/* FIXED: Notice Modal - Now properly centered */}
+      {/* FIXED: Notice Modal - Now properly centered with SUPER FAST timeouts */}
       {notice.open && (
         <div 
           className="modal-overlay" 
