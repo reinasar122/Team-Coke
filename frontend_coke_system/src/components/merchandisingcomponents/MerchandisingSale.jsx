@@ -6,6 +6,7 @@ import VanLoadTable from "./VanLoadTable";
 import PaymentModal from "../PaymentModal";
 import "../../styles/components/merchandisingSale.scss";
 import api from "../../api"; // centralized API instance
+import CustomerRegistration from './CustomerRegistration';
 
 // Van Load notification helper
 const notifyVanLoadCreated = (vanLoadData) => {
@@ -110,15 +111,6 @@ const MerchandisingSale = () => {
   const [allProductsRaw, setAllProductsRaw] = useState([]);
 
   const toUtcValue = (date) => new Date(date).toISOString();
-
-  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
-  const [newCustomer, setNewCustomer] = useState({
-    name: "",
-    address: "",
-    phone_number: "",
-  });
-  const [savingCustomer, setSavingCustomer] = useState(false);
-  const [customerErrors, setCustomerErrors] = useState({});
 
   const [stocks, setStocks] = useState([]);
   const initTxTypeOnce = useRef(false);
@@ -684,6 +676,41 @@ const MerchandisingSale = () => {
     transactionTypes?.length,
   ]);
 
+  // Navigate to Customer Registration component
+  const navigateToCustomerRegistration = () => {
+    navigate('/customer-registration', {
+      state: {
+        from: 'merchandising-sale',
+        returnPath: location.pathname,
+        currentFormData: {
+          mspNo,
+          transactionType,
+          selectedUser,
+          transactionDate,
+          selectedVan,
+          route,
+          rows
+        }
+      }
+    });
+  };
+
+  // Listen for successful customer registration
+  useEffect(() => {
+    const handleCustomerCreated = (event) => {
+      const newCustomer = event.detail;
+      console.log("✅ New customer received from registration:", newCustomer);
+      
+      // Add to customers list and select it
+      setCustomers((prev) => [...prev, newCustomer]);
+      setSelectedCustomerId(newCustomer.id);
+      showAlert("Customer registered successfully!");
+    };
+
+    window.addEventListener('customerCreated', handleCustomerCreated);
+    return () => window.removeEventListener('customerCreated', handleCustomerCreated);
+  }, []);
+
   const handleSubmit = async (paymentData = null) => {
     const warehouseId = currentWarehouse?.id;
     const isVanLoad =
@@ -1056,73 +1083,6 @@ const MerchandisingSale = () => {
     }
   };
 
-  const openCustomerModal = () => {
-    setNewCustomer({
-      name: "",
-      address: "",
-      phone_number: "",
-    });
-    setCustomerErrors({});
-    setIsCustomerModalOpen(true);
-  };
-
-  const closeCustomerModal = () => {
-    setIsCustomerModalOpen(false);
-  };
-
-  const handleNewCustomerChange = (e) => {
-    const { name, value } = e.target;
-    setNewCustomer((prev) => ({ ...prev, [name]: value }));
-    setCustomerErrors((prev) => ({ ...prev, [name]: null }));
-  };
-
-  const validateNewCustomer = () => {
-    const errors = {};
-    if (!newCustomer.name.trim()) errors.name = "Name is required";
-    if (!newCustomer.address.trim()) errors.address = "Address is required";
-    if (!newCustomer.phone_number.trim()) errors.phone_number = "Phone number is required";
-    return errors;
-  };
-
-  const handleSaveNewCustomer = async () => {
-    const errors = validateNewCustomer();
-    if (Object.keys(errors).length > 0) {
-      setCustomerErrors(errors);
-      return;
-    }
-
-    // prevent duplicates by name
-    const exists = customers.some(
-      (c) => c.name?.toLowerCase() === newCustomer.name.trim().toLowerCase()
-    );
-    if (exists) {
-      showAlert(`Customer "${newCustomer.name}" already exists.`);
-      return;
-    }
-
-    try {
-      setSavingCustomer(true);
-      const res = await api.post("customers/", {
-        name: newCustomer.name.trim(),
-        address: newCustomer.address.trim(),
-        phone: newCustomer.phone_number.trim(),
-        warehouse: currentWarehouse?.id,
-      });
-
-      console.log("✅ New customer created:", res.data);
-
-      setCustomers((prev) => [...prev, res.data]);
-      setSelectedCustomerId(res.data.id);
-      setIsCustomerModalOpen(false);
-      showAlert("Customer registered successfully.");
-    } catch (error) {
-      console.error("❌ Error saving new customer:", error);
-      showAlert("Failed to save customer. Please try again.");
-    } finally {
-      setSavingCustomer(false);
-    }
-  };
-
   return (
     <div className="p-6">
       <h1 className="text-xl font-bold mb-4">
@@ -1208,7 +1168,7 @@ const MerchandisingSale = () => {
                 value={selectedCustomerId}
                 onChange={(e) => {
                   if (e.target.value === "add_new") {
-                    openCustomerModal();
+                    navigateToCustomerRegistration();
                   } else {
                     console.log("👤 Customer selected:", e.target.value);
                     setSelectedCustomerId(e.target.value);
@@ -1224,86 +1184,6 @@ const MerchandisingSale = () => {
                 ))}
                 <option value="add_new">+ New Customer</option>
               </select>
-            </div>
-          )}
-
-          {isCustomerModalOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
-              <div className="bg-white w-full max-w-md rounded-lg shadow-lg p-6">
-                <h2 className="text-lg font-semibold mb-4">New Customer</h2>
-
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-sm block mb-1">Name</label>
-                    <input
-                      type="text"
-                      name="name"
-                      value={newCustomer.name}
-                      onChange={handleNewCustomerChange}
-                      className={`border w-full rounded-md px-2 py-1 text-sm ${
-                        customerErrors.name ? "border-red-500" : ""
-                      }`}
-                      placeholder="Customer name"
-                    />
-                    {customerErrors.name && (
-                      <p className="text-xs text-red-500 mt-1">{customerErrors.name}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm block mb-1">Address</label>
-                    <textarea
-                      name="address"
-                      value={newCustomer.address}
-                      onChange={handleNewCustomerChange}
-                      className={`border w-full rounded-md px-2 py-1 text-sm resize-none ${
-                        customerErrors.address ? "border-red-500" : ""
-                      }`}
-                      rows={2}
-                      placeholder="Street, Barangay, City"
-                    />
-                    {customerErrors.address && (
-                      <p className="text-xs text-red-500 mt-1">{customerErrors.address}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="text-sm block mb-1">Phone Number</label>
-                    <input
-                      type="text"
-                      name="phone_number"
-                      value={newCustomer.phone_number}
-                      onChange={handleNewCustomerChange}
-                      className={`border w-full rounded-md px-2 py-1 text-sm ${
-                        customerErrors.phone_number ? "border-red-500" : ""
-                      }`}
-                      placeholder="09XXXXXXXXX"
-                    />
-                    {customerErrors.phone_number && (
-                      <p className="text-xs text-red-500 mt-1">{customerErrors.phone_number}</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-2 mt-6">
-                  <button
-                    type="button"
-                    onClick={closeCustomerModal}
-                    className="px-4 py-2 text-sm rounded-md border border-gray-300 hover:bg-gray-100"
-                    disabled={savingCustomer}
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleSaveNewCustomer}
-                    className="px-4 py-2 text-sm rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                    disabled={savingCustomer}
-                  >
-                    {savingCustomer ? "Saving..." : "Save Customer"}
-                  </button>
-                </div>
-              </div>
             </div>
           )}
 

@@ -27,7 +27,8 @@ export const routeOrder = [
   "Warehouse",
   "Supplier",
   "Van",
-
+  "Customer",
+  
   // Settings
   "Settings",
 ];

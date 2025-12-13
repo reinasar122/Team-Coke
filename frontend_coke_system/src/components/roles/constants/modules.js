@@ -3,6 +3,6 @@ export const MODULES = {
   Transactions: ["Receiving", "Trading", "Supplier Return","Invoice", "Credit", "Expenses"],
   Inventory: ["Stocks", "Product", "Returned Empties"],
   Reports: ["Sales Report", "Inventory Report"],
-  Manage: ["User", "Roles", "Supplier", "Warehouse", "Van"],
+  Manage: ["User", "Roles", "Supplier", "Warehouse", "Van", "Customer"],
   Settings: ["Settings"],
 };

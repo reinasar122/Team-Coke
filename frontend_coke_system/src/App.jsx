@@ -68,7 +68,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Invoice from "./pages/Invoice";
 
 import ForecastingDashboard from "./pages/ForecastingDashboard";
-
+import CustomerRegistration from './components/merchandisingcomponents/CustomerRegistration';
 
 import {
   FaHome,
@@ -290,6 +290,9 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/receiving" element={<ReceivingList />} />
             <Route path="/receiving/:id" element={<ReceivingDetails />} />
             <Route path="/receiving/new" element={<ReceivingForm />} />
+         
+            {/* Customer Registration */}
+            <Route path="/customer-registration" element={<CustomerRegistration />} />
 
             {/* Merchandising */}
             <Route path="/trading" element={<MerchandisingList />} />

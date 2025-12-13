@@ -251,7 +251,7 @@ const Notification = () => {
     initializeComponent();
   }, [waitForUserData, isLoaded]);
 
-  // ✅ ENHANCED: Load notifications from backend API
+  // ✅ FIXED: Load notifications from backend API without overwriting local notifications
   const loadNotificationsFromAPI = useCallback(async () => {
     if (!userDataReady || !currentWarehouseId) {
       return;
@@ -281,14 +281,34 @@ const Notification = () => {
           }
         }));
         
-        // Replace local notifications with backend data
-        dispatch({ type: 'SET_NOTIFICATIONS', payload: formattedNotifications });
-        console.log(`📥 Loaded ${formattedNotifications.length} notifications from backend`);
+        // ✅ FIXED: Merge with existing notifications instead of replacing
+        const currentWarehouseNotifications = notifications.filter(notif => 
+          notif.data?.warehouse_id === currentWarehouseId
+        );
+        const otherWarehouseNotifications = notifications.filter(notif => 
+          notif.data?.warehouse_id !== currentWarehouseId
+        );
+        
+        // Keep newer local notifications that might not be in backend yet
+        const backendIds = new Set(formattedNotifications.map(n => n.id));
+        const recentLocalNotifications = currentWarehouseNotifications.filter(localNotif => {
+          const isRecent = new Date(localNotif.timestamp) > new Date(Date.now() - 5 * 60 * 1000); // Last 5 minutes
+          return isRecent && !backendIds.has(localNotif.id);
+        });
+        
+        const mergedNotifications = [
+          ...otherWarehouseNotifications,
+          ...formattedNotifications,
+          ...recentLocalNotifications
+        ];
+        
+        dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
+        console.log(`📥 Merged ${formattedNotifications.length} backend + ${recentLocalNotifications.length} recent local notifications`);
       }
     } catch (error) {
       console.warn('❌ Failed to load notifications from backend:', error.message);
     }
-  }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch]);
+  }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch, notifications]);
 
   // ✅ ENHANCED: Create notification with backend sync
   const createNotificationWithBackend = useCallback(async (notificationType, data, userRole) => {
@@ -828,6 +848,19 @@ const Notification = () => {
         }
         break;
 
+      case 'new_receiving':
+        details.push(
+          { label: 'Receiving No', value: safeToString(data.receiving_no || 'Unknown') },
+          { label: 'Supplier', value: safeToString(data.supplier_name || 'Unknown Supplier') },
+          { label: 'Total Amount', value: `₱${(data.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Items Count', value: safeToString(data.items_count || 0) },
+          { label: 'Status', value: safeToString(data.status || 'Completed') }
+        );
+        if (data.created_by) {
+          details.push({ label: 'Created By', value: safeToString(data.created_by) });
+        }
+        break;
+
       default:
         // For any other notification types, show generic data with safe string conversion
         Object.keys(data).forEach(key => {
@@ -854,87 +887,129 @@ const Notification = () => {
     }
   };
 
-  // ✅ FIXED: Load persisted notifications with proper deletion tracking
-  useEffect(() => {
-    const loadPersistedNotifications = () => {
-      try {
-        const user = getCurrentUser();
-        const userRole = user.role?.toLowerCase();
+  // ✅ FIXED: Load persisted notifications with better deletion tracking
+  const loadPersistedNotifications = useCallback(() => {
+    try {
+      const user = getCurrentUser();
+      const userRole = user.role?.toLowerCase();
+      
+      // ✅ FIXED: More lenient deleted notification filtering
+      const deletedNotificationIds = new Set(JSON.parse(localStorage.getItem('deletedNotificationIds') || '[]'));
+      
+      if (userRole === 'admin' && currentWarehouseId) {
+        // Load warehouse-specific notifications for admin
+        const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
+        const savedWarehouseNotifications = localStorage.getItem(warehouseKey);
         
-        // ✅ FIXED: Load deleted notification IDs to filter them out
-        const deletedNotificationIds = new Set(JSON.parse(localStorage.getItem('deletedNotificationIds') || '[]'));
-        
-        if (userRole === 'admin' && currentWarehouseId) {
-          // Load warehouse-specific notifications for admin
-          const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
-          const savedWarehouseNotifications = localStorage.getItem(warehouseKey);
+        if (savedWarehouseNotifications) {
+          const parsedNotifications = JSON.parse(savedWarehouseNotifications);
           
-          if (savedWarehouseNotifications) {
-            const parsedNotifications = JSON.parse(savedWarehouseNotifications);
-            const validNotifications = parsedNotifications.filter(notif => 
-              new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) &&
-              !deletedNotificationIds.has(notif.id) // ✅ FIXED: Filter out deleted notifications
+          // ✅ FIXED: Only filter out explicitly deleted notifications, keep recent ones
+          const validNotifications = parsedNotifications.filter(notif => {
+            const isRecent = new Date(notif.timestamp) > new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24 hours instead of 7 days
+            const notDeleted = !deletedNotificationIds.has(notif.id);
+            
+            return isRecent && notDeleted;
+          });
+          
+          if (validNotifications.length > 0) {
+            // ✅ FIXED: Merge with existing notifications instead of replacing
+            const existingNotifications = notifications.filter(notif => 
+              notif.data?.warehouse_id !== currentWarehouseId
             );
+            const allNotifications = [...existingNotifications, ...validNotifications];
             
-            if (validNotifications.length > 0) {
-              dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
-              console.log(`📥 Admin loaded ${validNotifications.length} notifications for warehouse ${currentWarehouseId}`);
-            }
-            
-            // Update localStorage with only valid, non-deleted notifications
-            localStorage.setItem(warehouseKey, JSON.stringify(validNotifications));
-          } else {
-            // Try loading from global admin notifications
-            const globalAdminNotifications = localStorage.getItem('persistedNotifications_admin_all');
-            if (globalAdminNotifications) {
-              const allNotifications = JSON.parse(globalAdminNotifications);
-              const warehouseNotifications = allNotifications.filter(notif =>
-                notif.data?.warehouse_id === currentWarehouseId &&
-                new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) &&
-                !deletedNotificationIds.has(notif.id) // ✅ FIXED: Filter out deleted notifications
-              );
-              
-              if (warehouseNotifications.length > 0) {
-                dispatch({ type: 'SET_NOTIFICATIONS', payload: warehouseNotifications });
-                localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
-                console.log(`📥 Admin migrated ${warehouseNotifications.length} notifications to warehouse ${currentWarehouseId}`);
-              }
-            }
+            dispatch({ type: 'SET_NOTIFICATIONS', payload: allNotifications });
+            console.log(`📥 Admin loaded ${validNotifications.length} persisted notifications for warehouse ${currentWarehouseId}`);
           }
+          
+          // Update localStorage with only valid notifications
+          localStorage.setItem(warehouseKey, JSON.stringify(validNotifications));
         } else {
-          // Regular notification loading for non-admin users
-          const savedNotifications = localStorage.getItem('persistedNotifications');
-          if (savedNotifications) {
-            const parsedNotifications = JSON.parse(savedNotifications);
-            const validNotifications = parsedNotifications.filter(notif => 
-              new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) &&
-              !deletedNotificationIds.has(notif.id) // ✅ FIXED: Filter out deleted notifications
+          // Try loading from global admin notifications
+          const globalAdminNotifications = localStorage.getItem('persistedNotifications_admin_all');
+          if (globalAdminNotifications) {
+            const allNotifications = JSON.parse(globalAdminNotifications);
+            const warehouseNotifications = allNotifications.filter(notif =>
+              notif.data?.warehouse_id === currentWarehouseId &&
+              new Date(notif.timestamp) > new Date(Date.now() - 24 * 60 * 60 * 1000) &&
+              !deletedNotificationIds.has(notif.id)
             );
             
-            if (validNotifications.length > 0) {
-              dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
+            if (warehouseNotifications.length > 0) {
+              // ✅ FIXED: Merge instead of replace
+              const existingNotifications = notifications.filter(notif => 
+                notif.data?.warehouse_id !== currentWarehouseId
+              );
+              const allNotifications = [...existingNotifications, ...warehouseNotifications];
+              
+              dispatch({ type: 'SET_NOTIFICATIONS', payload: allNotifications });
+              localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
+              console.log(`📥 Admin migrated ${warehouseNotifications.length} notifications to warehouse ${currentWarehouseId}`);
             }
-            
-            // Update localStorage with only valid, non-deleted notifications
-            localStorage.setItem('persistedNotifications', JSON.stringify(validNotifications));
           }
         }
-      } catch (error) {
-        console.warn('Error loading persisted notifications - corrupted data');
-        // Clean up corrupted data
-        if (currentWarehouseId) {
-          localStorage.removeItem(`persistedNotifications_warehouse_${currentWarehouseId}`);
+      } else {
+        // Regular notification loading for non-admin users
+        const savedNotifications = localStorage.getItem('persistedNotifications');
+        if (savedNotifications) {
+          const parsedNotifications = JSON.parse(savedNotifications);
+          
+          // ✅ FIXED: Less aggressive filtering
+          const validNotifications = parsedNotifications.filter(notif => {
+            const isRecent = new Date(notif.timestamp) > new Date(Date.now() - 24 * 60 * 60 * 1000);
+            const notDeleted = !deletedNotificationIds.has(notif.id);
+            const isCurrentWarehouse = notif.data?.warehouse_id === currentWarehouseId;
+            
+            return isRecent && notDeleted && isCurrentWarehouse;
+          });
+          
+          if (validNotifications.length > 0) {
+            dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
+          }
+          
+          // Update localStorage with only valid notifications
+          localStorage.setItem('persistedNotifications', JSON.stringify(validNotifications));
         }
-        localStorage.removeItem('persistedNotifications');
-        localStorage.removeItem('deletedNotificationIds');
       }
-    };
-
-    if (!isLoaded && userDataReady && currentWarehouseId) {
-      loadPersistedNotifications();
-      setIsLoaded(true);
+    } catch (error) {
+      console.warn('Error loading persisted notifications - corrupted data, resetting...');
+      // ✅ FIXED: Don't clear all data, just reset for current warehouse
+      const user = getCurrentUser();
+      const userRole = user.role?.toLowerCase();
+      
+      if (userRole === 'admin' && currentWarehouseId) {
+        localStorage.removeItem(`persistedNotifications_warehouse_${currentWarehouseId}`);
+      } else {
+        localStorage.removeItem('persistedNotifications');
+      }
     }
-  }, [dispatch, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
+  }, [dispatch, currentWarehouseId, getCurrentUser, notifications]);
+
+  // ✅ NEW: Unified notification loading with priority
+  const loadAllNotifications = useCallback(async () => {
+    if (!isLoaded && userDataReady && currentWarehouseId) {
+      console.log('📱 Loading all notifications with priority system...');
+      
+      // 1. First load persisted local notifications
+      loadPersistedNotifications();
+      
+      // 2. Wait a bit, then load from backend and merge
+      setTimeout(async () => {
+        await loadNotificationsFromAPI();
+      }, 500);
+      
+      // 3. Mark as loaded
+      setTimeout(() => {
+        setIsLoaded(true);
+      }, 1000);
+    }
+  }, [isLoaded, userDataReady, currentWarehouseId, loadNotificationsFromAPI, loadPersistedNotifications]);
+
+  // ✅ FIXED: Better loading sequence with priority
+  useEffect(() => {
+    loadAllNotifications();
+  }, [loadAllNotifications]);
 
   // ✅ ENHANCED: Persist notifications with warehouse awareness for admin
   useEffect(() => {
@@ -2450,7 +2525,7 @@ const Notification = () => {
     );
   };
 
-  // ✅ ENHANCED: Warehouse change handler with notification persistence for admin
+  // ✅ FIXED: Better warehouse change handling
   useEffect(() => {
     const handleWarehouseChange = async () => {
       const user = getCurrentUser();
@@ -2461,104 +2536,51 @@ const Notification = () => {
       if (newWarehouseId && newWarehouseId !== currentWarehouseId) {
         console.log('🔄 Admin warehouse changed:', { 
           old: currentWarehouseId, 
-          new: newWarehouseId,
-          clearingCrossWarehouseNotifications: true 
+          new: newWarehouseId
         });
         
-        // ✅ Add transition effect
         setIsTransitioning(true);
         
-        // ✅ ADMIN: Preserve notifications from previous warehouse and load new warehouse notifications
-        if (userRole === 'admin') {
-          // Save current notifications for the old warehouse
-          if (currentWarehouseId) {
-            const currentWarehouseNotifications = notifications.filter(notif => 
-              notif.data?.warehouse_id === currentWarehouseId
-            );
-            
-            if (currentWarehouseNotifications.length > 0) {
-              try {
-                const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
-                localStorage.setItem(warehouseKey, JSON.stringify(currentWarehouseNotifications));
-                console.log(`💾 Saved ${currentWarehouseNotifications.length} notifications for warehouse ${currentWarehouseId}`);
-              } catch (error) {
-                console.warn('Failed to save warehouse notifications');
-              }
-            }
-          }
+        // ✅ FIXED: Save current notifications before switching
+        if (userRole === 'admin' && currentWarehouseId) {
+          const currentWarehouseNotifications = notifications.filter(notif => 
+            notif.data?.warehouse_id === currentWarehouseId
+          );
           
-          // Load notifications for new warehouse
-          try {
-            const newWarehouseKey = `persistedNotifications_warehouse_${newWarehouseId}`;
-            const savedNewWarehouseNotifications = localStorage.getItem(newWarehouseKey);
-            
-            if (savedNewWarehouseNotifications) {
-              const parsedNotifications = JSON.parse(savedNewWarehouseNotifications);
-              const validNotifications = parsedNotifications.filter(notif => 
-                new Date(notif.timestamp) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-              );
+          if (currentWarehouseNotifications.length > 0) {
+            try {
+              const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
+              // ✅ FIXED: Merge with existing saved notifications instead of overwriting
+              const existingSaved = JSON.parse(localStorage.getItem(warehouseKey) || '[]');
+              const existingIds = new Set(existingSaved.map(n => n.id));
+              const newNotifications = currentWarehouseNotifications.filter(n => !existingIds.has(n.id));
+              const mergedSaved = [...existingSaved, ...newNotifications];
               
-              // Merge with existing notifications from other warehouses
-              const otherWarehouseNotifications = notifications.filter(notif => 
-                notif.data?.warehouse_id !== currentWarehouseId && 
-                notif.data?.warehouse_id !== newWarehouseId
-              );
-              
-              const allNotifications = [...validNotifications, ...otherWarehouseNotifications];
-              dispatch({ type: 'SET_NOTIFICATIONS', payload: allNotifications });
-              
-              console.log(`📥 Loaded ${validNotifications.length} notifications for new warehouse ${newWarehouseId}`);
-            } else {
-              // ✅ CRITICAL: Clear cross-warehouse notifications
-              const validNotifications = notifications.filter(notif => 
-                notif.data?.warehouse_id === newWarehouseId
-              );
-              
-              dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
-              console.log(`🧹 Cleared cross-warehouse notifications. Kept ${validNotifications.length} for warehouse ${newWarehouseId}`);
+              localStorage.setItem(warehouseKey, JSON.stringify(mergedSaved));
+              console.log(`💾 Saved ${mergedSaved.length} total notifications for warehouse ${currentWarehouseId}`);
+            } catch (error) {
+              console.warn('Failed to save warehouse notifications');
             }
-          } catch (error) {
-            console.warn('Failed to load new warehouse notifications');
           }
         }
         
         // Update current warehouse state
         setCurrentWarehouse(newWarehouse);
         setCurrentWarehouseId(newWarehouseId);
+        setIsLoaded(false); // Reset loading state to trigger reload
         
-        // Force update to refresh UI immediately
+        // Force update and reload
         setTimeout(() => {
           setForceUpdate(prev => prev + 1);
           setIsTransitioning(false);
+          loadAllNotifications(); // Use the new unified loader
         }, 300);
-        
-        // Check for new notifications in the new warehouse
-        if (isLoaded && userDataReady) {
-          setTimeout(() => {
-            checkNotificationsOnAction();
-            // Also check for low stock when warehouse changes
-            checkLowStockOnLogin();
-          }, 1000);
-        }
       }
     };
 
     window.addEventListener('warehouseChanged', handleWarehouseChange);
-
-    return () => {
-      window.removeEventListener('warehouseChanged', handleWarehouseChange);
-    };
-  }, [
-    currentWarehouseId, 
-    notifications, 
-    dispatch, 
-    checkNotificationsOnAction, 
-    checkLowStockOnLogin, 
-    isLoaded, 
-    userDataReady, 
-    getCurrentUser,
-    getCurrentWarehouse
-  ]);
+    return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
+  }, [currentWarehouseId, notifications, getCurrentUser, getCurrentWarehouse, loadAllNotifications]);
 
   // ✅ NEW: Load notifications from backend on mount and warehouse change
   useEffect(() => {

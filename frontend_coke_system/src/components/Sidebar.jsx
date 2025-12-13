@@ -239,6 +239,11 @@ const Sidebar = ({ isSidebarOpen }) => {
               ) : (
                 <DisabledSubItem text="Van" />
               )}
+              {canView("Customer") ? (
+                 <li><Link to="/customer-registration" className="block p-2 text-sm hover:bg-gray-600 rounded">Customers</Link></li>
+              ) : (
+                 <DisabledSubItem text="Customers" />
+              )}
               
             </ul>
           )}
