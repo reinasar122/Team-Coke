@@ -1,10 +1,11 @@
 // src/pages/SupplierEditForm.jsx
 import React, { useState, useEffect } from "react";
 import api from "../api"; // ✅ centralized API instance
-import psgcData from "../data/psgc_output.json";
+//import psgcData from "../data/psgc_output.json";
+import psgcData from "../data/updated_psgc_output.json";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
-import { validatePhoneNumber, validateZipCode } from "../utils/validators";
+import { validatePhoneNumber} from "../utils/validators";
 
 const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -38,6 +39,17 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     contact_person: "",
     email: "",
     phone_number: "",
+  });
+
+  // Map municipality names to zip codes
+  const zipCodeMap = new Map();
+  psgcData.forEach(region => {
+    region.provinces.forEach(province => {
+      province.cities.forEach(city => {
+        // Assuming the zip code is already in the city's data
+        zipCodeMap.set(city.city_name.toLowerCase(), city.zip_code);
+      });
+    });
   });
 
   // ✅ Fetch Supplier Data
@@ -94,11 +106,6 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     if (name === "phone_number") {
       const err = validatePhoneNumber(value);
       setErrors((prev) => ({ ...prev, phone_number: err }));
-    }
-
-    if (name === "zip_code") {
-      const err = validateZipCode(value);
-      setErrors((prev) => ({ ...prev, zip_code: err }));
     }
   };
 
@@ -178,14 +185,9 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   // ✅ Validate before saving
   const validateMainFields = () => {
     const phoneError = validatePhoneNumber(formData.phone_number);
-    const zipError = validateZipCode(formData.zip_code);
 
     if (phoneError) {
       toast.error(phoneError, { style: errorStyle });
-      return false;
-    }
-    if (zipError) {
-      toast.error(zipError, { style: errorStyle });
       return false;
     }
     return true;
@@ -224,6 +226,15 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
       });
     }
   };
+
+  // Set zip code when municipality is selected
+  useEffect(() => {
+    const selectedCity = cities.find((c) => c.city_name === formData.city);
+    if (selectedCity) {
+      const zipCode = zipCodeMap.get(selectedCity.city_name.toLowerCase()) || "";
+      setFormData((prev) => ({ ...prev, zip_code: zipCode }));
+    }
+  }, [formData.city, cities]);
 
   return (
     <div className="container p-4">
@@ -300,6 +311,19 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
         </div>
 
         {/* Address Section */}
+
+        <div className="md:col-span-2">
+            <label className="block font-medium">Street Address</label>
+            <input
+              type="text"
+              name="street_address"
+              value={formData.street_address}
+              onChange={handleChange}
+              className="w-full border p-2 rounded"
+              required
+            />
+          </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className="block font-medium">Country</label>
@@ -386,27 +410,14 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
             <input
               type="text"
               name="zip_code"
-              value={formData.zip_code}
-              onChange={handleChange}
-              className={`w-full border p-2 rounded ${
-                errors.zip_code ? "border-red-500" : ""
-              }`}
+              className={`w-full border p-2 rounded ${errors.zip_code ? "border-red-500" : ""}`}
               required
+              value={formData.zip_code}  // Bind the value to formData.zip_code
+              onChange={handleChange}
             />
             {errors.zip_code && (
               <p className="text-red-500 text-sm mt-1">{errors.zip_code}</p>
             )}
-          </div>
-          <div className="md:col-span-2">
-            <label className="block font-medium">Street Address</label>
-            <input
-              type="text"
-              name="street_address"
-              value={formData.street_address}
-              onChange={handleChange}
-              className="w-full border p-2 rounded"
-              required
-            />
           </div>
         </div>
 
