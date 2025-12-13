@@ -1467,7 +1467,7 @@ class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
         queryset = SupplierReturnForm.objects.all().order_by('-date')
         
         # ✅ FIXED: Apply consistent warehouse filtering
-        warehouse_param = self.request.query_params.get('warehouse_id', None)  # Keep warehouse_id for compatibility
+        warehouse_param = self.request.query_params.get('warehouse_id', None)
         warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
         
         if warehouse_id:
@@ -1475,20 +1475,24 @@ class SupplierReturnFormListCreateView(generics.ListCreateAPIView):
         
         return queryset
 
-class SupplierReturnFormDetailView(generics.RetrieveDestroyAPIView):
+class SupplierReturnFormDetailView(generics.RetrieveUpdateDestroyAPIView):  # CHANGED: Added UpdateAPIView
     serializer_class = SupplierReturnFormSerializer
     
     def get_queryset(self):
         queryset = SupplierReturnForm.objects.all()
         
         # ✅ FIXED: Apply consistent warehouse filtering
-        warehouse_param = self.request.query_params.get('warehouse_id', None)  # Keep warehouse_id for compatibility
+        warehouse_param = self.request.query_params.get('warehouse_id', None)
         warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
         
         if warehouse_id:
             queryset = queryset.filter(warehouse_id=warehouse_id)
         
         return queryset
+    
+    # ADD THIS METHOD to handle partial updates (PATCH)
+    def patch(self, request, *args, **kwargs):
+        return self.partial_update(request, *args, **kwargs)
 
 class ProcessEmptiesReturnView(APIView):
     """

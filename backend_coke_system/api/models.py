@@ -794,14 +794,20 @@ class Payment(models.Model):
 
 
 class SupplierReturnForm(models.Model):
+    STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('completed', 'Completed'),
+    ]
+    
     sup_no = models.CharField(max_length=20, unique=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE)
-    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)  # ADD THIS
+    warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
     date = models.DateTimeField()
     total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')  # ADD THIS LINE
 
     def __str__(self):
-        return f"{self.sup_no} - {self.warehouse.name}"
+        return f"{self.sup_no} - {self.warehouse.name if self.warehouse else 'No Warehouse'}"
 
 class SupplierReturnFormItem(models.Model):
     supplier_return = models.ForeignKey(SupplierReturnForm, related_name='items', on_delete=models.CASCADE)

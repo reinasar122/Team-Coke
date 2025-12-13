@@ -1143,19 +1143,12 @@ class SupplierReturnFormItemSerializer(serializers.ModelSerializer):
 
 class SupplierReturnFormSerializer(serializers.ModelSerializer):
     supplier_name = serializers.CharField(source='supplier.company_name', read_only=True)
-    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)  # ADD THIS
+    warehouse_name = serializers.CharField(source='warehouse.name', read_only=True)
     items = SupplierReturnFormItemSerializer(many=True)
 
     class Meta:
         model = SupplierReturnForm
-        fields = ['id', 'sup_no', 'supplier', 'supplier_name', 'warehouse', 'warehouse_name', 'date', 'total_amount', 'items']  # ADD warehouse fields
-
-    def create(self, validated_data):
-        items_data = validated_data.pop('items')
-        supplier_return = SupplierReturnForm.objects.create(**validated_data)
-        for item_data in items_data:
-            SupplierReturnFormItem.objects.create(supplier_return=supplier_return, **item_data)
-        return supplier_return
+        fields = ['id', 'sup_no', 'supplier', 'supplier_name', 'warehouse', 'warehouse_name', 'date', 'total_amount', 'status', 'items']  # ADD 'status'
 
 class ProcessEmptiesReturnSerializer(serializers.Serializer):
     return_date = serializers.DateTimeField()
