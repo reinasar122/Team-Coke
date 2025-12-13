@@ -35,7 +35,7 @@ from .views import (
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, BulkRoleAccessibilityUpsertView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
-    CreditPaymentCreateAPIView,BulkAdjustStockView, 
+    CreditPaymentCreateAPIView,BulkAdjustStockView, StockUpdateAPIView,
 
 
 
@@ -139,6 +139,7 @@ urlpatterns = [
     path('stocks/<int:product_id>/update/', UpdateStockView.as_view(), name='update-stock'),
     path('stocks/<int:pk>/', StockDetailView.as_view()),
     path('stocks/<int:pk>/restore/', restore_stock),
+    path('stocks/update/', StockUpdateAPIView.as_view(), name='stock-update'),
 
 
     path('merchandising/', MerchandisingListView.as_view(), name='merchandising-list'),
