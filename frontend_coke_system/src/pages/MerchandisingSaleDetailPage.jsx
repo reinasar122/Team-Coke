@@ -592,6 +592,7 @@ const loadMerchandisingDetail = useCallback(
           <thead>
             <tr>
               <th className="border px-2 py-2 text-left">Product</th>
+               <th className="border px-2 py-2 text-center">Available</th>
               <th className="border px-2 py-2 text-center" colSpan={2}>Dispatched</th>
               <th className="border px-2 py-2 text-center">Selling Price</th>
               <th className="border px-2 py-2 text-center" colSpan={2}>Empty Price</th>
@@ -603,10 +604,11 @@ const loadMerchandisingDetail = useCallback(
 
               {/* Always render Expected Sale with Discount header */}
               <th className="border">Expected Sale with Discount</th>
-              <th className="border px-2 py-2 text-center">Available</th>
+             
             </tr>
             <tr className="bg-slate-100">
               <td className="border px-2 py-1"></td>
+              <td className="border px-2 py-1 text-center">PCS</td>
               <td className="border px-2 py-1 text-center">Shell</td>
               <td className="border px-2 py-1 text-center">PCS</td>
               <td className="border px-2 py-1"></td>
@@ -615,7 +617,7 @@ const loadMerchandisingDetail = useCallback(
               <td className="border px-2 py-1 text-center">%</td> {/* ✅ clearer indicator */}
               <td className="border px-2 py-1 text-center">PCS</td>
               <td className="border px-2 py-1 text-center">PCS</td>
-              <td className="border px-2 py-1 text-center">PCS</td>
+              
             </tr>
           </thead>
 
@@ -641,6 +643,11 @@ const loadMerchandisingDetail = useCallback(
                         className="w-full text-md text-left rounded py-1 px-2 bg-white border"
                         value={it.productName || ""}
                       />
+                    </td>
+                    
+                     {/* AVAILABLE (PCS) */}
+                    <td className="border border-gray-200 py-1 px-1 text-sm text-center">
+                      {showAvail}
                     </td>
 
                                 {/* DISPATCHED - SHELL */}
@@ -748,10 +755,7 @@ const loadMerchandisingDetail = useCallback(
                     )}
 
 
-                    {/* AVAILABLE (PCS) */}
-                    <td className="border border-gray-200 py-1 px-1 text-sm text-center">
-                      {showAvail}
-                    </td>
+                   
                   </tr>
                 );
               })
