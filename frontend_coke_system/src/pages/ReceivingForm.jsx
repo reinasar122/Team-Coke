@@ -1,4 +1,4 @@
-// Updated ReceivingForm.jsx - Fixed warehouse filtering logic + single return refactor + receipt number validation + removed unused users state + fixed mouse wheel scroll issue + ADD PRODUCT IN DROPDOWN + RETURN NAVIGATION + AUTO-SELECT NEW PRODUCT + FORM STATE PRESERVATION + FIXED AUTO-SELECTION
+// Updated ReceivingForm.jsx - FIXED: Proper status update for supplier returns
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
 import { useNavigate, useLocation } from "react-router-dom";
@@ -534,7 +534,7 @@ const ReceivingForm = () => {
     });
   }, []);
 
-  // FIXED: Fetch supplier returns from API (filtered by warehouse AND supplier)
+  // UPDATED: Fetch supplier returns from API - only get uncompleted ones
   const fetchSupplierReturns = useCallback(
     async (supplierId) => {
       if (!currentWarehouse?.id || !supplierId) return;
@@ -559,20 +559,21 @@ const ReceivingForm = () => {
         const response = await api.get("/supplier-return-form/", config);
         console.log("📊 All supplier returns received:", response.data);
 
-        // FIXED: Filter by BOTH supplier AND warehouse
+        // UPDATED: Filter by BOTH supplier AND warehouse AND status (only uncompleted returns)
         const filteredReturns = response.data.filter((returnItem) => {
           const supplierMatch = String(returnItem.supplier) === String(supplierId);
           const warehouseMatch = String(returnItem.warehouse || returnItem.warehouse_id) === String(currentWarehouse.id);
+          const notCompleted = !returnItem.status || returnItem.status !== 'completed';
 
           console.log(
-            `🔍 Checking return ${returnItem.sup_no}: Supplier match: ${supplierMatch} (${returnItem.supplier} === ${supplierId}), Warehouse match: ${warehouseMatch} (${returnItem.warehouse || returnItem.warehouse_id} === ${currentWarehouse.id})`
+            `🔍 Checking return ${returnItem.sup_no}: Supplier match: ${supplierMatch} (${returnItem.supplier} === ${supplierId}), Warehouse match: ${warehouseMatch} (${returnItem.warehouse || returnItem.warehouse_id} === ${currentWarehouse.id}), Not completed: ${notCompleted} (status: ${returnItem.status})`
           );
 
-          return supplierMatch && warehouseMatch;
+          return supplierMatch && warehouseMatch && notCompleted;
         });
 
         console.log(
-          "🎯 Filtered returns for supplier",
+          "🎯 Filtered uncompleted returns for supplier",
           supplierId,
           "in warehouse",
           currentWarehouse.name,
@@ -591,7 +592,7 @@ const ReceivingForm = () => {
           console.log("💰 Total return amount calculated:", totalReturnAmount);
           updateFormWithReturnAmount(totalReturnAmount);
         } else {
-          console.log("ℹ️ No supplier returns found for supplier", supplierId, "in warehouse", currentWarehouse.name);
+          console.log("ℹ️ No uncompleted supplier returns found for supplier", supplierId, "in warehouse", currentWarehouse.name);
           setSupplierReturns([]);
           updateFormWithReturnAmount(0);
         }
@@ -608,6 +609,133 @@ const ReceivingForm = () => {
     [currentWarehouse, getAxiosConfig, updateFormWithReturnAmount]
   );
 
+  // FIXED: Function to properly mark supplier returns as completed
+  const markSupplierReturnsAsCompleted = useCallback(
+    async (supplierId) => {
+      if (!currentWarehouse?.id) return 0;
+
+      try {
+        console.log(
+          "✅ Marking processed supplier returns as completed for supplier:",
+          supplierId,
+          "in warehouse:",
+          currentWarehouse.name
+        );
+
+        const config = getAxiosConfig();
+        const response = await api.get("/supplier-return-form/", config);
+
+        // Filter by BOTH supplier AND warehouse before marking as completed
+        const supplierReturns = response.data.filter((returnItem) => {
+          const supplierMatch = String(returnItem.supplier) === String(supplierId);
+          const warehouseMatch =
+            String(returnItem.warehouse || returnItem.warehouse_id) === String(currentWarehouse.id);
+          // Only process returns that are not already completed
+          const notCompleted = !returnItem.status || returnItem.status !== 'completed';
+
+          console.log(
+            `🔍 Return to process: ${returnItem.sup_no}, Supplier match: ${supplierMatch}, Warehouse match: ${warehouseMatch}, Not completed: ${notCompleted}, Current status: "${returnItem.status}"`
+          );
+
+          return supplierMatch && warehouseMatch && notCompleted;
+        });
+
+        console.log("📋 Found supplier returns to mark as completed for current warehouse:", supplierReturns);
+
+        let updatedCount = 0;
+
+        for (const returnItem of supplierReturns) {
+          try {
+            console.log(
+              `✅ Marking supplier return as completed: ${returnItem.sup_no} (ID: ${returnItem.id}) from warehouse ${currentWarehouse.name}`
+            );
+            console.log("📝 Current return item data:", returnItem);
+            
+            // FIXED: Try different update approaches to ensure status is properly set
+            let updateSuccess = false;
+            
+            // Method 1: Try PUT with complete object
+            try {
+              const updatedReturnItem = {
+                ...returnItem,
+                status: 'completed'
+              };
+              console.log("📤 Sending PUT request with data:", updatedReturnItem);
+              
+              await api.put(`/supplier-return-form/${returnItem.id}/`, updatedReturnItem, config);
+              console.log(`✅ PUT successful for return ${returnItem.sup_no}`);
+              updateSuccess = true;
+            } catch (putError) {
+              console.log(`⚠️ PUT failed for ${returnItem.sup_no}:`, putError.response?.data || putError.message);
+              
+              // Method 2: Try PATCH with just status
+              try {
+                console.log("📤 Trying PATCH with status only...");
+                await api.patch(`/supplier-return-form/${returnItem.id}/`, {
+                  status: 'completed'
+                }, config);
+                console.log(`✅ PATCH successful for return ${returnItem.sup_no}`);
+                updateSuccess = true;
+              } catch (patchError) {
+                console.log(`⚠️ PATCH failed for ${returnItem.sup_no}:`, patchError.response?.data || patchError.message);
+                
+                // Method 3: Try direct field update if API supports it
+                try {
+                  console.log("📤 Trying direct status update...");
+                  await api.post(`/supplier-return-form/${returnItem.id}/complete/`, {}, config);
+                  console.log(`✅ Direct status update successful for return ${returnItem.sup_no}`);
+                  updateSuccess = true;
+                } catch (directError) {
+                  console.error(`❌ All update methods failed for return ${returnItem.sup_no}:`, directError.response?.data || directError.message);
+                }
+              }
+            }
+            
+            if (updateSuccess) {
+              console.log(`✅ Successfully marked return as completed: ${returnItem.sup_no}`);
+              updatedCount++;
+            } else {
+              console.error(`❌ Failed to update return ${returnItem.sup_no} - trying alternative approach...`);
+              
+              // Last resort: Try to update with minimal required fields
+              try {
+                const minimalUpdate = {
+                  id: returnItem.id,
+                  sup_no: returnItem.sup_no,
+                  supplier: returnItem.supplier,
+                  warehouse: returnItem.warehouse || returnItem.warehouse_id,
+                  total_amount: returnItem.total_amount,
+                  date: returnItem.date,
+                  status: 'completed'
+                };
+                
+                console.log("📤 Last resort - minimal update:", minimalUpdate);
+                await api.put(`/supplier-return-form/${returnItem.id}/`, minimalUpdate, config);
+                console.log(`✅ Minimal update successful for return ${returnItem.sup_no}`);
+                updatedCount++;
+              } catch (finalError) {
+                console.error(`❌ Final attempt failed for return ${returnItem.sup_no}:`, finalError.response?.data || finalError.message);
+              }
+            }
+            
+          } catch (error) {
+            console.error(`❌ Error updating return ${returnItem.id}:`, error.response?.data || error.message);
+          }
+        }
+
+        console.log(
+          `🏁 Finished marking processed supplier returns as completed in ${currentWarehouse.name}. Updated ${updatedCount} out of ${supplierReturns.length} returns.`
+        );
+
+        return updatedCount;
+      } catch (error) {
+        console.error("❌ Error marking processed supplier returns as completed:", error);
+        return 0;
+      }
+    },
+    [currentWarehouse, getAxiosConfig]
+  );
+
   // FIXED: Fetch supplier return items whenever supplier changes
   useEffect(() => {
     lastFetchedSupplier.current = null;
@@ -619,65 +747,6 @@ const ReceivingForm = () => {
       updateFormWithReturnAmount(0);
     }
   }, [form.supplier, currentWarehouse?.id, fetchSupplierReturns, updateFormWithReturnAmount]);
-
-  // FIXED: Function to remove supplier returns after receiving is processed
-  const removeProcessedSupplierReturns = useCallback(
-    async (supplierId) => {
-      if (!currentWarehouse?.id) return 0;
-
-      try {
-        console.log(
-          "🧹 Removing processed supplier returns for supplier:",
-          supplierId,
-          "in warehouse:",
-          currentWarehouse.name
-        );
-
-        const config = getAxiosConfig();
-        const response = await api.get("/supplier-return-form/", config);
-
-        // FIXED: Filter by BOTH supplier AND warehouse before removing
-        const supplierReturns = response.data.filter((returnItem) => {
-          const supplierMatch = String(returnItem.supplier) === String(supplierId);
-          const warehouseMatch =
-            String(returnItem.warehouse || returnItem.warehouse_id) === String(currentWarehouse.id);
-
-          console.log(
-            `🔍 Return to process: ${returnItem.sup_no}, Supplier match: ${supplierMatch}, Warehouse match: ${warehouseMatch}`
-          );
-
-          return supplierMatch && warehouseMatch;
-        });
-
-        console.log("📋 Found supplier returns to process for current warehouse:", supplierReturns);
-
-        let deletedCount = 0;
-
-        for (const returnItem of supplierReturns) {
-          try {
-            console.log(
-              `🗑️ Removing processed supplier return: ${returnItem.sup_no} (ID: ${returnItem.id}) from warehouse ${currentWarehouse.name}`
-            );
-            await api.delete(`/supplier-return-form/${returnItem.id}/`, config);
-            console.log(`✅ Successfully removed return: ${returnItem.sup_no}`);
-            deletedCount++;
-          } catch (error) {
-            console.error(`❌ Error removing return ${returnItem.id}:`, error);
-          }
-        }
-
-        console.log(
-          `🏁 Finished removing processed supplier returns from ${currentWarehouse.name}. Removed ${deletedCount} returns.`
-        );
-
-        return deletedCount;
-      } catch (error) {
-        console.error("❌ Error removing processed supplier returns:", error);
-        return 0;
-      }
-    },
-    [currentWarehouse, getAxiosConfig]
-  );
 
   const handleSupplierChange = (supplierId) => {
     lastFetchedSupplier.current = null;
@@ -819,12 +888,12 @@ const ReceivingForm = () => {
       const response = await api.post("/receiving/", dataToSubmit, config);
       console.log("✅ Receiving saved successfully", response.data);
 
-      console.log("🧹 Starting removal of processed supplier returns...");
-      const deletedCount = await removeProcessedSupplierReturns(form.supplier);
+      console.log("✅ Starting to mark processed supplier returns as completed...");
+      const completedCount = await markSupplierReturnsAsCompleted(form.supplier);
 
       let message = `✅ Receiving saved successfully in ${currentWarehouse.name}!`;
-      if (deletedCount > 0) {
-        message += ` ${deletedCount} supplier return(s) have been processed and removed.`;
+      if (completedCount > 0) {
+        message += ` ${completedCount} supplier return(s) have been marked as completed.`;
       }
 
       showNotice(message, "success");
@@ -967,7 +1036,7 @@ const ReceivingForm = () => {
                   className="inline-flex items-center px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
                 >
                   <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6v6m0 0v6m-6 0h6m-6 0H6" />
                   </svg>
                   Add Products for this Supplier
                 </button>
@@ -978,7 +1047,7 @@ const ReceivingForm = () => {
         {/* Supplier Returns */}
         {supplierReturns.length > 0 && (
           <div className="supplier-returns">
-            <h3>Supplier Return Details (Will be processed)</h3>
+            <h3>Supplier Return Details (Will be marked as completed after receiving)</h3>
             <div className="overflow-x-auto mt-2">
               <table className="table">
                 <thead>

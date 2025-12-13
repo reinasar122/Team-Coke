@@ -1,9 +1,9 @@
-// SupplierReturnList.jsx - INTEGRATED VERSION WITH API IMPROVEMENTS
+// SupplierReturnList.jsx - UPDATED VERSION WITH STATUS COLUMN (NO DELETE FUNCTIONALITY)
 import React, { useEffect, useState, useCallback } from "react";
-import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
+import api from "../api";
 import { useNavigate } from "react-router-dom";
-import { FaTrash, FaEye, FaSearch } from "react-icons/fa";
-import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
+import { FaEye, FaSearch } from "react-icons/fa"; // Removed FaTrash import
+import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils';
 
 const SupplierReturnList = () => {
   const [returns, setReturns] = useState([]);
@@ -14,10 +14,10 @@ const SupplierReturnList = () => {
   const [products, setProducts] = useState([]);
   const [pricingData, setPricingData] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
-  const [loading, setLoading] = useState(true); // ✅ KEPT: from old version
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // ✅ KEPT: Proper warehouse setup using utilities (from old version)
+  // ✅ KEPT: Proper warehouse setup using utilities
   const setupWarehouse = useCallback(async () => {
     console.log('🏭 Setting up warehouse for SupplierReturnList...');
     
@@ -51,7 +51,6 @@ const SupplierReturnList = () => {
     try {
       console.log('📋 Fetching supplier returns for warehouse ID:', warehouseId);
       const warehouseParam = `?warehouse_id=${warehouseId}`;
-      // ✅ NEW: Use api.get() instead of axios.get() (from new version)
       const response = await api.get(`/supplier-return-form/${warehouseParam}`);
       console.log(`✅ Loaded ${response.data.length} supplier returns`);
       return response.data;
@@ -61,12 +60,12 @@ const SupplierReturnList = () => {
     }
   }, []);
 
-  // ✅ KEPT: Setup warehouse first (from old version)
+  // ✅ KEPT: Setup warehouse first
   useEffect(() => {
     setupWarehouse();
   }, [setupWarehouse]);
 
-  // ✅ KEPT: Listen for warehouse changes (from old version)
+  // ✅ KEPT: Listen for warehouse changes
   useEffect(() => {
     const handleWarehouseChange = (event) => {
       console.log('🏭 Warehouse change detected in SupplierReturnList:', event.detail);
@@ -77,13 +76,12 @@ const SupplierReturnList = () => {
     return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
   }, [setupWarehouse]);
 
-  // ✅ KEPT: Fetch data when warehouse is available (from old version)
+  // ✅ KEPT: Fetch data when warehouse is available
   useEffect(() => {
     if (currentWarehouse?.id) {
       // Fetch all data in parallel for better performance
       Promise.all([
         fetchSupplierReturns(currentWarehouse.id),
-        // ✅ NEW: Use api.get() instead of axios.get() (from new version)
         api.get(`/products/?warehouse=${currentWarehouse.id}`),
         api.get("/pricing/")
       ])
@@ -136,72 +134,37 @@ const SupplierReturnList = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    // Create custom confirmation dialog
-    const confirmDelete = await showConfirmDialog("Are you sure you want to delete this supplier return?");
-    if (!confirmDelete) return;
-
-    try {
-      // ✅ NEW: Use api.delete() instead of axios.delete() (from new version)
-      await api.delete(`/supplier-return-form/${id}/`);
-      setReturns((prev) => prev.filter((r) => r.id !== id));
-    } catch (error) {
-      console.error("Delete failed:", error);
-      showErrorModal("Failed to delete return.");
+  // Function to get status badge
+  const getStatusBadge = (status) => {
+    if (status === 'completed') {
+      return (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: '12px',
+          fontSize: '12px',
+          fontWeight: '500',
+          backgroundColor: '#dcfce7',
+          color: '#166534',
+          border: '1px solid #bbf7d0'
+        }}>
+          ✅ Completed
+        </span>
+      );
+    } else {
+      return (
+        <span style={{
+          padding: '4px 8px',
+          borderRadius: '12px',
+          fontSize: '12px',
+          fontWeight: '500',
+          backgroundColor: '#fef3c7',
+          color: '#92400e',
+          border: '1px solid #fde68a'
+        }}>
+          ⏳ Pending
+        </span>
+      );
     }
-  };
-
-  // Custom confirmation dialog
-  const showConfirmDialog = (message) => {
-    return new Promise((resolve) => {
-      const modal = document.createElement('div');
-      modal.className = 'modal-overlay';
-      modal.style.background = 'rgba(0, 0, 0, 0.5)';
-      modal.innerHTML = `
-        <div class="modal">
-          <p style="margin-bottom: 1rem; color: var(--text);">${message}</p>
-          <div style="display: flex; justify-content: flex-end; gap: 8px;">
-            <button id="cancel-btn" class="btn btn-cancel">Cancel</button>
-            <button id="confirm-btn" class="btn btn-danger">Confirm</button>
-          </div>
-        </div>
-      `;
-      
-      const cancelBtn = modal.querySelector('#cancel-btn');
-      const confirmBtn = modal.querySelector('#confirm-btn');
-      
-      cancelBtn.onclick = () => {
-        document.body.removeChild(modal);
-        resolve(false);
-      };
-      
-      confirmBtn.onclick = () => {
-        document.body.removeChild(modal);
-        resolve(true);
-      };
-      
-      document.body.appendChild(modal);
-    });
-  };
-
-  const showErrorModal = (message) => {
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay';
-    modal.style.background = 'rgba(0, 0, 0, 0.5)';
-    modal.innerHTML = `
-      <div class="modal">
-        <div style="text-align: center; margin-bottom: 1rem; color: var(--danger);">
-          <svg style="width: 48px; height: 48px; margin: 0 auto 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-          </svg>
-        </div>
-        <p style="text-align: center; margin-bottom: 1.5rem; color: var(--text);">${message}</p>
-        <div style="display: flex; justify-content: center;">
-          <button class="btn btn-danger" onclick="this.closest('.modal-overlay').remove()">OK</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
   };
 
   // Enhanced helper function to find the correct pricing for a product
@@ -243,7 +206,6 @@ const SupplierReturnList = () => {
 
   const handleView = async (id) => {
     try {
-      // ✅ NEW: Use api.get() instead of axios.get() (from new version)
       // First get the supplier return details
       const returnResponse = await api.get(`/supplier-return-form/${id}/`);
       setSelectedReturn(returnResponse.data);
@@ -289,7 +251,8 @@ const SupplierReturnList = () => {
       setShowModal(true);
     } catch (error) {
       console.error("Error fetching return details:", error);
-      showErrorModal("Failed to load return details.");
+      // Show simple error without modal
+      alert("Failed to load return details.");
     }
   };
 
@@ -305,7 +268,7 @@ const SupplierReturnList = () => {
     return supNo.includes(search.toLowerCase()) || supplier.includes(search.toLowerCase());
   });
 
-  // ✅ KEPT: Show loading state while setting up warehouse (from old version)
+  // ✅ KEPT: Show loading state while setting up warehouse
   if (loading && !currentWarehouse) {
     return (
       <div className="page">
@@ -324,7 +287,7 @@ const SupplierReturnList = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             📋 Supplier Returns
-            {/* ✅ KEPT: Show current warehouse (from old version) */}
+            {/* ✅ KEPT: Show current warehouse */}
             {currentWarehouse && (
               <span style={{ 
                 padding: '4px 8px', 
@@ -354,22 +317,23 @@ const SupplierReturnList = () => {
         <button
           onClick={() => navigate("/supplier-returns/new")}
           className="btn btn-add"
-          disabled={!currentWarehouse?.id} // ✅ KEPT: from old version
+          disabled={!currentWarehouse?.id}
         >
           <span>+</span> New Supplier Return
         </button>
       </div>
 
-      {/* Table - Removed double container */}
+      {/* Table - Updated with status column and no delete action */}
       <div className="table-wrapper">
         <table className="table table-hover" style={{ tableLayout: 'fixed' }}>
           <colgroup>
             <col style={{ width: '15%' }} />
-            <col style={{ width: '20%' }} />
+            <col style={{ width: '15%' }} />
             <col style={{ width: '25%' }} />
-            <col style={{ width: '20%' }} />
+            <col style={{ width: '15%' }} />
             <col style={{ width: '12%' }} />
-            <col style={{ width: '8%' }} />
+            <col style={{ width: '10%' }} />
+            <col style={{ width: '8%' }} /> {/* Reduced width since only view action */}
           </colgroup>
           <thead>
             <tr>
@@ -378,6 +342,7 @@ const SupplierReturnList = () => {
               <th style={{ textAlign: 'center' }}>Supplier</th>
               <th style={{ textAlign: 'center' }}>Warehouse</th>
               <th style={{ textAlign: 'center' }}>Total Amount</th>
+              <th style={{ textAlign: 'center' }}>Status</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -396,6 +361,9 @@ const SupplierReturnList = () => {
                   <td style={{ textAlign: 'center' }}>
                     ₱{Number(item.total_amount || 0).toFixed(2)}
                   </td>
+                  <td style={{ textAlign: 'center' }}>
+                    {getStatusBadge(item.status)}
+                  </td>
                   <td>
                     <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
                       <button
@@ -405,20 +373,13 @@ const SupplierReturnList = () => {
                       >
                         <FaEye size={16} />
                       </button>
-                      <button
-                        onClick={() => handleDelete(item.id)}
-                        className="icon-btn icon-btn-danger"
-                        title="Delete"
-                      >
-                        <FaTrash size={16} />
-                      </button>
                     </div>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                <td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                   {currentWarehouse ? 
                     `No supplier returns found for ${currentWarehouse.name}.` : 
                     'No warehouse selected.'
@@ -474,6 +435,10 @@ const SupplierReturnList = () => {
               <div>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>Total Amount</p>
                 <p style={{ margin: '4px 0 0', fontWeight: 500 }}>₱{Number(selectedReturn.total_amount || 0).toFixed(2)}</p>
+              </div>
+              <div>
+                <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>Status</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{getStatusBadge(selectedReturn.status)}</p>
               </div>
             </div>
             
