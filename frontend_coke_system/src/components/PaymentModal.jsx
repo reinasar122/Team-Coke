@@ -136,9 +136,11 @@ const PaymentModal = ({
   const [submitting, setSubmitting] = useState(false);
 
 
+  {/* Karen Changes */}
   const [customerInput, setCustomerInput] = useState(
   transactionTypeName && /van\s*load/i.test(transactionTypeName) ? "" : customerName || "Walk-in"
 );
+
 
 
   // ------------ helpers ------------
@@ -501,757 +503,871 @@ const PaymentModal = ({
   const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
 
 
+
+
   return (
-  <div className="fixed inset-0 z-50 bg-black bg-opacity-30 flex items-center justify-center">
-    <div className="bg-white p-6 rounded-lg w-full max-w-4xl shadow-lg max-h-[90vh] overflow-y-auto">
-      <div className="border-b pb-2 mb-4">
-        <h2 className="text-xl font-bold">Payment Confirmation</h2>
-      </div>
-
-      {/* Header Info */}
-      <div className="grid grid-cols-2 gap-4 text-sm">
-        <div>
-          <strong>MSP No.</strong>: {mspNo || "--"}
-        </div>
-        <div>
-          <strong>Date</strong>: {formatLocalToManila(transactionDate) || "--"}
+    <div className="fixed inset-0 z-50 bg-black bg-opacity-30 flex items-center justify-center">
+      <div className="bg-white p-6 rounded-lg w-full max-w-4xl shadow-lg max-h-[90vh] overflow-y-auto">
+        <div className="border-b pb-2 mb-4">
+          <h2 className="text-xl font-bold">Payment Confirmation</h2>
         </div>
 
-        {/* Karen Changes */}
-        <div>
-          <strong>Customer</strong>: {isVanLoad ? "VAN" : (customerName ?? "").trim() || "Walk-in"}
-        </div>
 
-        <div>
-          <strong>Handled By</strong>: {handledBy || "--"}
-        </div>
-      </div>
-
-      {/* Product Summary */}
-      {isVanLoad ? (
-        <>
-          {/* ===== 1) PRODUCTS SUMMARY ===== */}
-          <div className="mt-6">
-            <h3 className="text-lg font-semibold mb-2">Products Summary</h3>
-
-            <table className="w-full mt-4 border">
-              <thead className="bg-gray-200 text-sm text-gray-800">
-                <tr className="text-xs font-semibold">
-                  <th className="p-2 text-left">Product</th>
-                  <th className="p-2 text-center" colSpan={2}>
-                    Dispatched
-                  </th>
-                  <th className="p-2 text-center" colSpan={2}>
-                    Sold
-                  </th>
-                  <th className="p-2 text-center">Selling Price</th>
-                  <th className="p-2 text-center">Discount (%)</th>
-                  <th className="p-2 text-center">Expected Sale</th>
-                  <th className="p-2 text-center">Actual Sale</th>
-                </tr>
-                <tr className="text-[11px] bg-gray-200">
-                  <td className="p-2"></td>
-                  <td className="p-1 font-medium text-center">Shell</td>
-                  <td className="p-1 font-medium text-center">PCS</td>
-                  <td className="p-1 font-medium text-center">Shell</td>
-                  <td className="p-1 font-medium text-center">PCS</td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                </tr>
-              </thead>
-
-              <tbody>
-                {tableRows.map((row, index) => {
-                  const productName =
-                    (typeof getProdName === "function" && getProdName(row)) ||
-                    row.productName ||
-                    row.product_detail?.product_name ||
-                    `#${row.productId ?? index + 1}`;
-
-                  const soldShell =
-                    typeof getSoldShell === "function" ? getSoldShell(row) : row.sold_shell;
-                  const soldPcs =
-                    typeof getSoldPcs === "function" ? getSoldPcs(row) : row.sold_pcs;
-                  const unitPrice =
-                    typeof getUnitPrice === "function" ? getUnitPrice(row) : row.selling_price;
-                  const discount =
-                    typeof getDiscountPercent === "function"
-                      ? getDiscountPercent(row)
-                      : row.discount;
-                  const lineTotal =
-                    typeof getLineTotal === "function" ? getLineTotal(row) : row.line_total;
-
-                  return (
-                    <tr key={row.id ?? index} className="hover:bg-gray-50">
-                      <td className="p-2">{productName}</td>
-                      <td className="p-2 text-center">{n(row.dispatched_shell)}</td>
-                      <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
-                      <td className="p-2 text-center">{n(soldShell)}</td>
-                      <td className="p-2 text-center">{n(soldPcs)}</td>
-                      <td className="p-2 text-center">{peso(unitPrice)}</td>
-                      <td className="p-2 text-center">{n(discount).toFixed(2)}</td>
-                      <td className="p-2 text-center">{peso(row.expected_sale)}</td>
-                      <td className="p-2 text-center">{peso(row.actual_sale ?? lineTotal)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-
-              <tfoot>
-                <tr className="bg-slate-100 font-semibold text-[13px]">
-                  <td className="p-2 text-left">TOTAL</td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                  <td className="p-2 text-center">{peso(sumExpectedSale)}</td>
-                  <td className="p-2 text-center">{peso(sumActualSale)}</td>
-                </tr>
-              </tfoot>
-            </table>
+        {/* Header Info */}
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div>
+            <strong>MSP No.</strong>: {mspNo || "--"}
+          </div>
+          <div>
+            <strong>Date</strong>: {formatLocalToManila(transactionDate) || "--"}
           </div>
 
-          {/* ===== 2) RETURNABLES SUMMARY (PCS-only) ===== */}
-          <div className="mt-8">
-            <h3 className="text-lg font-semibold mb-2">Returnables Summary</h3>
-
-            <table className="w-full mt-4 border">
-              <thead className="bg-gray-200 text-sm text-gray-800">
-                <tr className="text-xs font-semibold">
-                  <th className="p-2 text-left">Product</th>
-                  <th className="p-2 text-center">Dispatched (PCS)</th>
-                  <th className="p-2 text-center">Empty Price (PC)</th>
-                  <th className="p-2 text-center">Empty: Returned (PCS)</th>
-                  <th className="p-2 text-center">Empty: Discrepancy (PCS)</th>
-                  <th className="p-2 text-center">With Contents: Unit Price</th>
-                  <th className="p-2 text-center">With Contents: Returned (PCS)</th>
-                  <th className="p-2 text-center">With Contents: Discrepancy (PCS)</th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {tableRows.map((row, index) => {
-                  const productName =
-                    (typeof getProdName === "function" && getProdName(row)) ||
-                    row.productName ||
-                    row.product_detail?.product_name ||
-                    `#${row.productId ?? index + 1}`;
-
-                  const unitPrice =
-                    (typeof getUnitPrice === "function" && getUnitPrice(row)) ||
-                    row.selling_price;
-
-                  return (
-                    <tr key={row.id ?? index} className="hover:bg-gray-50">
-                      <td className="p-2">{productName}</td>
-                      <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
-                      <td className="p-2 text-center">{peso(row.empty_price_pc)}</td>
-                      <td className="p-2 text-center">{n(row.empty_return_pcs)}</td>
-                      <td className="p-2 text-center">
-                        <span
-                          className={
-                            n(row.discrepancy_empties_pc)
-                              ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
-                              : ""
-                          }
-                        >
-                          {n(row.discrepancy_empties_pc)}
-                        </span>
-                      </td>
-                      <td className="p-2 text-center">{peso(unitPrice)}</td>
-                      <td className="p-2 text-center">{n(row.actual_return_pcs)}</td>
-                      <td className="p-2 text-center">
-                        <span
-                          className={
-                            n(row.discrepancy_full_pcs)
-                              ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
-                              : ""
-                          }
-                        >
-                          {n(row.discrepancy_full_pcs)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-
-              <tfoot>
-                <tr className="bg-slate-100 font-semibold text-[13px]">
-                  <td className="p-2 text-left">TOTAL</td>
-                  <td className="p-2"></td>
-                  <td className="p-2"></td>
-                  <td className="p-2 text-center">{peso(sumEmptyRetPcsValue)}</td>
-                  <td className="p-2 text-center">{peso(sumDiscEmptyPcs)}</td>
-                  <td className="p-2"></td>
-                  <td className="p-2 text-center">{peso(sumFullRetPcs)}</td>
-                  <td className="p-2 text-center">{peso(sumDiscFullPcs)}</td>
-                </tr>
-              </tfoot>
-            </table>
+          {/* Karen Changes */}
+          <div>
+            <strong>Customer</strong>: {isVanLoad ? "VAN" : (customerName ?? "").trim() || "Walk-in"} 
           </div>
 
-          <div className="mt-6">
-            <h3 className="font-semibold mb-2">Expenses Summary</h3>
+          <div>
+            <strong>Handled By</strong>: {handledBy || "--"}
+          </div>
+        </div>
 
-            <table className="w-full mt-4 border">
-              <thead className="bg-gray-200">
-                <tr>
-                  <th className="p-2 text-left">Description</th>
-                  <th className="p-2 text-right">Amount (₱)</th>
-                </tr>
-              </thead>
-              <tbody>
-                {expensesList.length === 0 ? (
+
+        {/* Product Summary */}
+        {isVanLoad ? (
+          <>
+            {/* ===== 1) PRODUCTS SUMMARY ===== */}
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-2">Products Summary</h3>
+
+
+              <table className="w-full mt-4 border">
+                <thead className="bg-gray-200 text-sm text-gray-800">
+                  <tr className="text-xs font-semibold">
+                    <th className="p-2 text-left">Product</th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      Dispatched
+                    </th>
+                    <th className="p-2 text-center" colSpan={2}>
+                      Sold
+                    </th>
+                    <th className="p-2 text-center">Selling Price</th>
+                    <th className="p-2 text-center">Discount (%)</th>
+                    <th className="p-2 text-center">Expected Sale</th>
+                    <th className="p-2 text-center">Actual Sale</th>
+                  </tr>
+                  <tr className="text-[11px] bg-gray-200">
+                    <td className="p-2"></td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-1 font-medium text-center">Shell</td>
+                    <td className="p-1 font-medium text-center">PCS</td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                  </tr>
+                </thead>
+
+
+                <tbody>
+                  {tableRows.map((row, index) => {
+                    const productName =
+                      (typeof getProdName === "function" && getProdName(row)) ||
+                      row.productName ||
+                      row.product_detail?.product_name ||
+                      `#${row.productId ?? index + 1}`;
+
+
+                    const soldShell =
+                      typeof getSoldShell === "function" ? getSoldShell(row) : row.sold_shell;
+                    const soldPcs =
+                      typeof getSoldPcs === "function" ? getSoldPcs(row) : row.sold_pcs;
+                    const unitPrice =
+                      typeof getUnitPrice === "function" ? getUnitPrice(row) : row.selling_price;
+                    const discount = typeof getDiscountPercent === "function" ? getDiscountPercent(row) : row.discount;
+                    const discountAmount = (unitPrice * soldPcs * discount) / 100;
+                    
+                    const lineTotal =
+                      typeof getLineTotal === "function" ? getLineTotal(row) : row.line_total;
+
+
+                    return (
+                      <tr key={row.id ?? index} className="hover:bg-gray-50">
+                        <td className="p-2">{productName}</td>
+                        <td className="p-2 text-center">{n(row.dispatched_shell)}</td>
+                        <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
+                        <td className="p-2 text-center">{n(soldShell)}</td>
+                        <td className="p-2 text-center">{n(soldPcs)}</td>
+                        <td className="p-2 text-center">{peso(unitPrice)}</td>
+                        <td className="p-2 text-center">{peso(discountAmount)}</td>
+                        <td className="p-2 text-center">{peso(row.expected_sale)}</td>
+                        <td className="p-2 text-center">{peso(row.actual_sale ?? lineTotal)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+
+
+                <tfoot>
+                  <tr className="bg-slate-100 font-semibold text-[13px]">
+                    <td className="p-2 text-left">TOTAL</td>
+                    {/* Dispatched & Sold -- blank for clean layout */}
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    {/* Selling Price, Discount -- no totals */}
+                    <td className="p-2"></td>
+                    <td className="p-2"></td>
+                    <td className="p-2 text-center">{peso(sumExpectedSale)}</td>
+                    <td className="p-2 text-center">{peso(sumActualSale)}</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+
+            {/* ===== 2) RETURNABLES SUMMARY (PCS-only) ===== */}
+              <div className="mt-8">
+                <h3 className="text-lg font-semibold mb-2">Returnables Summary</h3>
+
+
+                <table className="w-full mt-4 border">
+                  <thead className="bg-gray-200 text-sm text-gray-800">
+                    <tr className="text-xs font-semibold">
+                      <th className="p-2 text-left">Product</th>
+
+
+                      {/* Dispatched */}
+                      <th className="p-2 text-center">Dispatched (PCS)</th>
+
+
+                      {/* Empty Prices */}
+                      <th className="p-2 text-center">Empty Price (PC)</th>
+
+
+                      {/* Empty: Returned / Discrepancy (PCS) */}
+                      <th className="p-2 text-center">Empty: Returned (PCS)</th>
+                      <th className="p-2 text-center">Empty: Discrepancy (PCS)</th>
+
+
+                      {/* With Contents */}
+                      <th className="p-2 text-center">With Contents: Unit Price</th>
+                      <th className="p-2 text-center">With Contents: Returned (PCS)</th>
+                      <th className="p-2 text-center">With Contents: Discrepancy (PCS)</th>
+                    </tr>
+                  </thead>
+
+
+                  <tbody>
+                    {tableRows.map((row, index) => {
+                      const productName =
+                        (typeof getProdName === "function" && getProdName(row)) ||
+                        row.productName ||
+                        row.product_detail?.product_name ||
+                        `#${row.productId ?? index + 1}`;
+
+
+                      const unitPrice =
+                        (typeof getUnitPrice === "function" && getUnitPrice(row)) ||
+                        row.selling_price;
+
+
+                      return (
+                        <tr key={row.id ?? index} className="hover:bg-gray-50">
+                          <td className="p-2">{productName}</td>
+
+
+                          {/* Dispatched (PCS only) */}
+                          <td className="p-2 text-center">{n(row.dispatched_pcs)}</td>
+
+
+                          {/* Empty Price (PC) */}
+                          <td className="p-2 text-center">{peso(row.empty_price_pc)}</td>
+
+
+                          {/* Empty: Returned (PCS) */}
+                          <td className="p-2 text-center">{n(row.empty_return_pcs)}</td>
+
+
+                          {/* Empty: Discrepancy (PCS) */}
+                          <td className="p-2 text-center">
+                            <span
+                              className={
+                                n(row.discrepancy_empties_pc)
+                                  ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
+                                  : ""
+                              }
+                            >
+                              {n(row.discrepancy_empties_pc)}
+                            </span>
+                          </td>
+
+
+                          {/* With Contents */}
+                          <td className="p-2 text-center">{peso(unitPrice)}</td>
+
+
+                          {/* With Contents: Returned (PCS) */}
+                          <td className="p-2 text-center">{n(row.actual_return_pcs)}</td>
+
+
+                          {/* With Contents: Discrepancy (PCS) */}
+                          <td className="p-2 text-center">
+                            <span
+                              className={
+                                n(row.discrepancy_full_pcs)
+                                  ? "bg-red-100 text-red-700 font-semibold px-2 py-0.5 rounded"
+                                  : ""
+                              }
+                            >
+                              {n(row.discrepancy_full_pcs)}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+
+                  <tfoot>
+                    <tr className="bg-slate-100 font-semibold text-[13px]">
+                      <td className="p-2 text-left">TOTAL</td>
+
+
+                      {/* Dispatched (PCS) -- no peso */}
+                      <td className="p-2"></td>
+
+
+                      {/* Empty Price (PC) -- no total */}
+                      <td className="p-2"></td>
+
+
+                      {/* Empty: Returned (PCS) -- show peso total */}
+                      <td className="p-2 text-center">{peso(sumEmptyRetPcsValue)}</td>
+
+
+                      {/* Empty: Discrepancy (PCS) -- show peso total */}
+                      <td className="p-2 text-center">{peso(sumDiscEmptyPcs)}</td>
+
+
+                      {/* With Contents: Unit Price -- no total */}
+                      <td className="p-2"></td>
+
+
+                      {/* With Contents: Returned (PCS) -- peso total */}
+                      <td className="p-2 text-center">{peso(sumFullRetPcs)}</td>
+
+
+                      {/* With Contents: Discrepancy (PCS) -- peso total */}
+                      <td className="p-2 text-center">{peso(sumDiscFullPcs)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+
+
+            <div className="mt-6">
+              <h3 className="font-semibold mb-2">Expenses Summary</h3>
+
+
+              <table className="w-full mt-4 border">
+                <thead className="bg-gray-200">
                   <tr>
-                    <td colSpan={2} className="p-2 text-center text-gray-500">
-                      No expenses added
-                    </td>
+                    <th className="p-2 text-left">Description</th>
+                    <th className="p-2 text-right">Amount (₱)</th>
                   </tr>
-                ) : (
-                  expensesList.map((exp, idx) => (
-                    <tr key={idx}>
-                      <td className="p-2 text-left">{exp?.description || "--"}</td>
-                      <td className="p-2 text-right">₱{n(exp?.amount).toFixed(2)}</td>
+                </thead>
+                <tbody>
+                  {expensesList.length === 0 ? (
+                    <tr>
+                      <td colSpan={2} className="p-2 text-center text-gray-500">
+                        No expenses added
+                      </td>
                     </tr>
-                  ))
-                )}
+                  ) : (
+                    expensesList.map((exp, idx) => (
+                      <tr key={idx}>
+                        <td className="p-2 text-left">{exp?.description || "--"}</td>
+                        <td className="p-2 text-right">₱{n(exp?.amount).toFixed(2)}</td>
+                      </tr>
+                    ))
+                  )}
 
-                <tr className="font-semibold bg-slate-100">
-                  <td className="p-2 text-left">Total</td>
-                  <td className="p-2 text-right">₱{expensesTotalComputed.toFixed(2)}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </>
-      ) : (
-        <>
-          {/* SOLD PRODUCTS (same as InvoiceModal)   -jea  */}
-          <div className="mt-4">
-            <h4 className="font-bold mb-2 text-gray-700">SOLD PRODUCTS</h4>
-            <table className="w-full text-sm border border-gray-300">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-2 text-left">Product</th>
-                  <th className="p-2 text-left">Dispatched</th>
-                  <th className="p-2 text-left">Sold</th>
-                  <th className="p-2 text-left">Unit Price</th>
-                  <th className="p-2 text-left">Discount (%)</th>
-                  <th className="p-2 text-left">Amount</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tableRows.map((row, i) => (
-                  <tr key={i}>
-                    <td className="border px-2 py-1">{getProdName(row)}</td>
-                    <td className="border px-2 py-1">
-                      {`${getDispatchedShell(row)} shells (${getDispatchedPcs(row)} pcs)`}
-                    </td>
-                    <td className="border px-2 py-1">
-                      {`${getSoldShell(row)} shells (${getSoldPcs(row)} pcs)`}
-                    </td>
-                    <td className="border px-2 py-1">₱{fmt(getUnitPrice(row))}</td>
-                    <td className="border px-2 py-1">{fmt(getDiscountPercent(row))}</td>
-                    <td className="border px-2 py-1">₱{fmt(getRowActual(row))}</td>
+
+                  <tr className="font-semibold bg-slate-100">
+                    <td className="p-2 text-left">Total</td>
+                    <td className="p-2 text-right">₱{expensesTotalComputed.toFixed(2)}</td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="text-right font-semibold mt-1">
-              SUBTOTAL: ₱{fmt(subtotal)}
-            </p>
-          </div>
-
-          {/* EMPTY PRICE + RETURNS (hide when net discrepancy is 0) */}
-          {n(emptiesPriceTotal) - n(emptyReturns) !== 0 && (
-            <>
-              {/* EMPTY PRICE */}
-              <div className="mt-6">
-                <h4 className="font-bold mb-2 text-gray-700">EMPTY SHELL & BOTTLE PRICE</h4>
-                <table className="w-full text-sm border border-gray-300">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="p-2">Product</th>
-                      <th className="p-2">Shell Price</th>
-                      <th className="p-2">Bottle Price</th>
-                      <th className="p-2">Total Shells</th>
-                      <th className="p-2">Total Pieces</th>
-                      <th className="p-2">Amount</th>
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : (
+          /* your non-van-load table stays as-is */
+          <>
+            {/* SOLD PRODUCTS (same as InvoiceModal)   -jea  */}
+            <div className="mt-4">
+              <h4 className="font-bold mb-2 text-gray-700">SOLD PRODUCTS</h4>
+              <table className="w-full text-sm border border-gray-300">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 text-left">Product</th>
+                    <th className="p-2 text-left">Dispatched</th>
+                    <th className="p-2 text-left">Sold</th>
+                    <th className="p-2 text-left">Unit Price</th>
+                    <th className="p-2 text-left">Discount (%)</th>
+                    <th className="p-2 text-left">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, i) => (
+                    <tr key={i}>
+                      <td className="border px-2 py-1">{getProdName(row)}</td>
+                      <td className="border px-2 py-1">
+                        {`${getDispatchedShell(row)} shells (${getDispatchedPcs(row)} pcs)`}
+                      </td>
+                      <td className="border px-2 py-1">
+                        {`${getSoldShell(row)} shells (${getSoldPcs(row)} pcs)`}
+                      </td>
+                      <td className="border px-2 py-1">₱{fmt(getUnitPrice(row))}</td>
+                      <td className="border px-2 py-1">
+                        {/* Calculate the Discount Amount */}
+                        ₱{fmt(getUnitPrice(row) * getSoldPcs(row) * getDiscountPercent(row) / 100)}
+                      </td>
+                      <td className="border px-2 py-1">₱{fmt(getRowActual(row))}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {tableRows.map((row, i) => (
-                      <tr key={i}>
-                        <td className="border px-2 py-1">{getProdName(row)}</td>
-                        <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
-                        <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
-                        <td className="border px-2 py-1">{getSoldShell(row)}</td>
-                        <td className="border px-2 py-1">{getSoldPcs(row)}</td>
-                        <td className="border px-2 py-1">₱{fmt(rowEmptiesValue(row))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="text-right font-semibold mt-1">
-                  SUBTOTAL: ₱{fmt(emptiesPriceTotal)}
-                </p>
-              </div>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-right font-semibold mt-1">
+                SUBTOTAL: ₱{fmt(subtotal)}
+              </p>
+            </div>
 
-              {/* RETURNS */}
-              <div className="mt-6">
-                <h4 className="font-bold mb-2 text-gray-700">RETURNED SHELL & BOTTLE</h4>
-                <table className="w-full text-sm border border-gray-300">
-                  <thead className="bg-gray-100">
-                    <tr>
-                      <th className="p-2">Product</th>
-                      <th className="p-2">Shell Price</th>
-                      <th className="p-2">Bottle Price</th>
-                      <th className="p-2">Returned Shells</th>
-                      <th className="p-2">Returned Pieces</th>
-                      <th className="p-2">Amount</th>
+
+            {/* EMPTY PRICE */}
+            <div className="mt-6">
+              <h4 className="font-bold mb-2 text-gray-700">EMPTY PRICE</h4>
+              <table className="w-full text-sm border border-gray-300">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2">Product</th>
+                    <th className="p-2">Shell Price</th>
+                    <th className="p-2">Bottle Price</th>
+                    <th className="p-2">Total Shells</th>
+                    <th className="p-2">Total Pieces</th>
+                    <th className="p-2">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, i) => (
+                    <tr key={i}>
+                      <td className="border px-2 py-1">{getProdName(row)}</td>
+                      <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
+                      <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
+                      <td className="border px-2 py-1">{getSoldShell(row)}</td>
+                      <td className="border px-2 py-1">{getSoldPcs(row)}</td>
+                      <td className="border px-2 py-1">₱{fmt(rowEmptiesValue(row))}</td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {tableRows.map((row, i) => (
-                      <tr key={i}>
-                        <td className="border px-2 py-1">{getProdName(row)}</td>
-                        <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
-                        <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
-                        <td className="border px-2 py-1">{getReturnedShells(row)}</td>
-                        <td className="border px-2 py-1">{getReturnedPcs(row)}</td>
-                        <td className="border px-2 py-1">₱{fmt(rowReturnsValue(row))}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                <p className="text-right font-semibold mt-1">
-                  SUBTOTAL: ₱-{fmt(emptyReturns)}
-                </p>
-              </div>
-            </>
-          )}
-        </>
-      )}
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-right font-semibold mt-1">SUBTOTAL: ₱{fmt(emptiesPriceTotal)}</p>
+            </div>
 
-      {/* Payment Breakdown */}
-      <div className="mt-6 text-sm">
-        <h3 className="font-semibold mb-2">Payment Breakdown</h3>
-        <div className="flex flex-col bg-transparent p-6 border-[2px] border-slate-200">
-          {isVanLoad ? (
-            // ---------- VAN LOAD layout ----------
-            <div className="space-y-8">
-              {/* Expected Sale */}
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Expected Sale</h3>
-                <div className="tabular-nums">₱{fmt(expectedSale)}</div>
-              </div>
 
-              {/* Total Actual Retrieved */}
-              <div>
-                <div className="font-semibold mb-2">Total Actual Retrieved:</div>
-                <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span>Actual Sale:</span>
-                    <span className="tabular-nums">₱{fmt(vl_actual)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Returned With Content:</span>
-                    <span className="tabular-nums">+ ₱{fmt(vl_retWc)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Discrepancies (non-empty):</span>
-                    <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
-                  </div>
+            {/* RETURNS */}
+            <div className="mt-6">
+              <h4 className="font-bold mb-2 text-gray-700">RETURNS</h4>
+              <table className="w-full text-sm border border-gray-300">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2">Product</th>
+                    <th className="p-2">Shell Price</th>
+                    <th className="p-2">Bottle Price</th>
+                    <th className="p-2">Returned Shells</th>
+                    <th className="p-2">Returned Pieces</th>
+                    <th className="p-2">Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tableRows.map((row, i) => (
+                    <tr key={i}>
+                      <td className="border px-2 py-1">{getProdName(row)}</td>
+                      <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
+                      <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
+                      <td className="border px-2 py-1">{getReturnedShells(row)}</td>
+                      <td className="border px-2 py-1">{getReturnedPcs(row)}</td>
+                      <td className="border px-2 py-1">₱{fmt(rowReturnsValue(row))}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-right font-semibold mt-1">SUBTOTAL: ₱-{fmt(emptyReturns)}</p>
+            </div>
+          </>
+        )}
 
-                  <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                    <span>Total:</span>
-                    <span className="tabular-nums">₱{fmt(vl_totalActualRetrieved)}</span>
+
+        {/* Payment Breakdown */}
+       
+        <div className="mt-6 text-sm">
+          <h3 className="font-semibold mb-2">Payment Breakdown</h3>
+          <div className="flex flex-col bg-transparent p-6 border-[2px] border-slate-200">
+            {isVanLoad ? (
+              // ---------- VAN LOAD layout ----------
+              <div className="space-y-8">
+                {/* Expected Sale */}
+                <div className="flex items-center justify-between">
+                  <h3 className="font-semibold">Expected Sale</h3>
+                  <div className="tabular-nums">₱{fmt(expectedSale)}</div>
+                </div>
+
+
+                {/* Total Actual Retrieved */}
+                <div>
+                  <div className="font-semibold mb-2">Total Actual Retrieved:</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span>Actual Sale:</span>
+                      <span className="tabular-nums">₱{fmt(vl_actual)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Returned With Content:</span>
+                      <span className="tabular-nums">+ ₱{fmt(vl_retWc)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Discrepancies (non-empty):</span>
+                      <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
+                    </div>
+
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                      <span>Total:</span>
+                      <span className="tabular-nums">₱{fmt(vl_totalActualRetrieved)}</span>
+                    </div>
+                  </div>
+                </div>
+
+
+                {/* Overall Total */}
+                <div>
+                  <div className="font-semibold mb-2">Overall Total:</div>
+                  <div className="space-y-1">
+                    <div className="flex justify-between">
+                      <span>Actual Sale:</span>
+                      <span className="tabular-nums">₱{fmt(vl_actual)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Discrepancies (empty):</span>
+                      <span className="tabular-nums">+ ₱{fmt(vl_discE)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Discrepancies (non-empty):</span>
+                      <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
+                    </div>
+
+
+                    <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                      <span>Total:</span>
+                      <span className="tabular-nums">₱{fmt(vl_overallTotal)}</span>
+                    </div>
+
+
+                    <div className="flex justify-between">
+                      <span>Expenses:</span>
+                      <span className="tabular-nums">- ₱{fmt(expensesTotal)}</span>
+                    </div>
+
+
+                    {/* Karen Changes */}
+                    <div className="border-t mt-2 pt-2 flex justify-between font-bold">
+                      <span>Grand Total:</span>
+
+                      <span className="tabular-nums text-3xl font-extrabold text-black">
+                        ₱{fmt(vl_grandTotal)}
+                      </span>
+                    </div>
+
                   </div>
                 </div>
               </div>
-
-              {/* Overall Total */}
-              <div>
-                <div className="font-semibold mb-2">Overall Total:</div>
+            ) : (
+              // ---------- WAREHOUSE ----------
+              <>
                 <div className="space-y-1">
-                  <div className="flex justify-between">
-                    <span>Actual Sale:</span>
-                    <span className="tabular-nums">₱{fmt(vl_actual)}</span>
+                  <div className="font-semibold mb-2 flex justify-between">
+                    <span>Actual Sales:</span>
+                    <span className="tabular-nums">₱{fmt(actualSalesValue)}</span>
+                  </div>
+                  <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
+                    <span>Discrepancy:</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Discrepancies (empty):</span>
-                    <span className="tabular-nums">+ ₱{fmt(vl_discE)}</span>
+                    <span>Empties Price Total: </span>
+                    <span className="tabular-nums"> ₱{fmt(emptiesPriceTotal)}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Discrepancies (non-empty):</span>
-                    <span className="tabular-nums">+ ₱{fmt(vl_discNE)}</span>
+                    <span>Empty Returns:</span>
+                    <span className="tabular-nums">- ₱{fmt(emptyReturns)}</span>
                   </div>
+
 
                   <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
                     <span>Total:</span>
-                    <span className="tabular-nums">₱{fmt(vl_overallTotal)}</span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span>Expenses:</span>
-                    <span className="tabular-nums">- ₱{fmt(expensesTotal)}</span>
-                  </div>
-
-                  {/* Karen Changes */}
-                  <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-                    <span>Grand Total:</span>
-
-                    <span className="tabular-nums text-3xl font-extrabold text-black">
-                      ₱{fmt(vl_grandTotal)}
+                    <span className="tabular-nums">
+                      ₱{fmt(n(emptiesPriceTotal) - n(emptyReturns))}
                     </span>
                   </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            // ---------- WAREHOUSE ----------
-            <>
-              <div className="space-y-1">
-                <div className="font-semibold mb-2 flex justify-between">
-                  <span>Actual Sales:</span>
-                  <span className="tabular-nums">₱{fmt(actualSalesValue)}</span>
-                </div>
-                <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                  <span>Discrepancy:</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Empties Price Total: </span>
-                  <span className="tabular-nums"> ₱{fmt(emptiesPriceTotal)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Empty Returns:</span>
-                  <span className="tabular-nums">- ₱{fmt(emptyReturns)}</span>
-                </div>
 
-                <div className="border-t mt-2 pt-2 flex justify-between font-semibold">
-                  <span>Total:</span>
-                  <span className="tabular-nums">
-                    ₱{fmt(n(emptiesPriceTotal) - n(emptyReturns))}
-                  </span>
+
+                  <div className="flex justify-between">
+                    <span>Actual Sales</span>
+                    <span className="tabular-nums">+ ₱{fmt(actualSalesValue)}</span>
+                  </div>
+
+                    {/* Karen changes */}
+                    <div className="border-t mt-2 pt-2 flex justify-between font-bold">
+                      <span>Total Amount Due:</span>
+
+                      <span className="tabular-nums text-3xl font-extrabold text-black">
+                        ₱{fmt(totalAmountFinal)}
+                      </span>
+                    </div>
+
                 </div>
-
-                <div className="flex justify-between">
-                  <span>Actual Sales</span>
-                  <span className="tabular-nums">+ ₱{fmt(actualSalesValue)}</span>
-                </div>
-
-                {/* Karen changes */}
-                <div className="border-t mt-2 pt-2 flex justify-between font-bold">
-                  <span>Total Amount Due:</span>
-
-                  <span className="tabular-nums text-3xl font-extrabold text-black">
-                    ₱{fmt(totalAmountFinal)}
-                  </span>
-                </div>
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-
-      {/* Payment Method */}
-      <div className="mt-6 text-sm">
-        <h3 className="font-semibold mb-2">Payment Method</h3>
-        <div className="flex gap-4 mb-4">
-          {["cash", "bank"].map((method) => (
-            <button
-              key={method}
-              className={`px-4 py-2 rounded border ${
-                paymentMethod === method ? "bg-blue-500 text-white" : "bg-gray-100"
-              }`}
-              onClick={() => setPaymentMethod(method)}
-            >
-              {method === "cash" ? "Cash" : "E-wallet"}
-            </button>
-          ))}
+              </>
+            )}
+          </div>
         </div>
 
-        {paymentMethod === "cash" && (
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block mb-1">Cash Amount Received</label>
-              <input
-                type="text"
-                className={`w-full border-[2px] rounded px-2 py-1 text-xl font-bold ${
-                  n(cashReceived) < n(amountDueFinal)
-                    ? "border-red-600 bg-red-100 text-red-600"
-                    : "border-slate-200"
+
+        {/* Payment Method */}
+        <div className="mt-6 text-sm">
+          <h3 className="font-semibold mb-2">Payment Method</h3>
+          <div className="flex gap-4 mb-4">
+            {["cash", "bank"].map((method) => (
+              <button
+                key={method}
+                className={`px-4 py-2 rounded border ${
+                  paymentMethod === method ? "bg-blue-500 text-white" : "bg-gray-100"
                 }`}
-                value={`₱${cashReceived}`}
-                onChange={(e) => setCashReceived(e.target.value.replace("₱", ""))}
-              />
-            </div>
+                onClick={() => setPaymentMethod(method)}
+              >
+                {method === "cash" ? "Cash" : "E-wallet"}
+              </button>
+            ))}
+          </div>
 
-            {showChange && n(cashReceived) >= amountDueFinal && (
+
+          {paymentMethod === "cash" && (
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block mb-1">Change</label>
+                <label className="block mb-1">Cash Amount Received</label>
                 <input
+                  type="text"
                   className={`w-full border-[2px] rounded px-2 py-1 text-xl font-bold ${
-                    n(change) < 0
-                      ? "border-red-600 bg-red-100 text-red-600"
-                      : "border-slate-200"
+                    n(cashReceived) < n(amountDueFinal) ? "border-red-600 bg-red-100 text-red-600" : "border-slate-200"
                   }`}
-                  value={`₱${fmt(change)}`}
+                  value={`₱${cashReceived}`}
+                  onChange={(e) => setCashReceived(e.target.value.replace("₱", ""))} // Removes the symbol on change
+                />
+
+
+
+
+              </div>
+              {/* 
+              <div>
+                <label className="block mb-1">Amount Due</label>
+                <input
+                  className="w-full border-[2px] border-slate-200 rounded px-2 py-1"
+                  value={`₱${fmt(amountDueFinal)}`}
                   readOnly
                 />
-              </div>
-            )}
+              </div> */}
 
-            {/* Credit section when cash < due */}
-            {n(cashReceived || 0) < amountDueFinal && (
-              <div className="col-span-2 mt-6 space-y-4">
-                <div className="bg-blue-100 border border-blue-300 p-4 rounded">
-                  <div className="font-semibold text-blue-700">Credit Amount:</div>
-                  <div className="flex justify-between items-center mt-1 text-sm">
-                    <div className="flex flex-col gap-2">
-                      {isVanLoad ? (
-                        <div>
-                          <label className="font-semibold mr-2">Customer:</label>
-                          <input
-                            type="text"
-                            className="border border-blue-300 rounded px-2 py-1 w-48"
-                            placeholder="Enter customer name"
-                            value={customerInput}
-                            onChange={(e) => setCustomerInput(e.target.value)}
-                          />
-                        </div>
-                      ) : (
-                        <div>
-                          <strong>Customer:</strong> {customerName || "Walk-in"}
-                        </div>
-                      )}
-                      <div>
-                        <strong>Due:</strong> {formattedDueDate}
-                      </div>
-                    </div>
-                    <div className="text-2xl font-bold text-blue-800">
-                      ₱{fmt(amountDueFinal - n(cashReceived || 0))}
-                    </div>
-                  </div>
+              {showChange && n(cashReceived) >= amountDueFinal && (
+                <div>
+                  <label className="block mb-1">Change</label>
+                  <input
+                    className={`w-full border-[2px] rounded px-2 py-1 text-xl font-bold ${
+                      n(change) < 0 ? "border-red-600 bg-red-100 text-red-600" : "border-slate-200"
+                    }`}
+                    value={`₱${fmt(change)}`}
+                    readOnly
+                  />
                 </div>
+              )}
 
-                {/* Credit Terms & Notes */}
-                <div className="p-4 border-[2px] border-slate-200 rounded space-y-4">
-                  <div>
-                    <h4 className="font-semibold text-blue-600 mb-2">📅 Credit Terms</h4>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block mb-1">Payment Terms (Days)</label>
-                        <select
-                          className="w-full border rounded px-2 py-1"
-                          value={paymentTerms}
-                          onChange={(e) => setPaymentTerms(e.target.value)}
-                        >
-                          <option>7 Days</option>
-                          <option>15 Days</option>
-                          <option>30 Days</option>
-                        </select>
+
+              {/* If cash < due → show Credit section */}
+                {n(cashReceived || 0) < amountDueFinal && (
+                  <div className="col-span-2 mt-6 space-y-4">
+                    <div className="bg-blue-100 border border-blue-300 p-4 rounded">
+                      <div className="font-semibold text-blue-700">Amount Payable:</div>
+                      <div className="flex justify-between items-center mt-1 text-sm">
+                        <div className="flex flex-col gap-2">
+                          {isVanLoad ? (
+                            // 👇 Allow typing customer name ONLY for Van Load + Credit
+                            <div>
+                              <label className="font-semibold mr-2">Customer:</label>
+                              <input
+                                type="text"
+                                className="border border-blue-300 rounded px-2 py-1 w-48"
+                                placeholder="Enter customer name"
+                                value={customerInput}
+                                onChange={(e) => setCustomerInput(e.target.value)}
+                              />
+                            </div>
+                          ) : (
+                            // 👇 For Warehouse, keep it fixed as Walk-in
+                            <div>
+                              <strong>Customer:</strong> {customerName || "Walk-in"}
+                            </div>
+                          )}
+                          <div><strong>Due:</strong> {formattedDueDate}</div>
+                        </div>
+                        <div className="text-2xl font-bold text-blue-800">
+                          ₱{fmt(amountDueFinal - n(cashReceived || 0))}
+                        </div>
                       </div>
+                    </div>
+
+
+                    {/* 📅 Credit Terms & Notes */}
+                    <div className="p-4 border-[2px] border-slate-200 rounded space-y-4">
                       <div>
-                        <label className="block mb-1">Payment Due Date</label>
-                        <input
-                          type="text"
+                        <h4 className="font-semibold text-blue-600 mb-2">📅 Credit Terms</h4>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="block mb-1">Payment Terms (Days)</label>
+                            <select
+                              className="w-full border rounded px-2 py-1"
+                              value={paymentTerms}
+                              onChange={(e) => setPaymentTerms(e.target.value)}
+                            >
+                              <option>7 Days</option>
+                              <option>15 Days</option>
+                              <option>30 Days</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block mb-1">Payment Due Date</label>
+                            <input
+                              type="text"
+                              className="w-full border rounded px-2 py-1"
+                              value={formattedDueDate}
+                              readOnly
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block mb-1">Credit Notes (Optional)</label>
+                        <textarea
+                          rows="3"
                           className="w-full border rounded px-2 py-1"
-                          value={formattedDueDate}
-                          readOnly
+                          placeholder="Add any special arrangements or notes..."
+                          value={creditNotes}
+                          onChange={(e) => setCreditNotes(e.target.value)}
                         />
                       </div>
                     </div>
                   </div>
+                )}
 
-                  <div>
-                    <label className="block mb-1">Credit Notes (Optional)</label>
-                    <textarea
-                      rows="3"
-                      className="w-full border rounded px-2 py-1"
-                      placeholder="Add any special arrangements or notes..."
-                      value={creditNotes}
-                      onChange={(e) => setCreditNotes(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+            </div>
+          )}
 
-      {/* Footer Buttons */}
-      <div className="mt-6 flex justify-between">
-        <button className="btn btn-back" onClick={onClose} disabled={submitting}>
-          Back to Sale
-        </button>
-        <button
-          className="btn btn-primary"
-          disabled={submitting || n(cashReceived) <= 0}
-          onClick={async () => {
-            console.log("🏪 Button clicked - warehouse:", warehouse);
+        </div>
 
-            let warehouseId = null;
-            let warehouseName = null;
 
-            if (warehouse) {
-              warehouseId = warehouse.id || warehouse.warehouse_id;
-              warehouseName =
-                warehouse.name || warehouse.warehouse_name || warehouse.warehouse;
-            }
+        {/* Footer Buttons */}
+        <div className="mt-6 flex justify-between">
+          <button className="btn btn-back" onClick={onClose} disabled={submitting}>
+            Back to Sale
+          </button>
+          <button
+            className="btn btn-primary"
+            disabled={submitting || n(cashReceived) <= 0}
+           onClick={async () => {
+              console.log("🏪 Button clicked - warehouse:", warehouse);
 
-            if (!warehouseId) {
-              const user = JSON.parse(localStorage.getItem("user") || "{}");
-              const selectedWarehouse = JSON.parse(
-                localStorage.getItem("selectedWarehouse") || "null"
-              );
+              let warehouseId = null;
+              let warehouseName = null;
 
-              if (selectedWarehouse?.id) {
-                warehouseId = selectedWarehouse.id;
-                warehouseName = selectedWarehouse.name;
-              } else if (user.warehouse_id) {
-                warehouseId = user.warehouse_id;
-                warehouseName = user.warehouse;
+              if (warehouse) {
+                warehouseId = warehouse.id || warehouse.warehouse_id;
+                warehouseName = warehouse.name || warehouse.warehouse_name || warehouse.warehouse;
               }
-            }
 
-            console.log("🏪 Final warehouse ID:", warehouseId);
-            console.log("🏪 Final warehouse name:", warehouseName);
+              // Fallback: try to get from localStorage
+              if (!warehouseId) {
+                const user = JSON.parse(localStorage.getItem("user") || "{}");
+                const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
 
-            if (!warehouseId && paymentMethod === "credit") {
-              showAlert(
-                "Warehouse is required for credit transactions. Please refresh the page and try again."
-              );
-              return;
-            }
-
-            const data = {
-              paymentMethod,
-              amount: n(cashReceived || totalAmountFinal),
-              cashReceived: n(cashReceived),
-              change,
-              amountDue: amountDueFinal,
-
-              actualSales: n(actualSalesValue),
-              emptiesPriceTotal: n(emptiesPriceTotal),
-              emptyReturns: n(emptyReturns),
-              emptyDiscrepancies: n(emptyDiscrepancies),
-              discrepancy_empty: isWarehouse ? n(emptyDiscrepancies || 0) : undefined,
-              expensesTotal: n(expensesTotal),
-              totalAmount: totalAmountFinal,
-
-              rows,
-              mspNo,
-              customerName: isVanLoad
-                ? customerInput || "Walk-in"
-                : customerName || "Walk-in",
-              handledBy,
-              transactionDate,
-
-              transactionTypeName,
-              remarks,
-              miscItems,
-
-              paymentTermsDays: days,
-              dueDate: paymentDueDate.toISOString(),
-              creditNotes,
-
-              expectedSale: n(expectedSale),
-              totalReturnedWithContent: n(totalReturnedWithContent),
-              totalDiscrepancyNonEmpty: n(totalDiscrepancyNonEmpty),
-              totalActualRetrievedVL: n(totalActualRetrievedVL),
-              overallTotalVL: n(overallTotalVL),
-              grandTotalVL: n(grandTotalVL),
-
-              amountDue: amountDueFinal,
-              warehouse: warehouseId,
-              merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
-            };
-
-            console.log("💳 Complete payment data:", data);
-
-            if (!data.payments || data.payments.length === 0) {
-              if (n(cashReceived) >= amountDueFinal) {
-                data.payments = [{ amount: n(cashReceived), method: "cash" }];
-              } else if (n(cashReceived) > 0 && n(cashReceived) < amountDueFinal) {
-                data.payments = [
-                  { amount: n(cashReceived), method: "cash" },
-                  { amount: amountDueFinal - n(cashReceived), method: "credit" },
-                ];
-              } else if (n(cashReceived) === 0) {
-                data.payments = [{ amount: amountDueFinal, method: "credit" }];
+                if (selectedWarehouse?.id) {
+                  warehouseId = selectedWarehouse.id;
+                  warehouseName = selectedWarehouse.name;
+                } else if (user.warehouse_id) {
+                  warehouseId = user.warehouse_id;
+                  warehouseName = user.warehouse;
+                }
               }
-            }
 
-            const received = n(cashReceived);
-            const due = n(amountDueFinal);
+              console.log("🏪 Final warehouse ID:", warehouseId);
+              console.log("🏪 Final warehouse name:", warehouseName);
 
-            let paymentType = "cash";
-            let creditAmount = 0;
+              if (!warehouseId && paymentMethod === "credit") {
+                showAlert("Warehouse is required for credit transactions. Please refresh the page and try again.");
+                return;
+              }
 
-            if (received === 0 && due > 0) {
-              paymentType = "credit";
-              creditAmount = due;
-            } else if (received > 0 && received < due) {
-              paymentType = "cash+credit";
-              creditAmount = due - received;
-            } else {
-              paymentType = "cash";
-              creditAmount = 0;
-            }
+              // ✅ DEFINE DATA FIRST
+              const data = {
+                paymentMethod,
+                amount: n(cashReceived || totalAmountFinal),
+                cashReceived: n(cashReceived),
+                change,
+                amountDue: amountDueFinal,
 
-            data.paymentMethod = paymentType;
-            data.creditAmount = creditAmount;
+                // breakdown
+                actualSales: n(actualSalesValue),
+                emptiesPriceTotal: n(emptiesPriceTotal),
+                emptyReturns: n(emptyReturns),
+                emptyDiscrepancies: n(emptyDiscrepancies),
+                discrepancy_empty: isWarehouse ? n(emptyDiscrepancies || 0) : undefined,
+                expensesTotal: n(expensesTotal),
+                totalAmount: totalAmountFinal,
 
-            const isFullCash = paymentType === "cash";
-            const isPartialCash = paymentType === "cash+credit";
-            const isFullCredit = paymentType === "credit";
-            const isCredit = isPartialCash || isFullCredit;
+                // rows + headers
+                rows,
+                mspNo,
+                customerName: isVanLoad ? (customerInput || "Walk-in") : (customerName || "Walk-in"),
+                handledBy,
+                transactionDate,
 
-            const paymentOk = isFullCash || isCredit;
+                // van load extras
+                transactionTypeName,
+                remarks,
+                miscItems,
 
-            try {
-              setSubmitting(true);
+                // credit extras
+                paymentTermsDays: days,
+                dueDate: paymentDueDate.toISOString(),
+                creditNotes,
 
-              let createdLedger = null;
-              if (isCredit) {
-                if (isVanLoad) {
-                  data.rows_json = tableRows.map((r) => ({
-                    productName: getProdName(r),
-                    dispatchedShell: getDispatchedShell(r),
-                    dispatchedPcs: getDispatchedPcs(r),
-                    soldShell: getSoldShell(r),
-                    soldPcs: getSoldPcs(r),
-                    unitPrice: getUnitPrice(r),
-                    discountPercent: getDiscountPercent(r),
-                    emptyShellPrice: getEmptyShellPrice(r),
-                    bottlePrice: getEmptyBottlePrice(r),
-                    returnedShells: getReturnedShells(r),
-                    returnedPcs: getReturnedPcs(r),
-                    actualSale: getRowActual(r),
-                  }));
+                // carry these for invoice parity
+                expectedSale: n(expectedSale),
+                totalReturnedWithContent: n(totalReturnedWithContent),
+                totalDiscrepancyNonEmpty: n(totalDiscrepancyNonEmpty),
+                totalActualRetrievedVL: n(totalActualRetrievedVL),
+                overallTotalVL: n(overallTotalVL),
+                grandTotalVL: n(grandTotalVL),
+
+                // final due used in the modal
+                amountDue: amountDueFinal,
+
+                // ✅ Only warehouse (integer ID)
+                warehouse: warehouseId,
+
+                merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
+              };
+
+              console.log("💳 Complete payment data:", data);
+
+              // ✅ NOW SAFE TO USE data
+              if (!data.payments || data.payments.length === 0) {
+                if (n(cashReceived) >= amountDueFinal) {
+                  data.payments = [{ amount: n(cashReceived), method: "cash" }];
+                } else if (n(cashReceived) > 0 && n(cashReceived) < amountDueFinal) {
+                  data.payments = [
+                    { amount: n(cashReceived), method: "cash" },
+                    { amount: amountDueFinal - n(cashReceived), method: "credit" },
+                  ];
+                } else if (n(cashReceived) === 0) {
+                  data.payments = [{ amount: amountDueFinal, method: "credit" }];
+                }
+              }
+
+              // ✅ Determine payment types
+              // ✅ Corrected payment type detection
+                const received = n(cashReceived);
+                const due = n(amountDueFinal);
+
+                let paymentType = "cash";
+                let creditAmount = 0;
+
+                if (received === 0 && due > 0) {
+                  paymentType = "credit"; // full credit
+                  creditAmount = due;
+                } else if (received > 0 && received < due) {
+                  paymentType = "cash+credit"; // partial
+                  creditAmount = due - received;
+                } else {
+                  // received >= due → full cash
+                  paymentType = "cash";
+                  creditAmount = 0;
                 }
 
-                try {
-                  createdLedger = await createCreditLedgerFromModalPayload(data);
-                  data.creditLedger = createdLedger;
-                } catch (err) {
-                  const resp = err?.response;
-                  const details = resp?.data
-                    ? JSON.stringify(resp.data, null, 2)
-                    : err?.message || String(err);
-                  console.error("Create credit failed:", err);
+                data.paymentMethod = paymentType;
+                data.creditAmount = creditAmount;
 
-                  const alertDiv = document.createElement("div");
-                  alertDiv.className =
-                    "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
-                  alertDiv.innerHTML = `
+                const isFullCash = paymentType === "cash";
+                const isPartialCash = paymentType === "cash+credit";
+                const isFullCredit = paymentType === "credit";
+                const isCredit = isPartialCash || isFullCredit;
+
+
+
+              const paymentOk = isFullCash || isCredit;
+
+
+              try {
+                setSubmitting(true);
+
+
+                // 1) If credit, create the ledger first
+                let createdLedger = null;
+                  if (isCredit) {
+
+                    // 🔹 ADD THIS BLOCK
+                    // Always map Van Load rows
+                      if (isVanLoad) {
+                        data.rows_json = tableRows.map((r) => ({
+                          productName: getProdName(r),
+                          dispatchedShell: getDispatchedShell(r),
+                          dispatchedPcs: getDispatchedPcs(r),
+                          soldShell: getSoldShell(r),
+                          soldPcs: getSoldPcs(r),
+                          unitPrice: getUnitPrice(r),
+                          discountPercent: getDiscountPercent(r),
+                          emptyShellPrice: getEmptyShellPrice(r),
+                          bottlePrice: getEmptyBottlePrice(r),
+                          returnedShells: getReturnedShells(r),
+                          returnedPcs: getReturnedPcs(r),
+                          actualSale: getRowActual(r),
+                        }));
+                      }
+
+
+                    try {
+                      createdLedger = await createCreditLedgerFromModalPayload(data);
+                      data.creditLedger = createdLedger;
+                    } catch (err) {
+                      const resp = err?.response;
+                      const details = resp?.data
+                        ? JSON.stringify(resp.data, null, 2)
+                        : err?.message || String(err);
+                      console.error("Create credit failed:", err);
+
+                      const alertDiv = document.createElement('div');
+                      alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+                      alertDiv.innerHTML = `
                         <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
                           <h3 class="text-lg font-semibold text-red-600 mb-3">Credit Save Failed</h3>
                           <div class="text-gray-700 mb-4 text-sm max-h-48 overflow-y-auto">
@@ -1262,81 +1378,92 @@ const PaymentModal = ({
                           </div>
                         </div>
                       `;
-                  document.body.appendChild(alertDiv);
+                      document.body.appendChild(alertDiv);
 
-                  setSubmitting(false);
-                  return;
+                      setSubmitting(false);
+                      return;
+                    }
+                  }
+
+
+                // 2) Existing save logic
+                if (n(cashReceived) <= 0) {
+                  showAlert("Please enter a valid amount for Cash Received.");
+                  return; // Stop further execution if validation fails
                 }
-              }
 
-              if (n(cashReceived) <= 0) {
-                showAlert("Please enter a valid amount for Cash Received.");
-                return;
-              }
 
-              if (isVanLoad && paymentOk && typeof onPaymentSuccess === "function") {
-                await onPaymentSuccess(data);
-              }
-              if (typeof onConfirm === "function") {
-                await onConfirm(data);
-              }
-              if (typeof onSave === "function") {
-                if (isVanLoad) {
-                  if (isPartialCash) {
-                    data.payments = [
-                      { amount: n(cashReceived), method: "cash" },
-                      { amount: amountDueFinal - n(cashReceived), method: "credit" },
-                    ];
-                  } else if (isCredit) {
-                    data.payments = [
-                      { amount: n(cashReceived || 0), method: "credit" },
-                    ];
-                  } else if (isFullCash) {
-                    data.payments = [
-                      { amount: n(cashReceived || amountDueFinal), method: "cash" },
-                    ];
+                if (isVanLoad && paymentOk && typeof onPaymentSuccess === "function") {
+                  await onPaymentSuccess(data);
+                }
+                if (typeof onConfirm === "function") {
+                  await onConfirm(data);
+                }
+                if (typeof onSave === "function") {
+                  // ✅ Ensure Van Load always saves payment method properly
+                  if (isVanLoad) {
+                    if (isPartialCash) {
+                      // Partial cash and credit mix
+                      data.payments = [
+                        { amount: n(cashReceived), method: "cash" },
+                        { amount: amountDueFinal - n(cashReceived), method: "credit" },
+                      ];
+                    } else if (isCredit) {
+                      // Pure credit (no cash)
+                      data.payments = [
+                        { amount: n(cashReceived || 0), method: "credit" },
+                      ];
+                    } else if (isFullCash) {
+                      // ✅ Full cash payment
+                      data.payments = [
+                        { amount: n(cashReceived || amountDueFinal), method: "cash" },
+                      ];
+                    }
+                  }
+
+
+                  const merchandising = await onSave(data);
+                  if (merchandising?.id) {
+                    data.id = merchandising.id;
                   }
                 }
 
-                const merchandising = await onSave(data);
-                if (merchandising?.id) {
-                  data.id = merchandising.id;
-                }
+
+
+                // 3) Show invoice
+                setInvoiceData(data);
+                setShowInvoiceModal(true);
+              } catch (e) {
+                console.error(e);
+               
+                // ✅ Use custom alert instead of browser alert
+                showAlert("Payment save failed. Please try again.");
+              } finally {
+                setSubmitting(false);
               }
-
-              setInvoiceData(data);
-              setShowInvoiceModal(true);
-            } catch (e) {
-              console.error(e);
-              showAlert("Payment save failed. Please try again.");
-            } finally {
-              setSubmitting(false);
-            }
-          }}
-        >
-          {submitting ? "Processing..." : "Confirm Payment & Generate Invoice"}
-        </button>
+            }}
+          >
+            {submitting ? "Processing..." : "Confirm Payment & Generate Invoice"}
+          </button>
+        </div>
       </div>
+
+
+      {showInvoiceModal && (
+        <InvoiceModal
+          transactionTypes={transactionTypes}
+          onClose={() => {
+            setShowInvoiceModal(false);
+            if (typeof onClose === "function") onClose();
+          }}
+              invoiceData={{
+                 ...invoiceData,
+                  id: transactionId || invoiceData?.id || null }}
+        />
+      )}
     </div>
-
-    {showInvoiceModal && (
-      <InvoiceModal
-        transactionTypes={transactionTypes}
-        onClose={() => {
-          setShowInvoiceModal(false);
-          if (typeof onClose === "function") onClose();
-        }}
-        invoiceData={{
-          ...invoiceData,
-          id: transactionId || invoiceData?.id || null,
-        }}
-      />
-    )}
-  </div>
-);
-
+  );
 };
 
 
 export default PaymentModal;
-

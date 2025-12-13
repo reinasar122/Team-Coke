@@ -5,6 +5,8 @@ import VanLoadTable from "../components/merchandisingcomponents/VanLoadTable";
 import api from "../api"; // ✅ correct
 
 
+//const API = "http://localhost:8080/api";
+
 // format to <input type="datetime-local">
 const toDatetimeLocalValue = (date = new Date()) => {
   const d = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
@@ -79,6 +81,8 @@ export default function MerchandisingSaleDetailPage() {
   const [vans, setVans] = useState([]);
   const [routes, setRoutes] = useState([]);
 
+  const [originalRows, setOriginalRows] = useState([]); 
+
   // data for table
   const [products, setProducts] = useState([]);
   const [saleItems, setSaleItems] = useState([]); // merchandising.items normalized
@@ -94,7 +98,15 @@ export default function MerchandisingSaleDetailPage() {
 
   const [saleDetail, setSaleDetail] = useState(sale);
 
+ const [totalExpectedSaleWithoutDiscount, setTotalExpectedSaleWithoutDiscount] = useState(0);
 
+  // Callback function to receive updated rows and calculate the total expectedSaleWithoutDiscount
+  const handleTotalExpectedSaleWithoutDiscount = (rows) => {
+    const total = rows.reduce((sum, row) => sum + row.expectedSaleWithoutDiscount, 0);
+    setTotalExpectedSaleWithoutDiscount(total);
+  };
+
+    
   const handlerName = useMemo(() => {
     const hb = saleDetail?.handled_by ?? sale?.handled_by;
     if (!hb) return "";
@@ -158,6 +170,7 @@ export default function MerchandisingSaleDetailPage() {
     document.body.appendChild(alertDiv);
   };
 
+
   // === normalize sale route/van and compute display strings ===
   const saleRouteId = typeof sale?.route === "object" ? sale.route?.id : sale?.route;
   const saleVanId   = typeof sale?.van   === "object" ? sale.van?.id   : sale?.van;
@@ -181,6 +194,9 @@ export default function MerchandisingSaleDetailPage() {
     const found = vans.find(v => Number(v.id) === id);
     return found ? `${found.van_id} - ${found.plate_number}` : "";
   }, [sale?.van, sale?.van_name, sale?.van_plate, vans, selectedVan, saleVanId]);
+
+
+
 
   /* ---------------------------------------
      Load current warehouse (keep your logic)
@@ -212,6 +228,28 @@ export default function MerchandisingSaleDetailPage() {
       window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, []);
 
+
+
+  useEffect(() => {
+    if (saleItems.length > 0 && rows.length === 0) {
+      // Only initialize rows and originalRows if rows haven't been modified by the user
+      const initializedRows = saleItems.map((item) => ({
+        ...item, // spread all fields
+        sellingPrice: item.sellingPricePc, // Ensure selling price is included
+      }));
+      setRows(initializedRows);
+      setOriginalRows(initializedRows);
+    }
+  }, [saleItems, rows]); // Add rows to the dependency array to ensure it's only set if empty
+
+  // Ensure that originalRows are reset properly when canceling the edit
+  const handleCancelEdit = () => {
+    setRows(originalRows); // Revert to original data, which includes sellingPrice
+    setEditMode(false);
+  };
+
+
+
   /* -------------------------
      Load products + pricing
   --------------------------*/
@@ -232,52 +270,54 @@ export default function MerchandisingSaleDetailPage() {
   /* -----------------------------------
      Load merchandising detail (items)
   ------------------------------------*/
-  const loadMerchandisingDetail = useCallback(
-    async (id, prodListParam) => {
-      if (!id) return;
-      const urls = [`/merchandisings/${id}/`, `/merchandising/${id}/`];
-      let data = null;
-      for (const url of urls) {
-        try {
-          const r = await api.get(url);
-          data = r.data;
-          break;
-        } catch {}
-      }
-      if (!data) {
-        showAlert("Could not load merchandising detail.");
-        return;
-      }
+const loadMerchandisingDetail = useCallback(
+  async (id, prodListParam) => {
+    if (!id) return;
+    const urls = [`/merchandisings/${id}/`, `/merchandising/${id}/`];
+    let data = null;
+    for (const url of urls) {
+      try {
+        const r = await api.get(url);
+        data = r.data;
+        break;
+      } catch {}
+    }
+    if (!data) {
+      showAlert("Could not load merchandising detail.");
+      return;
+    }
 
-    // ⬇️ NEW: update saleDetail
+    // Update saleDetail
     setSaleDetail(data);
 
     const prodList = Array.isArray(prodListParam) && prodListParam.length
       ? prodListParam
-      : products;                                  // fallback to state if provided none
+      : products;
 
     const items = Array.isArray(data.items) ? data.items : [];
 
     const mapped = items.map((it) => {
       const productId = typeof it.product === "object" ? it.product?.id : it.product;
-
-      // prefer product object from API item, else fall back to prod list
       const productObj =
         (typeof it.product === "object" && it.product) ||
         prodList.find((p) => Number(p.id) === Number(productId));
 
       const price = productObj?.price || {};
-      const contentNo =
-        productObj?.unit_type?.content_no ??
-        it.product?.unit_type?.content_no ??
-        1;
+      const contentNo = productObj?.unit_type?.content_no ?? it.product?.unit_type?.content_no ?? 1;
 
       const dispatchedPcs = Number(it.dispatched_pcs || it.dispatchedPcs || 0);
       const dispatchedShell =
         it.dispatched_shell !== undefined && it.dispatched_shell !== null
           ? Number(it.dispatched_shell)
-          : (contentNo > 0 ? Math.floor(dispatchedPcs / contentNo) : 0);
+          : contentNo > 0 ? Math.floor(dispatchedPcs / contentNo) : 0;
 
+      const expectedSaleWithoutDiscount = Number(
+        (Number(price.selling_price || 0) * dispatchedPcs).toFixed(2)
+      );
+
+      const expectedSale = Number(
+        (Number(price.selling_price || 0) * dispatchedPcs * (1 - Number(it.discount_percent || 0) / 100)).toFixed(2)
+      );
 
       return {
         id: it.id,
@@ -288,16 +328,11 @@ export default function MerchandisingSaleDetailPage() {
         shellPrice: Number(price.shell_price || 0),
         bottlePrice: Number(price.bottle_price || 0),
         dispatchedPcs,
-        dispatchedShell,   // now integer
-        discount: Number(it.discount_percent || 0),  // ✅ pull the right field
-        expectedSale: Number(
-          (Number(price.selling_price || 0) *
-            dispatchedPcs *
-            (1 - Number(it.discount_percent || 0) / 100)
-          ).toFixed(2)
-        ),
+        dispatchedShell,
+        discount: Number(it.discount_percent || 0),
+        expectedSaleWithoutDiscount,  // This is where it's calculated
+        expectedSale,
       };
-
     });
 
     setSaleItems(mapped);
@@ -317,6 +352,7 @@ export default function MerchandisingSaleDetailPage() {
         bottlePrice: m.bottlePrice,
         discount: m.discount || 0,
         expectedSale: m.expectedSale,
+        expectedSaleWithoutDiscount: m.expectedSaleWithoutDiscount, // add expectedSaleWithoutDiscount here
       })),
       {
         id: Date.now(),
@@ -332,12 +368,19 @@ export default function MerchandisingSaleDetailPage() {
       },
     ];
     setRows(editRows);
+
+    // Calculate total expected sale
     setTotalExpectedSale(
       editRows.reduce((s, r) => s + (Number(r.expectedSale) || 0), 0)
     );
+
+    // Pass total expectedSaleWithoutDiscount to parent (for the callback)
+    const totalWithoutDiscount = editRows.reduce((sum, row) => sum + row.expectedSaleWithoutDiscount, 0);
+    setTotalExpectedSaleWithoutDiscount(totalWithoutDiscount);
   },
-  [products]   // keep dependency; it’s fine as a fallback
+  [products]
 );
+
 
 
   // load availability for all products in the warehouse (one shot)
@@ -406,57 +449,116 @@ export default function MerchandisingSaleDetailPage() {
   }, [sale?.id, currentWarehouse?.id, loadProducts]);
 
 
-  /* -----------------------
-     Inline edit: save PATCH
-  ------------------------*/
   const handleSaveVanLoadEdit = async () => {
-    if (!sale?.id) return showAlert("Sale not found.");
+  if (!sale?.id) return showAlert("Sale not found.");
 
-    const items = rows
-      .filter((r) => Number(r.productId))
-      .map((r) => {
-        const pcs = Math.max(0, parseInt(r.dispatchedPcs) || 0);
+  const items = rows
+    .filter((r) => Number(r.productId))
+    .map((r) => {
+      const pcs = Math.max(0, parseInt(r.dispatchedPcs) || 0);
+      return {
+        id: r.dbItemId || undefined,
+        product: Number(r.productId),
+        dispatched_pcs: pcs,
+        dispatched_shell: Number.isFinite(Number(r.dispatchedShell)) ? Number(r.dispatchedShell) : 0,
+        discount_percent: Number(r.discount) || 0,
+      };
+    });
 
-        return {
-          id: r.dbItemId || undefined,
-          product: Number(r.productId),
-          dispatched_pcs: pcs,
-          dispatched_shell: Number.isFinite(Number(r.dispatchedShell))
-            ? Number(r.dispatchedShell)   // ✅ keep the original shell
-            : 0,
-         discount_percent: Number(r.discount) || 0, 
-        };
-      });
+  const payload = {
+    route: route ? Number(route) : null,
+    van: selectedVan ? Number(selectedVan) : null,
+    handled_by: selectedUser ? Number(selectedUser) : null,
+    date_time: new Date(transactionDate).toISOString(),
+    items,
+    expected_sale: Number(totalExpectedSale) || 0,
+    status: "Pending",
+  };
 
-
-    const payload = {
-      route: route ? Number(route) : null,
-      van: selectedVan ? Number(selectedVan) : null,
-      handled_by: selectedUser ? Number(selectedUser) : null, 
-      date_time: new Date(transactionDate).toISOString(),
-      items,
-      expected_sale: Number(totalExpectedSale) || 0,
-      status: "Pending",
-    };
-
-    try {
-      await api.patch(`/merchandisings/${sale.id}/`, payload, {
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
-        },
-      });
-      showAlert("Van Load updated.");
-      setEditMode(false);
-
-      // ⬇️ Refresh full sale detail (including handled_by)
-      await loadMerchandisingDetail(sale.id);
-    } catch (e) {
-      console.error("Failed to save Van Load edits:", e?.response?.data || e.message);
-      showAlert("Failed to save changes.");
+  // Check stock availability before making the request
+  try {
+    for (const item of items) {
+      const availableQty = availableStock[item.product];
+      if (availableQty == null || availableQty < item.dispatched_pcs) {
+        return showAlert(`Not enough stock for product ${item.product}`);
+      }
     }
 
-  };
+    // Save the Van Load data
+    await api.patch(`/merchandisings/${sale.id}/`, payload, {
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${localStorage.getItem("token")}`,
+      },
+    });
+
+    // After saving the Van Load, adjust the available stock
+    items.forEach(async (item) => {
+      const availableQty = availableStock[item.product];
+      const prevDispatched = saleItems.find((si) => si.productId === item.product)?.dispatchedPcs || 0;
+
+      // Calculate the delta (change in dispatched pcs)
+      const delta = item.dispatched_pcs - prevDispatched; // Positive for addition, negative for deduction
+      console.log(`Delta for product ${item.product}: ${delta}`);
+
+      if (availableQty != null) {
+        // Handle stock deduction if delta is positive (we added more dispatches)
+        if (delta > 0) {
+          const pcsToDeduct = delta; // Deduct stock for added dispatch
+          if (availableQty >= pcsToDeduct) {
+            await api.patch('/stocks/update/', {
+              product_id: item.product,
+              quantity: pcsToDeduct,
+              warehouse_id: currentWarehouse?.id,
+              action_type: "subtract",  // Deduct stock
+            })
+              .then(response => {
+                console.log("Stock deducted successfully:", response.data);
+                // Update local state after successful deduction
+                setAvailableStock(prev => ({ ...prev, [item.product]: prev[item.product] - pcsToDeduct }));
+              })
+              .catch(error => {
+                console.error("Error deducting stock:", error?.response?.data);
+              });
+          } else {
+            showAlert(`Not enough stock to deduct for product ${item.product}`);
+          }
+        }
+        // Handle stock addition if delta is negative (we reduced the dispatch quantity)
+        else if (delta < 0) {
+          const pcsToAdd = Math.abs(delta); // Add stock for reduced dispatch
+          await api.patch('/stocks/update/', {
+            product_id: item.product,
+            quantity: pcsToAdd,
+            warehouse_id: currentWarehouse?.id,
+            action_type: "add",  // Add stock back
+          })
+            .then(response => {
+              console.log("Stock added successfully:", response.data);
+              // Update local state after successful addition
+              setAvailableStock(prev => ({ ...prev, [item.product]: prev[item.product] + pcsToAdd }));
+            })
+            .catch(error => {
+              console.error("Error adding stock:", error?.response?.data);
+            });
+        }
+      }
+    });
+
+    showAlert("Van Load updated.");
+    setEditMode(false);
+    await loadMerchandisingDetail(sale.id);
+
+  } catch (e) {
+    console.error("Failed to save Van Load edits:", e?.response?.data || e.message);
+    showAlert("Failed to save changes.");
+  }
+};
+
+
+
+
+
 
   /* -----------------------
      Simple supporting modals
@@ -493,19 +595,26 @@ export default function MerchandisingSaleDetailPage() {
               <th className="border px-2 py-2 text-center" colSpan={2}>Dispatched</th>
               <th className="border px-2 py-2 text-center">Selling Price</th>
               <th className="border px-2 py-2 text-center" colSpan={2}>Empty Price</th>
-              <th className="border px-2 py-2 text-center">Discount (%)</th>
-              <th className="border px-2 py-2 text-center">Expected Sale</th>
+              <th className="border px-2 py-2 text-center">Discount (%)</th> 
+              {/* Always render the Expected Sale column */}
+              <th className="border">
+                Expected Sale without Discount
+              </th>
+
+              {/* Always render Expected Sale with Discount header */}
+              <th className="border">Expected Sale with Discount</th>
               <th className="border px-2 py-2 text-center">Available</th>
             </tr>
             <tr className="bg-slate-100">
               <td className="border px-2 py-1"></td>
               <td className="border px-2 py-1 text-center">Shell</td>
-              <td className="border px-2 py-1 text-center">Item Qty</td>
+              <td className="border px-2 py-1 text-center">PCS</td>
               <td className="border px-2 py-1"></td>
-              <td className="border px-2 py-1 text-center">Per Shell</td>
-              <td className="border px-2 py-1 text-center">Per Bottle</td>
+              <td className="border px-2 py-1 text-center">Shell</td>
+              <td className="border px-2 py-1 text-center">PCS</td>
               <td className="border px-2 py-1 text-center">%</td> {/* ✅ clearer indicator */}
-              <td className="border px-2 py-1 text-center"></td>
+              <td className="border px-2 py-1 text-center">PCS</td>
+              <td className="border px-2 py-1 text-center">PCS</td>
               <td className="border px-2 py-1 text-center">PCS</td>
             </tr>
           </thead>
@@ -610,20 +719,34 @@ export default function MerchandisingSaleDetailPage() {
                       />
                     </td>
 
-
-
-                    {/* EXPECTED SALE */}
+                  {/* Expected Sale without Discount */}
                     <td className="border border-gray-200 py-1 px-1">
                       <input
                         readOnly
                         className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium border rounded"
                         value={
-                          Number.isFinite(Number(it.expectedSale))
-                            ? pesoLocal(it.expectedSale)
+                          // Use it.expectedSaleWithoutDiscount to reference the value directly
+                          Number.isFinite(Number(it.expectedSaleWithoutDiscount))
+                            ? pesoLocal(it.expectedSaleWithoutDiscount)  // Format it properly
                             : ""
                         }
                       />
                     </td>
+
+
+                  {/* EXPECTED SALE WITH DISCOUNT */}
+                    {it.discount > 0 ? (
+                      <td className="border border-gray-200 py-1 px-1">
+                        <input
+                          readOnly
+                          className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium border rounded"
+                          value={Number.isFinite(Number(it.expectedSale)) ? pesoLocal(it.expectedSale) : ""}
+                        />
+                      </td>
+                    ) : (
+                      <td className="border border-gray-200 py-1 px-1"></td> // Empty cell if no discount
+                    )}
+
 
                     {/* AVAILABLE (PCS) */}
                     <td className="border border-gray-200 py-1 px-1 text-sm text-center">
@@ -667,18 +790,19 @@ export default function MerchandisingSaleDetailPage() {
         <div className="flex gap-3 justify-end">
           <button
             className="btn btn-cancel"
-            onClick={() => setEditMode(false)}
+            onClick={handleCancelEdit} // Ensure this resets rows to original data
           >
             Cancel
           </button>
           <button
             className="btn btn-primary"
-            onClick={handleSaveVanLoadEdit}
+            onClick={handleSaveVanLoadEdit} // Trigger save logic
           >
             Save Changes
           </button>
         </div>
       )}
+
       <div>
         <span className="text">Current Warehouse: </span>
         <span className="font-bold text-lg">
@@ -816,9 +940,11 @@ export default function MerchandisingSaleDetailPage() {
             products={filteredProducts}
             warehouseId={currentWarehouse?.id}
             setTotalExpectedSale={setTotalExpectedSale}
-            onAdjustmentsChange={() => {}}
+            onAdjustmentsChange={handleTotalExpectedSaleWithoutDiscount}  // Add callback here
+            defaultDiscount={0}
           />
         </div>
+          
       )}
     </div>
   );
