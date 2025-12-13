@@ -295,6 +295,15 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const getDiscountPercent = (r) => pickNum(r.discount_percent, r.discount);
   const getDiscountAmount = (r) => pickNum(r.discount_amount, r.discount_amt);
 
+  // Get discount amount in pesos (new function)
+  const getDiscountAmountInPesos = (r) => {
+    const unitPrice = getUnitPrice(r);
+    const soldPcs = getSoldPcs(r);
+    const discountPercent = getDiscountPercent(r);
+
+    return (unitPrice * soldPcs * discountPercent) / 100;
+  };
+
   const getEmptyShellPrice = (r) =>
     pickNum(r.shellPrice, r.empty_price_shell, r.emptyPriceShell);
   const getEmptyBottlePrice = (r) =>
@@ -522,6 +531,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
         soldShell: getSoldShell(r),
         soldPcs: getSoldPcs(r),
         unitPrice: getUnitPrice(r),
+        discountAmountInPesos: getDiscountAmountInPesos(r), 
         discountPercent: getDiscountPercent(r),
         amount: getRowActual(r),
         // jelyn changes start
@@ -734,7 +744,7 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                     {`${getSoldShell(row)} shells (${getSoldPcs(row)} pcs)`}
                   </td>
                   <td className="border px-2 py-1">₱{fmt(getUnitPrice(row))}</td>
-                  <td className="border px-2 py-1">{fmt(getDiscountPercent(row))}</td>
+                  <td className="border px-2 py-1">₱{fmt(getDiscountAmountInPesos(row))}</td>
                   <td className="border px-2 py-1">₱{fmt(getRowActual(row))}</td>
                 </tr>
               ))}
