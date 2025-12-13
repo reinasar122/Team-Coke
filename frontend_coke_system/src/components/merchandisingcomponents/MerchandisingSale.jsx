@@ -482,6 +482,32 @@ const MerchandisingSale = () => {
   }, [currentWarehouse]);
 
   useEffect(() => {
+  // Check if we're returning from customer registration
+  if (location.state?.autoSelectCustomer && location.state?.newlyCreatedCustomer) {
+    const newCustomer = location.state.newlyCreatedCustomer;
+    console.log("🎯 Auto-selecting newly created customer:", newCustomer);
+    
+    // Add to customers list if not already there
+    setCustomers(prev => {
+      const exists = prev.some(c => c.id === newCustomer.id);
+      if (!exists) {
+        return [...prev, newCustomer];
+      }
+      return prev;
+    });
+    
+    // Auto-select the customer
+    setSelectedCustomerId(String(newCustomer.id));
+    
+    // Clean up the state to prevent re-triggering
+    window.history.replaceState(
+      { ...location.state, autoSelectCustomer: false, newlyCreatedCustomer: null },
+      document.title
+    );
+  }
+}, [location.state?.autoSelectCustomer, location.state?.newlyCreatedCustomer]);
+
+  useEffect(() => {
     api
       .get("transaction-types/")
       .then((res) => {

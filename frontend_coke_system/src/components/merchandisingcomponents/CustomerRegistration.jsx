@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../api";
 import { getCurrentWarehouse, findWarehouseByName } from "../../utils/warehouseUtils";
 
 const CustomerRegistration = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [customers, setCustomers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -244,6 +245,23 @@ const CustomerRegistration = () => {
         
         setCustomers(prev => [...prev, response.data]);
         
+        // Check if we came from merchandising sale
+        const cameFromMerchandisingSale = location.state?.from === 'merchandising-sale';
+        
+        if (cameFromMerchandisingSale) {
+          console.log("🔄 Returning to MerchandisingSale with new customer:", response.data);
+          
+          // Navigate back to merchandising sale with the new customer data
+          navigate(location.state.returnPath || '/merchandising-sale', {
+            state: {
+              ...location.state.currentFormData,
+              newlyCreatedCustomer: response.data,
+              autoSelectCustomer: true
+            }
+          });
+          return;
+        }
+        
         showAlert("Customer registered successfully!", "success");
       }
       
@@ -306,10 +324,14 @@ const CustomerRegistration = () => {
   };
 
   const handleContinueToSale = () => {
+    // Check if we have form data to restore
+    const formDataToRestore = location.state?.currentFormData || {};
+    
     navigate("/merchandising-sale", {
       state: {
         transactionTypeName: "Warehouse",
         selectedTransactionTypeName: "Warehouse",
+        ...formDataToRestore,
       }
     });
   };
@@ -364,11 +386,26 @@ const CustomerRegistration = () => {
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Customer Management</h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
-                {editingCustomer ? 'Edit customer information' : 'Register new customers for merchandising sales'}
+                {editingCustomer ? 'Edit customer information' : 
+                 location.state?.from === 'merchandising-sale' ? 
+                 'Register new customer and return to sale' : 
+                 'Register new customers for merchandising sales'}
               </p>
+              {location.state?.from === 'merchandising-sale' && (
+                <p className="text-blue-600 dark:text-blue-400 text-sm mt-1">
+                </p>
+              )}
             </div>
             <button
-              onClick={() => navigate(-1)}
+              onClick={() => {
+                if (location.state?.from === 'merchandising-sale') {
+                  navigate(location.state.returnPath || '/merchandising-sale', {
+                    state: location.state.currentFormData
+                  });
+                } else {
+                  navigate(-1);
+                }
+              }}
               className="btn btn-back"
             >
               Back
@@ -493,10 +530,13 @@ const CustomerRegistration = () => {
                   disabled={isLoading}
                   className="flex-1 btn btn-primary"
                 >
-                  {isLoading ? (editingCustomer ? "Updating..." : "Registering...") : (editingCustomer ? "Update Customer" : "Register Customer")}
+                  {isLoading ? (editingCustomer ? "Updating..." : "Registering...") : 
+                   editingCustomer ? "Update Customer" : 
+                   location.state?.from === 'merchandising-sale' ? "Register & Return to Sale" : 
+                   "Register Customer"}
                 </button>
                 
-                {!editingCustomer && (
+                {!editingCustomer && location.state?.from !== 'merchandising-sale' && (
                   <button
                     type="button"
                     onClick={handleContinueToSale}
