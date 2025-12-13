@@ -768,6 +768,35 @@ class StockDetailView(APIView):
             return Response({"quantity_available": stock.quantity_available})
         except Stock.DoesNotExist:
             return Response({"quantity_available": 0})  # ← Instead of NotFound
+        
+
+class StockUpdateAPIView(APIView):
+    def patch(self, request, *args, **kwargs):
+        product_id = request.data.get("product_id")
+        quantity = request.data.get("quantity")
+        warehouse_id = request.data.get("warehouse_id")
+        action_type = request.data.get("action_type")  # 'add' or 'subtract'
+
+        if not product_id or quantity is None or action_type not in ["add", "subtract"]:
+            return Response({"error": "Missing product_id, quantity or action_type"}, status=status.HTTP_400_BAD_REQUEST)
+
+        stock = Stock.objects.filter(product_id=product_id, warehouse_id=warehouse_id)
+
+        if not stock.exists():
+            return Response({"error": "Product not found"}, status=status.HTTP_404_NOT_FOUND)
+
+        for s in stock:
+            if action_type == "subtract":
+                if s.quantity_available < quantity:
+                    return Response({"error": f"Insufficient stock for product {s.product_id}"}, status=status.HTTP_400_BAD_REQUEST)
+                s.quantity_available -= quantity
+            elif action_type == "add":
+                s.quantity_available += quantity
+            s.save()
+
+        return Response({"message": "Stock updated successfully"}, status=status.HTTP_200_OK)
+
+
 
 class RouteListCreateView(generics.ListCreateAPIView):
     queryset = Route.objects.all()
