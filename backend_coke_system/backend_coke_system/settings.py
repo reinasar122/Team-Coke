@@ -63,6 +63,7 @@ MIDDLEWARE = [
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",  # React frontend URL
      "http://127.0.0.1:3000",
+     "*",
 ]
 
 ROOT_URLCONF = 'backend_coke_system.urls'
