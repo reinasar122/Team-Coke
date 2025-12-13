@@ -847,66 +847,74 @@ const PaymentModal = ({
             </div>
 
 
-            {/* EMPTY PRICE */}
-            <div className="mt-6">
-              <h4 className="font-bold mb-2 text-gray-700">EMPTY PRICE</h4>
-              <table className="w-full text-sm border border-gray-300">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2">Product</th>
-                    <th className="p-2">Shell Price</th>
-                    <th className="p-2">Bottle Price</th>
-                    <th className="p-2">Total Shells</th>
-                    <th className="p-2">Total Pieces</th>
-                    <th className="p-2">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row, i) => (
-                    <tr key={i}>
-                      <td className="border px-2 py-1">{getProdName(row)}</td>
-                      <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
-                      <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
-                      <td className="border px-2 py-1">{getSoldShell(row)}</td>
-                      <td className="border px-2 py-1">{getSoldPcs(row)}</td>
-                      <td className="border px-2 py-1">₱{fmt(rowEmptiesValue(row))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="text-right font-semibold mt-1">SUBTOTAL: ₱{fmt(emptiesPriceTotal)}</p>
-            </div>
+            {/* EMPTY PRICE + RETURNS (hide when net discrepancy is 0) */}
+            {n(emptiesPriceTotal) - n(emptyReturns) !== 0 && (
+              <>
+                {/* EMPTY PRICE */}
+                <div className="mt-6">
+                  <h4 className="font-bold mb-2 text-gray-700">EMPTY SHELL & BOTTLE PRICE</h4>
+                  <table className="w-full text-sm border border-gray-300">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="p-2">Product</th>
+                        <th className="p-2">Shell Price</th>
+                        <th className="p-2">Bottle Price</th>
+                        <th className="p-2">Total Shells</th>
+                        <th className="p-2">Total Pieces</th>
+                        <th className="p-2">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableRows.map((row, i) => (
+                        <tr key={i}>
+                          <td className="border px-2 py-1">{getProdName(row)}</td>
+                          <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
+                          <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
+                          <td className="border px-2 py-1">{getSoldShell(row)}</td>
+                          <td className="border px-2 py-1">{getSoldPcs(row)}</td>
+                          <td className="border px-2 py-1">₱{fmt(rowEmptiesValue(row))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-right font-semibold mt-1">
+                    SUBTOTAL: ₱{fmt(emptiesPriceTotal)}
+                  </p>
+                </div>
 
-
-            {/* RETURNS */}
-            <div className="mt-6">
-              <h4 className="font-bold mb-2 text-gray-700">RETURNS</h4>
-              <table className="w-full text-sm border border-gray-300">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="p-2">Product</th>
-                    <th className="p-2">Shell Price</th>
-                    <th className="p-2">Bottle Price</th>
-                    <th className="p-2">Returned Shells</th>
-                    <th className="p-2">Returned Pieces</th>
-                    <th className="p-2">Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableRows.map((row, i) => (
-                    <tr key={i}>
-                      <td className="border px-2 py-1">{getProdName(row)}</td>
-                      <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
-                      <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
-                      <td className="border px-2 py-1">{getReturnedShells(row)}</td>
-                      <td className="border px-2 py-1">{getReturnedPcs(row)}</td>
-                      <td className="border px-2 py-1">₱{fmt(rowReturnsValue(row))}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="text-right font-semibold mt-1">SUBTOTAL: ₱-{fmt(emptyReturns)}</p>
-            </div>
+                {/* RETURNS */}
+                <div className="mt-6">
+                  <h4 className="font-bold mb-2 text-gray-700">RETURNED SHELL & BOTTLE</h4>
+                  <table className="w-full text-sm border border-gray-300">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="p-2">Product</th>
+                        <th className="p-2">Shell Price</th>
+                        <th className="p-2">Bottle Price</th>
+                        <th className="p-2">Returned Shells</th>
+                        <th className="p-2">Returned Pieces</th>
+                        <th className="p-2">Amount</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tableRows.map((row, i) => (
+                        <tr key={i}>
+                          <td className="border px-2 py-1">{getProdName(row)}</td>
+                          <td className="border px-2 py-1">₱{fmt(getEmptyShellPrice(row))}</td>
+                          <td className="border px-2 py-1">₱{fmt(getEmptyBottlePrice(row))}</td>
+                          <td className="border px-2 py-1">{getReturnedShells(row)}</td>
+                          <td className="border px-2 py-1">{getReturnedPcs(row)}</td>
+                          <td className="border px-2 py-1">₱{fmt(rowReturnsValue(row))}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  <p className="text-right font-semibold mt-1">
+                    SUBTOTAL: ₱-{fmt(emptyReturns)}
+                  </p>
+                </div>
+              </>
+            )}
           </>
         )}
 
