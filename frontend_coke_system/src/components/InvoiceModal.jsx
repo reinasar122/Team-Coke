@@ -5,6 +5,8 @@ import { downloadInvoicePDF } from "./PDFInvoice"; // ⬅️ new import
 // In src/components/InvoiceModal.jsx (same folder as receiptPrint.jsx)
 import { printReceipt } from "./receiptPrint.jsx"; // Make sure the file name is exactly 'receiptPrint.jsx'
 import "react-toastify/dist/ReactToastify.css"
+import api from "../api"; // Assuming this is where your api helper is
+
 
 
 
@@ -14,10 +16,6 @@ const InvoiceModal = ({
   hidePaymentBreakdown = false,
   isViewOnly = false,
  }) => {
-
-
-
-  
 
   const navigate = useNavigate();
   const saleId = invoiceData?.id || null;
@@ -297,15 +295,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const getDiscountPercent = (r) => pickNum(r.discount_percent, r.discount);
   const getDiscountAmount = (r) => pickNum(r.discount_amount, r.discount_amt);
 
-  // Get discount amount in pesos (new function)
-  const getDiscountAmountInPesos = (r) => {
-    const unitPrice = getUnitPrice(r);
-    const soldPcs = getSoldPcs(r);
-    const discountPercent = getDiscountPercent(r);
-
-    return (unitPrice * soldPcs * discountPercent) / 100;
-  };
-  
   const getEmptyShellPrice = (r) =>
     pickNum(r.shellPrice, r.empty_price_shell, r.emptyPriceShell);
   const getEmptyBottlePrice = (r) =>
@@ -403,39 +392,29 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
     console.log("📤 Saving invoice for merchandising ID:", saleId, "Invoice No:", invoiceNumber);
 
-    const res = await fetch(
-      `http://localhost:8080/api/merchandising-set/${saleId}/set_invoice_no/`,
+    // Using the API helper instead of fetch
+    const res = await api.post(
+      `/merchandising-set/${saleId}/set_invoice_no/`,
       {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          invoice_no: invoiceNumber,
-          empties_price_total: emptiesPriceTotal,
-          empty_returns: emptyReturns,
-          payment_method: paymentMethod,
-        }),
-      }
+        invoice_no: invoiceNumber,
+        empties_price_total: emptiesPriceTotal,
+        empty_returns: emptyReturns,
+        payment_method: paymentMethod,
+      },
+      { headers }
     );
 
-    const responseBody = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      console.error("❌ Save invoice failed:", res.status, responseBody);
-      showAlert(
-        responseBody?.detail ||
-          JSON.stringify(responseBody) ||
-          "Failed to save invoice number. See console."
-      );
+    if (res.status !== 200) {
+      console.error("❌ Save invoice failed:", res.status, res.data);
+      showAlert(res.data?.detail || JSON.stringify(res.data) || "Failed to save invoice number.");
       return;
     }
 
-    console.log("✅ Invoice saved:", responseBody);
+    console.log("✅ Invoice saved:", res.data);
 
-    // ✅ Logic after saving invoice
     const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
 
     if (isWarehouse) {
-      // Only Warehouse → go back to Merchandising Sale and open new transaction
       const warehouseType = Array.isArray(transactionTypes)
         ? transactionTypes.find(tt => tt.name === "Warehouse")
         : null;
@@ -448,7 +427,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
         },
       });
     } else {
-      // Van Load → go back to trading list
       navigate("/trading", { replace: true, state: { reset: true } });
     }
 
@@ -458,6 +436,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     showAlert("Network error while saving invoice. Check console.");
   }
 };
+
 
 
 
@@ -543,12 +522,8 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
         soldShell: getSoldShell(r),
         soldPcs: getSoldPcs(r),
         unitPrice: getUnitPrice(r),
-        discountAmountInPesos: getDiscountAmountInPesos(r), 
         discountPercent: getDiscountPercent(r),
         amount: getRowActual(r),
-        
-        
-        
         // jelyn changes start
         expenses: (miscItems || []).map(e => ({
         description: e.description,
@@ -759,7 +734,7 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                     {`${getSoldShell(row)} shells (${getSoldPcs(row)} pcs)`}
                   </td>
                   <td className="border px-2 py-1">₱{fmt(getUnitPrice(row))}</td>
-                  <td className="border px-2 py-1">₱{fmt(getDiscountAmountInPesos(row))}</td> 
+                  <td className="border px-2 py-1">{fmt(getDiscountPercent(row))}</td>
                   <td className="border px-2 py-1">₱{fmt(getRowActual(row))}</td>
                 </tr>
               ))}
@@ -938,16 +913,11 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
 
                           <div className="border-t border-gray-300 my-2"></div>
 
-                          {/* Karen Changes */}
                           {(paymentMethod === "cash" || paymentMethod === "credit") && (
-                          <div className="flex justify-between font-bold text-gray-800">
-                            <span>Grand Total</span>
-
-                            <span className="text-3xl font-extrabold text-black">
-                              ₱{fmt(n(amountDue) || n(totalAmount))}
-                            </span>
-                          </div>
-
+                        <div className="flex justify-between font-bold text-gray-800">
+                          <span>Grand Total</span>
+                          <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
+                        </div>
                       )}
                         </div>
                       </div>
@@ -986,7 +956,6 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                       {/* 🔹 Add a divider after Actual Sales */}
                       <div className="border-t border-gray-300 my-2"></div>
 
-
                       {/* Karen changes*/}
                       <div className="flex justify-between font-bold text-gray-800">
                         <span className="text-lg">Amount Due:</span>
@@ -994,8 +963,6 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                           ₱{fmt(n(amountDue) || n(totalAmount))}
                         </span>
                       </div>
-
-
 
                     </div>
                   )}
