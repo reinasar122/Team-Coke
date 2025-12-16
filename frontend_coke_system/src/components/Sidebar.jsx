@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faTachometerAlt, faShoppingCart, faBoxOpen, faCog, faSignOutAlt, faChevronDown, faChevronUp, faChartBar } from "@fortawesome/free-solid-svg-icons";
 import { hasAccess } from "../utils/accessUtils"; // Import the new permission check functions
 import { routeMap, routeOrder } from "../utils/routeMap"; // Import route map
 
