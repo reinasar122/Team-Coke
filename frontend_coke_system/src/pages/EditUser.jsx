@@ -9,6 +9,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   const [warehouses, setWarehouses] = useState([]);
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [usernameManuallyChanged, setUsernameManuallyChanged] = useState(false); // Track if username was manually edited
 
   // ---------------- Fetch user, roles, warehouses ----------------
   useEffect(() => {
@@ -39,17 +40,23 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
         let roleId = data.role?.id || data.role_id || "";
         let warehouseId = data.warehouse?.id || data.warehouse_id || "";
 
+        // ✅ Check if username was manually set or should default to phone number
+        const hasCustomUsername = data.username && data.username !== data.phone_number;
+        
         setUser({
           first_name: data.first_name || "",
           last_name: data.last_name || "",
           gender: data.gender || "",
-          username: data.username || "",
+          username: data.username || data.phone_number || "", // ✅ Default to phone number if username is empty
           phone_number: data.phone_number || "",
           role_id: Number(roleId) || "",
           warehouse_id: Number(warehouseId) || "",
           is_active: data.is_active ?? true,
           password: "", // blank by default
         });
+
+        // ✅ Set flag if username was manually customized
+        setUsernameManuallyChanged(hasCustomUsername);
       } catch (err) {
         console.error("Failed to load user:", err);
       }
@@ -70,10 +77,24 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    setUser((prev) => ({
-      ...prev,
-      [name]: name === "role_id" || name === "warehouse_id" ? Number(value) : value,
-    }));
+    setUser((prev) => {
+      const updated = {
+        ...prev,
+        [name]: name === "role_id" || name === "warehouse_id" ? Number(value) : value,
+      };
+
+      // ✅ Auto-sync username with phone number if it hasn't been manually changed
+      if (name === "phone_number" && !usernameManuallyChanged) {
+        updated.username = value;
+      }
+
+      return updated;
+    });
+
+    // ✅ Track if username was manually edited
+    if (name === "username") {
+      setUsernameManuallyChanged(true);
+    }
 
     // Clear specific errors on input
     if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
@@ -83,6 +104,16 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
       const phoneError = validatePhoneNumber(value);
       if (phoneError) setErrors((prev) => ({ ...prev, phone_number: phoneError }));
     }
+  };
+
+  // ✅ Function to sync username with phone number
+  const syncUsernameWithPhone = () => {
+    setUser((prev) => ({
+      ...prev,
+      username: prev.phone_number
+    }));
+    setUsernameManuallyChanged(false);
+    toast.success("Username synced with phone number!", { style: successStyle });
   };
 
   // ---------------- Handle Submit ----------------
@@ -254,9 +285,15 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
           </div>
 
           {/* Username & Status */}
-            <div className="mb-5 flex gap-6">
-              <div className="w-1/2">
-                <label className="block font-medium">Username</label>
+          <div className="mb-5 flex gap-6">
+            <div className="w-1/2">
+              <label className="block font-medium">
+                Username
+                {usernameManuallyChanged && user.username !== user.phone_number && (
+                  <span className="text-sm text-blue-600 ml-2">(Custom)</span>
+                )}
+              </label>
+              <div className="flex gap-2">
                 <input
                   type="text"
                   name="username"
@@ -264,22 +301,40 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
                   onChange={handleChange}
                   className="w-full border p-2 rounded"
                   required
+                  placeholder="Username (defaults to phone number)"
                 />
+                {/* ✅ Sync button - only show if username differs from phone number */}
+                {user.username !== user.phone_number && (
+                  <button
+                    type="button"
+                    onClick={syncUsernameWithPhone}
+                    className="px-3 py-2 bg-blue-500 text-white rounded text-sm whitespace-nowrap hover:bg-blue-600 transition-colors"
+                    title="Sync username with phone number"
+                  >
+                    Sync
+                  </button>
+                )}
               </div>
-
-              <div className="w-1/2">
-                <label className="block font-medium">Status</label>
-                <select
-                  name="is_active"
-                  value={user.is_active.toString()}
-                  onChange={handleChange}
-                  className="w-full border p-2 rounded"
-                >
-                  <option value="true">Active</option>
-                  <option value="false">Inactive</option>
-                </select>
-              </div>
+              {!usernameManuallyChanged && (
+                <p className="text-gray-500 text-xs mt-1">
+                  Username will automatically sync with phone number
+                </p>
+              )}
             </div>
+
+            <div className="w-1/2">
+              <label className="block font-medium">Status</label>
+              <select
+                name="is_active"
+                value={user.is_active.toString()}
+                onChange={handleChange}
+                className="w-full border p-2 rounded"
+              >
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+            </div>
+          </div>
 
           {/* Buttons */}
           <div className="flex justify-between">
