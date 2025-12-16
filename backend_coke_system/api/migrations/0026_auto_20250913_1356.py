@@ -1,5 +1,6 @@
 from django.db import migrations
 from django.contrib.auth.hashers import make_password
+from django.core.exceptions import ObjectDoesNotExist
 
 def create_default_admin(apps, schema_editor):
     User = apps.get_model('api', 'User')
@@ -15,40 +16,50 @@ def create_default_admin(apps, schema_editor):
 
     # Create default admin user if it doesn't exist
     if not User.objects.filter(username="admin").exists():
-        admin_user = User(
-            username="admin",
-            role=admin_role,
-            warehouse=default_warehouse,
-            password=make_password("@dm!n123")  # hashed password
-        )
-        admin_user.save()
-
-    # Give full permissions for all submenus for Admin role
-    # Assuming your MODULES are stored in SubMenu table or predefined
+        try:
+            admin_user = User(
+                username="admin",
+                phone_number="09179902969",  # Assigning phone number
+                role=admin_role,
+                warehouse=default_warehouse,
+                password=make_password("admin123")  # hashed password
+            )
+            admin_user.save()
+            print("Default admin user created.")
+        except Exception as e:
+            print(f"Error creating admin user: {e}")
+    
+    # Assign full permissions for all submenus for the Admin role
     submenus = [
         "Dashboard", "Stocks", "Product", "Returned Empties", "Sales Report",
         "Inventory Report", "User", "Roles", "Supplier", "Warehouse",
-        "Van", "Receiving", "Trading", "Invoice", "Supplier Return", "Credit", "Expenses","Settings",
+        "Van", "Receiving", "Trading", "Supplier Return", "Credit", "Expenses", "Settings",
     ]
-
+    
     for submenu in submenus:
-        # create or update access
-        RoleAccessibility.objects.update_or_create(
-            role=admin_role,
-            submenu=submenu,
-            defaults={
-                "full": True,
-                "view": True,
-                "create": True,
-                "edit": True,
-                "delete": True,
-            }
-        )
+        try:
+            # Create or update access for the submenu
+            RoleAccessibility.objects.update_or_create(
+                role=admin_role,
+                submenu=submenu,
+                defaults={
+                    "full": True,
+                    "view": True,
+                    "create": True,
+                    "edit": True,
+                    "delete": True,
+                }
+            )
+            print(f"Permissions for {submenu} assigned to Admin role.")
+        except ObjectDoesNotExist as e:
+            print(f"Error assigning permissions for {submenu}: {e}")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
 
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('api', '0025_miscellaneousitem_created_at_and_more'),
+        ('api', '0025_miscellaneousitem_created_at_and_more'),  # Update with the correct previous migration
     ]
 
     operations = [
