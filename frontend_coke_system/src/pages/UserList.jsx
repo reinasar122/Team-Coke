@@ -31,6 +31,110 @@ const SearchIcon = () => (
   </svg>
 );
 
+// Karen Changes: Approval Modal for assigning role + warehouse
+const ApprovalModal = ({ isOpen, onClose, user, roles, warehouses, onApproved }) => {
+  const [roleId, setRoleId] = useState("");
+  const [warehouseId, setWarehouseId] = useState("");
+
+  useEffect(() => {
+    if (user) {
+      setRoleId(user.role?.id || "");
+      setWarehouseId(user.warehouse?.id || "");
+    } else {
+      setRoleId("");
+      setWarehouseId("");
+    }
+  }, [user]);
+
+  if (!isOpen || !user) return null;
+
+  const handleSave = async () => {
+    if (!roleId || !warehouseId) {
+      toast.error("Please select both role and warehouse.");
+      return;
+    }
+
+    try {
+      const payload = {
+        role: roleId,          // ✅ backend expects "role"
+        warehouse: warehouseId, // ✅ backend expects "warehouse"
+        is_approved: true,
+        is_active: true,
+        status: "Active",
+      };
+
+      const { data } = await api.patch(`/users/${user.id}/`, payload);
+
+      toast.success(`User '${data.first_name} ${data.last_name}' approved.`);
+      onApproved(data);
+      onClose();
+    } catch (error) {
+      console.error("Error approving user:", error);
+      toast.error("Failed to approve user.");
+    }
+  };
+
+
+  return (
+    <div className="modal-overlay">
+      <div className="modal">
+        <div className="modal-body">
+          <h3 className="page-title">Approve User</h3>
+          <p style={{ marginBottom: "0.75rem" }}>
+            Assign role and warehouse for:
+          </p>
+          <p style={{ fontWeight: 600, marginBottom: "1rem" }}>
+            {user.first_name} {user.last_name}
+          </p>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+            <div>
+              <label className="label">Role</label>
+              <select
+                className="input"
+                value={roleId}
+                onChange={(e) => setRoleId(e.target.value)}
+              >
+                <option value="">Select role</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="label">Warehouse</label>
+              <select
+                className="input"
+                value={warehouseId}
+                onChange={(e) => setWarehouseId(e.target.value)}
+              >
+                <option value="">Select warehouse</option>
+                {warehouses.map((wh) => (
+                  <option key={wh.id} value={wh.id}>
+                    {wh.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="flex justify-between" style={{ marginTop: "1.5rem" }}>
+            <button type="button" className="btn btn-cancel" onClick={onClose}>
+              Cancel
+            </button>
+            <button type="button" className="btn btn-primary" onClick={handleSave}>
+              Save & Approve
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, user }) => {
   if (!isOpen) return null;
 
@@ -63,9 +167,11 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, user }) => {
 const UserList = () => {
   const [users, setUsers] = useState([]);
   const [roles, setRoles] = useState([]);
+  const [warehouses, setWarehouses] = useState([]); // Karen Changes
   const [showForm, setShowForm] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ open: false, user: null });
+  const [approvalModal, setApprovalModal] = useState({ open: false, user: null }); // Karen Changes
   const [selectedRole, setSelectedRole] = useState("All Users");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -74,13 +180,13 @@ const UserList = () => {
   useEffect(() => {
     fetchUsers();
     fetchRoles();
+    fetchWarehouses(); // Karen Changes
   }, []);
 
   const fetchUsers = async () => {
     try {
       const { data } = await api.get("/users/");
-    setUsers(data);
-
+      setUsers(data);
     } catch (error) {
       console.error("Error fetching users:", error);
     }
@@ -89,10 +195,19 @@ const UserList = () => {
   const fetchRoles = async () => {
     try {
       const { data } = await api.get("/roles/");
-setRoles(data);
-
+      setRoles(data);
     } catch (error) {
       console.error("Error fetching roles:", error);
+    }
+  };
+
+  // Karen Changes: fetch warehouses for selection in approval modal
+  const fetchWarehouses = async () => {
+    try {
+      const { data } = await api.get("/warehouses/");
+      setWarehouses(data);
+    } catch (error) {
+      console.error("Error fetching warehouses:", error);
     }
   };
 
@@ -108,8 +223,6 @@ setRoles(data);
 
     try {
       await api.delete(`/users/${deleteModal.user.id}/`);
-
-
       setUsers((prevUsers) =>
         prevUsers.filter((user) => user.id !== deleteModal.user.id)
       );
@@ -122,12 +235,23 @@ setRoles(data);
     } catch (error) {
       console.error("Error deleting user:", error);
       toast.error(
-        `Failed to delete user '${
-          deleteModal.user.username || deleteModal.user.first_name
+        `Failed to delete user '${deleteModal.user.username || deleteModal.user.first_name
         }'.`,
         errorStyle
       );
     }
+  };
+
+  // Karen Changes: open approval modal instead of direct patch
+  const handleUserApprovalClick = (user) => {
+    setApprovalModal({ open: true, user });
+  };
+
+  // Karen Changes: when backend returns updated user after approval
+  const handleUserApproved = (updatedUser) => {
+    setUsers((prev) =>
+      prev.map((u) => (u.id === updatedUser.id ? updatedUser : u))
+    );
   };
 
   const uniqueRoles = ["All Users", ...roles.map((role) => role.name)];
@@ -259,7 +383,7 @@ setRoles(data);
           </div>
         </div>
 
-        <button
+        {/* <button
           className={`btn ${canCreate("User") ? "btn-add" : "btn-disabled"}`}
           onClick={() => {
             if (canCreate("User")) setShowForm(true);
@@ -267,7 +391,7 @@ setRoles(data);
           disabled={!canCreate("User")}
         >
           + Create User
-        </button>
+        </button> */}
       </div>
 
       {/* Table */}
@@ -366,7 +490,14 @@ setRoles(data);
                   <td className="text-left">{user.warehouse?.name || "—"}</td>
 
                   <td style={{ textAlign: "center" }}>
-                    {user.is_active ? (
+                    {user.status === "Pending Approval" || (!user.is_active && !user.is_approved) ? (
+                      <button
+                        onClick={() => handleUserApprovalClick(user)}
+                        className="btn btn-primary"
+                      >
+                        Approve
+                      </button>
+                    ) : user.is_active ? (
                       <span
                         style={{
                           background: "#dcfce7",
@@ -394,6 +525,7 @@ setRoles(data);
                       </span>
                     )}
                   </td>
+
                   <td>
                     <div
                       style={{
@@ -405,11 +537,10 @@ setRoles(data);
                       <button
                         onClick={() => canEdit("User") && setEditingUser(user)}
                         disabled={!canEdit("User")}
-                        className={`icon-btn ${
-                          canEdit("User")
+                        className={`icon-btn ${canEdit("User")
                             ? "icon-btn-edit"
                             : "icon-btn-disabled"
-                        }`}
+                          }`}
                         title="Edit User"
                       >
                         <FaEdit size={16} />
@@ -421,11 +552,10 @@ setRoles(data);
                           }
                         }}
                         disabled={!canDelete("User")}
-                        className={`icon-btn ${
-                          canDelete("User")
+                        className={`icon-btn ${canDelete("User")
                             ? "icon-btn-danger"
                             : "icon-btn-disabled"
-                        }`}
+                          }`}
                         title="Delete User"
                       >
                         <FaTrash size={16} />
@@ -462,6 +592,16 @@ setRoles(data);
         onClose={() => setDeleteModal({ open: false, user: null })}
         onConfirm={handleDeleteUser}
         user={deleteModal.user}
+      />
+
+      {/* Karen Changes: Approval modal */}
+      <ApprovalModal
+        isOpen={approvalModal.open}
+        onClose={() => setApprovalModal({ open: false, user: null })}
+        user={approvalModal.user}
+        roles={roles}
+        warehouses={warehouses}
+        onApproved={handleUserApproved}
       />
     </div>
   );

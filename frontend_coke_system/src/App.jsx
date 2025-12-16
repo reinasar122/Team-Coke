@@ -18,6 +18,7 @@ import "./styles/global.scss";
 // Pages
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
+//import SignUp from "./pages/SignUp"; // Import the SignUp component
 import WarehouseForm from "./pages/WarehouseForm";
 import Warehouses from "./pages/Warehouses";
 import EditWarehouse from "./pages/EditWarehouse";
@@ -66,9 +67,6 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 import Invoice from "./pages/Invoice";
-
-import ForecastingDashboard from "./pages/ForecastingDashboard";
-import CustomerRegistration from './components/merchandisingcomponents/CustomerRegistration';
 
 import {
   FaHome,
@@ -136,9 +134,8 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
         {/* 👇 app-content + conditional lock */}
         <div
-          className={`app-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${
-            !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
-          }`}
+          className={`app-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${!hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
+            }`}
         >
           {/* Page Titles */}
           {!hideLayout && (
@@ -172,19 +169,6 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-
-                {/* Forecasting page title */}
-                <Route
-                  path="/forecasting"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaChartLine /> Forecasting
-                    </h1>
-                  }
-                />
-
-
-
                 {/* ✅ NEW: Expense Settings page title */}
                 <Route
                   path="/expense-settings"
@@ -197,11 +181,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 <Route path="/profile" />
                 <Route
                   path="/invoice"
-                  // element={
-                  //   <h1 className="text-2xl flex items-center gap-2">
-                  //     <FaFileInvoice /> Invoice
-                  //   </h1>
-                  // }
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaFileInvoice /> Invoice
+                    </h1>
+                  }
                 />
                 <Route
                   path="/StocksAdjustment"
@@ -214,7 +198,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 <Route
                   path="/supplier-returns"
                   element={
-                    <h1 className="text-2xl flex items-center mt-4 gap-2">
+                    <h1 className="text-2xl flex items-center gap-2">
                       <FaTruck /> Supplier Returns
                     </h1>
                   }
@@ -231,14 +215,14 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 />
 
                 {/* ✅ Sales Report page title */}
-                {/* <Route
+                <Route
                   path="/reports/sales"
                   element={
                     <h1 className="text-2xl flex items-center gap-2">
                       <FaChartBar /> Sales Report
                     </h1>
                   }
-                /> */}
+                />
 
                 <Route path="/expenses" />
               </Routes>
@@ -250,16 +234,12 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             {/* Dashboard */}
             <Route path="/dashboard" element={<Dashboard />} />
 
-            {/* Forecasting */}
-            <Route path="/forecasting" element={<ForecastingDashboard />} />
-
-
             {/* Credits */}
             <Route path="/credits" element={<CreditList />} />
             <Route path="/credits/:id" element={<CreditDetail />} />
-            
-            {/* Invoices */}  
-            <Route path="/invoice" element={<Invoice />} />      
+
+            {/* Invoices */}
+            <Route path="/invoice" element={<Invoice />} />
 
             {/* Warehouse */}
             <Route path="/warehouses" element={<Warehouses />} />
@@ -278,7 +258,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/users" element={<UserList />} />
             <Route path="/create-user" element={<UserForm />} />
             <Route path="/roles" element={<RoleList />} />
-            <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
+            <Route path="/create-role" element={<RoleForm onClose={() => { }} />} />
 
             {/* Products */}
             <Route path="/products" element={<ProductList />} />
@@ -290,9 +270,6 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/receiving" element={<ReceivingList />} />
             <Route path="/receiving/:id" element={<ReceivingDetails />} />
             <Route path="/receiving/new" element={<ReceivingForm />} />
-         
-            {/* Customer Registration */}
-            <Route path="/customer-registration" element={<CustomerRegistration />} />
 
             {/* Merchandising */}
             <Route path="/trading" element={<MerchandisingList />} />
@@ -308,11 +285,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
               }
             />
             <Route
-  path="/merchandising-sale"
-  element={
-    <MerchandisingSale key={window.location.key || Date.now()} />
-  }
-/>
+              path="/merchandising-sale"
+              element={
+                <MerchandisingSale key={window.location.key || Date.now()} />
+              }
+            />
 
             <Route path="/merchandising-sale/:id" element={<MerchandisingSaleDetailPage />} />
 
@@ -368,21 +345,21 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-      // Check if this browser session has been initialized
-      if (!sessionStorage.getItem("app_initialized")) {
-        // First load after yarn start → clear old user session
-        localStorage.removeItem("user");
-        sessionStorage.setItem("app_initialized", "true");
-      }
-      setLoading(false);
-    }, []);
+    // Check if this browser session has been initialized
+    if (!sessionStorage.getItem("app_initialized")) {
+      // First load after yarn start → clear old user session
+      localStorage.removeItem("user");
+      sessionStorage.setItem("app_initialized", "true");
+    }
+    setLoading(false);
+  }, []);
 
   if (loading) {
     return <div>Loading...</div>;
   }
 
   return (
-    <Router basename="/coke">
+    <Router>
       <NotificationProvider>
         {/* Toast container at the root */}
         <ToastContainer
@@ -403,6 +380,11 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verify-otp" element={<VerifyOTP />} />
+          
+          {/* Mandatory password change for default admin (first-time login) */}
+          <Route path="/change-password/:id" element={<ChangePassword />} />
+          
+          {/* Password reset via forgot password (has uid/token) */}
           <Route path="/change-password/:uid/:token" element={<ChangePassword />} />
 
           {/* Protected Routes */}

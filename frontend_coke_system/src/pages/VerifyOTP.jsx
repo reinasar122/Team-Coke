@@ -1,13 +1,25 @@
-import { useState, useRef } from "react";
-import axios from "axios";
+import { useState, useRef, useEffect } from "react";
 import api from "../api";
 
-
-const VerifyOTPModal = ({ onClose, onVerified }) => {
+const VerifyOTPModal = ({ onClose, onVerified, phone = null, mode = "signup" }) => {
   const [otpDigits, setOtpDigits] = useState(["", "", "", "", "", ""]);
   const [error, setError] = useState("");
-  const email = localStorage.getItem("resetEmail");
+  const [timer, setTimer] = useState(120);
+  const [canResend, setCanResend] = useState(true);
   const inputsRef = useRef([]);
+
+  useEffect(() => {
+    let countdownInterval;
+    if (timer > 0 && !canResend) {
+      countdownInterval = setInterval(() => {
+        setTimer((prev) => prev - 1);
+      }, 1000);
+    } else if (timer === 0) {
+      setCanResend(true);
+      clearInterval(countdownInterval);
+    }
+    return () => clearInterval(countdownInterval);
+  }, [timer, canResend]);
 
   const handleChange = (index, value) => {
     if (!/^[0-9]?$/.test(value)) return;
@@ -46,11 +58,6 @@ const VerifyOTPModal = ({ onClose, onVerified }) => {
     e.preventDefault();
     setError("");
 
-    if (!email) {
-      setError("Email not found. Please restart the process.");
-      return;
-    }
-
     const otp = otpDigits.join("");
     if (otp.length !== 6) {
       setError("Please enter a valid 6-digit OTP.");
@@ -58,44 +65,116 @@ const VerifyOTPModal = ({ onClose, onVerified }) => {
     }
 
     try {
-      const response = await api.post(
-        "/forgot-password/verify-otp/",
-        { email, otp }
-      );
-
-      console.log("📨 VERIFY OTP FULL RESPONSE:", response.data);
-
-      // ✅ Support both formats: {user: {...}} OR flat {...}
-      const data = response.data;
-      const user = data.user || data;
-
-      if (!user.id || !user.token) {
-        setError("User data missing. Please restart.");
+      if (!phone) {
+        setError("Phone number not found. Please restart the process.");
         return;
       }
 
-      // Base64 encode the user ID safely
-      const encodedUid = btoa(String(user.id));
+      let response;
+      
+      if (mode === "signup") {
+        response = await api.post("/verify-phone-otp/", {
+          phone_number: phone,
+          otp,
+          mode: "signup"
+        });
 
-      // Save user data
-      localStorage.setItem("user", JSON.stringify(user));
+        console.log("VERIFY PHONE OTP RESPONSE:", response.data);
 
-      // ✅ pass back encodedUid and token to parent (Login)
-      if (typeof onVerified === "function") {
-        onVerified(encodedUid, user.token);
-      } else {
-        console.warn("⚠️ onVerified prop was not passed!");
+        if (typeof onVerified === "function") {
+          onVerified();
+        }
+      } else if (mode === "forgot") {
+        try {
+          response = await api.post("/forgot-password/verify-phone-otp/", {
+            phone_number: phone,
+            otp,
+            mode: "forgot"
+          });
+        } catch (forgotError) {
+          console.warn("Forgot password endpoint failed, trying general verify endpoint");
+          response = await api.post("/verify-phone-otp/", {
+            phone_number: phone,
+            otp,
+            mode: "forgot"
+          });
+        }
+
+        console.log("VERIFY PHONE OTP FORGOT PASSWORD RESPONSE:", response.data);
+
+        if (response.status === 200 || response.status === 201) {
+          if (typeof onVerified === "function") {
+            const encodedUid = response.data?.encoded_uid;
+            const token = response.data?.token;
+            
+            // If backend doesn't provide tokens, handle differently
+            if (!encodedUid || !token) {
+              localStorage.setItem("verifiedResetPhone", phone);
+              onVerified("verified", "phone");
+            } else {
+              onVerified(encodedUid, token);
+            }
+          }
+        } else {
+          setError("Invalid OTP. Please try again.");
+        }
       }
     } catch (err) {
-      console.error("❌ OTP Verify Error:", err);
-      setError(err.response?.data?.error || "Invalid OTP. Try again.");
+      console.error("OTP Verify Error:", err);
+      
+      let errorMessage = "An unexpected error occurred. Please try again.";
+      
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        if (errorData.error) {
+          errorMessage = errorData.error;
+        } else if (errorData.detail) {
+          errorMessage = errorData.detail;
+        } else if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.non_field_errors && errorData.non_field_errors[0]) {
+          errorMessage = errorData.non_field_errors[0];
+        } else if (typeof errorData === 'string') {
+          errorMessage = errorData;
+        }
+      } else if (err.request) {
+        errorMessage = "Unable to connect to server. Please check your internet connection.";
+      }
+      
+      setError(errorMessage);
     }
   };
+
+  const handleResendOTP = async () => {
+    if (!canResend) return;
+
+    setCanResend(false);
+    setTimer(120);
+
+    try {
+      let endpoint = "/send-phone-otp/";
+      if (mode === "forgot") {
+        endpoint = "/forgot-password/send-otp/";
+      }
+      
+      const response = await api.post(endpoint, { phone_number: phone });
+      console.log("Resend OTP response:", response.data);
+      setError("");
+      
+      setError("OTP sent successfully!");
+      setTimeout(() => setError(""), 3000);
+    } catch (err) {
+      console.error("Resend OTP Error:", err);
+      setError("Failed to resend OTP. Please try again.");
+      setCanResend(true);
+    }
+  };
+
+  const targetText = mode === "signup" ? `the number ${phone || ""}` : "your phone number";
 
   return (
     <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
       <div className="relative bg-white rounded-lg shadow-2xl w-full max-w-md p-8 border border-gray-300">
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute top-3 right-4 text-gray-500 hover:text-red-500 text-2xl font-bold"
@@ -107,11 +186,13 @@ const VerifyOTPModal = ({ onClose, onVerified }) => {
           Verify OTP
         </h2>
         <p className="text-center text-gray-500 text-sm mb-6">
-          Enter the 6-digit code sent to your email
+          Enter the 6-digit code sent to {targetText}
         </p>
 
         {error && (
-          <p className="text-red-600 text-center mb-4 text-sm font-medium">
+          <p className={`text-center mb-4 text-sm font-medium ${
+            error.includes("sent successfully") ? "text-green-600" : "text-red-600"
+          }`}>
             {error}
           </p>
         )}
@@ -140,6 +221,16 @@ const VerifyOTPModal = ({ onClose, onVerified }) => {
             Verify
           </button>
         </form>
+
+        <div className="flex justify-center mt-4">
+          <button
+            onClick={handleResendOTP}
+            className="text-sm text-red-600 hover:text-red-700"
+            disabled={!canResend}
+          >
+            {canResend ? "Resend OTP" : `Resend OTP in ${timer}s`}
+          </button>
+        </div>
       </div>
     </div>
   );

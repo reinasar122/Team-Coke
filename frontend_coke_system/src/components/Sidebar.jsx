@@ -19,12 +19,32 @@ import { canView } from "../utils/accessControl";
 
 const Sidebar = ({ isSidebarOpen }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
-  const navigate = useNavigate(); // ✅ added
+  const [accessibleRoutes, setAccessibleRoutes] = useState([]); // Store accessible routes here
+  const navigate = useNavigate();
 
+  // Fetch accessible routes from localStorage or state whenever it changes
+  useEffect(() => {
+    const accessList = JSON.parse(localStorage.getItem("access") || "[]");
+    const allowedRoutes = routeOrder.filter((submenu) => hasAccess(submenu)); // Get accessible submenus
+    setAccessibleRoutes(allowedRoutes); // Update the accessible routes state
+  }, []); // Empty dependency array to run only once when the component is mounted
+
+  // Redirect user to the first available route they have access to when the sidebar loads
+  useEffect(() => {
+    const accessibleRoute = getAccessibleRoute();
+    if (accessibleRoute) {
+      navigate(accessibleRoute);
+    } else {
+      navigate("/no-access");
+    }
+  }, [accessibleRoutes]); // Re-run when accessibleRoutes change
+
+  // Function to toggle the dropdown menu
   const toggleDropdown = (menu) => {
     setOpenDropdown(openDropdown === menu ? null : menu);
   };
 
+  // Handle logout logic
   const handleLogout = () => {
     localStorage.removeItem("user");
     localStorage.removeItem("access");
@@ -32,6 +52,16 @@ const Sidebar = ({ isSidebarOpen }) => {
     navigate("/login");
   };
 
+  // Determine the first accessible route based on user permissions
+  const getAccessibleRoute = () => {
+    if (accessibleRoutes.length > 0) {
+      // If there are accessible routes, return the first one
+      return routeMap[accessibleRoutes[0]];
+    }
+    return null; // If no accessible route is found, return null (no access)
+  };
+
+  // Disabled item to show when a submenu is not accessible
   const DisabledItem = ({ icon, text }) => (
     <div className="p-2 rounded flex items-center text-gray-500 cursor-not-allowed opacity-50">
       <FontAwesomeIcon icon={icon} className="mr-2" />
@@ -39,6 +69,7 @@ const Sidebar = ({ isSidebarOpen }) => {
     </div>
   );
 
+  // Disabled sub-item for dropdown menus
   const DisabledSubItem = ({ text }) => (
     <div className="block p-2 text-sm text-gray-400 rounded cursor-not-allowed opacity-50">
       {text}

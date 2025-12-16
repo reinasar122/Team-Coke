@@ -57,6 +57,27 @@ export const SeasonalInsights = ({ insights }) => {
           </div>
         ))}
       </div>
+
+      {/* 🔽 MAPE Accuracy Guide Label */}
+      <div className="mt-4 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-xl p-3">
+        <p className="font-semibold text-gray-700 mb-1">
+          MAPE Accuracy Guide
+        </p>
+        <ul className="space-y-0.5">
+          <li>
+            <span className="font-medium text-emerald-600">0–10%</span> – Excellent (Very reliable)
+          </li>
+          <li>
+            <span className="font-medium text-green-600">10–20%</span> – Good (Reliable for planning)
+          </li>
+          <li>
+            <span className="font-medium text-orange-500">20–50%</span> – Moderate (Use with caution)
+          </li>
+          <li>
+            <span className="font-medium text-red-500">&gt;50%</span> – Low (Not reliable)
+          </li>
+        </ul>
+      </div>
     </>
   );
 };

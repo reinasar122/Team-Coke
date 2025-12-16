@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from . import views
 from .views import (
     WarehouseListCreateView, WarehouseDetailView,
     SupplierListCreateView, SupplierRetrieveUpdateDestroyView,
@@ -35,7 +36,7 @@ from .views import (
     RoleAccessibilityDetailView, BulkRoleAccessibilityCreateView, BulkRoleAccessibilityUpsertView, ChangePasswordAPIView, SendOTPAPIView,
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
-    CreditPaymentCreateAPIView,BulkAdjustStockView, StockUpdateAPIView,
+    CreditPaymentCreateAPIView,BulkAdjustStockView, StockUpdateAPIView, ConfirmUserCreation, RegisterView, MandatoryChangePasswordAPIView
 
 
 
@@ -66,11 +67,19 @@ router.register(r'notification-preferences', NotificationPreferenceViewSet, base
 
 urlpatterns = [
     # User URLs
+    path('register/', RegisterView.as_view(), name='register'),
     path('users/', UserListCreateView.as_view(), name='user-list-create'),
     path('users/<int:pk>/', UserDetailView.as_view(), name='user-detail'),
     path('change-password/', ChangePasswordAPIView.as_view(), name='change-password'),
+
+     # Forgot password (email or old flow)
     path('forgot-password/send-otp/', SendOTPAPIView.as_view(), name='send-otp'),
     path('forgot-password/verify-otp/', VerifyOTPAPIView.as_view(), name='verify-otp'),
+
+     # Phone OTP for signup verification
+    path('send-phone-otp/', SendOTPAPIView.as_view(), name='send-phone-otp'),
+    path('verify-phone-otp/', VerifyOTPAPIView.as_view(), name='verify-phone-otp'),
+
     # --- CREDIT LEDGER ---
     path("credits/", CreditLedgerListCreateAPIView.as_view(), name="credit-list-create"),  # GET list, POST create
     path("credits/<int:pk>/", CreditLedgerDetailAPIView.as_view(), name="credit-detail"),  # GET detail/receipt
@@ -193,6 +202,14 @@ urlpatterns = [
     path('api/', include(router.urls)),
     path('api/notifications/create/', CreateNotificationAPIView.as_view(), name='create-notification'),
     path('api/notifications/cleanup/', NotificationCleanupAPIView.as_view(), name='notification-cleanup'),
+
+     # Admin approval for user
+    path('admin/approve-user/<int:user_id>/', ConfirmUserCreation.as_view(), name='confirm-user-approval'),  # Admin confirms user creation
+    
+    #Mandatory change password of the admin
+    path('mandatory-change-password/', MandatoryChangePasswordAPIView.as_view(), name='mandatory-change-password'),
+    
+    path('check-default-admin-password/', views.check_default_admin_password, name='check_default_admin_password'),
 
 
 ]

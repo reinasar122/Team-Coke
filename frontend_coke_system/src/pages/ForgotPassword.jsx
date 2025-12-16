@@ -4,10 +4,17 @@ import WifiLoader from "../components/WifiLoader"; // keep your loader
 import api from "../api"; // ✅ correct
 
 const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
-  const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState(""); // Changed from email to phone_number
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Function to validate phone number (Philippine format)
+  const validatePhoneNumber = (phone) => {
+    // Updated regex: allows local format (09) and international format (+63)
+    const regex = /^(?:\+63|0)[9][0-9]{9}$/;
+    return regex.test(phone);
+  };
 
   const handleSendOTP = async (e) => {
     e.preventDefault();
@@ -15,22 +22,29 @@ const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
     setSuccess(false);
     setLoading(true);
 
+    // Validate phone number format
+    if (!validatePhoneNumber(phoneNumber)) {
+      setLoading(false);
+      setMessage("Invalid phone number format. Please enter a valid number.");
+      return;
+    }
+
     try {
-      await api.post("/forgot-password/send-otp/", { email });
-      localStorage.setItem("resetEmail", email);
+      await api.post("/forgot-password/send-otp/", { phone_number: phoneNumber });
+      localStorage.setItem("resetPhoneNumber", phoneNumber);
       setSuccess(true);
-      setMessage("OTP sent successfully. Please check your email.");
+      setMessage("OTP sent successfully. Please check your phone.");
 
       setTimeout(() => {
         setLoading(false);
         if (onOtpSent) {
-          onOtpSent(); // ✅ trigger Verify OTP modal instead of redirect
+          onOtpSent(); // Trigger OTP verification modal
         }
       }, 1500);
     } catch (err) {
       console.error("❌ Send OTP error:", err.response?.data || err.message);
       setLoading(false);
-      setMessage("Failed to send OTP. Please check the email.");
+      setMessage("Failed to send OTP. Please check the phone number.");
     }
   };
 
@@ -50,23 +64,23 @@ const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
           Forgot Password
         </h2>
         <p className="text-center text-gray-500 text-sm mb-6">
-          Enter your email address to receive a one-time password (OTP).
+          Enter your phone number to receive a one-time password (OTP).
         </p>
 
         <form onSubmit={handleSendOTP}>
           <label
-            htmlFor="email"
+            htmlFor="phone_number"
             className="block text-sm font-medium text-gray-700 mb-1"
           >
-            Email Address
+            Phone Number
           </label>
           <input
-            type="email"
-            id="email"
-            placeholder="e.g. example@email.com"
+            type="text"
+            id="phone_number"
+            placeholder="e.g. +639XXXXXXXXX or 09XXXXXXXXX"
             className="w-full border border-gray-300 rounded-md px-4 py-2 mb-4 focus:ring-2 focus:ring-red-500 focus:outline-none"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            value={phoneNumber}
+            onChange={(e) => setPhoneNumber(e.target.value)}
             required
           />
 
@@ -79,11 +93,10 @@ const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
 
           {message && (
             <p
-              className={`text-sm text-center mt-4 font-medium ${
-                message.toLowerCase().includes("failed")
-                  ? "text-red-600"
-                  : "text-green-600"
-              }`}
+              className={`text-sm text-center mt-4 font-medium ${message.toLowerCase().includes("failed")
+                ? "text-red-600"
+                : "text-green-600"
+                }`}
             >
               {message}
             </p>

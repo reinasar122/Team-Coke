@@ -25,6 +25,61 @@ from django.utils.http import urlsafe_base64_decode
 from .models import User
 from django.utils.timezone import localtime
 from .models import Notification, NotificationPreference, ProcessedNotification
+from django.core.exceptions import ValidationError
+from random import randint
+
+
+# Path to your service account key JSON file
+
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+    confirm_password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ['phone_number', 'first_name', 'last_name', 'gender', 'email', 'password', 'confirm_password']
+
+    def validate(self, attrs):
+        # Ensure password and confirm password match
+        if attrs['password'] != attrs['confirm_password']:
+            raise serializers.ValidationError("Passwords do not match.")
+        
+        # Check if phone number already exists
+        if User.objects.filter(phone_number=attrs['phone_number']).exists():
+            raise serializers.ValidationError("Phone number already registered.")
+        
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('confirm_password')  # Remove confirm_password field before saving
+
+        # Create user with status and approval fields
+        user = User.objects.create(
+            status="Pending",  # Initial status as 'Pending'
+            is_approved=False,  # User is not approved yet
+            is_active=False,  # Account is not active until verified
+            otp_required=True,  # OTP is required for verification
+            **validated_data  # This will include the phone_number and other fields
+        )
+
+        # Set hashed password
+        user.set_password(validated_data['password'])
+        user.save()
+
+        # Generate OTP
+        otp = randint(100000, 999999)  # Generate a 6-digit OTP
+        user.otp = otp
+        user.save(update_fields=["otp", "otp_required"])
+
+        # Send OTP to user via SMS (Simulated here)
+        self.send_sms_otp(user.phone_number, otp)
+        
+        return user
+
+    def send_sms_otp(self, phone_number, otp):
+        # Simulate sending OTP (replace with actual SMS service if needed)
+        print(f"OTP for {phone_number} is: {otp}")
 
 
 class CreditLedgerCreateSerializer(serializers.ModelSerializer):
@@ -172,33 +227,70 @@ class RoleAccessibilitySerializer(serializers.ModelSerializer):
 
 
 
+# serializers.py
+from rest_framework import serializers
+from .models import User, Role, Warehouse
+import random
+from django.core.mail import send_mail
+from django.utils.http import urlsafe_base64_encode
+from django.utils.encoding import force_bytes
+from django.contrib.auth.tokens import default_token_generator
+
+# serializers.py
+from rest_framework import serializers
+from .models import User, Role, Warehouse
+import random
+
 class UserSerializer(serializers.ModelSerializer):
     # Accept IDs when creating/updating
     role_id = serializers.PrimaryKeyRelatedField(
         queryset=Role.objects.all(),
         source="role",
-        write_only=True
+        write_only=True,
+        required=False,
+        allow_null=True,
     )
     warehouse_id = serializers.PrimaryKeyRelatedField(
         queryset=Warehouse.objects.all(),
         source="warehouse",
-        write_only=True
+        write_only=True,
+        required=False,
+        allow_null=True,
     )
 
     # Return full object when reading
     role = serializers.SerializerMethodField(read_only=True)
     warehouse = serializers.SerializerMethodField(read_only=True)
 
+    # status + is_approved now writable so admin can approve
+    status = serializers.CharField(required=False)
+    is_approved = serializers.BooleanField(required=False)
+
     class Meta:
         model = User
         fields = [
-            "id", "username", "password", "email", "first_name", "last_name",
-            "gender", "phone_number",
-            "role_id", "warehouse_id",  # for input
-            "role", "warehouse",        # for output
-            "is_active", "created_at", "last_login",
+            "id",
+            "password",
+            "first_name",
+            "last_name",
+            "gender",
+            "phone_number",
+            "email",
+            "role_id",
+            "warehouse_id",   # input
+            "role",
+            "warehouse",      # output
+            "is_active",
+            "status",
+            "is_approved",
+            "created_at",
+            "last_login",
+            "otp",
         ]
-        extra_kwargs = {"password": {"write_only": True}}
+        extra_kwargs = {
+            "password": {"write_only": True},
+            "otp": {"read_only": True},
+        }
 
     def get_role(self, obj):
         if obj.role:
@@ -211,64 +303,76 @@ class UserSerializer(serializers.ModelSerializer):
         return None
 
     def create(self, validated_data):
+        # handle password
         password = validated_data.pop("password", None)
+
+        # new users are pending and not approved
+        validated_data.setdefault("status", "Pending")
+        validated_data.setdefault("is_approved", False)
+        validated_data.setdefault("is_active", False)
+
         user = super().create(validated_data)
+
         if password:
             user.set_password(password)
-            user.save()
 
-        # send reset link
-        token = default_token_generator.make_token(user)
-        uid = urlsafe_base64_encode(force_bytes(str(user.pk)))
-        # reset_link = f"http://localhost:3000/change-password/{uid}/{token}/"
-        reset_link = f"http://192.168.0.167:8081/coke/change-password/{uid}/{token}"
+        # Generate OTP (6 digits) for phone verification
+        otp = random.randint(100000, 999999)
+        user.otp = str(otp)
+        user.otp_required = True
+        user.save(update_fields=["password", "otp", "otp_required", "status", "is_approved", "is_active"])
 
-        send_mail(
-            subject="Set Your Account Password",
-            message=(
-                f"Hello {user.first_name} {user.last_name},\n\n"
-                f"Your username is: {user.username}\n\n"
-                f"Please set your password using the link below:\n{reset_link}"
-            ),
-            from_email="your_email@gmail.com",
-            recipient_list=[user.email],
-            fail_silently=False,
-        )
+        # Send OTP via SMS provider (placeholder)
+        self.send_sms_otp(user.phone_number, otp)
+
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop("password", None)
+
+        # remember old approval state
+        was_approved = instance.is_approved
+        old_role = instance.role
+        old_wh = instance.warehouse
+
         user = super().update(instance, validated_data)
+
+        # handle password change
         if password:
             user.set_password(password)
-            user.save()
+            user.save(update_fields=["password"])
+
+        # if admin just approved the user now
+        if not was_approved and user.is_approved:
+            # make sure status / is_active aligned
+            if user.status != "Active":
+                user.status = "Active"
+            user.is_active = True
+            user.save(update_fields=["status", "is_active"])
+
+            role = user.role or old_role
+            wh = user.warehouse or old_wh
+            self.send_approval_sms(
+                user.phone_number,
+                role.name if role else "",
+                wh.name if wh else "",
+            )
+
         return user
 
+    def send_sms_otp(self, phone_number, otp):
+        print(f"[OTP] OTP for {phone_number} is: {otp}")
+        # integrate Firebase/Twilio here
 
-
-class WarehouseSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Warehouse
-        fields = '__all__'
-
-    def validate_phone_number(self, value):
-        if not value:
-            return value
-        if not value.isdigit():
-            raise serializers.ValidationError("Phone number must contain only numbers.")
-        if len(value) != 11:
-            raise serializers.ValidationError("Phone number must be exactly 11 digits long.")
-        return value
-
-    def validate_zip_code(self, value):
-        if not value:
-            return value
-        if not value.isdigit():
-            raise serializers.ValidationError("Zip code must contain only numbers.")
-        if len(value) != 4:
-            raise serializers.ValidationError("Zip code must be exactly 4 digits long.")
-        return value
-
+    def send_approval_sms(self, phone_number, role_name, warehouse_name):
+        if not phone_number:
+            return
+        msg = (
+            f"Your Wilfie's account has been approved. "
+            f"Role: {role_name}, Warehouse: {warehouse_name}."
+        )
+        print(f"[APPROVAL SMS] {phone_number}: {msg}")
+        # integrate Firebase/Twilio here
 
 class SupplierContactSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(required=False)
@@ -1034,25 +1138,35 @@ class SupplierReturnSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
-    password = serializers.CharField()
+    phone_number = serializers.CharField()
+    otp = serializers.CharField(min_length=6, max_length=6, required=False)
+    password = serializers.CharField(write_only=True)
 
     def validate(self, data):
-        username_or_email = data.get('username')  # same frontend field
+        phone_number = data.get('phone_number')
         password = data.get('password')
 
-        # Try fetching user by username first
-        user = User.objects.filter(username=username_or_email).first()
-
-        # If not found, try email
-        if not user:
-            user = User.objects.filter(email=username_or_email).first()
-
+        user = User.objects.filter(phone_number=phone_number).first()
         if not user:
             raise serializers.ValidationError("User not found.")
 
         if not user.check_password(password):
-            raise serializers.ValidationError("Incorrect username or password.")
+            raise serializers.ValidationError("Incorrect password.")
+
+        # Allow admin users to bypass approval check
+        is_admin = user.role and user.role.name.lower() in ['admin', 'administrator', 'super admin']
+        
+        if not is_admin and not user.is_approved:
+            raise serializers.ValidationError("Account pending approval.")
+        
+        if not user.is_active:
+            raise serializers.ValidationError("Account is inactive.")
+
+        if not user.role:
+            raise serializers.ValidationError("User role not assigned.")
+        
+        if not user.warehouse:
+            raise serializers.ValidationError("User warehouse not assigned.")
 
         access_list = RoleAccessibility.objects.filter(role=user.role).values(
             'submenu', 'full', 'view', 'create', 'edit', 'delete'
@@ -1060,12 +1174,14 @@ class LoginSerializer(serializers.Serializer):
 
         return {
             "id": user.id,
-            "username": user.username,
+            "phone_number": user.phone_number,
             "role": user.role.name if user.role else None,
             "warehouse": user.warehouse.name if user.warehouse else None,
+            "warehouse_id": user.warehouse.id if user.warehouse else None,
             "must_change_password": user.must_change_password,
             "accessibilities": list(access_list)
         }
+
 #Kerk modify this part changepassword to otp
 import logging
 from django.contrib.auth.tokens import default_token_generator
@@ -1118,22 +1234,38 @@ class ChangePasswordSerializer(serializers.Serializer):
 
 
 class ForgotPasswordRequestSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    phone_number = serializers.CharField()
 
-    def validate_email(self, value):
-        if not User.objects.filter(email=value).exists():
-            raise serializers.ValidationError("User with this email does not exist.")
+    def validate_phone_number(self, value):
+        if not User.objects.filter(phone_number=value).exists():
+            raise serializers.ValidationError("User with this phone number does not exist.")
         return value
 
-
 class OTPVerificationSerializer(serializers.Serializer):
-    email = serializers.EmailField()
+    phone_number = serializers.CharField()
     otp = serializers.CharField(min_length=6, max_length=6)
 
     def validate(self, data):
-        if not User.objects.filter(email=data['email']).exists():
-            raise serializers.ValidationError("Email not found.")
+        phone_number = data.get('phone_number')
+        otp = data.get('otp')
+
+        # Validate phone number existence
+        user = User.objects.filter(phone_number=phone_number).first()
+
+        if not user:
+            raise serializers.ValidationError("Mobile number not found.")
+
+        # Validate OTP
+        if user.otp != otp:
+            raise serializers.ValidationError("Invalid OTP.")
+
+        # Handle OTP expiration
+        if timezone.now() > user.otp_expiry:  # Assuming `otp_expiry` field in your model
+            raise serializers.ValidationError("OTP has expired. Please request a new OTP.")
+
+        # OTP is valid, proceed to allow user to login
         return data
+
     
 #Supplier Return Item Serializer 
 class SupplierReturnFormItemSerializer(serializers.ModelSerializer):

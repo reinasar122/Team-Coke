@@ -100,30 +100,58 @@ export function BestSellerRanking({ data = [] }) {
       </div>
 
       <div className="forecast-card-footer">
-        <div className="forecast-legend">
-          <span className="legend-item">
+        <div
+          className="forecast-legend"
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: 20,
+            marginTop: 8,
+          }}
+        >
+          <span className="legend-item" style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span
               className="legend-dot"
-              style={{ backgroundColor: STATUS_COLORS.fast }}
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                backgroundColor: STATUS_COLORS.fast,
+              }}
             />
             Fast-moving
           </span>
-          <span className="legend-item">
+
+          <span className="legend-item" style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span
               className="legend-dot"
-              style={{ backgroundColor: STATUS_COLORS.stable }}
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                backgroundColor: STATUS_COLORS.stable,
+              }}
             />
             Stable
           </span>
-          <span className="legend-item">
+
+          <span className="legend-item" style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span
               className="legend-dot"
-              style={{ backgroundColor: STATUS_COLORS.slow }}
+              style={{
+                width: 10,
+                height: 10,
+                borderRadius: "50%",
+                backgroundColor: STATUS_COLORS.slow,
+              }}
             />
             Slow-moving
           </span>
         </div>
       </div>
+
+
     </div>
   );
 }

@@ -186,76 +186,99 @@ class CreditPaymentCreateAPIView(APIView):
 
 # kerkmodify this part  otp
 # Temporary OTP storage (in production use cache like Redis or DB)
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from .models import User
+import random
+from django.core.cache import cache
+from django.core.mail import send_mail  # You might need to switch to SMS service in production
+
 class SendOTPAPIView(APIView):
     def post(self, request):
-        email = request.data.get('email', '').lower().strip()
-        if not email:
-            return Response({"error": "Email is required"}, status=status.HTTP_400_BAD_REQUEST)
+        phone_number = request.data.get('phone_number', '').strip()
+        if not phone_number:
+            return Response({"error": "Phone number is required"}, status=400)
 
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
-            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "User not found"}, status=404)
 
-        # Generate OTP
+        # Check if OTP already exists
+        if user.otp and user.otp_required:
+            # If OTP is already sent, clear it and generate a new one
+            user.otp = None
+            user.otp_required = True
+            user.save(update_fields=["otp", "otp_required"])
+
+        # Generate a new 6-digit OTP
         otp = str(random.randint(100000, 999999))
-        cache.set(f'otp_{email}', otp, timeout=300)  # valid for 5 mins
+        user.otp = otp
+        user.otp_required = True
+        user.save(update_fields=["otp", "otp_required"])
 
-        try:
-            send_mail(
-                subject="Your OTP Code",
-                message=f"Your OTP code is: {otp}",
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[email],
-                fail_silently=False
-            )
-        except Exception as e:
-            print("❌ Email sending failed:", str(e))
-            return Response({"error": "Failed to send email."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        # Send OTP to user via SMS (Simulated here)
+        self.send_sms_otp(user.phone_number, otp)
+        return Response({"message": "OTP sent to your phone number"}, status=200)
 
-        print(f"📩 OTP for {email}: {otp} (valid 5 mins)")
-        return Response({"message": "OTP sent to your email"}, status=status.HTTP_200_OK)
+    def send_sms_otp(self, phone_number, otp):
+        # Simulate sending OTP (replace with actual SMS service if needed)
+        print(f"OTP for {phone_number} is: {otp}")  # Example debug message
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .models import User
 
 class VerifyOTPAPIView(APIView):
     def post(self, request):
-        print("📨 VERIFY OTP DATA:", request.data)
+        phone_number = request.data.get('phone_number', '').strip()
+        otp = request.data.get('otp', '').strip()
+        mode = request.data.get('mode', 'signup')  # Add mode parameter
 
-        email = str(request.data.get("email", "")).lower().strip()
-        otp = str(request.data.get("otp", "")).strip()
+        if not phone_number or not otp:
+            return Response({"error": "Phone number and OTP are required"}, status=400)
 
-        if not email or not otp:
-            return Response({"error": "Email and OTP are required"}, status=status.HTTP_400_BAD_REQUEST)
-
-        # Get cached OTP
-        cached_otp = cache.get(f'otp_{email}')
-
-        if cached_otp is None:
-            return Response({"error": "OTP expired or not found. Please request again."},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-        if str(cached_otp) != otp:
-            return Response({"error": "Invalid OTP. Please try again."}, status=status.HTTP_400_BAD_REQUEST)
-
-        # OTP is valid ✅
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(phone_number=phone_number)
         except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "User not found"}, status=404)
 
-        # Invalidate OTP after successful use
-        cache.delete(f'otp_{email}')
+        if not user.otp or str(user.otp) != otp:
+            return Response({"error": "Invalid OTP. Please try again."}, status=400)
 
-        # Generate token for password reset/change
-        token = default_token_generator.make_token(user)
-
-        return Response({
-            "user": {
-                "id": user.id,
-                "email": user.email,
-                "username": user.username,
-                "token": token,
-            }
-        }, status=status.HTTP_200_OK)
+        # Clear OTP
+        user.otp = None
+        user.otp_required = False
+        
+        if mode == "forgot":
+            # Generate password reset token
+            token = default_token_generator.make_token(user)
+            encoded_uid = urlsafe_base64_encode(force_bytes(user.pk))
+            
+            user.save(update_fields=["otp", "otp_required"])
+            
+            return Response({
+                "message": "OTP verified. You can now reset your password.",
+                "encoded_uid": encoded_uid,
+                "token": token
+            }, status=200)
+        else:
+            # Signup mode
+            user.is_active = False
+            user.is_approved = False
+            user.status = "Pending Approval"
+            user.save(update_fields=["otp", "otp_required", "is_active", "is_approved", "status"])
+            
+            return Response({
+                "message": "Phone verified. Your account is now pending admin approval.",
+                "user": {
+                    "id": user.id,
+                    "phone_number": user.phone_number,
+                    "email": user.email,
+                    "status": user.status,
+                }
+            }, status=200)
 
 class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()
@@ -323,25 +346,96 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
 
         merchandising.save(update_fields=update_fields)
         return Response(self.get_serializer(merchandising).data, status=status.HTTP_200_OK)
+    
 
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAdminUser
+from .models import User
+
+class ConfirmUserCreation(APIView):
+    permission_classes = [IsAdminUser]
+
+    def post(self, request, user_id):
+        try:
+            # Fetch user by ID
+            user = User.objects.get(id=user_id, status="Pending Approval")
+            user.status = "Active"
+            user.is_active = True
+            user.is_approved = True  # Set user as approved
+            user.save()
+
+            # Optionally, notify the user that they have been activated
+            self.send_activation_email(user)
+
+            return Response({"message": "User has been approved and activated."}, status=200)
+        except User.DoesNotExist:
+            return Response({"error": "User not found or already approved."}, status=404)
+
+    def send_activation_email(self, user):
+        subject = "Your account has been approved"
+        message = f"Hello {user.first_name},\n\nYour account has been approved and is now active."
+        send_mail(subject, message, 'no-reply@myapp.com', [user.email])
+
+
+import logging
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from .serializers import RegisterSerializer
+
+# Set up logger
+logger = logging.getLogger(__name__)
+
+class RegisterView(APIView):
+    def post(self, request):
+        serializer = RegisterSerializer(data=request.data)
+        if serializer.is_valid():
+            print("Validated data:", serializer.validated_data)  # Debugging line
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        else:
+            print("Errors:", serializer.errors)  # Debugging line
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+from rest_framework.permissions import BasePermission, SAFE_METHODS
+from .models import RoleAccessibility
 class HasAccessPermission(BasePermission):
     """
-    Custom permission to check if the user's role has the required access for a submenu.
+    Check if the user's role has permission for a submenu,
+    based on boolean fields: full, view, create, edit, delete.
     """
 
     def has_permission(self, request, view):
-        role = getattr(request.user, 'role', None)
-        submenu_name = getattr(view, 'submenu_name', None)
-        required_access = getattr(view, 'required_access', 'VIEW')  # Default to VIEW
+        user = request.user
+        role = getattr(user, "role", None)
+        submenu_name = getattr(view, "submenu_name", None)
 
-        if not role or not submenu_name:
+        # Must be logged in and have a role + submenu name
+        if not user.is_authenticated or not role or not submenu_name:
             return False
 
-        # Get all access types for this role + submenu
-        access_qs = RoleAccessibility.objects.filter(role=role, submenu=submenu_name)
-        access_types = access_qs.values_list('access_type', flat=True)
+        # Always allow Admin role
+        if getattr(role, "name", "").lower() == "admin":
+            return True
 
-        return required_access.upper() in access_types or 'FULL' in access_types
+        try:
+            access = RoleAccessibility.objects.get(role=role, submenu=submenu_name)
+        except RoleAccessibility.DoesNotExist:
+            return False
+
+        # Map HTTP method to boolean fields
+        if request.method in SAFE_METHODS:         # GET, HEAD, OPTIONS
+            return access.view or access.full
+        if request.method == "POST":
+            return access.create or access.full
+        if request.method in ("PUT", "PATCH"):
+            return access.edit or access.full
+        if request.method == "DELETE":
+            return access.delete or access.full
+
+        return False
 
 class RoleListCreateView(generics.ListCreateAPIView):
     """View to list all roles or create a new one"""
@@ -441,10 +535,39 @@ class BulkRoleAccessibilityUpsertView(APIView):
 
         return Response(updated, status=status.HTTP_200_OK)
     
+from rest_framework import generics, status
+from rest_framework.response import Response
+from .serializers import UserSerializer
+from .models import User
+from rest_framework.permissions import IsAuthenticated
+
+from rest_framework.permissions import AllowAny  # already imported above
+
 class UserListCreateView(generics.ListCreateAPIView):
-    """View to list all users or create a new one"""
     queryset = User.objects.all()
     serializer_class = UserSerializer
+    permission_classes = [AllowAny]  # ✅ allow your React app to call /users/
+
+    # you can still use filters here later (by warehouse, etc.)
+
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = serializer.save()
+
+        self.send_admin_notification(user)
+
+        return Response(
+            {"message": "User created. Awaiting admin approval."},
+            status=status.HTTP_201_CREATED
+        )
+
+    def send_admin_notification(self, user):
+        subject = "New User Pending Approval"
+        message = f"A new user has been created. Please approve the account for {user.username}."
+        send_mail(subject, message, 'no-reply@myapp.com', ['admin@myapp.com'])
+
 
 class UserDetailView(generics.RetrieveUpdateDestroyAPIView):
     """View to retrieve, update, or delete a user by ID"""
@@ -1414,12 +1537,21 @@ class SupplierReturnItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = SupplierReturnItem.objects.all()
     serializer_class = SupplierReturnItemSerializer
 
+
+from django.core.exceptions import ObjectDoesNotExist
 class LoginAPIView(APIView):
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)
-        if serializer.is_valid():
-            return Response(serializer.validated_data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            serializer = LoginSerializer(data=request.data)
+            if serializer.is_valid():
+                return Response(serializer.validated_data, status=status.HTTP_200_OK)
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except ObjectDoesNotExist as e:
+            return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            # Log the exception and return a generic error message
+            print(f"Error: {str(e)}")
+            return Response({"error": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
@@ -2760,3 +2892,72 @@ class NotificationCleanupAPIView(APIView):
             'message': f'Cleaned up {deleted_count} old processed notifications',
             'cutoff_date': cutoff_date
         })
+class MandatoryChangePasswordAPIView(APIView):
+    def post(self, request):
+        try:
+            user_id = request.data.get('user_id')
+            new_password = request.data.get('new_password')
+            
+            if not user_id or not new_password:
+                return Response(
+                    {"error": "User ID and new password are required."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            user = User.objects.get(id=user_id)
+            user.set_password(new_password)
+            user.must_change_password = False
+            user.save()
+            
+            return Response(
+                {"message": "Password updated successfully."},
+                status=status.HTTP_200_OK
+            )
+            
+        except User.DoesNotExist:
+            return Response(
+                {"error": "User not found."},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {"error": "An unexpected error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])  # Optional: you can remove this if you want it accessible without authentication
+def check_default_admin_password(request):
+    """
+    Check if the default admin user still has the default password 'admin123'
+    Returns: {"password_changed": true/false}
+    """
+    try:
+        # Find the default admin user by username and phone number
+        default_admin = User.objects.get(
+            username="admin",
+            phone_number="09179902969"
+        )
+        
+        # Check if the current password is still the default 'admin123'
+        has_default_password = check_password('admin123', default_admin.password)
+        
+        # If has_default_password is True, then password_changed is False
+        password_changed = not has_default_password
+        
+        return Response({
+            "password_changed": password_changed
+        }, status=status.HTTP_200_OK)
+        
+    except User.DoesNotExist:
+        # Default admin doesn't exist - assume password was changed
+        return Response({
+            "password_changed": True
+        }, status=status.HTTP_200_OK)
+        
+    except Exception as e:
+        # In case of any error, assume password was changed (safe default)
+        return Response({
+            "password_changed": True,
+            "error": str(e)
+        }, status=status.HTTP_200_OK)

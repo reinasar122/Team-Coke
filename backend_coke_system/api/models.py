@@ -232,18 +232,22 @@ class RoleAccessibility(models.Model):
         return f"{self.role.name} - {self.submenu} (F:{self.full} V:{self.view} C:{self.create} E:{self.edit} D:{self.delete})"
 
 
+from django.db import models
+from django.utils import timezone
+from datetime import timedelta
+from django.contrib.auth.hashers import make_password, check_password
+
 class User(models.Model):
     STATUS_CHOICES = [(True, 'Active'), (False, 'Inactive')]
     GENDER_CHOICES = [('Male', 'Male'), ('Female', 'Female'), ('Other', 'Other')]
 
     id = models.AutoField(primary_key=True)
-    email = models.EmailField(unique=True, null=True, blank=True)  # ✅ REQUIRED for sending email
+    email = models.EmailField(unique=True, null=True, blank=True)
     password = models.CharField(max_length=255)
     must_change_password = models.BooleanField(default=True)
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     gender = models.CharField(max_length=10, choices=GENDER_CHOICES, blank=True, null=True)
-    username = models.CharField(max_length=150, unique=True)
     phone_number = models.CharField(max_length=15, blank=True, null=True)
     role = models.ForeignKey(Role, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.SET_NULL, null=True, blank=True)
@@ -251,19 +255,25 @@ class User(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     last_login = models.DateTimeField(blank=True, null=True)
 
+    # Additional fields for OTP and approval
+    status = models.CharField(max_length=20, default="Pending")  # Pending / Active / Rejected
+    otp = models.CharField(max_length=6, blank=True, null=True)
+    otp_required = models.BooleanField(default=False)
+    is_approved = models.BooleanField(default=False)  # optional, for admin approval flag
+    otp_expiry = models.DateTimeField(null=True, blank=True)  # OTP expiration time
+
     class Meta:
         db_table = 'users'
 
     @property
     def is_active_user(self):
-        # default_token_generator expects `is_active` attribute; you already have one
         return self.is_active
 
     def get_email_field_name(self):
         return "email"
 
     def __str__(self):
-        return self.username
+        return self.email  # Use email or first_name + last_name as a string representation
 
     def set_password(self, raw_password):
         self.password = make_password(raw_password)
@@ -271,6 +281,14 @@ class User(models.Model):
 
     def check_password(self, raw_password):
         return check_password(raw_password, self.password)
+
+    def generate_otp(self):
+        """Generate a new OTP for the user and set expiry."""
+        import random
+        self.otp = str(random.randint(100000, 999999))  # Example: generates a 6-digit OTP
+        self.otp_expiry = timezone.now() + timedelta(minutes=5)  # OTP expires in 5 minutes
+        self.save()
+
 
 
 class Van(models.Model):
