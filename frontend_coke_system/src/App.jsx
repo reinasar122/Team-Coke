@@ -68,6 +68,7 @@ import "react-toastify/dist/ReactToastify.css";
 
 import Invoice from "./pages/Invoice";
 
+import AdminRoute from "./routes/AdminRoute";
 import ForecastingDashboard from "./pages/ForecastingDashboard";
 
 import {
@@ -237,7 +238,15 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/dashboard" element={<Dashboard />} />
 
             {/* Forecasting */}
-            <Route path="/forecasting" element={<ForecastingDashboard />} />
+            <Route
+              path="/forecasting"
+              element={
+              <AdminRoute>
+                <ForecastingDashboard />
+              </AdminRoute>
+              }
+            />
+            <Route path="/unauthorized" element={<div>Access denied. Admin only.</div>} />
 
 
             {/* Credits */}
