@@ -71,6 +71,72 @@ export default function CreditList() {
     loadCredits();
   }, [currentWarehouse]);
 
+  // ✅ NEW: Trigger credits page visit for notifications
+  useEffect(() => {
+    if (currentWarehouse) {
+      console.log('🔔 Credits page visited, triggering notification check');
+      
+      // Dispatch event to notify system that credits page was visited
+      window.dispatchEvent(new CustomEvent('creditsPageVisited', {
+        detail: {
+          timestamp: new Date().toISOString(),
+          warehouseId: currentWarehouse.id,
+          warehouseName: currentWarehouse.name,
+          creditsCount: rows.length
+        }
+      }));
+    }
+  }, [currentWarehouse, rows.length]);
+
+  // ✅ NEW: Check for overdue credits and trigger notifications
+  useEffect(() => {
+    if (rows.length > 0 && currentWarehouse) {
+      const today = new Date();
+      const overdueCredits = rows.filter(credit => {
+        if (credit.status === 'PAID') return false;
+        if (!credit.due_date) return false;
+        
+        const dueDate = new Date(credit.due_date);
+        return today > dueDate;
+      });
+
+      // Trigger overdue notifications for each overdue credit
+      overdueCredits.forEach(credit => {
+        const dueDate = new Date(credit.due_date);
+        const daysOverdue = Math.ceil((today - dueDate) / (1000 * 60 * 60 * 24));
+        
+        console.log('🔔 Overdue credit found in list:', {
+          id: credit.id,
+          msp_no: credit.msp_no,
+          days_overdue: daysOverdue
+        });
+
+        // Throttle notifications - only trigger once per hour for each credit
+        const lastNotified = localStorage.getItem(`lastOverdueNotification_${credit.id}`);
+        const now = Date.now();
+        const oneHour = 60 * 60 * 1000;
+        
+        if (!lastNotified || (now - parseInt(lastNotified)) > oneHour) {
+          window.dispatchEvent(new CustomEvent('creditOverdueDetected', {
+            detail: {
+              id: credit.id,
+              msp_no: credit.msp_no,
+              customer_name: credit.customer_name,
+              balance: credit.balance,
+              due_date: credit.due_date,
+              days_overdue: daysOverdue,
+              warehouse_id: currentWarehouse.id,
+              detected_in_list: true
+            }
+          }));
+          
+          // Mark as notified
+          localStorage.setItem(`lastOverdueNotification_${credit.id}`, now.toString());
+        }
+      });
+    }
+  }, [rows, currentWarehouse]);
+
   const fmt = (v) => Number(v || 0).toFixed(2);
   const dt = (v) => (v ? new Date(v).toLocaleString() : "--");
 

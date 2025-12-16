@@ -104,6 +104,58 @@ export default function CreditDetail() {
     if (ledger?.msp_no) loadMerch();
   }, [ledger]);
 
+  // ✅ NEW: Check for overdue credits when viewing credit details
+  useEffect(() => {
+    if (ledger && ledger.due_date && ledger.status !== 'PAID') {
+      const dueDate = new Date(ledger.due_date);
+      const today = new Date();
+      
+      // Check if credit is overdue
+      if (today > dueDate) {
+        const daysOverdue = Math.ceil((today - dueDate) / (1000 * 60 * 60 * 24));
+        
+        // Only trigger if significantly overdue (to avoid spam)
+        if (daysOverdue > 0) {
+          console.log('🔔 Overdue credit detected:', {
+            id: ledger.id,
+            msp_no: ledger.msp_no,
+            days_overdue: daysOverdue
+          });
+          
+          window.dispatchEvent(new CustomEvent('creditOverdueDetected', {
+            detail: {
+              id: ledger.id,
+              msp_no: ledger.msp_no,
+              customer_name: ledger.customer_name,
+              balance: ledger.balance,
+              due_date: ledger.due_date,
+              days_overdue: daysOverdue,
+              warehouse_id: currentWarehouse?.id
+            }
+          }));
+        }
+      }
+    }
+  }, [ledger, currentWarehouse]);
+
+  // ✅ NEW: Debug logging for credit events
+  useEffect(() => {
+    const handleCreditEvents = (event) => {
+      console.log('🔔 Credit Event Triggered:', event.type, event.detail);
+    };
+
+    window.addEventListener('creditPaymentReceived', handleCreditEvents);
+    window.addEventListener('creditPaid', handleCreditEvents);
+    window.addEventListener('creditCreated', handleCreditEvents);
+    window.addEventListener('creditOverdueDetected', handleCreditEvents);
+    
+    return () => {
+      window.removeEventListener('creditPaymentReceived', handleCreditEvents);
+      window.removeEventListener('creditPaid', handleCreditEvents);
+      window.removeEventListener('creditCreated', handleCreditEvents);
+      window.removeEventListener('creditOverdueDetected', handleCreditEvents);
+    };
+  }, []);
 
   // -------------------- Payment logic --------------------
   const addPayment = async (value, method = "cash", note = "") => {
@@ -127,6 +179,56 @@ export default function CreditDetail() {
         note,
         recorded_by: ledger?.handled_by || "",
       });
+
+      // ✅ TRIGGER CREDIT PAYMENT NOTIFICATION
+      const remainingBalance = balance - toPost;
+      const isFullyPaid = remainingBalance <= 0;
+      
+      console.log('🔔 Credit payment successful, triggering notifications:', {
+        creditId: id,
+        paidAmount: toPost,
+        remainingBalance: remainingBalance,
+        isFullyPaid: isFullyPaid,
+        warehouse: currentWarehouse.id
+      });
+      
+      // Dispatch credit payment event for notifications
+      window.dispatchEvent(new CustomEvent('creditPaymentReceived', {
+        detail: {
+          creditId: id,
+          mspNo: ledger?.msp_no,
+          customerName: ledger?.customer_name,
+          paidAmount: toPost,
+          remainingBalance: remainingBalance,
+          paymentMethod: method,
+          warehouseId: currentWarehouse.id,
+          isFullyPaid: isFullyPaid,
+          originalAmount: Number(ledger?.total_amount || balance + toPost),
+          totalPaid: Number(ledger?.amount_paid || 0) + toPost,
+          note: note,
+          timestamp: new Date().toISOString()
+        }
+      }));
+
+      // ✅ If fully paid, also trigger paid credit event
+      if (isFullyPaid) {
+        window.dispatchEvent(new CustomEvent('creditPaid', {
+          detail: {
+            id: id,
+            msp_no: ledger?.msp_no,
+            customer_name: ledger?.customer_name,
+            balance: toPost,
+            payment_amount: toPost,
+            payment_method: method,
+            warehouse_id: currentWarehouse.id,
+            payment_date: new Date().toISOString(),
+            original_amount: Number(ledger?.total_amount || balance + toPost),
+            final_payment: true
+          }
+        }));
+
+        console.log('🔔 Credit fully paid notification triggered');
+      }
 
       setAmount("");
       await load();
@@ -287,7 +389,7 @@ export default function CreditDetail() {
                 const soldPcs = Number(r.sold_pcs ?? r.soldPcs ?? 0);
                 const actualSale = Number(r.actualSale ?? r.actual_sale ?? r.total ?? r.line_total ?? r.lineTotal ?? 0);
                 const anyValue = soldShell > 0 || soldPcs > 0 || actualSale > 0;
-                return hasName || anyValue; // ✅ Only show if there’s actual data
+                return hasName || anyValue; // ✅ Only show if there's actual data
               })
               .map((r, i) => {
               const shellPrice = Number(r.shellPrice ?? r.shell_price ?? 0);
