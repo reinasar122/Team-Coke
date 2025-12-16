@@ -1537,8 +1537,11 @@ class SupplierReturnItemDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = SupplierReturnItem.objects.all()
     serializer_class = SupplierReturnItemSerializer
 
-
 from django.core.exceptions import ObjectDoesNotExist
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status, serializers
+
 class LoginAPIView(APIView):
     def post(self, request):
         try:
@@ -1547,12 +1550,94 @@ class LoginAPIView(APIView):
                 return Response(serializer.validated_data, status=status.HTTP_200_OK)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         except ObjectDoesNotExist as e:
+            print(f"ObjectDoesNotExist Error: {str(e)}")
             return Response({"error": "User not found"}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
-            # Log the exception and return a generic error message
-            print(f"Error: {str(e)}")
+            # Log the exception with more details for debugging
+            print(f"Unexpected Error in LoginAPIView: {str(e)}")
+            print(f"Request data: {request.data}")
+            import traceback
+            traceback.print_exc()
             return Response({"error": "An unexpected error occurred."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
+class LoginSerializer(serializers.Serializer):
+    phone_number = serializers.CharField()
+    otp = serializers.CharField(min_length=6, max_length=6, required=False)
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, data):
+        phone_number = data.get('phone_number')
+        password = data.get('password')
+
+        try:
+            # Get user
+            user = User.objects.filter(phone_number=phone_number).first()
+            if not user:
+                raise serializers.ValidationError("User not found.")
+
+            # Check password
+            if not user.check_password(password):
+                raise serializers.ValidationError("Incorrect password.")
+
+            # Check if user is active
+            if not user.is_active:
+                raise serializers.ValidationError("Account is inactive.")
+
+            # Check if user has a role assigned
+            if not user.role:
+                raise serializers.ValidationError("User role not assigned.")
+
+            # Safely check if user is admin
+            is_admin = False
+            try:
+                if user.role and user.role.name:
+                    is_admin = user.role.name.lower() in ['admin', 'administrator', 'super admin']
+            except AttributeError as e:
+                print(f"Error checking admin role: {str(e)}")
+                is_admin = False
+            
+            # Check approval status (skip for admins)
+            if not is_admin and not user.is_approved:
+                raise serializers.ValidationError("Account pending approval.")
+            
+            # Check warehouse assignment (you might want to make this optional for some users)
+            if not user.warehouse:
+                raise serializers.ValidationError("User warehouse not assigned.")
+
+            # Safely get access list
+            access_list = []
+            try:
+                if user.role:
+                    access_list = RoleAccessibility.objects.filter(role=user.role).values(
+                        'submenu', 'full', 'view', 'create', 'edit', 'delete'
+                    )
+                    access_list = list(access_list)  # Convert to list here
+            except Exception as e:
+                print(f"Error fetching access list: {str(e)}")
+                access_list = []
+
+            # Safely build return data
+            return {
+                "id": user.id,
+                "phone_number": user.phone_number,
+                "role": user.role.name if (user.role and hasattr(user.role, 'name')) else None,
+                "warehouse": user.warehouse.name if (user.warehouse and hasattr(user.warehouse, 'name')) else None,
+                "warehouse_id": user.warehouse.id if (user.warehouse and hasattr(user.warehouse, 'id')) else None,
+                "must_change_password": getattr(user, 'must_change_password', False),
+                "accessibilities": access_list
+            }
+            
+        except serializers.ValidationError:
+            # Re-raise validation errors as they should be returned as 400 Bad Request
+            raise
+        except Exception as e:
+            # Log unexpected errors and raise a generic validation error
+            print(f"Unexpected error in LoginSerializer.validate: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            raise serializers.ValidationError("An unexpected error occurred during login validation.")
+
+from django.core.exceptions import ObjectDoesNotExist 
 from django.utils.encoding import force_str
 from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth.tokens import default_token_generator
