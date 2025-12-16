@@ -18,7 +18,6 @@ import "./styles/global.scss";
 // Pages
 import Login from "./pages/Login";
 import ChangePassword from "./pages/ChangePassword";
-//import SignUp from "./pages/SignUp"; // Import the SignUp component
 import WarehouseForm from "./pages/WarehouseForm";
 import Warehouses from "./pages/Warehouses";
 import EditWarehouse from "./pages/EditWarehouse";
@@ -68,8 +67,9 @@ import "react-toastify/dist/ReactToastify.css";
 
 import Invoice from "./pages/Invoice";
 
-import AdminRoute from "./routes/AdminRoute";
 import ForecastingDashboard from "./pages/ForecastingDashboard";
+// ✅ Customer Registration Component
+import CustomerRegistration from './components/merchandisingcomponents/CustomerRegistration';
 
 import {
   FaHome,
@@ -87,6 +87,7 @@ import {
   FaChartBar,   // ✅ for Sales Report title
   FaMoneyBillWave,
   FaDollarSign, // ✅ NEW: for Expense Settings
+  FaUserFriends, // ✅ ADD: for Customers
 } from "react-icons/fa";
 
 
@@ -137,8 +138,9 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
         {/* 👇 app-content + conditional lock */}
         <div
-          className={`app-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${!hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
-            }`}
+          className={`app-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${
+            !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
+          }`}
         >
           {/* Page Titles */}
           {!hideLayout && (
@@ -160,6 +162,25 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
+
+                {/* ✅ Customer page titles */}
+                <Route
+                  path="/customers"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaUserFriends /> Customers
+                    </h1>
+                  }
+                />
+                <Route
+                  path="/customer-registration"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaUserFriends /> Customer Registration
+                    </h1>
+                  }
+                />
+
                 <Route path="/receiving" />
                 <Route path="/stocks" />
                 <Route path="/products" />
@@ -172,6 +193,17 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
+
+                {/* Forecasting page title */}
+                <Route
+                  path="/forecasting"
+                  element={
+                    <h1 className="text-2xl flex items-center gap-2">
+                      <FaChartLine /> Forecasting
+                    </h1>
+                  }
+                />
+
                 {/* ✅ NEW: Expense Settings page title */}
                 <Route
                   path="/expense-settings"
@@ -184,11 +216,11 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 <Route path="/profile" />
                 <Route
                   path="/invoice"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaFileInvoice /> Invoice
-                    </h1>
-                  }
+                  // element={
+                  //   <h1 className="text-2xl flex items-center gap-2">
+                  //     <FaFileInvoice /> Invoice
+                  //   </h1>
+                  // }
                 />
                 <Route
                   path="/StocksAdjustment"
@@ -201,7 +233,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 <Route
                   path="/supplier-returns"
                   element={
-                    <h1 className="text-2xl flex items-center gap-2">
+                    <h1 className="text-2xl flex items-center mt-4 gap-2">
                       <FaTruck /> Supplier Returns
                     </h1>
                   }
@@ -238,23 +270,18 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/dashboard" element={<Dashboard />} />
 
             {/* Forecasting */}
-            <Route
-              path="/forecasting"
-              element={
-              <AdminRoute>
-                <ForecastingDashboard />
-              </AdminRoute>
-              }
-            />
-            <Route path="/unauthorized" element={<div>Access denied. Admin only.</div>} />
+            <Route path="/forecasting" element={<ForecastingDashboard />} />
 
+            {/* ✅ Customer Routes */}
+            <Route path="/customer-registration" element={<CustomerRegistration />} />
+            <Route path="/customers" element={<Navigate to="/customer-registration" replace />} />
 
             {/* Credits */}
             <Route path="/credits" element={<CreditList />} />
             <Route path="/credits/:id" element={<CreditDetail />} />
-
-            {/* Invoices */}
-            <Route path="/invoice" element={<Invoice />} />
+            
+            {/* Invoices */}  
+            <Route path="/invoice" element={<Invoice />} />      
 
             {/* Warehouse */}
             <Route path="/warehouses" element={<Warehouses />} />
@@ -273,7 +300,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/users" element={<UserList />} />
             <Route path="/create-user" element={<UserForm />} />
             <Route path="/roles" element={<RoleList />} />
-            <Route path="/create-role" element={<RoleForm onClose={() => { }} />} />
+            <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
 
             {/* Products */}
             <Route path="/products" element={<ProductList />} />
@@ -360,14 +387,14 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if this browser session has been initialized
-    if (!sessionStorage.getItem("app_initialized")) {
-      // First load after yarn start → clear old user session
-      localStorage.removeItem("user");
-      sessionStorage.setItem("app_initialized", "true");
-    }
-    setLoading(false);
-  }, []);
+      // Check if this browser session has been initialized
+      if (!sessionStorage.getItem("app_initialized")) {
+        // First load after yarn start → clear old user session
+        localStorage.removeItem("user");
+        sessionStorage.setItem("app_initialized", "true");
+      }
+      setLoading(false);
+    }, []);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -395,11 +422,6 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verify-otp" element={<VerifyOTP />} />
-          
-          {/* Mandatory password change for default admin (first-time login) */}
-          <Route path="/change-password/:id" element={<ChangePassword />} />
-          
-          {/* Password reset via forgot password (has uid/token) */}
           <Route path="/change-password/:uid/:token" element={<ChangePassword />} />
 
           {/* Protected Routes */}
