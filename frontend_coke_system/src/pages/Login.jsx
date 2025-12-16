@@ -190,7 +190,7 @@ const Login = () => {
       }
     }
 
-    // ✅ Build form data with proper email handling
+    // ✅ Build form data with proper email handling - FIXED
     const formData = isSignUp
       ? {
           phone_number: phoneNumber.trim(),
@@ -199,8 +199,8 @@ const Login = () => {
           first_name: firstName.trim(),
           last_name: lastName.trim(),
           gender,
-          // ✅ Handle email field properly - send empty string if no email provided
-          email: email.trim() || "",
+          // ✅ Only include email field if user provided one - THIS PREVENTS EMPTY STRING ISSUE
+          ...(email.trim() && { email: email.trim() }),
         }
       : { 
           phone_number: phoneNumber.trim(), 
@@ -211,6 +211,7 @@ const Login = () => {
     console.log("🚀 Submitting form...");
     console.log("📱 Phone Number:", phoneNumber);
     console.log("🔒 Password:", password ? "***PROVIDED***" : "***NOT PROVIDED***");
+    console.log("📧 Email provided:", !!email.trim());
     console.log("📊 Form Data:", formData);
     console.log("🌐 API Endpoint:", isSignUp ? "/register/" : "/login/");
 
@@ -410,7 +411,7 @@ const Login = () => {
     }
   };
 
-  const logoSrc = process.env.PUBLIC_URL + "/static/images/Wilfie’s 5.png";
+  const logoSrc = process.env.PUBLIC_URL + "/static/images/Wilfie's 5.png";
 
 
   return (

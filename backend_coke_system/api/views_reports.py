@@ -16,6 +16,11 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.core.exceptions import FieldError
 from datetime import date, timedelta, datetime, timezone as dt_timezone
+from rest_framework import viewsets
+
+
+
+from .serializers import CreditPaymentDisplaySerializer
 
 
 from .models import (
@@ -26,6 +31,8 @@ from .models import (
     ReceivingItem,
     ReturnableStock,   # 👈 use latest unit_cost from receiving lines
     UnitType,
+    CreditPayment,
+    CreditLedger,
 )
 
 # ---------- helpers ----------
@@ -83,6 +90,9 @@ class SalesReportAPIView(APIView):
         start_date, end_date = _daterange_from_period(period, start, end)
         start_dt, end_dt = _make_dt_window(start_date, end_date)
 
+        # Debugging date range
+        print(f"Start Date: {start_dt}, End Date: {end_dt}")
+
         # === Normalize "all" ===
         if warehouse_id.lower() == "all":
             warehouse_id = None
@@ -100,7 +110,38 @@ class SalesReportAPIView(APIView):
 
         sales_hdr = Merchandising.objects.filter(hdr_q)
 
-       # ------------------------------
+                # ------------------------------
+        # Fetch credit sales data (FILTERED)
+        # ------------------------------
+        credit_q = Q(created_at__gte=start_dt, created_at__lt=end_dt)
+
+        if warehouse_id:
+            credit_q &= Q(warehouse_id=warehouse_id)
+
+        if route_id:
+            # CreditLedger has FK: merchandising -> Merchandising -> route
+            credit_q &= Q(merchandising__route_id=route_id)
+
+        credit_sales = (
+            CreditLedger.objects
+            .filter(credit_q)
+            .values("customer_name", "total_amount", "due_date", "status", "msp_no")
+            .order_by("-created_at")
+        )
+
+        credit_sales_data = [
+            {
+                "customerName": sale["customer_name"],
+                "amount": sale["total_amount"],
+                "dueDate": sale["due_date"].strftime("%m-%d-%Y") if sale["due_date"] else None,
+                "status": sale["status"],
+                "mspNo": sale["msp_no"],
+            }
+            for sale in credit_sales
+        ]
+
+
+        # ------------------------------
         # FILTER SETUP
         # ------------------------------
         items_base_q = Q(
@@ -112,6 +153,98 @@ class SalesReportAPIView(APIView):
             items_base_q &= Q(merchandising__warehouse_id=warehouse_id)
         if route_id:
             items_base_q &= Q(merchandising__route_id=route_id)
+
+
+       # ------------------------------
+        # DISCREPANCIES (FULL) - PCS + SHELL (separate) ✅ FIXED
+        # Shell loss must use shell_price only (NOT content_no * selling_price)
+        # ------------------------------
+
+        # Amount for pcs discrepancy: pcs * selling_price
+        pcs_amount_expr = ExpressionWrapper(
+            Cast(Coalesce(F("discrepancy_full_pcs"), INT0), DECIMAL) * Coalesce(F("selling_price"), DEC0),
+            output_field=DECIMAL
+        )
+
+        # Amount for shell discrepancy: shell * shell_price  ✅
+        # IMPORTANT: update the ORM path to your real pricing field if different
+        shell_price_expr = Coalesce(F("product__price__shell_price"), DEC0)  # <-- change if needed
+
+        shell_amount_expr = ExpressionWrapper(
+            Cast(Coalesce(F("discrepancy_full_shell"), INT0), DECIMAL) * shell_price_expr,
+            output_field=DECIMAL
+        )
+
+        discrepancies_full_qs = (
+            MerchandisingItem.objects
+            .filter(items_base_q)
+            .select_related("product", "product__unit_type", "product__price")  # adjust if your relation name differs
+            .values("product__product_name")
+            .annotate(
+                pcs_qty=Coalesce(Sum("discrepancy_full_pcs"), INT0),
+                shell_qty=Coalesce(Sum("discrepancy_full_shell"), INT0),
+
+                # ✅ total amount = sum(pcs_amount) + sum(shell_amount)
+                amount=ExpressionWrapper(
+                    Coalesce(Sum(pcs_amount_expr), DEC0) + Coalesce(Sum(shell_amount_expr), DEC0),
+                    output_field=DECIMAL
+                ),
+            )
+            .filter(Q(pcs_qty__gt=0) | Q(shell_qty__gt=0))
+            .order_by("-amount")
+        )
+
+        discrepancies_full = [
+            {
+                "product": r["product__product_name"],
+                "pcs_qty": int(r["pcs_qty"] or 0),
+                "shell_qty": int(r["shell_qty"] or 0),
+                "amount": float(r["amount"] or 0),
+            }
+            for r in discrepancies_full_qs
+        ]
+
+
+       # ------------------------------
+        # DISCREPANCIES (EMPTY) - PCS + SHELL (separate) ✅ FIXED (no nested aggregates)
+        # Bottle loss = pcs_qty * avg(empty_price_pc)
+        # Shell loss  = shell_qty * avg(empty_price_shell)
+        # ------------------------------
+
+        discrepancies_empty_qs = (
+            MerchandisingItem.objects
+            .filter(items_base_q)
+            .select_related("product")
+            .values("product_id", "product__product_name")
+            .annotate(
+                pcs_qty=Coalesce(Sum("discrepancy_empties_pc"), INT0),
+                shell_qty=Coalesce(Sum("discrepancy_empties_shell"), INT0),
+
+                # get prices per product (within filter range)
+                bottle_price=Coalesce(Avg("empty_price_pc"), DEC0),
+                shell_price=Coalesce(Avg("empty_price_shell"), DEC0),
+            )
+            .annotate(
+                amount=ExpressionWrapper(
+                    Cast(F("pcs_qty"), DECIMAL) * F("bottle_price")
+                    + Cast(F("shell_qty"), DECIMAL) * F("shell_price"),
+                    output_field=DECIMAL
+                )
+            )
+            .filter(Q(pcs_qty__gt=0) | Q(shell_qty__gt=0))
+            .order_by("-amount")
+        )
+
+        discrepancies_empty = [
+            {
+                "product": r["product__product_name"],
+                "pcs_qty": int(r["pcs_qty"] or 0),
+                "shell_qty": int(r["shell_qty"] or 0),
+                "amount": float(r["amount"] or 0),
+            }
+            for r in discrepancies_empty_qs
+        ]
+
 
         # ------------------------------
         # PRODUCT BREAKDOWN (fixed)
@@ -526,6 +659,9 @@ class SalesReportAPIView(APIView):
                 },
             },
             "misc_expenses": misc_expenses_list,
+            "credit_sales": credit_sales_data,
+            "discrepancies_full": discrepancies_full,
+            "discrepancies_empty": discrepancies_empty,
         }
 
         return Response(payload)
@@ -637,3 +773,98 @@ class ProductBreakdownReport(APIView):
 
 
         return Response({"rows": rows})
+    
+    
+class CreditSalesViewSet(viewsets.ModelViewSet):
+    queryset = CreditPayment.objects.select_related('credit').all()  # This ensures CreditLedger is fetched along with CreditPayment
+    serializer_class = CreditPaymentDisplaySerializer
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.get_queryset()
+
+        # Apply any filters you need, for example, filter by customer name, amount, etc.
+        customer_name = request.query_params.get('customer_name')
+        if customer_name:
+            queryset = queryset.filter(credit__customer_name__icontains=customer_name)
+
+        # Apply pagination and return the response
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+    
+def get_sales_report(request):
+    # Fetch filters from query params
+    warehouse_id = request.query_params.get("warehouse_id", "").strip()
+    route_id = request.query_params.get("route_id", "").strip()
+    period = request.query_params.get("period", "this_week")
+    start = request.query_params.get("start")
+    end = request.query_params.get("end")
+
+    start_date, end_date = _daterange_from_period(period, start, end)
+    start_dt, end_dt = _make_dt_window(start_date, end_date)
+
+    # Normalize "all" filters
+    if warehouse_id.lower() == "all":
+        warehouse_id = None
+    if route_id.lower() == "all":
+        route_id = None
+
+    # ------------------------------
+    # Fetch Credit Sales Data Dynamically
+    # ------------------------------
+    credit_sales = CreditLedger.objects.filter(
+        date_time__gte=start_dt, 
+        date_time__lt=end_dt
+    ).values(
+        'customer_name', 
+        'total_amount', 
+        'due_date', 
+        'status', 
+        'msp_no'
+    )
+
+    credit_sales_data = [
+        {
+            "customerName": sale["customer_name"],
+            "amount": sale["total_amount"],
+            "dueDate": sale["due_date"],
+            "status": sale["status"],
+            "mspNo": sale["msp_no"],  # Example of additional info
+        }
+        for sale in credit_sales
+    ]
+    
+    # ------------------------------
+    # Calculate Dynamic Values
+    # ------------------------------
+    total_gross_revenue = Decimal("0")
+    total_discount = Decimal("0")
+    total_revenue = Decimal("0")
+
+    for sale in credit_sales:
+        total_gross_revenue += Decimal(sale["total_amount"])
+        # Example discount calculation - this would depend on your specific logic
+        total_discount += Decimal(sale["total_amount"]) * 0.10  # assuming 10% discount for example
+        total_revenue += total_gross_revenue - total_discount
+
+    net_profit = total_revenue - total_cost - total_misc_expenses  # Adjust with your cost and expenses logic
+
+    # ------------------------------
+    # Summary data
+    # ------------------------------
+    summary = {
+        "gross_revenue": float(total_gross_revenue),
+        "net_revenue": float(total_revenue),  # Final Net Revenue (Gross - Discount)
+        "net_profit": float(net_profit),  # Final Net Profit (after costs and expenses)
+        "discounts": float(total_discount),  # Total Discount Applied
+    }
+
+    # ------------------------------
+    # Prepare Final Response Data
+    # ------------------------------
+    response_data = {
+        "summary": summary,
+        "credit_sales": credit_sales_data,  # Include credit_sales in the response
+        # Include other data fields as needed like products, by_route, returns, etc.
+    }
+
+    return Response(response_data)

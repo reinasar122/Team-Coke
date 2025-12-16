@@ -49,6 +49,10 @@ class RegisterSerializer(serializers.ModelSerializer):
         if User.objects.filter(phone_number=attrs['phone_number']).exists():
             raise serializers.ValidationError("Phone number already registered.")
         
+        # Handle empty email - convert to None to avoid unique constraint issues
+        if 'email' in attrs and not attrs['email']:
+            attrs['email'] = None
+        
         return attrs
 
     def create(self, validated_data):
@@ -232,6 +236,14 @@ class CreditPaymentCreateSerializer(serializers.ModelSerializer):
         return payment
 
 
+class CreditPaymentDisplaySerializer(serializers.ModelSerializer):
+    customer_name = serializers.CharField(source='credit.customer_name')  
+    credit_amount = serializers.DecimalField(source='credit.total_amount', max_digits=12, decimal_places=2) 
+    due_date = serializers.DateTimeField(source='credit.due_date')  
+
+    class Meta:
+        model = CreditPayment
+        fields = ['customer_name', 'credit_amount', 'due_date', 'amount', 'method', 'created_at']
 
 
 
