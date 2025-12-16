@@ -81,6 +81,15 @@ const Sidebar = ({ isSidebarOpen }) => {
     </div>
   );
 
+  const user = JSON.parse(localStorage.getItem("user"));
+  const roleName =
+  user?.role_name ||
+  user?.role?.name ||
+  user?.role ||
+  "";
+
+  const isAdmin = roleName.toLowerCase() === "admin";
+
   return (
     <div className={`bg-gray-900 text-white w-64 h-screen p-5 fixed top-12 left-0 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-64"}`}>
       <ul className="space-y-3">
@@ -465,16 +474,18 @@ const Sidebar = ({ isSidebarOpen }) => {
 
         {/* Forecasting - always enabled */}
         <li>
-          <NavLink
-            to="/forecasting"
-            className={({ isActive }) =>
-              `p-2 hover:bg-gray-700 rounded flex items-center ${
-                isActive ? "bg-gray-800" : ""
-              }`
-            }
-          >
-            <FontAwesomeIcon icon={faChartLine} className="mr-2" /> Forecasting
-          </NavLink>
+          {isAdmin && ( 
+            <NavLink
+              to="/forecasting"
+              className={({ isActive }) =>
+                `p-2 hover:bg-gray-700 rounded flex items-center ${
+                  isActive ? "bg-gray-800" : ""
+                }`
+              }
+            >
+              <FontAwesomeIcon icon={faChartLine} className="mr-2" /> Forecasting
+            </NavLink>
+          )}
         </li>
 
         {/* Logout */}

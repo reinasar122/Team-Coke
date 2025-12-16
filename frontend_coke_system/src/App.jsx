@@ -68,6 +68,8 @@ import "react-toastify/dist/ReactToastify.css";
 
 import Invoice from "./pages/Invoice";
 
+import ForecastingDashboard from "./pages/ForecastingDashboard";
+
 import {
   FaHome,
   FaClipboardCheck,
@@ -233,6 +235,10 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
           <Routes>
             {/* Dashboard */}
             <Route path="/dashboard" element={<Dashboard />} />
+
+            {/* Forecasting */}
+            <Route path="/forecasting" element={<ForecastingDashboard />} />
+
 
             {/* Credits */}
             <Route path="/credits" element={<CreditList />} />

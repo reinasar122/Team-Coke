@@ -148,12 +148,37 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
 
   // Set zip code when municipality is selected
   useEffect(() => {
-    const selectedCity = cities.find((c) => c.city_name === formData.city);
-    if (selectedCity) {
-      const zipCode = zipCodeMap.get(selectedCity.city_name.toLowerCase()) || "";
-      setFormData((prev) => ({ ...prev, zip_code: zipCode }));
+    if (!formData.city) {
+      setFormData((prev) => ({
+        ...prev,
+        zip_code: "",
+      }));
+      return;
     }
-  }, [formData.city, cities]);
+
+    const selectedRegion = psgcData.find(
+      (r) => r.region_name === formData.region
+    );
+
+    if (selectedRegion) {
+      const selectedProvince = selectedRegion.provinces.find(
+        (p) => p.province_name === formData.province
+      );
+
+      if (selectedProvince) {
+        const selectedCity = selectedProvince.cities.find(
+          (c) => c.city_name === formData.city
+        );
+
+        if (selectedCity) {
+          setFormData((prev) => ({
+            ...prev,
+            zip_code: selectedCity.zip_code || "",
+          }));
+        }
+      }
+    }
+  }, [formData.city, formData.province, formData.region]);
 
   return (
     <div>
