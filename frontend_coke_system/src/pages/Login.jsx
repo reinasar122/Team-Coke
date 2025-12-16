@@ -411,8 +411,7 @@ const Login = () => {
     }
   };
 
-  const logoSrc = process.env.PUBLIC_URL + "/static/images/Wilfie's 5.png";
-
+  const logoSrc = process.env.PUBLIC_URL + "/static/images/Wilfie’s 5.png";
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-black via-gray-900 to-black">
