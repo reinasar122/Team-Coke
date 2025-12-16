@@ -1,9 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { hasAccess } from "../utils/accessUtils"; // Import the new permission check functions
-import { routeMap, routeOrder } from "../utils/routeMap"; // Import route map
-
 import {
   faTachometerAlt,
   faShoppingCart,
@@ -15,8 +12,9 @@ import {
   faChartBar,
   faChartLine,
 } from "@fortawesome/free-solid-svg-icons";
+import { hasAccess } from "../utils/accessUtils"; // Import the new permission check functions
 import { canView } from "../utils/accessControl";
-
+import { routeMap, routeOrder } from "../utils/routeMap"; // Import route map
 
 const Sidebar = ({ isSidebarOpen }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -62,6 +60,12 @@ const Sidebar = ({ isSidebarOpen }) => {
     return null; // If no accessible route is found, return null (no access)
   };
 
+  // Use canView as the primary permission check (or hasAccess if you prefer)
+  const checkAccess = (permission) => {
+    // You can use either canView or hasAccess, or combine both
+    return canView(permission) || hasAccess(permission);
+  };
+
   // Disabled item to show when a submenu is not accessible
   const DisabledItem = ({ icon, text }) => (
     <div className="p-2 rounded flex items-center text-gray-500 cursor-not-allowed opacity-50">
@@ -82,15 +86,21 @@ const Sidebar = ({ isSidebarOpen }) => {
       <ul className="space-y-3">
         {/* Dashboard */}
         <li>
-          {canView("Dashboard") ? (
-            <Link to="/" className="p-2 hover:bg-gray-700 rounded flex items-center">
+          {checkAccess("Dashboard") ? (
+            <NavLink
+              to="/"
+              className={({ isActive }) =>
+                `p-2 hover:bg-gray-700 rounded flex items-center ${
+                  isActive ? "bg-gray-800" : ""
+                }`
+              }
+            >
               <FontAwesomeIcon icon={faTachometerAlt} className="mr-2" /> Dashboard
-            </Link>
+            </NavLink>
           ) : (
             <DisabledItem icon={faTachometerAlt} text="Dashboard" />
           )}
         </li>
-
 
         {/* Transactions */}
         <li>
@@ -105,54 +115,111 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "transactions" && (
             <ul className="ml-4 mt-2 space-y-2">
-              {canView("Receiving") ? (
-                <li><Link to="/receiving" className="block p-2 text-sm hover:bg-gray-600 rounded">Receiving</Link></li>
+              {checkAccess("Receiving") ? (
+                <li>
+                  <NavLink
+                    to="/receiving"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Receiving
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Receiving" />
               )}
-              {canView("Trading") ? (
-                <li><Link to="/trading" className="block p-2 text-sm hover:bg-gray-600 rounded">Trading</Link></li>
+              {checkAccess("Trading") ? (
+                <li>
+                  <NavLink
+                    to="/trading"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Trading
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Trading" />
               )}
-              {canView("Supplier Return") ? (
-                <li><Link to="/supplier-returns" className="block p-2 text-sm hover:bg-gray-600 rounded">Supplier Return</Link></li>
+              {checkAccess("Supplier Return") ? (
+                <li>
+                  <NavLink
+                    to="/supplier-returns"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Supplier Return
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Supplier Return" />
               )}
-              {canView("Invoice") ? (
-                <li><Link to="/invoice" className="block p-2 text-sm hover:bg-gray-600 rounded">Invoice</Link></li>
+              {checkAccess("Invoice") ? (
+                <li>
+                  <NavLink
+                    to="/invoice"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Invoice
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Invoice" />
               )}
-              {canView("Credit") ? (
-                  <li>
-                    <Link to="/credits" className="block p-2 text-sm hover:bg-gray-600 rounded">
-                      Credit
-                    </Link>
-                  </li>
-                ) : (
-                  <DisabledSubItem text="Credit" />
-                )}
-              {canView("Expenses") ? (
+              {checkAccess("Credit") ? (
                 <li>
-                  <Link to="/expenses" className="block p-2 text-sm hover:bg-gray-600 rounded">
+                  <NavLink
+                    to="/credits"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Credit
+                  </NavLink>
+                </li>
+              ) : (
+                <DisabledSubItem text="Credit" />
+              )}
+              {checkAccess("Expenses") ? (
+                <li>
+                  <NavLink
+                    to="/expenses"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
                     Expenses
-                  </Link>
+                  </NavLink>
                 </li>
               ) : (
                 <DisabledSubItem text="Expenses" />
               )}
             </ul>
           )}
-
         </li>
 
         {/* Inventory */}
         <li>
           <button
             onClick={() => toggleDropdown("inventory")}
-            className=" w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className="w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faBoxOpen} className="mr-2" /> Inventory
@@ -161,18 +228,51 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "inventory" && (
             <ul className="ml-4 mt-2 space-y-2">
-              {canView("Stocks") ? (
-                <li><Link to="/stocks" className="block p-2 text-sm hover:bg-gray-600 rounded">Stocks</Link></li>
+              {checkAccess("Stocks") ? (
+                <li>
+                  <NavLink
+                    to="/stocks"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Stocks
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Stocks" />
               )}
-              {canView("Product") ? (
-                <li><Link to="/products" className="block p-2 text-sm hover:bg-gray-600 rounded">Product</Link></li>
+              {checkAccess("Product") ? (
+                <li>
+                  <NavLink
+                    to="/products"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Product
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Product" />
               )}
-              {canView("Returned Empties") ? (
-                <li><Link to="/return-empties" className="block p-2 text-sm hover:bg-gray-600 rounded">Return Empties</Link></li>
+              {checkAccess("Returned Empties") ? (
+                <li>
+                  <NavLink
+                    to="/return-empties"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Return Empties
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Return Empties" />
               )}
@@ -184,7 +284,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button
             onClick={() => toggleDropdown("report")}
-            className=" w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className="w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faChartBar} className="mr-2" /> Report
@@ -193,7 +293,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "report" && (
             <ul className="ml-4 mt-2 space-y-2">
-              {canView("Sales Report") ? (
+              {checkAccess("Sales Report") ? (
                 <li>
                   <NavLink
                     to="/reports/sales"
@@ -209,10 +309,9 @@ const Sidebar = ({ isSidebarOpen }) => {
               ) : (
                 <DisabledSubItem text="Sales Report" />
               )}
-
               {/* Uncomment and update if you add Inventory Report route */}
               {/*
-              {canView("Inventory Report") ? (
+              {checkAccess("Inventory Report") ? (
                 <li>
                   <NavLink
                     to="/reports/inventory"
@@ -237,7 +336,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           <button
             onClick={() => toggleDropdown("manage")}
-            className=" w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
+            className="w-full text-left p-2 hover:bg-gray-700 rounded flex items-center justify-between"
           >
             <span>
               <FontAwesomeIcon icon={faBoxOpen} className="mr-2" /> Manage
@@ -246,44 +345,109 @@ const Sidebar = ({ isSidebarOpen }) => {
           </button>
           {openDropdown === "manage" && (
             <ul className="ml-4 mt-2 space-y-2">
-              {canView("User") ? (
-                <li><Link to="/users" className="block p-2 text-sm hover:bg-gray-600 rounded">Users</Link></li>
+              {checkAccess("User") ? (
+                <li>
+                  <NavLink
+                    to="/users"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Users
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Users" />
               )}
-              {canView("Roles") ? (
-                <li><Link to="/roles" className="block p-2 text-sm hover:bg-gray-600 rounded">Roles</Link></li>
+              {checkAccess("Roles") ? (
+                <li>
+                  <NavLink
+                    to="/roles"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Roles
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Roles" />
               )}
-              {canView("Warehouse") ? (
-                <li><Link to="/warehouses" className="block p-2 text-sm hover:bg-gray-600 rounded">Warehouses</Link></li>
+              {checkAccess("Warehouse") ? (
+                <li>
+                  <NavLink
+                    to="/warehouses"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Warehouses
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Warehouses" />
               )}
-              {canView("Supplier") ? (
-                <li><Link to="/suppliers" className="block p-2 text-sm hover:bg-gray-600 rounded">Suppliers</Link></li>
+              {checkAccess("Supplier") ? (
+                <li>
+                  <NavLink
+                    to="/suppliers"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Suppliers
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Suppliers" />
               )}
-              {canView("Van") ? (
-                <li><Link to="/vans" className="block p-2 text-sm hover:bg-gray-600 rounded">Van</Link></li>
+              {checkAccess("Van") ? (
+                <li>
+                  <NavLink
+                    to="/vans"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Van
+                  </NavLink>
+                </li>
               ) : (
                 <DisabledSubItem text="Van" />
               )}
-              {canView("Customer") ? (
-                 <li><Link to="/customer-registration" className="block p-2 text-sm hover:bg-gray-600 rounded">Customers</Link></li>
+              {checkAccess("Customer") ? (
+                <li>
+                  <NavLink
+                    to="/customer-registration"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Customers
+                  </NavLink>
+                </li>
               ) : (
-                 <DisabledSubItem text="Customers" />
+                <DisabledSubItem text="Customers" />
               )}
-              
             </ul>
           )}
         </li>
 
         {/* Settings */}
         <li>
-          {canView("Settings") ? (
+          {checkAccess("Settings") ? (
             <NavLink
               to="/settings"
               className={({ isActive }) =>
@@ -299,9 +463,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           )}
         </li>
 
-
-        {/*Karen Changes */}
-        {/* Facebook Prophet / Forecasting - always enabled */}
+        {/* Forecasting - always enabled */}
         <li>
           <NavLink
             to="/forecasting"
@@ -315,12 +477,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           </NavLink>
         </li>
 
-        
-{/* ------------------ */}
-
-
-
-        {/* Logout
+        {/* Logout */}
         <li>
           <button
             onClick={handleLogout}
@@ -329,7 +486,6 @@ const Sidebar = ({ isSidebarOpen }) => {
             <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" /> Log out
           </button>
         </li>
-         */}
       </ul>
     </div>
   );
