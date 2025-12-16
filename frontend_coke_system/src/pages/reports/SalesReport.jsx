@@ -33,11 +33,18 @@ export default function SalesReport() {
     sales_by_route: [],
     returns_block: { expected_sale: 0, actual_sale: 0, difference: 0, supplier_returnables: 0 },
     misc_expenses: [],
+    credit_sales: [],
+    discrepancies_full: [], 
+    discrepancies_empty: [],
   });
+
+  const [discrepancies, setDiscrepancies] = useState([]); // Add state for discrepancies
+  const [creditSales, setCreditSales] = useState([]); // Add state for credit sales
 
   const printRef = useRef(null);
   const [unitsSold, setUnitsSold] = useState(0);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
+  const [discrepancyType, setDiscrepancyType] = useState("full");
 
   // Load dropdown options
   useEffect(() => {
@@ -131,6 +138,9 @@ export default function SalesReport() {
                 date: m.date ?? "",
               }))
             : [],
+            credit_sales: Array.isArray(r?.credit_sales) ? r.credit_sales : [], // Make sure credit_sales data is set
+            discrepancies_full: Array.isArray(r?.discrepancies_full) ? r.discrepancies_full : [],
+            discrepancies_empty: Array.isArray(r?.discrepancies_empty) ? r.discrepancies_empty : [],
         });
 
         // 🧾 Debug: KPI summary logs
@@ -212,7 +222,7 @@ export default function SalesReport() {
     ? data.misc_expenses
     : data.misc_expenses.slice(0, previewLimit);
 
-  return (
+   return (
     <div className="px-4 sm:px-6 lg:px-8 py-6" ref={printRef}>
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
@@ -294,8 +304,8 @@ export default function SalesReport() {
       <div className="grid gap-4 mb-6 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         <Metric label="Gross Revenue" value={peso(data.summary.gross_revenue ?? 0)} />
         <Metric label="Net Revenue" value={peso(data.summary.net_revenue ?? 0)} />
-        <Metric label="Net Income" value={peso(data.summary.net_profit ?? 0)} />
         <Metric label="Discounts" value={peso(data.summary.discounts ?? 0)} />
+        <Metric label="Net Income" value={peso(data.summary.net_profit ?? 0)} />
         <Metric label="Returned Rate" value={pct(data.summary.returned_rate)} />
       </div>
 
@@ -338,95 +348,308 @@ export default function SalesReport() {
         </Card>
       </div>
 
-      {/* Bottom Section */}
-      <div className="space-y-4">
-        {/* Returns & Discrepancies – full width */}
-        <Card title="Returns">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <Metric label="Actual Sales" value={peso(data.returns_block.actual_sale)} />
-            <Metric
-              label="Supplier Returnables (Bottle)"
-              value={n(data.returns_block.supplier_returnables.bottle)}
-            />
-            <Metric
-              label="Supplier Returnables (Shell)"
-              value={n(data.returns_block.supplier_returnables.shell)}
-            />
+      {/* Credit Sales */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-6">
+        <Card
+          title={
+            <div className="flex items-center justify-between min-h-[44px]">
+              <div className="flex flex-col">
+                <span className="text-sm font-semibold text-slate-800">Credit Sales</span>
+                <span className="text-xs text-slate-500">
+                  Paid, unpaid, and partially paid invoices
+                </span>
+              </div>
+
+              {/* reserve space to align with the Discrepancies dropdown */}
+              <div className="w-[160px]" />
+            </div>
+          }
+        >
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-sm table-fixed">
+              <thead>
+                <tr className="border-b">
+                  <th className="w-[25%] px-3 py-2 font-semibold text-center">Customer Name</th>
+                  <th className="w-[25%] px-3 py-2 font-semibold text-center">Credit Amount</th>
+                  <th className="w-[25%] px-3 py-2 font-semibold text-center">Due Date</th>
+                  <th className="w-[25%] px-3 py-2 font-semibold text-center">Status</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-6 text-slate-500">
+                      Loading credit sales...
+                    </td>
+                  </tr>
+                ) : !data?.credit_sales || data.credit_sales.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="text-center py-6 text-slate-500">
+                      No credit sales for the selected filters.
+                    </td>
+                  </tr>
+                ) : (
+                  data.credit_sales.map((sale, index) => {
+                    const status = String(sale.status || "").toUpperCase();
+
+                    const statusClass =
+                      status === "PAID"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : status === "PARTIAL"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-rose-100 text-rose-700";
+
+                    const dueDate = sale.dueDate || "—";
+
+                    return (
+                      <tr key={index} className="border-b last:border-b-0">
+                        <td className="px-3 py-2 text-center truncate" title={sale.customerName}>
+                          {sale.customerName || "—"}
+                        </td>
+
+                        <td className="px-3 py-2 text-center font-medium">
+                          {peso(sale.amount || 0)}
+                        </td>
+
+                        <td className="px-3 py-2 text-center whitespace-nowrap">
+                          {dueDate}
+                        </td>
+
+                        <td className="px-3 py-2 text-center">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${statusClass}`}>
+                            {status || "—"}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
           </div>
         </Card>
 
-        {/* Miscellaneous Expenses – full width */}
-        <Card title="Miscellaneous Expenses">
-          <div className="rounded-lg border border-slate-200 flex flex-col">
-            {/* Scrollable table area */}
-            <div className="max-h-72 overflow-y-auto">
-              <table className="min-w-full text-sm table-fixed">
-                <thead className="bg-slate-50 text-slate-600">
-                  <tr>
-                    <th className="text-center font-semibold px-3 py-2 border-b">Description</th>
-                    <th className="text-center font-semibold px-3 py-2 border-b">Transaction Info</th>
-                    <th className="text-center font-semibold px-3 py-2 border-b">Amount</th>
-                    <th className="text-center font-semibold px-3 py-2 border-b">Date</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {loading ? (
-                    <tr>
-                      <td colSpan={4} className="px-3 py-8">
-                        <Empty text="Loading…" />
-                      </td>
-                    </tr>
-                  ) : data.misc_expenses.length === 0 ? (
-                    <tr>
-                      <td colSpan={4} className="px-3 py-8">
-                        <Empty text="No expenses for the selected filters." />
-                      </td>
-                    </tr>
-                  ) : (
-                    expensesToShow.map((m, i) => (
-                      <tr key={i} className="odd:bg-white even:bg-slate-50/50">
-                        <td className="text-center px-3 py-2 border-b">{m.description}</td>
-                        <td className="text-center px-3 py-2 border-b">{m.notes}</td>
-                        <td className="text-center px-3 py-2 border-b whitespace-nowrap">
-                          {peso(m.amount)}
+        {/* Discrepancies Card */}
+          <Card
+            title={
+              <div className="flex items-start w-full">
+                {/* Left: title + subtitle */}
+                <div className="flex flex-col">
+                  <span className="text-sm font-semibold text-slate-800">
+                    Discrepancies
+                  </span>
+                  <span className="text-xs text-slate-500">
+                    Missing items and unreturned containers
+                  </span>
+                </div>
+
+                {/* Right: dropdown pushed to edge */}
+                  <div className="sm:ml-auto sm:w-[210px]">
+                    <select
+                      value={discrepancyType}
+                      onChange={(e) => setDiscrepancyType(e.target.value)}
+                      className="w-full border rounded-md px-3 py-1.5 text-xs bg-white text-slate-700"
+                    >
+                      <option value="full">With Product (Full)</option>
+                      <option value="empty">Empty Containers</option>
+                    </select>
+                  </div>
+                </div>
+
+            }
+          >
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-sm table-fixed">
+              <thead>
+                <tr className="border-b text-slate-600">
+                  <th className="w-[30%] px-3 py-2 font-semibold text-center">
+                    Product
+                  </th>
+
+                  <th className="w-[20%] px-3 py-2 font-semibold text-center">
+                    {discrepancyType === "full"
+                      ? "Bottles Missing"
+                      : "Bottles Missing"}
+                  </th>
+
+                  <th className="w-[20%] px-3 py-2 font-semibold text-center">
+                    {discrepancyType === "full"
+                      ? "Shells Missing"
+                      : "Shells Missing"}
+                  </th>
+
+                  <th className="w-[30%] px-3 py-2 font-semibold text-center">
+                    Loss Amount
+                  </th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {(() => {
+                  const rows =
+                    discrepancyType === "empty"
+                      ? data?.discrepancies_empty || []
+                      : data?.discrepancies_full || [];
+
+                  if (loading) {
+                    return (
+                      <tr>
+                        <td colSpan={4} className="text-center py-6 text-slate-500">
+                          Loading discrepancies…
                         </td>
-                        <td className="text-center px-3 py-2 border-b whitespace-nowrap">{m.date}</td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                    );
+                  }
 
-            {/* Info + toggle */}
-            {data.misc_expenses.length > previewLimit && (
-              <div className="px-3 py-2 border-t border-slate-200 text-xs flex items-center justify-between text-slate-500">
-                <span>
-                  Showing{" "}
-                  <span className="font-semibold">
-                    {showAllExpenses ? data.misc_expenses.length : previewLimit}
-                  </span>{" "}
-                  of{" "}
-                  <span className="font-semibold">{data.misc_expenses.length}</span> expenses
-                </span>
-                <button
-                  type="button"
-                  className="text-blue-600 font-semibold hover:underline"
-                  onClick={() => setShowAllExpenses((v) => !v)}
-                >
-                  {showAllExpenses ? "Show less" : "View full expenses"}
-                </button>
-              </div>
-            )}
+                  if (!rows.length) {
+                    return (
+                      <tr>
+                        <td colSpan={4} className="text-center py-6 text-slate-500">
+                          No discrepancies reported for the selected filters.
+                        </td>
+                      </tr>
+                    );
+                  }
 
-            {/* Total footer */}
-            <div className="px-3 py-2 border-t border-slate-200 text-xs text-right text-slate-500">
-              Total Miscellaneous:{" "}
-              <span className="font-semibold text-slate-700">{peso(miscTotal)}</span>
-            </div>
+                  return rows.map((row, index) => (
+                    <tr
+                      key={index}
+                      className="border-b last:border-b-0 hover:bg-slate-50"
+                    >
+                      <td className="px-3 py-2 text-center truncate">
+                        {row.product || "—"}
+                      </td>
+
+                      <td className="px-3 py-2 text-center">
+                        {n(row.pcs_qty || 0)}
+                      </td>
+
+                      <td className="px-3 py-2 text-center">
+                        {n(row.shell_qty || 0)}
+                      </td>
+
+                      <td className="px-3 py-2 text-center font-semibold text-rose-600">
+                        {peso(row.amount || 0)}
+                      </td>
+                    </tr>
+                  ));
+                })()}
+              </tbody>
+            </table>
           </div>
         </Card>
       </div>
-    </div>
+
+      {/* Bottom Section */}
+        <div className="space-y-4">
+          {/* Returns full width */}
+          <Card title="Returns">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Metric
+                label="Actual Sales"
+                value={peso(data.returns_block.actual_sale)}
+              />
+              <Metric
+                label="Supplier Returnables (Shell)"
+                value={n(data.returns_block.supplier_returnables.shell)}
+              />
+              <Metric
+                label="Supplier Returnables (Bottle)"
+                value={n(data.returns_block.supplier_returnables.bottle)}
+              />
+            </div>
+          </Card>
+
+          {/* Miscellaneous Expenses – full width */}
+          <Card title="Miscellaneous Expenses">
+            <div className="rounded-lg border border-slate-200 flex flex-col">
+              {/* Scrollable table area */}
+              <div className="max-h-72 overflow-y-auto">
+                <table className="min-w-full text-sm table-fixed">
+                  <thead className="bg-slate-50 text-slate-600">
+                    <tr>
+                      <th className="text-center font-semibold px-3 py-2 border-b">
+                        Description
+                      </th>
+                      <th className="text-center font-semibold px-3 py-2 border-b">
+                        Transaction Info
+                      </th>
+                      <th className="text-center font-semibold px-3 py-2 border-b">
+                        Date
+                      </th>
+                      <th className="text-center font-semibold px-3 py-2 border-b">
+                        Amount
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-8">
+                          <Empty text="Loading…" />
+                        </td>
+                      </tr>
+                    ) : data.misc_expenses.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="px-3 py-8">
+                          <Empty text="No expenses for the selected filters." />
+                        </td>
+                      </tr>
+                   ) : (
+                      expensesToShow.map((m, i) => (
+                        <tr key={i} className="odd:bg-white even:bg-slate-50/50">
+                          <td className="text-center px-3 py-2 border-b">
+                            {m.description}
+                          </td>
+                          <td className="text-center px-3 py-2 border-b">
+                            {m.notes}
+                          </td>
+                          <td className="text-center px-3 py-2 border-b whitespace-nowrap">
+                            {m.date}
+                          </td>
+                          <td className="text-center px-3 py-2 border-b whitespace-nowrap">
+                            {peso(m.amount)}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Info + toggle */}
+              {data.misc_expenses.length > previewLimit && (
+                <div className="px-3 py-2 border-t border-slate-200 text-xs flex items-center justify-between text-slate-500">
+                  <span>
+                    Showing{" "}
+                    <span className="font-semibold">
+                      {showAllExpenses ? data.misc_expenses.length : previewLimit}
+                    </span>{" "}
+                    of{" "}
+                    <span className="font-semibold">{data.misc_expenses.length}</span>{" "}
+                    expenses
+                  </span>
+                  <button
+                    type="button"
+                    className="text-blue-600 font-semibold hover:underline"
+                    onClick={() => setShowAllExpenses((v) => !v)}
+                  >
+                    {showAllExpenses ? "Show less" : "View full expenses"}
+                  </button>
+                </div>
+              )}
+
+              {/* Total footer */}
+              <div className="px-3 py-2 border-t border-slate-200 text-xs text-right text-slate-500">
+                Total Miscellaneous:{" "}
+                <span className="font-semibold text-slate-700">
+                  {peso(miscTotal)}
+                </span>
+              </div>
+            </div>
+          </Card>
+        </div>
+    </div>               
   );
 }

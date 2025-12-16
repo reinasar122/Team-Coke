@@ -282,7 +282,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
             />
           </div>
           <div>
-            <label className="block font-medium">TIN No.</label>
+            <label className="block font-medium">Tax Identification No.</label>
             <input
               type="text"
               name="bir_no"
