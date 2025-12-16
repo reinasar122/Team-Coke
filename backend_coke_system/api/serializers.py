@@ -82,6 +82,30 @@ class RegisterSerializer(serializers.ModelSerializer):
         print(f"OTP for {phone_number} is: {otp}")
 
 
+class WarehouseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Warehouse
+        fields = '__all__'
+
+    def validate_phone_number(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Phone number must contain only numbers.")
+        if len(value) != 11:
+            raise serializers.ValidationError("Phone number must be exactly 11 digits long.")
+        return value
+
+    def validate_zip_code(self, value):
+        if not value:
+            return value
+        if not value.isdigit():
+            raise serializers.ValidationError("Zip code must contain only numbers.")
+        if len(value) != 4:
+            raise serializers.ValidationError("Zip code must be exactly 4 digits long.")
+        return value
+
+
 class CreditLedgerCreateSerializer(serializers.ModelSerializer):
     # Map camelCase (frontend) → snake_case (model)
     customerName = serializers.CharField(source="customer_name", required=False, allow_blank=True, default="Walk-in")
