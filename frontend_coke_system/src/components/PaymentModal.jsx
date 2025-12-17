@@ -1072,21 +1072,25 @@ const PaymentModal = ({
 
           {paymentMethod === "cash" && (
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="block mb-1">Cash Amount Received</label>
-                <input
-                  type="text"
-                  className={`w-full border-[2px] rounded px-2 py-1 text-xl font-bold ${
-                    n(cashReceived) < n(amountDueFinal) ? "border-red-600 bg-red-100 text-red-600" : "border-slate-200"
-                  }`}
-                  value={`₱${cashReceived}`}
-                  onChange={(e) => setCashReceived(e.target.value.replace("₱", ""))} // Removes the symbol on change
-                />
+              <label className="block mb-1">Cash Amount Received</label>
 
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold">
+                ₱
+              </span>
+              <input
+                type="number"
+                inputMode="decimal"
+                className={`w-full pl-8 border-[2px] rounded px-2 py-1 text-xl font-bold ${
+                  n(cashReceived) < n(amountDueFinal)
+                    ? "border-red-600 bg-red-100 text-red-600"
+                    : "border-slate-200"
+                }`}
+                value={cashReceived}
+                onChange={(e) => setCashReceived(e.target.value)}
+              />
+            </div>
 
-
-
-              </div>
               {/* 
               <div>
                 <label className="block mb-1">Amount Due</label>
