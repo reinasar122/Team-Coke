@@ -90,7 +90,6 @@ import {
   FaUserFriends, // ✅ ADD: for Customers
 } from "react-icons/fa";
 
-
 // ✅ Check if user is logged in
 const isAuthenticated = () => {
   return localStorage.getItem("user") !== null;
@@ -98,7 +97,7 @@ const isAuthenticated = () => {
 
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
-  const user = JSON.parse(localStorage.getItem("user"));
+  const user = JSON.parse(localStorage.getItem("user") || 'null');
 
   // Not logged in → force login
   if (!user) return <Navigate to="/login" replace />;
@@ -214,14 +213,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   }
                 />
                 <Route path="/profile" />
-                <Route
-                  path="/invoice"
-                  // element={
-                  //   <h1 className="text-2xl flex items-center gap-2">
-                  //     <FaFileInvoice /> Invoice
-                  //   </h1>
-                  // }
-                />
+                <Route path="/invoice" />
                 <Route
                   path="/StocksAdjustment"
                   element={
@@ -266,6 +258,9 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
           {/* Page Routes */}
           <Routes>
+            {/* Root redirect */}
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            
             {/* Dashboard */}
             <Route path="/dashboard" element={<Dashboard />} />
 
@@ -364,13 +359,8 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             {/* Edit Role Access */}
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
 
-            {/* ✅ Default Fallback */}
-            <Route
-              path="*"
-              element={
-                <Navigate to={isAuthenticated() ? "/dashboard" : "/login"} replace />
-              }
-            />
+            {/* ✅ Fallback for unmatched routes - redirect to dashboard if authenticated */}
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
       </div>
@@ -387,14 +377,21 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-      // Check if this browser session has been initialized
-      if (!sessionStorage.getItem("app_initialized")) {
-        // First load after yarn start → clear old user session
-        localStorage.removeItem("user");
-        sessionStorage.setItem("app_initialized", "true");
-      }
-      setLoading(false);
-    }, []);
+    // Only initialize session tracking, don't clear user data on refresh
+    const isNewSession = !sessionStorage.getItem("app_initialized");
+    
+    if (isNewSession) {
+      // Mark this browser session as initialized
+      sessionStorage.setItem("app_initialized", "true");
+      console.log("New browser session initialized");
+      
+      // Only clear user data in specific scenarios (not on normal page refresh)
+      // You can add logic here if you want to clear data in certain conditions
+      // For example: if (someSpecificCondition) { localStorage.removeItem("user"); }
+    }
+    
+    setLoading(false);
+  }, []);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -424,7 +421,7 @@ function App() {
           <Route path="/verify-otp" element={<VerifyOTP />} />
           <Route path="/change-password/:uid/:token" element={<ChangePassword />} />
 
-          {/* Protected Routes */}
+          {/* Protected Routes - All other routes go through this wrapper */}
           <Route
             path="/*"
             element={
@@ -436,9 +433,6 @@ function App() {
               </ProtectedRoute>
             }
           />
-
-          {/* Default Redirect to Login if not authenticated */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       </NotificationProvider>
     </Router>
