@@ -1577,7 +1577,7 @@ class LoginSerializer(serializers.Serializer):
 
             # Check password
             if not user.check_password(password):
-                raise serializers.ValidationError("Incorrect password.")
+                raise serializers.ValidationError("Incorrect username or password.")
 
             # Check if user is active
             if not user.is_active:
