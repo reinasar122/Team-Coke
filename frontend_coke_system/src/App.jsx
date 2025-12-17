@@ -412,7 +412,14 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />
           <Route path="/verify-otp" element={<VerifyOTP />} />
+          {/* Mandatory password change for default admin (first-time login) */}
+          <Route path="/change-password/:id" element={<ChangePassword />} />
+          
+          {/* Password reset via forgot password (has uid/token) */}
           <Route path="/change-password/:uid/:token" element={<ChangePassword />} />
+
+          
+          
 
           {/* Protected Routes - All other routes go through this wrapper */}
           <Route
