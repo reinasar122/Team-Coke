@@ -1072,34 +1072,35 @@ const PaymentModal = ({
 
           {paymentMethod === "cash" && (
             <div className="grid grid-cols-2 gap-4">
-              <label className="block mb-1">Cash Amount Received</label>
+              <div>
+                <label className="block mb-1">Cash Amount Received</label>
 
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold">
-                ₱
-              </span>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold">
+                    ₱
+                  </span>
 
-              <input
-                type="text"
-                inputMode="decimal"
-                className={`w-full pl-8 border-[2px] rounded px-2 py-1 text-xl font-bold ${
-                  n(cashReceived) < n(amountDueFinal)
-                    ? "border-red-600 bg-red-100 text-red-600"
-                    : "border-slate-200"
-                }`}
-                value={cashReceived}
-                onChange={(e) => {
-                  // allow only digits + one dot
-                  let v = e.target.value.replace(/[^\d.]/g, "");
-                  v = v.replace(/^(\d*\.)|\./g, (m, first) => (first ? m : "")); // keep first dot only
-                  setCashReceived(v);
-                }}
-                onKeyDown={(e) => {
-                  // hard block common non-numeric keys for number inputs
-                  if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
-                }}
-              />
-            </div>
+                  <input
+                    type="text"
+                    inputMode="decimal"
+                    className={`w-full pl-8 border-[2px] rounded px-2 py-1 text-xl font-bold ${
+                      n(cashReceived) < n(amountDueFinal)
+                        ? "border-red-600 bg-red-100 text-red-600"
+                        : "border-slate-200"
+                    }`}
+                    value={cashReceived}
+                    onChange={(e) => {
+                      let v = e.target.value.replace(/[^\d.]/g, "");
+                      const parts = v.split(".");
+                      if (parts.length > 2) v = parts[0] + "." + parts.slice(1).join("");
+                      setCashReceived(v);
+                    }}
+                    onKeyDown={(e) => {
+                      if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+                    }}
+                  />
+                </div>
+              </div>
 
               {/* 
               <div>
