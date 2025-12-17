@@ -7,6 +7,7 @@ import {
   useLocation,
 } from "react-router-dom";
 
+
 // Layout Components
 import MerchandisingSale from "./components/merchandisingcomponents/MerchandisingSale";
 import Header from "./components/Header";
@@ -90,7 +91,7 @@ import {
   FaUserFriends, // ✅ ADD: for Customers
 } from "react-icons/fa";
 
-
+const location = useLocation();
 // ✅ Check if user is logged in
 const isAuthenticated = () => {
   return localStorage.getItem("user") !== null;
@@ -438,7 +439,16 @@ function App() {
           />
 
           {/* Default Redirect to Login if not authenticated */}
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route
+  path="*"
+  element={
+    <Navigate
+      to={location.pathname.replace(/\/+$/, "") || "/dashboard"}
+      replace
+    />
+  }
+/>
+
         </Routes>
       </NotificationProvider>
     </Router>
