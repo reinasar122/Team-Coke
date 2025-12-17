@@ -1078,8 +1078,9 @@ const PaymentModal = ({
               <span className="absolute left-3 top-1/2 -translate-y-1/2 text-lg font-bold">
                 ₱
               </span>
+
               <input
-                type="number"
+                type="text"
                 inputMode="decimal"
                 className={`w-full pl-8 border-[2px] rounded px-2 py-1 text-xl font-bold ${
                   n(cashReceived) < n(amountDueFinal)
@@ -1087,7 +1088,16 @@ const PaymentModal = ({
                     : "border-slate-200"
                 }`}
                 value={cashReceived}
-                onChange={(e) => setCashReceived(e.target.value)}
+                onChange={(e) => {
+                  // allow only digits + one dot
+                  let v = e.target.value.replace(/[^\d.]/g, "");
+                  v = v.replace(/^(\d*\.)|\./g, (m, first) => (first ? m : "")); // keep first dot only
+                  setCashReceived(v);
+                }}
+                onKeyDown={(e) => {
+                  // hard block common non-numeric keys for number inputs
+                  if (["e", "E", "+", "-"].includes(e.key)) e.preventDefault();
+                }}
               />
             </div>
 
