@@ -377,19 +377,12 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Only initialize session tracking, don't clear user data on refresh
-    const isNewSession = !sessionStorage.getItem("app_initialized");
-    
-    if (isNewSession) {
-      // Mark this browser session as initialized
+    // ✅ FIXED: Don't clear user data on refresh - only set session flag
+    if (!sessionStorage.getItem("app_initialized")) {
       sessionStorage.setItem("app_initialized", "true");
       console.log("New browser session initialized");
-      
-      // Only clear user data in specific scenarios (not on normal page refresh)
-      // You can add logic here if you want to clear data in certain conditions
-      // For example: if (someSpecificCondition) { localStorage.removeItem("user"); }
+      // Don't automatically clear localStorage here - it causes refresh issues
     }
-    
     setLoading(false);
   }, []);
 
