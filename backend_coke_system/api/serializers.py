@@ -1187,7 +1187,7 @@ class LoginSerializer(serializers.Serializer):
             raise serializers.ValidationError("User not found.")
 
         if not user.check_password(password):
-            raise serializers.ValidationError("Incorrect password.")
+            raise serializers.ValidationError("Incorrect username or password.")
 
         # Allow admin users to bypass approval check
         is_admin = user.role and user.role.name.lower() in ['admin', 'administrator', 'super admin']
