@@ -114,7 +114,7 @@ const Login = () => {
   };
 
   // Password Complexity Validation
-  const passwordComplexityRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[@$!%*?&])([A-Za-z\d@$!%*?&]{8,})$/;
+  const passwordComplexityRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*_)[A-Za-z\d_]{8,}$/;
   const [passwordError, setPasswordError] = useState("");
   const [passwordValid, setPasswordValid] = useState(false);
 
