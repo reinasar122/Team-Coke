@@ -286,7 +286,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
           {/* Username & Status */}
           <div className="mb-5 flex gap-6">
-            <div className="w-1/2">
+            {/* <div className="w-1/2">
               <label className="block font-medium">
                 Username
                 {usernameManuallyChanged && user.username !== user.phone_number && (
@@ -303,7 +303,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
                   required
                   placeholder="Username (defaults to phone number)"
                 />
-                {/* ✅ Sync button - only show if username differs from phone number */}
+                ✅ Sync button - only show if username differs from phone number
                 {user.username !== user.phone_number && (
                   <button
                     type="button"
@@ -320,7 +320,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
                   Username will automatically sync with phone number
                 </p>
               )}
-            </div>
+            </div> */}
 
             <div className="w-1/2">
               <label className="block font-medium">Status</label>

@@ -404,12 +404,17 @@ const Login = () => {
   }, [isSignUp]);
 
   // Phone number validation
-  const handlePhoneNumberChange = (e) => {
-    const value = e.target.value;
-    if (/^[0-9]*$/.test(value)) {
-      setPhoneNumber(value);
-    }
-  };
+  // Phone number validation (11 digits only for Sign Up)
+const handlePhoneNumberChange = (e) => {
+  const value = e.target.value.replace(/\D/g, ""); // numbers only
+
+  if (isSignUp) {
+    setPhoneNumber(value.slice(0, 11)); // cap to 11 digits
+  } else {
+    setPhoneNumber(value); // no cap for sign in (as you requested)
+  }
+};
+
 
   const logoSrc = process.env.PUBLIC_URL + "/static/images/Wilfie’s 5.png";
 
@@ -488,13 +493,14 @@ const Login = () => {
                   <div>
                     <label className="block text-sm font-medium text-gray-200 mb-2">Phone Number *</label>
                     <input
-                      type="text"
-                      value={phoneNumber}
-                      onChange={handlePhoneNumberChange}
-                      placeholder="Enter phone number"
-                      required
-                      className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
-                    />
+  type="text"
+  value={phoneNumber}
+  onChange={handlePhoneNumberChange}
+  placeholder="Enter phone number"
+  required
+  maxLength={11}
+  className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
+/>
                   </div>
                 </div>
 
