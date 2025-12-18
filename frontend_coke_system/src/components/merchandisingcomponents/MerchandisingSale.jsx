@@ -1112,7 +1112,7 @@ const MerchandisingSale = () => {
   return (
     <div className="p-6">
       <h1 className="text-xl font-bold mb-4">
-        {editMode ? "View/Edit Merchandising Sale" : "New Merchandising Sale"}
+        {editMode ? "View/Edit Merchandising Sale" : "New Sale"}
       </h1>
 
       <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">

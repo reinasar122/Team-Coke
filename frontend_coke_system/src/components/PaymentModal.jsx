@@ -538,7 +538,7 @@ const PaymentModal = ({
           <>
             {/* ===== 1) PRODUCTS SUMMARY ===== */}
             <div className="mt-6">
-              <h3 className="text-lg font-semibold mb-2">Products Summary</h3>
+              <h3 className="text-lg font-semibold mb-2">Merchandising Summary</h3>
 
 
               <table className="w-full mt-4 border">
@@ -1130,7 +1130,7 @@ const PaymentModal = ({
                 {n(cashReceived || 0) < amountDueFinal && (
                   <div className="col-span-2 mt-6 space-y-4">
                     <div className="bg-blue-100 border border-blue-300 p-4 rounded">
-                      <div className="font-semibold text-blue-700">Amount Payable:</div>
+                      <div className="font-semibold text-blue-700">Balance:</div>
                       <div className="flex justify-between items-center mt-1 text-sm">
                         <div className="flex flex-col gap-2">
                           {isVanLoad ? (
