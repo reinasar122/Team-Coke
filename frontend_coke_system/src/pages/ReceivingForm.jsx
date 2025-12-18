@@ -1192,13 +1192,22 @@ const ReceivingForm = () => {
             </table>
           </div>
         </div>
+
+        <div className="card formula-explanation text-blue-700" style={{ width: '30%'}} >
+          <p><strong>Note:</strong>
+            This is the formula used in calculating the Total:</p>
+          <p><strong>Total = Unit Cost * (Pcs - Bo/Pcs)</strong></p>
+          <p>Where:</p>
+          <p><strong>Unit Cost = Purchase Price + Bottle Price + (Shell Price / Content No)</strong></p>
+        </div>
+
         
-        {/* Financial Summary - UPDATED: Changed terminology */}
+        {/* Financial Summary */}
         <div className="financial-summary">
           <h3>Financial Summary</h3>
           <div className="grid md:grid-cols-3 gap-6">
             <div>
-              <label className="form-label">Total Payable:</label>
+              <label className="form-label"> Amount Payable:</label>
               <div className="relative">
                 <span className="currency">₱</span>
                 <input
@@ -1211,7 +1220,7 @@ const ReceivingForm = () => {
             </div>
             <div>
               <label className="form-label">
-                Less Returnable Value:
+                Return Total Amount (Less):
                 {supplierReturns.length > 0 && (
                   <span className="ml-2 text-sm text-primary">({supplierReturns.length} returns)</span>
                 )}
@@ -1241,15 +1250,7 @@ const ReceivingForm = () => {
               </div>
             </div>
           </div>
-          <div>
-            <div className="card formula-explanation mt-5 text-blue-700" style={{ width: '30%' }} >
-            <p><strong>Note:</strong>
-              This is the formula used in calculating the Total:</p>
-            <p><strong>Total = Unit Cost * (Pcs - Bo/Pcs)</strong></p>
-            <p>Where:</p>
-            <p><strong>Unit Cost = Purchase Price + Bottle Price + (Shell Price / Content No)</strong></p>
-          </div>
-          </div>
+        
         </div>
         {/* Footer */}
         <div className="grid md:grid-cols-2 gap-6 mt-10">
