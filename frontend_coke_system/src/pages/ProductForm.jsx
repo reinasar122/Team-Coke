@@ -1,4 +1,4 @@
-// ProductForm.jsx - WITH LEFT-ALIGNED HEADER MESSAGE AND REMOVED PRE-SELECTED TEXT
+// ProductForm.jsx - WITH IMPROVED INLINE ADD (NO NOTIFICATIONS)
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { notifyProductChange } from "../utils/productNotifier";
@@ -20,7 +20,7 @@ const ProductForm = () => {
       supplier_code: "",
       product_name: "",
       product_category: "",
-      returnable: true, // ✅ UPDATED: Default to true (Yes/Checked)
+      returnable: true,
       purchase_price: "",
       selling_price: "",
       shell_price: "",
@@ -67,12 +67,14 @@ const ProductForm = () => {
       setRows(prev => {
         const newRows = [...prev];
         newRows[0].supplier = preSelectedSupplier.id;
+        // Regenerate system code with supplier prefix
+        setTimeout(() => generateSystemCode(0, preSelectedSupplier.id), 100);
         return newRows;
       });
     }
   }, [preSelectedSupplier, suppliers]);
 
-  // NEW: Show message if passed from receiving form - FIXED: Shorter timeout and non-blocking
+  // NEW: Show message if passed from receiving form
   useEffect(() => {
     if (message) {
       showNotice(message, "info");
@@ -86,13 +88,67 @@ const ProductForm = () => {
     api.get("/suppliers/").then((res) => setSuppliers(res.data));
   };
 
-  const generateSystemCode = (index) => {
-    const code = `PROD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+  // ✅ Smart supplier prefix generation
+  const generateUniqueSupplierPrefix = (targetSupplier) => {
+    if (!targetSupplier) return 'PROD';
+    
+    const targetName = targetSupplier.company_name.toUpperCase();
+    let basePrefix = targetName.substring(0, 3).replace(/[^A-Z]/g, '');
+    
+    // If basePrefix is too short, try to get more characters
+    if (basePrefix.length < 2) {
+      basePrefix = targetName.replace(/[^A-Z]/g, '').substring(0, 3);
+    }
+    
+    // Check for conflicts with other suppliers
+    const conflictingSuppliers = suppliers.filter(s => 
+      s.id !== targetSupplier.id && 
+      s.company_name.toUpperCase().startsWith(basePrefix)
+    );
+    
+    if (conflictingSuppliers.length === 0) {
+      return basePrefix;
+    }
+    
+    // Handle conflicts by adding numbers
+    const allSimilarSuppliers = suppliers
+      .filter(s => s.company_name.toUpperCase().includes(basePrefix))
+      .sort((a, b) => a.company_name.localeCompare(b.company_name));
+    
+    const targetIndex = allSimilarSuppliers.findIndex(s => s.id === targetSupplier.id);
+    
+    if (targetIndex === 0) {
+      return basePrefix; // First one keeps the original prefix
+    } else {
+      return `${basePrefix}-${targetIndex}`; // Others get numbers
+    }
+  };
+
+  // ✅ Enhanced system code generation with smart prefixes
+  const generateSystemCode = (index, supplierId = null) => {
+    const supplier = suppliers.find(s => s.id == supplierId);
+    const supplierPrefix = generateUniqueSupplierPrefix(supplier);
+    const randomCode = Math.random().toString(36).substring(2, 4).toUpperCase();
+    const timestamp = Date.now().toString().slice(-2);
+    const code = `${supplierPrefix}-${randomCode}${timestamp}`;
+    
     setRows((prev) => {
       const newRows = [...prev];
       newRows[index].system_code = code;
       return newRows;
     });
+  };
+
+  // ✅ Helper function to get supplier name and show prefix info
+  const getSupplierInfo = (supplierId) => {
+    const supplier = suppliers.find(s => s.id == supplierId);
+    if (!supplier) return { name: '', prefix: '' };
+    
+    const prefix = generateUniqueSupplierPrefix(supplier);
+    return {
+      name: supplier.company_name,
+      prefix: prefix
+    };
   };
 
   const handleImageUpload = (index, e) => {
@@ -136,7 +192,7 @@ const ProductForm = () => {
   const handleChange = (index, e) => {
     const { name, value, type, checked } = e.target;
     
-    // ✅ INTEGRATED: Handle "Add new" option selection
+    // Handle "Add new" option selection
     if (value === "ADD_NEW_CATEGORY" || value === "ADD_NEW_SHELL" || value === "ADD_NEW_CONTENT") {
       const key = `${name}_${index}`;
       setShowAddNewInput(prev => ({ ...prev, [key]: true }));
@@ -146,7 +202,6 @@ const ProductForm = () => {
     setRows((prev) => {
       const newRows = [...prev];
       if (name === "returnable") {
-        // ✅ UPDATED: Simple checkbox handling
         newRows[index][name] = checked;
         if (!checked) {
           newRows[index].shell_price = 0;
@@ -155,6 +210,12 @@ const ProductForm = () => {
       } else {
         newRows[index][name] = type === "checkbox" ? checked : value;
       }
+      
+      // Regenerate system code when supplier changes
+      if (name === "supplier" && value) {
+        setTimeout(() => generateSystemCode(index, value), 100);
+      }
+      
       return newRows;
     });
     
@@ -162,7 +223,7 @@ const ProductForm = () => {
     checkAndAddRow(index);
   };
 
-  // ✅ INTEGRATED: Inline add new functions
+  // ✅ UPDATED: Silent inline add new functions (no notifications)
   const handleInlineAddNew = async (type, rowIndex, value) => {
     if (!value.trim()) return;
 
@@ -205,9 +266,10 @@ const ProductForm = () => {
         setNewContentInput(prev => ({ ...prev, [rowIndex]: "" }));
       }
       
-      showNotice(`✅ New ${type} added successfully!`, "success");
+      // ✅ REMOVED: No more notifications for inline additions
     } catch (err) {
       console.error("❌ Add New Error:", err.response?.data || err.message);
+      // Only show error notifications, not success ones
       showNotice("❌ Failed to add new item", "error");
     }
   };
@@ -220,18 +282,18 @@ const ProductForm = () => {
       current.product_name &&
       current.product_category &&
       current.purchase_price &&
-      current.content_no; // ✅ UPDATED: Added supplier check
+      current.content_no;
     if (filled && index === rows.length - 1) {
       setRows((prev) => {
         const newRows = [
           ...prev,
           {
-            system_code: `PROD-${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
+            system_code: "",
             supplier_code: "",
             supplier: "",
             product_name: "",
             product_category: "",
-            returnable: true, // ✅ UPDATED: Default new rows to true (Yes/Checked)
+            returnable: true,
             purchase_price: "",
             selling_price: "",
             shell_price: "",
@@ -244,6 +306,7 @@ const ProductForm = () => {
           },
         ];
         setTimeout(() => {
+          generateSystemCode(newRows.length - 1);
           inputRefs.current[newRows.length - 1]?.focus();
         }, 100);
         return newRows;
@@ -251,16 +314,14 @@ const ProductForm = () => {
     }
   };
 
-  // FIXED: Updated showNotice with much shorter timeouts for super fast notifications
   const showNotice = (text, type = "success") => {
     setNotice({ open: true, type, text });
     
-    // Very short timeouts - notifications disappear quickly
-    let timeout = 1000; // Default 1 seconds for success
+    let timeout = 1000;
     if (type === "info") {
-      timeout = 800; // Very short for info messages (0.8 seconds)  
+      timeout = 800;
     } else if (type === "error") {
-      timeout = 2000; // Still short for errors (2 seconds)
+      timeout = 2000;
     }
     
     setTimeout(() => {
@@ -290,8 +351,6 @@ const ProductForm = () => {
         { field: 'shell_type', label: 'Shell Type' },
         { field: 'content_type', label: 'Content Type' }
       ];
-
-      // ✅ UPDATED: Removed returnable validation since checkbox is optional
 
       requiredFields.forEach(({ field, label }) => {
         if (!row[field] || row[field] === "") {
@@ -413,118 +472,113 @@ const ProductForm = () => {
         console.log('📦 Products created successfully:', createdProducts.length);
         console.log('🏭 Notifying ONLY current warehouse users:', currentWarehouse.name);
         
-        // ✅ FIXED: Force immediate notification persistence
+        // Enhanced notifications with smart prefixes
         createdProducts.forEach(product => {
-  const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
-  
-  // Create the notification with immediate persistence flag
-  const notificationData = {
-    action: 'created',
-    id: product.id,
-    product_name: product.formData.product_name,
-    product_code: product.formData.system_code,
-    category: categoryName,
-    selling_price: product.formData.selling_price,
-    warehouse_id: currentWarehouse.id,
-    warehouseId: currentWarehouse.id,
-    targetWarehouse: currentWarehouse.id,
-    restrictToWarehouse: true,
-    source_warehouse: {
-      id: currentWarehouse.id,
-      name: currentWarehouse.name
-    },
-    metadata: {
-      supplier_code: product.formData.supplier_code,
-      purchase_price: product.formData.purchase_price,
-      returnable: product.formData.returnable,
-      created_at: new Date().toISOString(),
-      event_timestamp: Date.now(),
-      persist_immediate: true
-    }
-  };
-  
-  notifyProductChange(notificationData);
-  
-  // ✅ CRITICAL FIX: Immediately persist to localStorage to survive refresh
-  setTimeout(() => {
-    try {
-      const warehouseKey = `persistedNotifications_warehouse_${currentWarehouse.id}`;
-      const existingNotifications = JSON.parse(localStorage.getItem(warehouseKey) || '[]');
-      
-      // Create the notification object that matches your notification system structure
-      const persistentNotification = {
-        id: `product_created_${product.id}_${Date.now()}`,
-        type: 'product_created',
-        category: 'products',
-        title: '📦 New Product Added',
-        message: `${product.formData.product_name} has been added to inventory`,
-        details: `Product Code: ${product.formData.system_code}`,
-        priority: 'medium',
-        timestamp: new Date().toISOString(),
-        is_read: false,
-        data: {
-          id: product.id,
-          product_name: product.formData.product_name,
-          product_code: product.formData.system_code,
-          category: categoryName,
-          selling_price: product.formData.selling_price,
-          warehouse_id: currentWarehouse.id,
-          created_at: new Date().toISOString(),
-          supplier_code: product.formData.supplier_code,
-          purchase_price: product.formData.purchase_price,
-          returnable: product.formData.returnable
-        }
-      };
-      
-      // Add to the beginning of the array (most recent first)
-      const updatedNotifications = [persistentNotification, ...existingNotifications];
-      
-      // Keep only the last 50 notifications per warehouse
-      const trimmedNotifications = updatedNotifications.slice(0, 50);
-      
-      // Save immediately to localStorage
-      localStorage.setItem(warehouseKey, JSON.stringify(trimmedNotifications));
-      
-      console.log(`💾 IMMEDIATE SAVE: Product notification persisted for ${product.formData.product_name}`);
-    } catch (error) {
-      console.error('❌ Failed to immediately persist product notification:', error);
-    }
-  }, 200);
-  
-  console.log(`📦 Product notification sent for: ${product.formData.product_name} - ONLY to ${currentWarehouse.name} users`);
-});
-        
-        console.log(`🔒 Notifications restricted to warehouse ${currentWarehouse.name} only`);
+          const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
+          const supplierInfo = getSupplierInfo(product.formData.supplier);
+
+          const notificationData = {
+            action: 'created',
+            id: product.id,
+            product_name: product.formData.product_name,
+            product_code: product.formData.system_code,
+            category: categoryName,
+            selling_price: product.formData.selling_price,
+            warehouse_id: currentWarehouse.id,
+            warehouseId: currentWarehouse.id,
+            targetWarehouse: currentWarehouse.id,
+            restrictToWarehouse: true,
+            source_warehouse: {
+              id: currentWarehouse.id,
+              name: currentWarehouse.name
+            },
+            metadata: {
+              supplier_code: product.formData.supplier_code,
+              supplier_name: supplierInfo.name,
+              supplier_prefix: supplierInfo.prefix,
+              purchase_price: product.formData.purchase_price,
+              returnable: product.formData.returnable,
+              created_at: new Date().toISOString(),
+              event_timestamp: Date.now(),
+              persist_immediate: true
+            }
+          };
+
+          notifyProductChange(notificationData);
+
+          // Enhanced localStorage persistence with supplier prefix info
+          setTimeout(() => {
+            try {
+              const warehouseKey = `persistedNotifications_warehouse_${currentWarehouse.id}`;
+              const existingNotifications = JSON.parse(localStorage.getItem(warehouseKey) || '[]');
+
+              const persistentNotification = {
+                id: `product_created_${product.id}_${Date.now()}`,
+                type: 'product_created',
+                category: 'products',
+                title: '📦 New Product Added',
+                message: `${product.formData.product_name} from ${supplierInfo.name} (${supplierInfo.prefix}) has been added`,
+                details: `Product Code: ${product.formData.system_code}`,
+                priority: 'medium',
+                timestamp: new Date().toISOString(),
+                is_read: false,
+                data: {
+                  id: product.id,
+                  product_name: product.formData.product_name,
+                  product_code: product.formData.system_code,
+                  category: categoryName,
+                  selling_price: product.formData.selling_price,
+                  warehouse_id: currentWarehouse.id,
+                  created_at: new Date().toISOString(),
+                  supplier_code: product.formData.supplier_code,
+                  supplier_name: supplierInfo.name,
+                  supplier_prefix: supplierInfo.prefix,
+                  purchase_price: product.formData.purchase_price,
+                  returnable: product.formData.returnable
+                }
+              };
+
+              const updatedNotifications = [persistentNotification, ...existingNotifications];
+              const trimmedNotifications = updatedNotifications.slice(0, 50);
+              localStorage.setItem(warehouseKey, JSON.stringify(trimmedNotifications));
+
+              console.log(`💾 IMMEDIATE SAVE: Product notification persisted for ${product.formData.product_name} with prefix ${supplierInfo.prefix}`);
+            } catch (error) {
+              console.error('❌ Failed to immediately persist product notification:', error);
+            }
+          }, 200);
+
+          console.log(`📦 Product notification sent for: ${product.formData.product_name} from ${supplierInfo.name} (${supplierInfo.prefix})`);
+        });
       }
       
       showNotice(`✅ ${createdProducts.length} product(s) saved to ${currentWarehouse.name}!`, "success");
       
-      // NEW: Navigate based on whether we came from receiving form or not
       setTimeout(() => {
         if (returnTo) {
-          // Navigate back to receiving form with success message and created product info
           const firstCreatedProduct = createdProducts[0];
+          const supplierInfo = getSupplierInfo(firstCreatedProduct.formData.supplier);
           const navigationState = { 
-            message: `Product "${firstCreatedProduct.formData.product_name}" added successfully!`,
+            message: `Product "${firstCreatedProduct.formData.product_name}" from ${supplierInfo.name} (${supplierInfo.prefix}) added successfully!`,
             refreshProducts: true,
             newProduct: {
               id: firstCreatedProduct.id,
               name: firstCreatedProduct.formData.product_name,
-              supplier_id: firstCreatedProduct.formData.supplier
+              supplier_id: firstCreatedProduct.formData.supplier,
+              supplier_name: supplierInfo.name,
+              supplier_prefix: supplierInfo.prefix
             }
           };
           
-          // NEW: Pass back the saved form state
           if (savedFormState) {
             navigationState.savedFormState = savedFormState;
           }
           
           navigate(returnTo, { state: navigationState });
         } else {
-          // Default navigation to products list
           navigate("/products/");
         }
-      }, 1200); // Shortened from 1500 to match notification timeout
+      }, 1200);
     } catch (err) {
       console.log("Form values when saving:", rows);
       console.error("❌ Save Error:", err.response?.data || err.message);
@@ -532,10 +586,8 @@ const ProductForm = () => {
     }
   };
 
-  // NEW: Handle cancel button with return navigation
   const handleCancel = () => {
     if (returnTo && savedFormState) {
-      // Return to receiving form with preserved state
       navigate(returnTo, { 
         state: { 
           savedFormState: savedFormState,
@@ -544,17 +596,14 @@ const ProductForm = () => {
         }
       });
     } else if (returnTo) {
-      // Return to receiving form without saving
       navigate(returnTo);
     } else {
-      // Default cancel navigation
       navigate("/products");
     }
   };
 
   return (
     <form onSubmit={handleSubmit} className="page pf-form">
-      {/* Header - LEFT ALIGNED MESSAGE */}
       <div className="page-header">
         <h2 className="page-title">
           Product Form
@@ -568,7 +617,6 @@ const ProductForm = () => {
               📍 {currentWarehouse.name}
             </span>
           )}
-          {/* LEFT ALIGNED return context message */}
           {returnTo && (
             <span style={{ 
               fontSize: '12px', 
@@ -594,7 +642,6 @@ const ProductForm = () => {
         </div>
       )}
 
-      {/* Validation Errors Summary */}
       {validationErrors.length > 0 && (
         <div className="card" style={{ marginBottom: '20px', padding: '16px', borderLeft: '4px solid #dc2626', backgroundColor: '#fef2f2' }}>
           <h4 style={{ color: '#dc2626', marginBottom: '12px' }}>Please fix the following errors:</h4>
@@ -613,7 +660,6 @@ const ProductForm = () => {
         </div>
       )}
 
-      {/* Table Card */}
       <div className="card pf-scroll">
         <table className="table table-hover">
           <thead>
@@ -640,357 +686,422 @@ const ProductForm = () => {
           </thead>
 
           <tbody>
-            {rows.map((row, index) => (
-              <tr key={index}>
-                {/* Supplier - REMOVED "Pre-selected from receiving form" text */}
-                <td>
-                  <select
-                    name="supplier"
-                    value={row.supplier || ""}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-select ${hasFieldError(index, 'supplier') ? 'pf-input-error' : ''}`}
-                    style={{
-                      backgroundColor: preSelectedSupplier && index === 0 ? '#f0fdf4' : '',
-                      border: preSelectedSupplier && index === 0 ? '2px solid #bbf7d0' : ''
-                    }}
-                  >
-                    <option value="">-- Select Supplier --</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.company_name}
-                      </option>
-                    ))}
-                  </select>
-                  {/* REMOVED: Pre-selected from receiving form text */}
-                </td>
-
-                {/* Supplier Product Code */}
-                <td>
-                  <input
-                    ref={(el) => (inputRefs.current[index] = el)}
-                    name="supplier_code"
-                    value={row.supplier_code}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-input ${hasFieldError(index, 'supplier_code') ? 'pf-input-error' : ''}`}
-                    placeholder="Supplier product code"
-                  />
-                </td>
-
-                {/* System Product Code */}
-                <td>
-                  <input
-                    name="system_code"
-                    value={row.system_code}
-                    readOnly
-                    className="pf-input pf-readonly"
-                  />
-                </td>
-
-                {/* Product Name */}
-                <td>
-                  <input
-                    name="product_name"
-                    value={row.product_name}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-input ${hasFieldError(index, 'product_name') ? 'pf-input-error' : ''}`}
-                    placeholder="Product name"
-                  />
-                </td>
-
-                {/* Product Category - ✅ INTEGRATED: Inline add new functionality */}
-                <td>
-                  <div style={{ position: 'relative' }}>
-                    {!showAddNewInput[`product_category_${index}`] ? (
-                      <select
-                        name="product_category"
-                        value={row.product_category}
-                        onChange={(e) => handleChange(index, e)}
-                        className={`pf-select ${hasFieldError(index, 'product_category') ? 'pf-input-error' : ''}`}
-                      >
-                        <option value="">-- Select --</option>
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                        <option value="ADD_NEW_CATEGORY" style={{ fontStyle: 'italic', color: '#059669' }}>
-                          ➕ Add new...
+            {rows.map((row, index) => {
+              const supplierInfo = getSupplierInfo(row.supplier);
+              
+              return (
+                <tr key={index}>
+                  {/* Supplier */}
+                  <td>
+                    <select
+                      name="supplier"
+                      value={row.supplier || ""}
+                      onChange={(e) => handleChange(index, e)}
+                      className={`pf-select ${hasFieldError(index, 'supplier') ? 'pf-input-error' : ''}`}
+                      style={{
+                        backgroundColor: preSelectedSupplier && index === 0 ? '#f0fdf4' : '',
+                        border: preSelectedSupplier && index === 0 ? '2px solid #bbf7d0' : ''
+                      }}
+                    >
+                      <option value="">-- Select Supplier --</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.company_name}
                         </option>
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={newCategoryInput[index] || ""}
-                        onChange={(e) => setNewCategoryInput(prev => ({ ...prev, [index]: e.target.value }))}
-                        placeholder="Enter category name and press Enter"
-                        className="pf-input"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleInlineAddNew("category", index, newCategoryInput[index]);
-                          }
-                          if (e.key === "Escape") {
-                            setShowAddNewInput(prev => ({ ...prev, [`product_category_${index}`]: false }));
-                          }
-                        }}
-                      />
+                      ))}
+                    </select>
+                    {row.supplier && (
+                      <div style={{
+                        fontSize: '10px',
+                        color: '#059669',
+                        marginTop: '2px',
+                        fontWeight: '600'
+                      }}>
+                      </div>
                     )}
-                  </div>
-                </td>
+                  </td>
 
-                {/* Image Upload Column */}
-                <td>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
-                    {row.imagePreview ? (
-                      <>
-                        <img
-                          src={row.imagePreview}
-                          alt="Product preview"
-                          style={{ 
-                            width: '80px', 
-                            height: '80px', 
-                            borderRadius: '6px', 
-                            objectFit: 'cover',
-                            border: '2px solid #e5e7eb'
+                  {/* Supplier Product Code */}
+                  <td>
+                    <input
+                      ref={(el) => (inputRefs.current[index] = el)}
+                      name="supplier_code"
+                      value={row.supplier_code}
+                      onChange={(e) => handleChange(index, e)}
+                      className={`pf-input ${hasFieldError(index, 'supplier_code') ? 'pf-input-error' : ''}`}
+                      placeholder="Supplier product code"
+                    />
+                  </td>
+
+                  {/* System Product Code */}
+                  <td>
+                    <input
+                      name="system_code"
+                      value={row.system_code}
+                      readOnly
+                      className="pf-input pf-readonly"
+                      style={{
+                        backgroundColor: row.supplier ? '#f0fdf4' : '#f3f4f6',
+                        border: row.supplier ? '2px solid #bbf7d0' : '1px solid #d1d5db',
+                        fontWeight: '600',
+                        fontFamily: 'monospace'
+                      }}
+                    />
+                    {row.supplier && (
+                      <div style={{
+                        fontSize: '10px',
+                        color: '#059669',
+                        marginTop: '2px',
+                        fontWeight: '500'
+                      }}>
+                      </div>
+                    )}
+                  </td>
+
+                  {/* Product Name */}
+                  <td>
+                    <input
+                      name="product_name"
+                      value={row.product_name}
+                      onChange={(e) => handleChange(index, e)}
+                      className={`pf-input ${hasFieldError(index, 'product_name') ? 'pf-input-error' : ''}`}
+                      placeholder="Product name"
+                    />
+                    {row.supplier && row.product_name && (
+                      <div style={{
+                        fontSize: '10px',
+                        color: '#059669',
+                        marginTop: '2px',
+                        fontWeight: '500'
+                      }}>
+                      </div>
+                    )}
+                  </td>
+
+                  {/* ✅ UPDATED: Product Category - No notifications, save on blur/enter */}
+                  <td>
+                    <div style={{ position: 'relative' }}>
+                      {!showAddNewInput[`product_category_${index}`] ? (
+                        <select
+                          name="product_category"
+                          value={row.product_category}
+                          onChange={(e) => handleChange(index, e)}
+                          className={`pf-select ${hasFieldError(index, 'product_category') ? 'pf-input-error' : ''}`}
+                        >
+                          <option value="">-- Select --</option>
+                          {categories.map((cat) => (
+                            <option key={cat.id} value={cat.id}>
+                              {cat.name}
+                            </option>
+                          ))}
+                          <option value="ADD_NEW_CATEGORY" style={{ fontStyle: 'italic', color: '#059669' }}>
+                            ➕ Add new...
+                          </option>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={newCategoryInput[index] || ""}
+                          onChange={(e) => setNewCategoryInput(prev => ({ ...prev, [index]: e.target.value }))}
+                          placeholder="Type category name..."
+                          className="pf-input"
+                          autoFocus
+                          onBlur={(e) => {
+                            if (e.target.value.trim()) {
+                              handleInlineAddNew("category", index, e.target.value.trim());
+                            } else {
+                              setShowAddNewInput(prev => ({ ...prev, [`product_category_${index}`]: false }));
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (e.target.value.trim()) {
+                                handleInlineAddNew("category", index, e.target.value.trim());
+                              }
+                            }
+                            if (e.key === "Escape") {
+                              setShowAddNewInput(prev => ({ ...prev, [`product_category_${index}`]: false }));
+                              setNewCategoryInput(prev => ({ ...prev, [index]: "" }));
+                            }
                           }}
                         />
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveImage(index)}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '12px',
-                            background: '#fef2f2',
-                            color: '#dc2626',
-                            border: '1px solid #fecaca',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{
-                          width: '80px',
-                          height: '80px',
-                          borderRadius: '6px',
-                          background: '#f3f4f6',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: '#9ca3af',
-                          fontSize: '12px',
-                          border: '2px solid #e5e7eb'
-                        }}>
-                          📷
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => fileInputRefs.current[index]?.click()}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '12px',
+                      )}
+                    </div>
+                  </td>
+
+                  {/* Image Upload Column */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                      {row.imagePreview ? (
+                        <>
+                          <img
+                            src={row.imagePreview}
+                            alt="Product preview"
+                            style={{ 
+                              width: '80px', 
+                              height: '80px', 
+                              borderRadius: '6px', 
+                              objectFit: 'cover',
+                              border: '2px solid #e5e7eb'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              border: '1px solid #fecaca',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            borderRadius: '6px',
                             background: '#f3f4f6',
-                            color: '#374151',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '4px',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          Upload
-                        </button>
-                      </>
-                    )}
-                    <input
-                      ref={(el) => (fileInputRefs.current[index] = el)}
-                      type="file"
-                      accept="image/*"
-                      onChange={(e) => handleImageUpload(index, e)}
-                      style={{ display: 'none' }}
-                    />
-                  </div>
-                </td>
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#9ca3af',
+                            fontSize: '12px',
+                            border: '2px solid #e5e7eb'
+                          }}>
+                            📷
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRefs.current[index]?.click()}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              background: '#f3f4f6',
+                              color: '#374151',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Upload
+                          </button>
+                        </>
+                      )}
+                      <input
+                        ref={(el) => (fileInputRefs.current[index] = el)}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(index, e)}
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+                  </td>
 
-                {/* ✅ Return Required field - Checkbox defaults to CHECKED (Yes) */}
-                <td>
-                  <label className="pf-check-wrap">
+                  {/* Return Required field */}
+                  <td>
+                    <label className="pf-check-wrap">
+                      <input
+                        type="checkbox"
+                        name="returnable"
+                        checked={row.returnable}
+                        onChange={(e) => handleChange(index, e)}
+                        className="pf-checkbox"
+                      />
+                      <span className="text">Yes</span>
+                    </label>
+                  </td>
+
+                  {/* Purchase Price */}
+                  <td>
                     <input
-                      type="checkbox"
-                      name="returnable"
-                      checked={row.returnable}
+                      type="number"
+                      name="purchase_price"
+                      value={row.purchase_price}
                       onChange={(e) => handleChange(index, e)}
-                      className="pf-checkbox"
+                      className={`pf-input ${hasFieldError(index, 'purchase_price') ? 'pf-input-error' : ''}`}
+                      placeholder="Purchase price (Pcs.)"
                     />
-                    <span className="text">Yes</span>
-                  </label>
-                </td>
+                  </td>
 
-                {/* Purchase Price */}
-                <td>
-                  <input
-                    type="number"
-                    name="purchase_price"
-                    value={row.purchase_price}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-input ${hasFieldError(index, 'purchase_price') ? 'pf-input-error' : ''}`}
-                    placeholder="Purchase price (Pcs.)"
-                  />
-                </td>
+                  {/* Shell Price */}
+                  <td>
+                    <input
+                      type="number"
+                      name="shell_price"
+                      value={row.shell_price}
+                      onChange={(e) => handleChange(index, e)}
+                      className={`pf-input ${hasFieldError(index, 'shell_price') ? 'pf-input-error' : ''}`}
+                      style={{
+                        backgroundColor: row.returnable === false ? '#f3f4f6' : '',
+                        color: row.returnable === false ? '#9ca3af' : '',
+                        cursor: row.returnable === false ? 'not-allowed' : 'text',
+                        border: row.returnable === false ? '1px solid #d1d5db' : ''
+                      }}
+                      placeholder="Shell price"
+                      disabled={row.returnable === false}
+                    />
+                  </td>
 
-                {/* ✅ UPDATED: Shell Price with gray background when disabled */}
-                <td>
-                  <input
-                    type="number"
-                    name="shell_price"
-                    value={row.shell_price}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-input ${hasFieldError(index, 'shell_price') ? 'pf-input-error' : ''}`}
-                    style={{
-                      backgroundColor: row.returnable === false ? '#f3f4f6' : '',
-                      color: row.returnable === false ? '#9ca3af' : '',
-                      cursor: row.returnable === false ? 'not-allowed' : 'text',
-                      border: row.returnable === false ? '1px solid #d1d5db' : ''
-                    }}
-                    placeholder="Shell price"
-                    disabled={row.returnable === false}
-                  />
-                </td>
+                  {/* Empty Bottle Price */}
+                  <td>
+                    <input
+                      type="number"
+                      name="bottle_price"
+                      value={row.bottle_price}
+                      onChange={(e) => handleChange(index, e)}
+                      className={`pf-input ${hasFieldError(index, 'bottle_price') ? 'pf-input-error' : ''}`}
+                      style={{
+                        backgroundColor: row.returnable === false ? '#f3f4f6' : '',
+                        color: row.returnable === false ? '#9ca3af' : '',
+                        cursor: row.returnable === false ? 'not-allowed' : 'text',
+                        border: row.returnable === false ? '1px solid #d1d5db' : ''
+                      }}
+                      placeholder="Empty bottle price"
+                      disabled={row.returnable === false}
+                    />
+                  </td>
 
-                {/* ✅ UPDATED: Empty Bottle Price with gray background when disabled */}
-                <td>
-                  <input
-                    type="number"
-                    name="bottle_price"
-                    value={row.bottle_price}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-input ${hasFieldError(index, 'bottle_price') ? 'pf-input-error' : ''}`}
-                    style={{
-                      backgroundColor: row.returnable === false ? '#f3f4f6' : '',
-                      color: row.returnable === false ? '#9ca3af' : '',
-                      cursor: row.returnable === false ? 'not-allowed' : 'text',
-                      border: row.returnable === false ? '1px solid #d1d5db' : ''
-                    }}
-                    placeholder="Empty bottle price"
-                    disabled={row.returnable === false}
-                  />
-                </td>
-
-                {/* Shell Type - ✅ INTEGRATED: Inline add new functionality */}
-                <td>
-                  <div style={{ position: 'relative' }}>
-                    {!showAddNewInput[`shell_type_${index}`] ? (
-                      <select
-                        name="shell_type"
-                        value={row.shell_type}
-                        onChange={(e) => handleChange(index, e)}
-                        className={`pf-select ${hasFieldError(index, 'shell_type') ? 'pf-input-error' : ''}`}
-                      >
-                        <option value="">-- Select --</option>
-                        {shellTypes.map((shell) => (
-                          <option key={shell.id} value={shell.id}>
-                            {shell.description}
+                  {/* ✅ UPDATED: Shell Type - No notifications, save on blur/enter */}
+                  <td>
+                    <div style={{ position: 'relative' }}>
+                      {!showAddNewInput[`shell_type_${index}`] ? (
+                        <select
+                          name="shell_type"
+                          value={row.shell_type}
+                          onChange={(e) => handleChange(index, e)}
+                          className={`pf-select ${hasFieldError(index, 'shell_type') ? 'pf-input-error' : ''}`}
+                        >
+                          <option value="">-- Select --</option>
+                          {shellTypes.map((shell) => (
+                            <option key={shell.id} value={shell.id}>
+                              {shell.description}
+                            </option>
+                          ))}
+                          <option value="ADD_NEW_SHELL" style={{ fontStyle: 'italic', color: '#059669' }}>
+                            ➕ Add new...
                           </option>
-                        ))}
-                        <option value="ADD_NEW_SHELL" style={{ fontStyle: 'italic', color: '#059669' }}>
-                          ➕ Add new...
-                        </option>
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={newShellInput[index] || ""}
-                        onChange={(e) => setNewShellInput(prev => ({ ...prev, [index]: e.target.value }))}
-                        placeholder="Enter shell type and press Enter"
-                        className="pf-input"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleInlineAddNew("shell", index, newShellInput[index]);
-                          }
-                          if (e.key === "Escape") {
-                            setShowAddNewInput(prev => ({ ...prev, [`shell_type_${index}`]: false }));
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                </td>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={newShellInput[index] || ""}
+                          onChange={(e) => setNewShellInput(prev => ({ ...prev, [index]: e.target.value }))}
+                          placeholder="Type shell type..."
+                          className="pf-input"
+                          autoFocus
+                          onBlur={(e) => {
+                            if (e.target.value.trim()) {
+                              handleInlineAddNew("shell", index, e.target.value.trim());
+                            } else {
+                              setShowAddNewInput(prev => ({ ...prev, [`shell_type_${index}`]: false }));
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (e.target.value.trim()) {
+                                handleInlineAddNew("shell", index, e.target.value.trim());
+                              }
+                            }
+                            if (e.key === "Escape") {
+                              setShowAddNewInput(prev => ({ ...prev, [`shell_type_${index}`]: false }));
+                              setNewShellInput(prev => ({ ...prev, [index]: "" }));
+                            }
+                          }}
+                        />
+                      )}
+                    </div>
+                  </td>
 
-                {/* Quantity */}
-                <td>
-                  <input
-                    type="number"
-                    name="content_no"
-                    value={row.content_no}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-input ${hasFieldError(index, 'content_no') ? 'pf-input-error' : ''}`}
-                    placeholder="Quantity (Pcs.)"
-                  />
-                </td>
+                  {/* Quantity */}
+                  <td>
+                    <input
+                      type="number"
+                      name="content_no"
+                      value={row.content_no}
+                      onChange={(e) => handleChange(index, e)}
+                      className={`pf-input ${hasFieldError(index, 'content_no') ? 'pf-input-error' : ''}`}
+                      placeholder="Quantity (Pcs.)"
+                    />
+                  </td>
 
-                {/* Content Type - ✅ INTEGRATED: Inline add new functionality */}
-                <td>
-                  <div style={{ position: 'relative' }}>
-                    {!showAddNewInput[`content_type_${index}`] ? (
-                      <select
-                        name="content_type"
-                        value={row.content_type}
-                        onChange={(e) => handleChange(index, e)}
-                        className={`pf-select ${hasFieldError(index, 'content_type') ? 'pf-input-error' : ''}`}
-                      >
-                        <option value="">-- Select --</option>
-                        {contentTypes.map((content) => (
-                          <option key={content.id} value={content.id}>
-                            {content.description}
+                  {/* ✅ UPDATED: Content Type - No notifications, save on blur/enter */}
+                  <td>
+                    <div style={{ position: 'relative' }}>
+                      {!showAddNewInput[`content_type_${index}`] ? (
+                        <select
+                          name="content_type"
+                          value={row.content_type}
+                          onChange={(e) => handleChange(index, e)}
+                          className={`pf-select ${hasFieldError(index, 'content_type') ? 'pf-input-error' : ''}`}
+                        >
+                          <option value="">-- Select --</option>
+                          {contentTypes.map((content) => (
+                            <option key={content.id} value={content.id}>
+                              {content.description}
+                            </option>
+                          ))}
+                          <option value="ADD_NEW_CONTENT" style={{ fontStyle: 'italic', color: '#059669' }}>
+                            ➕ Add new...
                           </option>
-                        ))}
-                        <option value="ADD_NEW_CONTENT" style={{ fontStyle: 'italic', color: '#059669' }}>
-                          ➕ Add new...
-                        </option>
-                      </select>
-                    ) : (
-                      <input
-                        type="text"
-                        value={newContentInput[index] || ""}
-                        onChange={(e) => setNewContentInput(prev => ({ ...prev, [index]: e.target.value }))}
-                        placeholder="Enter content type and press Enter"
-                        className="pf-input"
-                        autoFocus
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            e.preventDefault();
-                            handleInlineAddNew("content", index, newContentInput[index]);
-                          }
-                          if (e.key === "Escape") {
-                            setShowAddNewInput(prev => ({ ...prev, [`content_type_${index}`]: false }));
-                          }
-                        }}
-                      />
-                    )}
-                  </div>
-                </td>
+                        </select>
+                      ) : (
+                        <input
+                          type="text"
+                          value={newContentInput[index] || ""}
+                          onChange={(e) => setNewContentInput(prev => ({ ...prev, [index]: e.target.value }))}
+                          placeholder="Type content type..."
+                          className="pf-input"
+                          autoFocus
+                          onBlur={(e) => {
+                            if (e.target.value.trim()) {
+                              handleInlineAddNew("content", index, e.target.value.trim());
+                            } else {
+                              setShowAddNewInput(prev => ({ ...prev, [`content_type_${index}`]: false }));
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              if (e.target.value.trim()) {
+                                handleInlineAddNew("content", index, e.target.value.trim());
+                              }
+                            }
+                            if (e.key === "Escape") {
+                              setShowAddNewInput(prev => ({ ...prev, [`content_type_${index}`]: false }));
+                              setNewContentInput(prev => ({ ...prev, [index]: "" }));
+                            }
+                          }}
+                        />
+                      )}
+                    </div>
+                  </td>
 
-                {/* Selling Price */}
-                <td>
-                  <input
-                    type="number"
-                    name="selling_price"
-                    value={row.selling_price}
-                    onChange={(e) => handleChange(index, e)}
-                    className={`pf-input ${hasFieldError(index, 'selling_price') ? 'pf-input-error' : ''}`}
-                    placeholder="Selling price"
-                  />
-                </td>
-              </tr>
-            ))}
+                  {/* Selling Price */}
+                  <td>
+                    <input
+                      type="number"
+                      name="selling_price"
+                      value={row.selling_price}
+                      onChange={(e) => handleChange(index, e)}
+                      className={`pf-input ${hasFieldError(index, 'selling_price') ? 'pf-input-error' : ''}`}
+                      placeholder="Selling price"
+                    />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
 
-        {/* Footer actions */}
         <div className="pf-actions">
           <button
             type="button"
@@ -1009,7 +1120,7 @@ const ProductForm = () => {
         </div>
       </div>
 
-      {/* FIXED: Notice Modal - Now properly centered with SUPER FAST timeouts */}
+      {/* Notice Modal */}
       {notice.open && (
         <div 
           className="modal-overlay" 
