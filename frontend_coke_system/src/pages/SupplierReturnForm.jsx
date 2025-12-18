@@ -1,4 +1,4 @@
-// SupplierReturnForm.js - Fixed to auto-calculate pieces when shells change, but allow manual pieces editing
+// SupplierReturnForm.js - FIXED to only subtract returned quantities, not clear everything
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -173,7 +173,8 @@ const SupplierReturnForm = () => {
                     empty_bottle_qty: emptyPcs,
                     msp_no: merchandising.msp_no,
                     original_empty_shell: emptyShell,
-                    original_empty_pcs: emptyPcs
+                    original_empty_pcs: emptyPcs,
+                    product_name: product.product_name // Add product name for matching
                   });
                 }
               }
@@ -444,38 +445,75 @@ const SupplierReturnForm = () => {
     }));
   };
 
-  // Function to clear merchandising items empty returns - ALL items that were used
-  const clearMerchandisingEmptyReturns = async () => {
+  // 🎉 FIXED: Function to update merchandising items - SUBTRACT only returned quantities (not clear everything)
+  const updateMerchandisingEmptyReturns = async (returnedItems) => {
     try {
       if (merchandisingItemsToClean.length === 0) {
-        return { cleared: 0, errors: 0 };
+        return { updated: 0, errors: 0 };
       }
       
-      let clearedCount = 0;
+      // Create a map of how much was actually returned per product name
+      const returnedByProduct = {};
+      returnedItems.forEach(item => {
+        const product = products.find(p => p.id === item.product);
+        if (product) {
+          const productName = product.product_name;
+          if (!returnedByProduct[productName]) {
+            returnedByProduct[productName] = { shells: 0, pcs: 0 };
+          }
+          returnedByProduct[productName].shells += item.qty_shell;
+          returnedByProduct[productName].pcs += item.qty_pcs;
+        }
+      });
+      
+      let updatedCount = 0;
       let errorCount = 0;
       
+      // Process each merchandising item and subtract proportionally
       for (const item of merchandisingItemsToClean) {
         try {
-          await api.patch(
-            `/merchandising-items/${item.item_id}/`,
-            {
-              empty_return_shell: 0,
-              empty_return_pcs: 0
-            }
-          );
+          const productName = item.product_name;
+          const returned = returnedByProduct[productName];
           
-          clearedCount++;
+          if (returned && (returned.shells > 0 || returned.pcs > 0)) {
+            // Calculate how much to subtract from this specific merchandising item
+            const currentShells = item.original_empty_shell || 0;
+            const currentPcs = item.original_empty_pcs || 0;
+            
+            // Subtract what was returned, but don't go below 0
+            const shellsToSubtract = Math.min(returned.shells, currentShells);
+            const pcsToSubtract = Math.min(returned.pcs, currentPcs);
+            
+            // Calculate new quantities (remaining after return)
+            const newShellQty = Math.max(0, currentShells - shellsToSubtract);
+            const newPcsQty = Math.max(0, currentPcs - pcsToSubtract);
+            
+            // Update the merchandising item with remaining quantities
+            await api.patch(
+              `/merchandising-items/${item.item_id}/`,
+              {
+                empty_return_shell: newShellQty,
+                empty_return_pcs: newPcsQty
+              }
+            );
+            
+            // Reduce the remaining returned quantities for next items
+            returned.shells = Math.max(0, returned.shells - shellsToSubtract);
+            returned.pcs = Math.max(0, returned.pcs - pcsToSubtract);
+            
+            updatedCount++;
+          }
           
         } catch (error) {
-          console.error(`Failed to clear merchandising item ${item.item_id}:`, error);
+          console.error(`Failed to update merchandising item ${item.item_id}:`, error);
           errorCount++;
         }
       }
       
-      return { cleared: clearedCount, errors: errorCount };
+      return { updated: updatedCount, errors: errorCount };
       
     } catch (error) {
-      console.error("Error in merchandising cleanup:", error);
+      console.error("Error in merchandising update:", error);
       throw error;
     }
   };
@@ -628,16 +666,16 @@ const SupplierReturnForm = () => {
         items: filteredItems
       }, user.role);
 
-      // STEP 1: Clear merchandising empty returns (DELETE THE DATA)
-      const merchandisingResult = await clearMerchandisingEmptyReturns();
+      // 🎉 FIXED: STEP 1 - Update merchandising empty returns (SUBTRACT only returned quantities)
+      const merchandisingResult = await updateMerchandisingEmptyReturns(filteredItems);
 
       // STEP 2: Remove/update returnable stock entries
       const returnableStockResult = await removeReturnableStockEntries(filteredItems);
       
       let message = `Supplier return saved successfully for ${currentWarehouse.name}!`;
       
-      if (merchandisingResult.cleared > 0) {
-        message += ` ${merchandisingResult.cleared} merchandising empty return entries have been cleared.`;
+      if (merchandisingResult.updated > 0) {
+        message += ` ${merchandisingResult.updated} merchandising entries have been updated with remaining quantities.`;
       }
 
       if (returnableStockResult.removed > 0) {
@@ -650,10 +688,10 @@ const SupplierReturnForm = () => {
       
       const totalErrors = (merchandisingResult.errors || 0) + (returnableStockResult.errors || 0);
       if (totalErrors > 0) {
-        message += ` Note: ${totalErrors} items had errors during cleanup.`;
+        message += ` Note: ${totalErrors} items had errors during update.`;
       }
       
-      message += " Both merchandising and returnable stock data have been updated automatically.";
+      message += " Remaining empty returns are preserved for future returns.";
       
       // Show success modal and redirect
       showSuccessModal(message);
