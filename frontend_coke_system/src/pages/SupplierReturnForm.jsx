@@ -1,4 +1,4 @@
-// SupplierReturnForm.js - Fixed navigation to prevent refresh
+// SupplierReturnForm.js - Fixed to auto-calculate pieces when shells change, but allow manual pieces editing
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
@@ -81,6 +81,7 @@ const SupplierReturnForm = () => {
   }, []);
 
   // Function to fetch return empties for selected supplier FROM MERCHANDISING DATA
+  // 🎉 FIXED: Now merges return empties for same products across ALL suppliers
   const fetchReturnEmpties = useCallback(async (supplierId) => {
     try {
       const warehouseParam = currentWarehouse?.id ? `?warehouse_id=${currentWarehouse.id}` : '';
@@ -89,6 +90,10 @@ const SupplierReturnForm = () => {
       let merchandisingData = response.data;
       if (merchandisingData.results) merchandisingData = merchandisingData.results;
       if (merchandisingData.data) merchandisingData = merchandisingData.data;
+      
+      // STEP 1: Find all products that belong to the selected supplier
+      const selectedSupplierProducts = products.filter(p => String(p.supplier) === String(supplierId));
+      const selectedSupplierProductNames = selectedSupplierProducts.map(p => p.product_name);
       
       const emptyReturns = [];
       const itemsToClean = []; // Track ALL items that will be used
@@ -112,7 +117,9 @@ const SupplierReturnForm = () => {
                 // Get product info
                 const product = products.find(p => p.id === item.product);
                 
-                if (product && String(product.supplier) === String(supplierId)) {
+                // STEP 2: Check if this product name matches any product from the selected supplier
+                // This allows merging empties for same product from different suppliers
+                if (product && selectedSupplierProductNames.includes(product.product_name)) {
                   // IMPORTANT: Check pricing like in ReturnEmpties component
                   const productPricing = pricing.find(p => p.id === item.product);
                   
@@ -133,31 +140,35 @@ const SupplierReturnForm = () => {
                     return; // Skip this item - no shell or bottle price means no returnable empties
                   }
                   
+                  // Use the selected supplier's product data for pricing consistency
+                  const selectedSupplierProduct = selectedSupplierProducts.find(p => p.product_name === product.product_name);
+                  const selectedSupplierPricing = pricing.find(p => p.id === selectedSupplierProduct.id);
+                  
                   const returnItem = {
                     id: `${merchandising.id}-${item.id}`,
-                    product_id: item.product,
+                    product_id: selectedSupplierProduct.id, // Use selected supplier's product ID
                     product_name: product.product_name,
                     empty_shell_qty: emptyShell,
                     empty_bottle_qty: emptyPcs,
                     qty_shell: emptyShell,
                     qty_pcs: emptyPcs,
-                    supplier_id: supplierId,
+                    supplier_id: supplierId, // Always use the selected supplier ID
                     merchandising_id: merchandising.id,
                     item_id: item.id,
                     msp_no: merchandising.msp_no,
                     warehouse_id: currentWarehouse?.id,
-                    shell_price: productPricing.shell_price || 0,
-                    bottle_price: productPricing.bottle_price || 0
+                    shell_price: selectedSupplierPricing?.shell_price || 0,
+                    bottle_price: selectedSupplierPricing?.bottle_price || 0
                   };
                   
                   emptyReturns.push(returnItem);
                   
-                  // Add to items that need to be cleaned
+                  // Add to items that need to be cleaned (track the actual merchandising item)
                   itemsToClean.push({
                     merchandising_id: merchandising.id,
                     item_id: item.id,
-                    product_id: item.product,
-                    supplier_id: supplierId,
+                    product_id: item.product, // Keep original product ID for cleaning
+                    supplier_id: product.supplier, // Keep original supplier
                     empty_shell_qty: emptyShell,
                     empty_bottle_qty: emptyPcs,
                     msp_no: merchandising.msp_no,
@@ -371,6 +382,7 @@ const SupplierReturnForm = () => {
     };
   }, [getCurrentWarehouse]);
 
+  // ✅ PERFECT: Auto-calculate pieces when shells change, but allow manual pieces editing
   const handleItemChange = (index, field, value) => {
     // Create a deep copy of the items array
     const updatedItems = [...form.items];
@@ -379,8 +391,8 @@ const SupplierReturnForm = () => {
     // Update the field
     updatedItems[index][field] = value;
 
-    // Only recalculate if qty_shell changed
-    if (field === "qty_shell") {
+    // Recalculate based on which field changed
+    if (field === "qty_shell" || field === "qty_pcs") {
       const item = updatedItems[index];
       
       if (item.product) {
@@ -388,11 +400,19 @@ const SupplierReturnForm = () => {
         const bottlePrice = formatDecimal(item.bottle_price);
         const shellPrice = formatDecimal(item.shell_price);
         
-        // Convert qty_shell to a number, default to 0 if NaN
-        const qtyShell = parseInt(value, 10) || 0;
+        let qtyShell, qtyPcs;
         
-        // Calculate pieces based on content_no
-        const qtyPcs = qtyShell * contentNo;
+        if (field === "qty_shell") {
+          // Convert qty_shell to a number, default to 0 if NaN
+          qtyShell = parseInt(value, 10) || 0;
+          // AUTO-CALCULATE qty_pcs based on content_no when shell changes
+          qtyPcs = qtyShell * contentNo;
+        } else if (field === "qty_pcs") {
+          // Convert qty_pcs to a number, default to 0 if NaN (manual override)
+          qtyPcs = parseInt(value, 10) || 0;
+          // Keep existing qty_shell unchanged when manually editing qty_pcs
+          qtyShell = parseInt(item.qty_shell, 10) || 0;
+        }
         
         // Calculate line total using precise decimal math
         const bottleTotal = qtyPcs * bottlePrice;
@@ -816,12 +836,21 @@ const SupplierReturnForm = () => {
                         />
                       </td>
                       <td>
-                        <input 
-                          type="text" 
-                          value={item.qty_pcs} 
-                          readOnly 
+                        {/* ✅ BOTH behaviors: Auto-calculates when shell changes, but can be manually edited */}
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          value={item.qty_pcs}
+                          onFocus={(e) => e.target.value === "0" && handleItemChange(index, "qty_pcs", "")}
+                          onBlur={(e) => {
+                            if (e.target.value === "") {
+                              handleItemChange(index, "qty_pcs", "0");
+                            }
+                          }}
+                          onChange={(e) => handleItemChange(index, "qty_pcs", e.target.value)}
                           className="input"
-                          style={{ background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'not-allowed', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)' }}
+                          style={{ border: '1px solid var(--border)', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)' }}
                         />
                       </td>
                       <td>
