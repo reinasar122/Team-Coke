@@ -158,6 +158,9 @@ const PaymentModal = ({
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
   const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
 
+  const paymentTermLabel = isVanLoad ? "Remittance" : "Payment";
+
+
 
   const getDaysFromTerm = (term) => {
     const num = parseInt(term, 10);
@@ -509,7 +512,7 @@ const PaymentModal = ({
     <div className="fixed inset-0 z-50 bg-black bg-opacity-30 flex items-center justify-center">
       <div className="bg-white p-6 rounded-lg w-full max-w-4xl shadow-lg max-h-[90vh] overflow-y-auto">
         <div className="border-b pb-2 mb-4">
-          <h2 className="text-xl font-bold">Payment Confirmation</h2>
+          <h2 className="text-xl font-bold">{paymentTermLabel} Confirmation</h2>
         </div>
 
 
@@ -1054,7 +1057,8 @@ const PaymentModal = ({
 
         {/* Payment Method */}
         <div className="mt-6 text-sm">
-          <h3 className="font-semibold mb-2">Payment Method</h3>
+          <h3 className="font-semibold mb-2">{paymentTermLabel} Method</h3>
+
 
           <div className="flex gap-4 mb-4">
             <button
@@ -1466,7 +1470,8 @@ const PaymentModal = ({
               }
             }}
           >
-            {submitting ? "Processing..." : "Confirm Payment & Generate Invoice"}
+            {submitting ? "Processing..." : `Confirm ${paymentTermLabel} & Generate Invoice`}
+
           </button>
         </div>
       </div>
