@@ -174,7 +174,7 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
             />
           </div>
 
-          <div className="flex justify-between items-center mt-6">
+          <div className="md:col-span-2 flex justify-end gap-2 mt-4">
             <button
               type="button"
               className="px-6 py-2 btn btn-cancel"

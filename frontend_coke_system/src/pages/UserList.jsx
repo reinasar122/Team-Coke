@@ -126,7 +126,7 @@ const ApprovalModal = ({ isOpen, onClose, user, roles, warehouses, onApproved })
               Cancel
             </button>
             <button type="button" className="btn btn-primary" onClick={handleSave}>
-              Save & Approve
+              Save
             </button>
           </div>
         </div>

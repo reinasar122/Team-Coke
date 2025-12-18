@@ -299,7 +299,7 @@ const RoleList = () => {
             <p className="text-sm text-red-600 mb-6">
               This action cannot be undone.
             </p>
-            <div className="flex justify-between">
+            <div className="md:col-span-2 flex justify-end gap-2 mt-4">
               <button
                 className="btn btn-cancel"
                 onClick={() => {

@@ -1280,7 +1280,7 @@ const ReceivingForm = () => {
             Cancel
           </button>
           <button type="submit" className="btn btn-primary font-semibold">
-            Save to {currentWarehouse.name}
+            Save
           </button>
         </div>
 

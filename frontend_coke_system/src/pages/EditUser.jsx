@@ -337,7 +337,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
           </div>
 
           {/* Buttons */}
-          <div className="flex justify-between">
+          <div className="md:col-span-2 flex justify-end gap-2 mt-4">
             <button
               type="button"
               onClick={onClose}

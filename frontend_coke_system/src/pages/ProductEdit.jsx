@@ -514,7 +514,7 @@ const ProductEdit = () => {
             className="btn btn-primary"
             disabled={saving}
           >
-            {saving ? "Saving..." : "Save Product"}
+            {saving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>

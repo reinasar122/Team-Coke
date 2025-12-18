@@ -186,7 +186,7 @@ const Warehouses = () => {
             <p className="text-lg font-semibold mb-6">
               Are you sure you want to delete <strong>{warehouseToDelete?.name}</strong>?
             </p>
-            <div className="flex justify-between">
+            <div className="md:col-span-2 flex justify-end gap-2 mt-4">
               <div>
                 <button
                   className="btn btn-cancel py-2 px-4"

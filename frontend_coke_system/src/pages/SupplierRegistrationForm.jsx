@@ -583,7 +583,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
         </div>
 
         {/* Actions */}
-        <div className="flex justify-between mt-6">
+       <div className="md:col-span-2 flex justify-end gap-2 mt-4">
           <button
             type="button"
             onClick={onClose}
@@ -592,7 +592,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
             Cancel
           </button>
           <button type="submit" className="btn btn-primary px-4 py-2">
-            Submit Registration
+            Submit
           </button>
         </div>
       </form>

@@ -360,7 +360,7 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
         </div>
 
         {/* Buttons */}
-        <div className="md:col-span-2 flex justify-between mt-4">
+        <div className="md:col-span-2 flex justify-end gap-2 mt-4">
           <button
             type="button"
             className="btn btn-cancel py-2 px-4"
@@ -369,7 +369,7 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
             Cancel
           </button>
           <button type="submit" className="btn btn-primary py-2 px-4">
-            Save Changes
+            Save
           </button>
         </div>
       </form>

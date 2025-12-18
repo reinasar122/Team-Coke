@@ -1115,7 +1115,7 @@ const ProductForm = () => {
             className="btn btn-primary"
             disabled={!currentWarehouse}
           >
-            Save Product
+            Save
           </button>
         </div>
       </div>

@@ -444,7 +444,7 @@ const Suppliers = () => {
               Are you sure you want to delete{" "}
               <strong>{supplierToDelete.company_name}</strong>?
             </p>
-            <div className="flex justify-between">
+            <div className="md:col-span-2 flex justify-end gap-2 mt-4">
               <button
                 className="btn btn-cancel"
                 onClick={() => {
