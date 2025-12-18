@@ -183,7 +183,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
   return (
     <div className="modal-overlay bg-gray-900 bg-opacity-50">
       <div className="w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
-        <h2 className="text-2xl font-semibold mb-4 text-center">Edit User</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-left">Edit User</h2>
 
         <form onSubmit={handleSubmit}>
           {/* Name Fields */}
@@ -351,7 +351,7 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
               className="btn btn-primary py-2 px-4"
               disabled={loading}
             >
-              {loading ? "Saving..." : "Save Changes"}
+              {loading ? "Saving..." : "Save"}
             </button>
           </div>
         </form>
