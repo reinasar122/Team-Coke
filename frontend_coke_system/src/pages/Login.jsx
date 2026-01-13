@@ -35,7 +35,9 @@ const Login = () => {
   const [error, setError] = useState("");
   const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSignUp, setIsSignUp] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState({});
 
   const [loading, setLoading] = useState(false);
   const [loginSuccessful, setLoginSuccessful] = useState(false);
@@ -63,10 +65,10 @@ const Login = () => {
     if (user.username === "admin" && user.phone_number === "09179902969") {
       return true;
     }
-    
+   
     // Option 2: By ID (if default admin always has ID 1)
     if (user.id === 1) return true;
-    
+   
     return false;
   };
 
@@ -101,7 +103,7 @@ const Login = () => {
         </div>
       `;
       document.body.appendChild(modal);
-      
+     
       setIsSignUp(false);
       setPhoneNumber("");
       setPassword("");
@@ -114,7 +116,7 @@ const Login = () => {
   };
 
   // Password Complexity Validation
-  const passwordComplexityRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*_)[A-Za-z\d_]{8,}$/;
+  const passwordComplexityRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
   const [passwordError, setPasswordError] = useState("");
   const [passwordValid, setPasswordValid] = useState(false);
 
@@ -154,40 +156,27 @@ const Login = () => {
 
     // ✅ Enhanced validation for signup
     if (isSignUp) {
-      // Check required fields
-      if (!firstName.trim() || !lastName.trim() || !gender || !phoneNumber.trim() || !password || !confirmPassword) {
-        setError("Please fill out all the required fields.");
+      // Check required fields and provide specific feedback
+      const errors = {};
+      if (!phoneNumber.trim()) errors.phoneNumber = "Phone number is required";
+      if (!password) errors.password = "Password is required";
+      if (!confirmPassword) errors.confirmPassword = "Confirm your password";
+      if (password !== confirmPassword) errors.confirmPassword = "Passwords do not match";
+      if (!passwordValid) errors.password = passwordError;
+      if (!firstName.trim()) errors.firstName = "First name is required";
+      if (!lastName.trim()) errors.lastName = "Last name is required";
+      if (!gender) errors.gender = "Please select gender";
+      if (email && !isValidEmail(email)) {
+        errors.email = "Invalid email format";
+      }
+     
+      if (Object.keys(errors).length > 0) {
+        setFieldErrors(errors);
         setLoading(false);
         return;
       }
-
-      // Validate email format if provided
-      if (email.trim() && !isValidEmail(email.trim())) {
-        setError("Please enter a valid email address.");
-        setLoading(false);
-        return;
-      }
-
-      // Check if passwords match
-      if (password !== confirmPassword) {
-        setError("Passwords do not match.");
-        setLoading(false);
-        return;
-      }
-
-      // Check password complexity
-      if (!passwordValid) {
-        setError("Please fix the password requirements.");
-        setLoading(false);
-        return;
-      }
-
-      // Validate phone number length (adjust as needed)
-      if (phoneNumber.length < 10) {
-        setError("Please enter a valid phone number.");
-        setLoading(false);
-        return;
-      }
+     
+      setFieldErrors({});
     }
 
     // ✅ Build form data with proper email handling - FIXED
@@ -202,9 +191,9 @@ const Login = () => {
           // ✅ Only include email field if user provided one - THIS PREVENTS EMPTY STRING ISSUE
           ...(email.trim() && { email: email.trim() }),
         }
-      : { 
-          phone_number: phoneNumber.trim(), 
-          password 
+      : {
+          phone_number: phoneNumber.trim(),
+          password
         };
 
     // Debug logs
@@ -260,7 +249,7 @@ const Login = () => {
       // ✅ Enhanced logic for password change requirement
       const userIsDefaultAdmin = isDefaultAdmin(res.data);
       console.log("👤 Is default admin?", userIsDefaultAdmin);
-      
+     
       if (must_change_password) {
         if (userIsDefaultAdmin) {
           // Default admin must always change password if must_change_password is true
@@ -271,7 +260,7 @@ const Login = () => {
           console.log("🔍 Checking if default admin has changed password...");
           try {
             const defaultAdminPasswordChanged = await checkIfDefaultAdminChangedPassword();
-            
+           
             if (defaultAdminPasswordChanged) {
               // Default admin has changed password, so regular admin doesn't need to change
               console.log("✅ Default admin has changed password. Regular admin can proceed without password change.");
@@ -326,10 +315,10 @@ const Login = () => {
 
       // ✅ Enhanced error handling based on backend response structure
       let errorMessage = isSignUp ? "Registration failed. Please check your information." : "Login failed. Please check your credentials.";
-      
+     
       if (err.response?.data) {
         const errorData = err.response.data;
-        
+       
         // ✅ Handle field-specific validation errors
         if (errorData.phone_number) {
           const phoneError = Array.isArray(errorData.phone_number) ? errorData.phone_number[0] : errorData.phone_number;
@@ -447,6 +436,75 @@ const handlePhoneNumberChange = (e) => {
             {isSignUp ? (
               <>
                 {/* Sign Up Form */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Phone Number *</label>
+                  <input
+                    type="text"
+                    value={phoneNumber}
+                    onChange={handlePhoneNumberChange}
+                    placeholder="Enter phone number"
+                    required
+                    maxLength={11}
+                    className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
+                  />
+                  {fieldErrors.phoneNumber && (
+                    <p className="text-red-400 text-sm mt-1">{fieldErrors.phoneNumber}</p>)}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? "text" : "password"}
+                      value={password}
+                      onChange={handlePasswordChange}
+                      placeholder="••••••••"
+                      required
+                      className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
+                      style={showPassword ? { WebkitTextSecurity: "none" } : undefined}
+                    />
+                    {fieldErrors.password && (
+                    <p className="text-red-400 text-sm mt-1">{fieldErrors.password}</p>)}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {!showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                    </button>
+                  </div>
+                  {!passwordValid && password && (
+                    <div className="text-sm text-red-500 mt-1">{passwordError}</div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Confirm Password *</label>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPassword ? "text" : "password"}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="••••••••"
+                      required
+                      className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
+                      style={showConfirmPassword ? { WebkitTextSecurity: "none" } : undefined}
+                    />
+                    {fieldErrors.confirmPassword && (<p className="text-red-400 text-sm mt-1">{fieldErrors.confirmPassword}</p>)}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500"
+                      aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                    >
+                      {!showConfirmPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   {/* First Name and Last Name */}
                   <div>
@@ -459,6 +517,9 @@ const handlePhoneNumberChange = (e) => {
                       required
                       className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
                     />
+                    {fieldErrors.firstName && (
+                      <p className="text-red-400 text-sm mt-1">{fieldErrors.firstName}</p>)}
+
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-200 mb-2">Last Name *</label>
@@ -470,78 +531,24 @@ const handlePhoneNumberChange = (e) => {
                       required
                       className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
                     />
+                    {fieldErrors.lastName && (<p className="text-red-400 text-sm mt-1">{fieldErrors.lastName}</p>)}
+
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Gender and Phone Number */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">Gender *</label>
-                    <select
-                      value={gender}
-                      onChange={(e) => setGender(e.target.value)}
-                      required
-                      className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-gray-800 hover:bg-gray-700 transition-colors duration-300"
-                    >
-                      <option value="">Select Gender</option>
-                      <option value="Male">Male</option>
-                      <option value="Female">Female</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">Phone Number *</label>
-                    <input
-  type="text"
-  value={phoneNumber}
-  onChange={handlePhoneNumberChange}
-  placeholder="Enter phone number"
-  required
-  maxLength={11}
-  className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
-/>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  {/* Password and Confirm Password */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">Password *</label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        value={password}
-                        onChange={handlePasswordChange}
-                        placeholder="••••••••"
-                        required
-                        className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
-                        style={showPassword ? { WebkitTextSecurity: "none" } : undefined}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                      >
-                        {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
-                      </button>
-                    </div>
-                    {!passwordValid && password && (
-                      <div className="text-sm text-red-500 mt-1">{passwordError}</div>
-                    )}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">Confirm Password *</label>
-                    <input
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                      className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-white/10"
-                    />
-                  </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-200 mb-2">Gender *</label>
+                  <select
+                    value={gender}
+                    onChange={(e) => setGender(e.target.value)}
+                    required
+                    className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 focus:outline-none focus:ring-2 focus:ring-red-600 focus:border-red-600 bg-gray-800 hover:bg-gray-700 transition-colors duration-300"
+                  >
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
                 </div>
 
                 {/* Email (Optional) */}
@@ -590,7 +597,7 @@ const handlePhoneNumberChange = (e) => {
                       className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-red-500"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
-                      {showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                      {!showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
                     </button>
                   </div>
                 </div>
