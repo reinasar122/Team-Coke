@@ -1361,8 +1361,8 @@ const PaymentModal = ({
                 // final due used in the modal
                 amountDue: amountDueFinal,
 
-                // ✅ Only warehouse (integer ID)
-                warehouse: warehouseId,
+                // ✅ Include full warehouse object (en)
+                warehouse: warehouse || { id: warehouseId, name: warehouseName },
 
                 merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
               };
@@ -1518,8 +1518,12 @@ const PaymentModal = ({
                 }
 
 
-
+                //(en)
                 // 3) Show invoice
+                console.log("🧾 Invoice data warehouse before opening InvoiceModal:", data.warehouse);
+                console.log("🧾 Invoice data warehouse type:", typeof data.warehouse);
+                console.log("🧾 Invoice data warehouse keys:", data.warehouse ? Object.keys(data.warehouse) : "null/undefined");
+                console.log("🧾 Invoice data warehouse phone:", data.warehouse?.phone);
                 setInvoiceData(data);
                 setShowInvoiceModal(true);
               } catch (e) {

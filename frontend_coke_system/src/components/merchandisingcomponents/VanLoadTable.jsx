@@ -399,7 +399,7 @@ const VanLoadTable = ({
         <thead className="bg-gray-200 text-gray-700">
           <tr>
             <th className="border">Product</th>
-            <th className="border" colSpan={2}>Dispatched</th>
+            <th className="border" colSpan={2}> To Dispatch</th>
             <th className="border">Selling Price</th>
             <th colSpan={2}>Empty Price</th>
             <th className="border">Discount (%)</th>

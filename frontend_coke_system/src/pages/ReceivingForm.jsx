@@ -891,15 +891,10 @@ const ReceivingForm = () => {
       console.log("✅ Starting to mark processed supplier returns as completed...");
       const completedCount = await markSupplierReturnsAsCompleted(form.supplier);
 
-      let message = `✅ Receiving saved successfully in ${currentWarehouse.name}!`;
-      if (completedCount > 0) {
-        message += ` ${completedCount} supplier return(s) have been marked as completed.`;
-      }
-
-      showNotice(message, "success");
+      
       setTimeout(() => {
         navigate("/receiving");
-      }, 1500);
+      }, 300);
     } catch (error) {
       console.error("❌ Save failed:", error);
       console.error("❌ Error details:", error.response?.data);
@@ -1088,7 +1083,7 @@ const ReceivingForm = () => {
               <thead>
                 <tr>
                   <th>Product</th>
-                  <th>Shell</th>
+                  <th>No. Shell/Crate/Box</th>
                   <th>PCS</th>
                   <th>Bad Orders (PCS)</th>
                   <th>Unit Cost</th>

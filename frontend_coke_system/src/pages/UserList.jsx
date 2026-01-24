@@ -139,18 +139,18 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, user }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
+      <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
         <div className="modal-body">
           <h3 className="page-title">Confirm Delete</h3>
-          <p>
+          <p className="text-lg font-semibold mb-2">
             Are you sure you want to delete user "{user?.first_name}{" "}
             {user?.last_name}"?
           </p>
           <p className="text-sm text-red-600 mb-6">
             This action cannot be undone.
           </p>
-          <div className="flex justify-between">
+          <div className="flex justify-end mt-6 gap-3">
             <button type="button" className="btn btn-cancel" onClick={onClose}>
               Cancel
             </button>
@@ -526,7 +526,7 @@ const UserList = () => {
                     )}
                   </td>
 
-                  <td>
+                  <td className="px-3 py-2 space-x-2">
                     <div
                       style={{
                         display: "flex",

@@ -97,7 +97,7 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
       const res = await api.put("/role-access/bulk-upsert/", payload);
 
       if (res.status >= 200 && res.status < 300) {
-        toast.success(`✅ Permissions for role '${roleName}' updated successfully!`, { style: successStyle });
+        toast.success(`Permissions for role '${roleName}' updated successfully!`, { style: successStyle });
 
         // Dispatch notifications (optional)
         const roleEvent = new CustomEvent("rolePermissionsUpdated", {
@@ -150,7 +150,7 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
           Cancel
         </button>
         <button className="px-6 py-2 btn btn-primary" onClick={handleSave}>
-          Save Changes
+          Save
         </button>
       </div>
     </div>
@@ -158,3 +158,4 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
 };
 
 export default EditRoleAccess;
+

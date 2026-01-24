@@ -229,7 +229,7 @@ const RoleList = () => {
                         }
                         disabled={!canEdit("Roles")}
                       >
-                        <FaEdit size={20} />
+                        <FaEdit size={16} />
                       </button>
 
                       {/* Delete button with access control + Admin protection */}
@@ -253,7 +253,7 @@ const RoleList = () => {
                         }
                         disabled={!canDelete("Roles") || isProtected(role)}
                       >
-                        <FaTrash size={20} />
+                        <FaTrash size={16} />
                       </button>
                     </div>
                   </td>
@@ -299,7 +299,7 @@ const RoleList = () => {
             <p className="text-sm text-red-600 mb-6">
               This action cannot be undone.
             </p>
-            <div className="md:col-span-2 flex justify-end gap-2 mt-4">
+            <div className="flex justify-end mt-6 gap-3">
               <button
                 className="btn btn-cancel"
                 onClick={() => {

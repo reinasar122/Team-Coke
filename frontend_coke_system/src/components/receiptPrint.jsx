@@ -45,6 +45,31 @@ export const generateReceiptHTML = (payload, options = {}) => {
   const dblLine = (ch = "=") => ch.repeat(cols);
   const clip = (s = "", len = cols) =>
     String(s).normalize("NFKD").replace(/[^\x00-\x7F]/g, "").slice(0, len);
+  const wrapText = (text = "", maxLen = cols) => {
+    if (!text) return [];
+    const normalized = String(text).normalize("NFKD").replace(/[^\x00-\x7F]/g, "");
+    const words = normalized.split(" ");
+    const lines = [];
+    let currentLine = "";
+    
+    for (const word of words) {
+      const testLine = currentLine ? `${currentLine} ${word}` : word;
+      if (testLine.length <= maxLen) {
+        currentLine = testLine;
+      } else {
+        if (currentLine) {
+          lines.push(currentLine);
+        }
+        currentLine = word.length <= maxLen ? word : word.slice(0, maxLen);
+      }
+    }
+    
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    
+    return lines;
+  };
   const lr = (left, right) => {
     const L = clip(left, cols);
     const R = clip(right, cols);
@@ -65,15 +90,46 @@ export const generateReceiptHTML = (payload, options = {}) => {
 
   /* ---------- header ---------- */
   const storeName = warehouse?.name || "Warehouse";
-  const storeAddr = warehouse?.fullAddress || "";
-  const storePhone = warehouse?.phone || "";
+  
+  // Ensure address and phone are always displayed from any available source
+  let storeAddr = warehouse?.fullAddress || "";
+  let storePhone = warehouse?.phone || "";
+  
+  // If warehouse data is missing, try to get from payload data (invoiceData fields that might be passed)
+  const payloadData = payload || {};
+  if (!storeAddr) {
+    // Try to construct address from individual fields
+    const addrParts = [];
+    if (payloadData.warehouse_address) addrParts.push(payloadData.warehouse_address);
+    if (payloadData.warehouse_city) addrParts.push(payloadData.warehouse_city);
+    if (payloadData.warehouse_region) addrParts.push(payloadData.warehouse_region);
+    if (addrParts.length > 0) {
+      storeAddr = addrParts.join(", ");
+    } else {
+      storeAddr = payloadData.warehouse_full_address || "";
+    }
+  }
+  
+  if (!storePhone) {
+    storePhone = payloadData.warehouse_phone || "";
+  }
 
-  const headerBlock = [
-    clip(storeName.toUpperCase(), cols),
-    storeAddr ? clip(storeAddr, cols) : "",
-    storePhone ? clip(`Tel: ${storePhone}`, cols) : "",
-    line()
-  ].filter(Boolean).join("\n");
+  const headerLines = [clip(storeName.toUpperCase(), cols)];
+  
+  // Add wrapped address lines
+  if (storeAddr) {
+    const addressLines = wrapText(storeAddr, cols);
+    headerLines.push(...addressLines);
+  }
+  
+  // Add phone line
+  if (storePhone) {
+    headerLines.push(clip(`Tel: ${storePhone}`, cols));
+  }
+  
+  headerLines.push(line());
+  
+  const headerBlock = headerLines.join("\n");
 
   /* ---------- meta ---------- */
   const metaBlock = [

@@ -87,9 +87,20 @@ class RegisterSerializer(serializers.ModelSerializer):
 
 
 class WarehouseSerializer(serializers.ModelSerializer):
+    full_address = serializers.SerializerMethodField()
     class Meta:
         model = Warehouse
         fields = '__all__'
+
+    def get_full_address(self, obj):
+        parts = []
+        if obj.street_address:
+            parts.append(obj.street_address)
+        if obj.city:
+            parts.append(obj.city)
+        if obj.region:
+            parts.append(obj.region)
+        return ", ".join(parts) if parts else ""   
 
     def validate_phone_number(self, value):
         if not value:
@@ -335,7 +346,15 @@ class UserSerializer(serializers.ModelSerializer):
 
     def get_warehouse(self, obj):
         if obj.warehouse:
-            return {"id": obj.warehouse.id, "name": obj.warehouse.name}
+           return {
+                "id": obj.warehouse.id,
+                "name": obj.warehouse.name,
+                "address": obj.warehouse.street_address,
+                "phone": obj.warehouse.phone_number,
+                "city": obj.warehouse.city,
+                "region": obj.warehouse.region,
+                "email": obj.warehouse.email,
+            }
         return None
 
     def create(self, validated_data):
@@ -800,11 +819,39 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     # Store text in DB, but still accept numbers from the client
     handled_by = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     handled_by_name = serializers.SerializerMethodField()
+    warehouse_full_address = serializers.SerializerMethodField()
 
     # ---- existing fields you already have ----
     msp_no = serializers.CharField(read_only=True)
     transaction_type_name = serializers.CharField(source="transaction_type.name", read_only=True)
     date_time = serializers.DateTimeField(required=False, default_timezone=timezone.get_current_timezone())
+
+    # Warehouse details
+    warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
+    warehouse_address = serializers.CharField(source="warehouse.street_address", read_only=True)
+    warehouse_phone = serializers.CharField(source="warehouse.phone_number", read_only=True)
+    warehouse_city = serializers.CharField(source="warehouse.city", read_only=True)
+    warehouse_region = serializers.CharField(source="warehouse.region", read_only=True)
+    warehouse_email = serializers.CharField(source="warehouse.email", read_only=True)
+    warehouse_full_address = serializers.SerializerMethodField()
+
+    # Route and Van details
+    route_name = serializers.CharField(source="route.name", read_only=True)
+    van_name = serializers.CharField(source="van.name", read_only=True)
+
+    def get_warehouse_full_address(self, obj):
+        if obj.warehouse:
+            parts = []
+            if obj.warehouse.street_address:
+                parts.append(obj.warehouse.street_address)
+            if obj.warehouse.city:
+                parts.append(obj.warehouse.city)
+            if obj.warehouse.region:
+                parts.append(obj.warehouse.region)
+            if parts:
+                return ",".join(parts)
+            return "N/A"
+        return "N/A"
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)

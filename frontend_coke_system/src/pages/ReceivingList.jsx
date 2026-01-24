@@ -110,28 +110,16 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, receivingId }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="modal-overlay">
-      <div className="modal">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
+      <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
         <div className="modal-body">
           <h3 className="page-title">Confirm Delete</h3>
           <p>Are you sure you want to delete this receiving record?</p>
-          <p className="text-muted">This action cannot be undone.</p>
+          <p className="text-sm text-red-600 mb-6">This action cannot be undone.</p>
 
           <div className="modal-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '20px' }}>
-            <button
-              type="button"
-              className="btn btn-cancel"
-              onClick={onClose}
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn btn-danger"
-              onClick={onConfirm}
-            >
-              Delete
-            </button>
+            <button type="button" className="btn btn-cancel" onClick={onClose}>Cancel</button>
+            <button type="button" className="btn btn-danger" onClick={onConfirm}>Delete</button>
           </div>
         </div>
       </div>
@@ -288,7 +276,7 @@ const ReceivingList = () => {
               <FaClipboardCheck /> Receiving
             </h1>
         </div>
-                  
+                 
              
         {/* <div className="warehouse-chip">
           <span className="chip-title">📦 Current Warehouse</span>
@@ -345,44 +333,6 @@ const ReceivingList = () => {
                       >
                         <FaTrashAlt />
                       </button>
-                      {deleteModal.open && (
-                        <div className="modal-overlay">
-                          <div className="modal">
-                            <h3 className="pf-modal-title">Confirm Delete</h3>
-                            <p>Are you sure you want to delete this receiving?</p>
-
-                            <div className="pf-actions">
-                              <button
-                                type="button"
-                                className="btn btn-cancel"
-                                onClick={() => setDeleteModal({ open: false, id: null })}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-danger"
-                                onClick={async () => {
-                                  try {
-                                    const cfg = getAxiosConfig();
-                                    await api.delete(
-                                      `/receiving/${deleteModal.id}/`,
-                                      cfg
-                                    );
-                                    fetchReceivings();
-                                  } catch (e) {
-                                    console.error("[ReceivingList] Error deleting receiving:", e);
-                                  }
-                                  setDeleteModal({ open: false, id: null });
-                                }}
-                              >
-                                Delete
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
                     </div>
                   </td>
                 </tr>

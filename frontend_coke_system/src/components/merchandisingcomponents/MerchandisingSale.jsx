@@ -202,9 +202,26 @@ const MerchandisingSale = () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const warehouseId = getCurrentWarehouse();
 
-    if (warehouseId) {
-      const name = selectedWarehouse?.name || user?.warehouse_name || "Warehouse";
-      setCurrentWarehouse({ id: warehouseId, name });
+    //(en)
+    if (warehouseId) { 
+      // Use full warehouse object if available
+      const warehouseObj = selectedWarehouse || user?.warehouse;
+      if (warehouseObj && typeof warehouseObj === 'object') {
+        // ✅ Normalize warehouse object to use consistent field names
+        const normalizedWarehouse = {
+          id: warehouseObj.id,
+          name: warehouseObj.name,
+          address: warehouseObj.address || warehouseObj.street_address,
+          phone: warehouseObj.phone || warehouseObj.phone_number,
+          city: warehouseObj.city,
+          region: warehouseObj.region,
+          email: warehouseObj.email,
+        };
+        setCurrentWarehouse(normalizedWarehouse);
+      } else {
+        const name = selectedWarehouse?.name || user?.warehouse_name || "Warehouse";
+        setCurrentWarehouse({ id: warehouseId, name });
+      }
     }
   }, []);
 
@@ -1422,6 +1439,7 @@ const MerchandisingSale = () => {
           0
         )}
         miscItems={miscItems}
+        warehouse={currentWarehouse}
       />
     </div>
   );

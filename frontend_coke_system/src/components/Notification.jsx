@@ -37,7 +37,7 @@ import { getCurrentWarehouse, getWarehouseAxiosConfig, getWarehouseQueryParam, f
 const NotificationAPI = {
   async createNotification(notificationType, data, userRole, warehouseId, config) {
     try {
-      const response = await api.post('/api/notifications/create/', {
+      const response = await api.post('/notifications/create/', {
         notification_type: notificationType,
         data: data,
         user_role: userRole,
@@ -51,24 +51,24 @@ const NotificationAPI = {
   },
 
   async loadNotifications(warehouseParam, config) {
-    const response = await api.get(`/api/notifications/?warehouse=${warehouseParam}`, config);
+    const response = await api.get(`/notifications/?warehouse=${warehouseParam}`, config);
     return Array.isArray(response.data) ? response.data : response.data?.results || [];
   },
 
   async markAsRead(notificationId, config) {
-    await api.post(`/api/notifications/${notificationId}/mark_read/`, {}, config);
+    await api.post(`/notifications/${notificationId}/mark_read/`, {}, config);
   },
 
   async markAllAsRead(warehouseId, config) {
-    await api.post('/api/notifications/mark_all_read/', { warehouse_id: warehouseId }, config);
+    await api.post('/notifications/mark_all_read/', { warehouse_id: warehouseId }, config);
   },
 
   async clearAll(warehouseId, config) {
-    await api.post('/api/notifications/clear_all/', { warehouse_id: warehouseId }, config);
+    await api.post('/notifications/clear_all/', { warehouse_id: warehouseId }, config);
   }
 };
 
-const Notification = () => {
+const Notification = ({ closeProfile }) => {
   const { state, dispatch, addNotification, hasNotificationPermission } = useNotifications();
   const { notifications } = state;
   
@@ -116,6 +116,13 @@ const Notification = () => {
     };
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
+
+  // Close notification when profile opens
+  useEffect(() => {
+    const handleProfileOpen = () => setIsOpen(false);
+    window.addEventListener('profileOpened', handleProfileOpen);
+    return () => window.removeEventListener('profileOpened', handleProfileOpen);
   }, []);
 
   // ✅ ENHANCED: Better user data getter with validation using warehouse utils
@@ -289,11 +296,10 @@ const Notification = () => {
           notif.data?.warehouse_id !== currentWarehouseId
         );
         
-        // Keep newer local notifications that might not be in backend yet
+        // Keep local notifications that might not be in backend yet
         const backendIds = new Set(formattedNotifications.map(n => n.id));
         const recentLocalNotifications = currentWarehouseNotifications.filter(localNotif => {
-          const isRecent = new Date(localNotif.timestamp) > new Date(Date.now() - 5 * 60 * 1000); // Last 5 minutes
-          return isRecent && !backendIds.has(localNotif.id);
+          return !backendIds.has(localNotif.id);
         });
         
         const mergedNotifications = [
@@ -457,19 +463,20 @@ const Notification = () => {
     }
   }, [userDataReady, currentWarehouseId, currentWarehouse, triggerCreditNotification]);
 
-  // ✅ ENHANCED: Notification cleanup for old notifications
+  // ✅ ENHANCED: Notification cleanup for old notifications (disabled to keep all messages)
   const cleanupOldNotifications = useCallback(() => {
-    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-    
-    const validNotifications = notifications.filter(notif => 
-      new Date(notif.timestamp) > sevenDaysAgo
-    );
-    
-    if (validNotifications.length !== notifications.length) {
-      dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
-      
-      console.log(`🧹 Cleaned up ${notifications.length - validNotifications.length} old notifications`);
-    }
+    // Keep all notifications - don't auto-remove old ones
+    // const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    // const validNotifications = notifications.filter(notif =>
+    //   new Date(notif.timestamp) > sevenDaysAgo
+    // );
+
+    // if (validNotifications.length !== notifications.length) {
+    //   dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
+
+    //   console.log(`🧹 Cleaned up ${notifications.length - validNotifications.length} old notifications`);
+    // }
   }, [notifications, dispatch]);
 
   // ✅ NEW: Notification summary generator
@@ -904,12 +911,11 @@ const Notification = () => {
         if (savedWarehouseNotifications) {
           const parsedNotifications = JSON.parse(savedWarehouseNotifications);
           
-          // ✅ FIXED: Only filter out explicitly deleted notifications, keep recent ones
+          // ✅ FIXED: Only filter out explicitly deleted notifications, keep all messages
           const validNotifications = parsedNotifications.filter(notif => {
-            const isRecent = new Date(notif.timestamp) > new Date(Date.now() - 24 * 60 * 60 * 1000); // Last 24 hours instead of 7 days
             const notDeleted = !deletedNotificationIds.has(notif.id);
             
-            return isRecent && notDeleted;
+            return notDeleted;
           });
           
           if (validNotifications.length > 0) {
@@ -932,7 +938,6 @@ const Notification = () => {
             const allNotifications = JSON.parse(globalAdminNotifications);
             const warehouseNotifications = allNotifications.filter(notif =>
               notif.data?.warehouse_id === currentWarehouseId &&
-              new Date(notif.timestamp) > new Date(Date.now() - 24 * 60 * 60 * 1000) &&
               !deletedNotificationIds.has(notif.id)
             );
             
@@ -955,13 +960,12 @@ const Notification = () => {
         if (savedNotifications) {
           const parsedNotifications = JSON.parse(savedNotifications);
           
-          // ✅ FIXED: Less aggressive filtering
+          // ✅ FIXED: Less aggressive filtering - keep all messages
           const validNotifications = parsedNotifications.filter(notif => {
-            const isRecent = new Date(notif.timestamp) > new Date(Date.now() - 24 * 60 * 60 * 1000);
             const notDeleted = !deletedNotificationIds.has(notif.id);
             const isCurrentWarehouse = notif.data?.warehouse_id === currentWarehouseId;
             
-            return isRecent && notDeleted && isCurrentWarehouse;
+            return notDeleted && isCurrentWarehouse;
           });
           
           if (validNotifications.length > 0) {
@@ -3516,7 +3520,10 @@ useEffect(() => {
       <div className="relative" ref={dropdownRef}>
         {/* Notification Bell Icon with transition effect */}
         <button
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            setIsOpen(!isOpen);
+            if (closeProfile) closeProfile();
+          }}
           className={`relative p-2 text-white hover:text-gray-300 focus:outline-none transition-all duration-200 ${
             isTransitioning ? 'opacity-70 transform scale-95' : 'opacity-100 transform scale-100'
           }`}

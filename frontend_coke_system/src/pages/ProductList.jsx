@@ -27,16 +27,16 @@ const ProductList = () => {
   // ✅ KEPT: Proper warehouse setup like ReceivingList (from old version)
   const setupWarehouse = useCallback(async () => {
     console.log('🏭 Setting up warehouse for ProductList...');
-    
+   
     const warehouse = getCurrentWarehouse();
-    
+   
     if (!warehouse) {
       console.warn('⚠️ No warehouse found for user');
       setCurrentWarehouse(null);
       setLoading(false);
       return;
     }
-    
+   
     // If warehouse needs ID lookup, find it by name
     if (warehouse.needsIdLookup) {
       const foundWarehouse = await findWarehouseByName(warehouse.name);
@@ -44,7 +44,7 @@ const ProductList = () => {
     } else {
       setCurrentWarehouse(warehouse);
     }
-    
+   
     setLoading(false);
   }, []);
 
@@ -58,16 +58,16 @@ const ProductList = () => {
     try {
       setLoading(true);
       console.log('📦 Fetching products for warehouse:', currentWarehouse);
-      
+     
       // ✅ KEPT: Use same pattern as ReceivingList (from old version)
       const config = getWarehouseAxiosConfig(currentWarehouse);
       const url = `/products/?warehouse_id=${currentWarehouse.id}`;
-      
+     
       console.log('📡 Making request to:', url, 'with config:', config);
-      
+     
       // ✅ NEW: Use api.get() instead of axios.get() (from new version)
       const res = await api.get(url, config);
-      
+     
       console.log('✅ Products fetched successfully:', res.data.length, 'products');
       setProducts(res.data);
     } catch (err) {
@@ -95,7 +95,7 @@ const ProductList = () => {
       console.log('🏭 Warehouse change detected in ProductList:', event.detail);
       setupWarehouse();
     };
-    
+   
     window.addEventListener('warehouseChanged', handleWarehouseChange);
     return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
   }, [setupWarehouse]);
@@ -103,7 +103,7 @@ const ProductList = () => {
   // Filter products based on search query
   const filteredProducts = products.filter(product => {
     if (!searchQuery.trim()) return true;
-    
+   
     const query = searchQuery.toLowerCase();
     return (
       product.product_name?.toLowerCase().includes(query) ||
@@ -116,19 +116,19 @@ const ProductList = () => {
   // Calculate products per page based on zoom level (only for carousel mode)
   const calculateProductsPerPage = useCallback(() => {
     let zoomLevel = 1;
-    
+   
     if (window.outerWidth && window.innerWidth) {
       zoomLevel = window.outerWidth / window.innerWidth;
     }
-    
+   
     if (zoomLevel === 1 && window.devicePixelRatio) {
       zoomLevel = 1 / window.devicePixelRatio;
     }
-    
+   
     const zoomPercentage = Math.round(zoomLevel * 100);
-    
+   
     let productsCount = 6;
-    
+   
     if (zoomPercentage >= 125) {
       productsCount = 4;
     } else if (zoomPercentage >= 100) {
@@ -144,7 +144,7 @@ const ProductList = () => {
     } else {
       productsCount = 15;
     }
-    
+   
     setProductsPerPage(productsCount);
   }, []);
 
@@ -173,7 +173,7 @@ const ProductList = () => {
       window.addEventListener('wheel', handleZoom, { passive: true });
       window.addEventListener('keydown', handleKeyZoom);
       window.addEventListener('focus', calculateProductsPerPage);
-      
+     
       return () => {
         clearTimeout(timer);
         window.removeEventListener('resize', handleResize);
@@ -196,9 +196,9 @@ const ProductList = () => {
   const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
   const startIndex = currentPage * productsPerPage;
   const endIndex = startIndex + productsPerPage;
-  
-  const currentProducts = viewMode === 'table' 
-    ? filteredProducts 
+ 
+  const currentProducts = viewMode === 'table'
+    ? filteredProducts
     : filteredProducts.slice(startIndex, endIndex);
 
   const nextPage = () => {
@@ -231,50 +231,18 @@ const ProductList = () => {
 
   const handleDelete = async (id) => {
     const productToDelete = products.find(p => p.id === id);
-    
+   
     const showConfirmDialog = (message, onConfirm) => {
       const modal = document.createElement('div');
-      modal.className = 'modal-overlay';
-      modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-      `;
+      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4';
       modal.innerHTML = `
-        <div class="modal" style="
-          background: white;
-          padding: 24px;
-          border-radius: 12px;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-          max-width: 400px;
-          width: 90%;
-        ">
+        <div class="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
           <div class="modal-body">
-            <p class="text-muted" style="margin-bottom: 20px; color: #64748b;">${message}</p>
-            <div class="modal-actions" style="display: flex; gap: 12px; justify-content: flex-end;">
-              <button class="btn btn-back h-6 js-cancel" style="
-                padding: 8px 16px;
-                border: 1px solid #e2e8f0;
-                background: #f1f5f9;
-                color: #64748b;
-                border-radius: 6px;
-                cursor: pointer;
-              ">Cancel</button>
-              <button class="btn btn-danger h-6 js-confirm" style="
-                padding: 8px 16px;
-                border: none;
-                background: #dc2626;
-                color: white;
-                border-radius: 6px;
-                cursor: pointer;
-              ">Delete</button>
+            <h3 class="page-title">Confirm Delete</h3>
+            <p class="text-muted" style="margin-bottom: 12px; color: #64748b;">${message}</p>
+            <div class="flex justify-end mt-6 gap-3">
+              <button class="btn btn-cancel js-cancel">Cancel</button>
+              <button class="btn btn-danger js-confirm">Delete</button>
             </div>
           </div>
         </div>
@@ -289,39 +257,13 @@ const ProductList = () => {
 
     const showAlert = (message, variant = 'primary') => {
       const alert = document.createElement('div');
-      alert.className = 'modal-overlay';
-      alert.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 1000;
-      `;
+      alert.className = 'fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4';
       alert.innerHTML = `
-        <div class="modal" style="
-          background: white;
-          padding: 24px;
-          border-radius: 12px;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-          max-width: 400px;
-          width: 90%;
-        ">
+        <div class="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
           <div class="modal-body">
-            <p class="text-muted" style="margin-bottom: 20px; color: #64748b;">${message}</p>
-            <div class="modal-actions" style="display: flex; justify-content: flex-end;">
-              <button class="btn js-ok" style="
-                padding: 8px 16px;
-                border: none;
-                background: ${variant === 'danger' ? '#dc2626' : '#5D5CDE'};
-                color: white;
-                border-radius: 6px;
-                cursor: pointer;
-              ">OK</button>
+            <p class="text-muted" style="margin-bottom: 12px; color: #64748b;">${message}</p>
+            <div class="flex justify-end mt-6 gap-3">
+              <button class="btn js-ok">${variant === 'danger' ? 'Close' : 'OK'}</button>
             </div>
           </div>
         </div>
@@ -336,12 +278,8 @@ const ProductList = () => {
         const config = getWarehouseAxiosConfig(currentWarehouse);
         // ✅ NEW: Use api.delete() instead of axios.delete() (from new version)
         await api.delete(`/products/${id}/`, config);
-        
         setProducts(prev => prev.filter(prod => prod.id !== id));
-        
         if (productToDelete) {
-          console.log('📦 Product deleted:', productToDelete);
-          
           notifyProductChange({
             action: 'deleted',
             id: productToDelete.id,
@@ -350,13 +288,10 @@ const ProductList = () => {
             category: productToDelete.product_category?.name || 'Unknown',
             selling_price: productToDelete.price?.selling_price || 0
           });
-          
-          console.log('📦 Product deletion notification sent!');
         }
-        
+       
         showAlert("🗑️ Product deleted successfully!");
       } catch (err) {
-        console.error("Delete error:", err);
         showAlert("❌ Failed to delete product. " + (err.response?.data?.message || err.message), 'danger');
       }
     });
@@ -382,18 +317,18 @@ const ProductList = () => {
       <div className="page-header" style={{ flexWrap: 'wrap', rowGap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginRight: 'auto' }}>
           <h2 className="page-title" style={{ margin: 0 }}>Product List</h2>
-          
+         
           {/* ✅ KEPT: Show current warehouse (from old version) */}
-          <div style={{ 
-            padding: '4px 8px', 
-            background: '#f3f4f6', 
-            borderRadius: '6px', 
+          <div style={{
+            padding: '4px 8px',
+            background: '#f3f4f6',
+            borderRadius: '6px',
             fontSize: '12px',
             color: '#6b7280'
           }}>
             📦 {currentWarehouse.name}
           </div>
-          
+         
           {/* View Mode Dropdown */}
           <div style={{ position: 'relative' }}>
             <button
@@ -415,13 +350,13 @@ const ProductList = () => {
               }}
             >
               <span>{viewMode === 'carousel' ? 'Carousel View' : 'Table View'}</span>
-              <FaChevronDown style={{ 
+              <FaChevronDown style={{
                 fontSize: '12px',
                 transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 0.2s ease'
               }} />
             </button>
-            
+           
             {dropdownOpen && (
               <div style={{
                 position: 'absolute',
@@ -492,7 +427,7 @@ const ProductList = () => {
             )}
           </div>
         </div>
-        
+       
         <Link
           to="/products/new"
           className={`btn ${canCreate("Product") ? 'btn-add' : 'btn-disabled'}`}
@@ -573,7 +508,7 @@ const ProductList = () => {
             fontSize: '14px',
             color: '#6b7280'
           }}>
-            Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''} 
+            Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
             {filteredProducts.length > 0 && ` matching "${searchQuery}"`}
           </div>
         )}
@@ -581,7 +516,7 @@ const ProductList = () => {
 
       {/* Close dropdown when clicking outside */}
       {dropdownOpen && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
@@ -638,9 +573,9 @@ const ProductList = () => {
             overflowY: 'auto'
           }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ 
-                position: 'sticky', 
-                top: 0, 
+              <thead style={{
+                position: 'sticky',
+                top: 0,
                 background: '#f9fafb',
                 zIndex: 1
               }}>
@@ -664,7 +599,7 @@ const ProductList = () => {
               </thead>
               <tbody>
                 {currentProducts.map((prod, index) => (
-                  <tr key={prod.id} style={{ 
+                  <tr key={prod.id} style={{
                     borderBottom: index < currentProducts.length - 1 ? '1px solid #f3f4f6' : 'none',
                     transition: 'background-color 0.2s ease'
                   }}
@@ -686,18 +621,18 @@ const ProductList = () => {
                     <td style={{ padding: '16px', textAlign: 'center' }}>
                       <div style={{ display: 'flex', justifyContent: 'center', gap: 8 }}>
                         {canEdit("Product") ? (
-                          <Link 
-                            to={`/products/${prod.id}/edit`} 
-                            title="Edit" 
-                            className="icon-btn icon-btn-edit" 
+                          <Link
+                            to={`/products/${prod.id}/edit`}
+                            title="Edit"
+                            className="icon-btn icon-btn-edit"
                             style={{ padding: '8px', fontSize: '14px' }}
                           >
                             <FaEdit aria-hidden="true" />
                           </Link>
                         ) : (
-                          <span 
-                            title="No access" 
-                            className="icon-btn icon-btn-disabled" 
+                          <span
+                            title="No access"
+                            className="icon-btn icon-btn-disabled"
                             style={{ padding: '8px', fontSize: '14px' }}
                           >
                             <FaEdit aria-hidden="true" />
@@ -714,9 +649,9 @@ const ProductList = () => {
                             <FaTrash aria-hidden="true" />
                           </button>
                         ) : (
-                          <span 
-                            title="No access" 
-                            className="icon-btn icon-btn-disabled" 
+                          <span
+                            title="No access"
+                            className="icon-btn icon-btn-disabled"
                             style={{ padding: '8px', fontSize: '14px' }}
                           >
                             <FaTrash aria-hidden="true" />
@@ -729,7 +664,7 @@ const ProductList = () => {
               </tbody>
             </table>
           </div>
-          
+         
           <div style={{
             textAlign: 'center',
             marginTop: 16,
@@ -742,18 +677,18 @@ const ProductList = () => {
       ) : (
         /* Carousel View */
         <>
-          <div 
+          <div
             ref={gridRef}
-            style={{ 
-              display: 'grid', 
+            style={{
+              display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
-              gap: 24 
+              gap: 24
             }}
           >
             {currentProducts.map(prod => (
               <div key={prod.id} className="card" style={{ padding: 28 }}>
-                <div style={{ 
-                  display: 'flex', 
+                <div style={{
+                  display: 'flex',
                   gap: 24,
                   alignItems: 'flex-start'
                 }}>
@@ -789,7 +724,7 @@ const ProductList = () => {
                   )}
 
                   <div style={{ flex: 1, display: 'grid', gap: 16 }}>
-                    <h3 style={{ 
+                    <h3 style={{
                       fontSize: '20px',
                       fontWeight: '600',
                       margin: 0,
@@ -821,8 +756,8 @@ const ProductList = () => {
                       </div>
                     </div>
 
-                    <div style={{ 
-                      display: 'flex', 
+                    <div style={{
+                      display: 'flex',
                       justifyContent: 'flex-end',
                       gap: 10,
                       marginTop: 12
@@ -940,8 +875,8 @@ const ProductList = () => {
                   ))}
                 </div>
 
-                <span style={{ 
-                  color: '#6b7280', 
+                <span style={{
+                  color: '#6b7280',
                   fontSize: '14px',
                   fontWeight: '500'
                 }}>

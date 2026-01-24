@@ -1,7 +1,6 @@
 // src/pages/receiving/ReceivingDetails.jsx
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
-import axios from "axios";
 // import "../../styles/pages/receivinglist.scss"; // reuse your existing styles
 import api from "../api"; // ✅ correct
 

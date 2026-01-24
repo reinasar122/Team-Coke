@@ -190,20 +190,27 @@ const Header = ({ toggleSidebar }) => {
             />
           </button>
 
-          <Notification />
+          <Notification closeProfile={() => setIsProfileOpen(false)} />
           
-          <button 
-            onClick={() => setIsProfileOpen(!isProfileOpen)} 
-            className="focus:outline-none p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-700 transition-colors duration-200"
-          >
-            <FontAwesomeIcon icon={faUser} className="cursor-pointer text-xl" />
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => {
+                setIsProfileOpen(!isProfileOpen);
+                if (!isProfileOpen) {
+                  window.dispatchEvent(new CustomEvent('profileOpened'));
+                }
+              }} 
+              className="focus:outline-none p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-700 transition-colors duration-200"
+            >
+              <FontAwesomeIcon icon={faUser} className="cursor-pointer text-xl" />
+            </button>
 
-          {isProfileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] sm:max-w-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-lg shadow-xl z-50 max-h-[calc(100vh-6rem)] overflow-y-auto border border-gray-200 dark:border-gray-700 transition-all duration-200">
-              <Profile />
-            </div>
-          )}
+            {isProfileOpen && (
+              <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] sm:max-w-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-lg shadow-xl z-50 max-h-[calc(100vh-6rem)] overflow-y-auto border border-gray-200 dark:border-gray-700 transition-all duration-200">
+                <Profile />
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

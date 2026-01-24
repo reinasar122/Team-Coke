@@ -492,7 +492,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
         {/* Additional Contacts */}
         <div className="mt-4">
           <h3 className="font-semibold mb-2">
-            Additional Contacts{" "}
+            Additional Contact Person{" "}
             {formData.contacts.length > 0 && (
               <span className="ml-2 text-sm text-gray-500">
                 ({formData.contacts.length} added)
@@ -539,7 +539,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               <input
                 type="email"
                 name="email"
-                placeholder="Email"
+                placeholder="Email (optional)"
                 value={newContact.email}
                 onChange={handleNewContactChange}
                 className={`w-full border p-2 rounded ${

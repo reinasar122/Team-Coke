@@ -9,10 +9,10 @@ import api from "../api";
 const ProductForm = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  
+ 
   // Get the state data passed from receiving form
   const { preSelectedSupplier, returnTo, message, savedFormState } = location.state || {};
-  
+ 
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [rows, setRows] = useState([
     {
@@ -55,7 +55,7 @@ const ProductForm = () => {
     const warehouse = getCurrentWarehouse();
     setCurrentWarehouse(warehouse);
     console.log('🏭 Current warehouse set:', warehouse);
-    
+   
     fetchDropdowns();
     generateSystemCode(0);
   }, []);
@@ -91,32 +91,32 @@ const ProductForm = () => {
   // ✅ Smart supplier prefix generation
   const generateUniqueSupplierPrefix = (targetSupplier) => {
     if (!targetSupplier) return 'PROD';
-    
+   
     const targetName = targetSupplier.company_name.toUpperCase();
     let basePrefix = targetName.substring(0, 3).replace(/[^A-Z]/g, '');
-    
+   
     // If basePrefix is too short, try to get more characters
     if (basePrefix.length < 2) {
       basePrefix = targetName.replace(/[^A-Z]/g, '').substring(0, 3);
     }
-    
+   
     // Check for conflicts with other suppliers
-    const conflictingSuppliers = suppliers.filter(s => 
-      s.id !== targetSupplier.id && 
+    const conflictingSuppliers = suppliers.filter(s =>
+      s.id !== targetSupplier.id &&
       s.company_name.toUpperCase().startsWith(basePrefix)
     );
-    
+   
     if (conflictingSuppliers.length === 0) {
       return basePrefix;
     }
-    
+   
     // Handle conflicts by adding numbers
     const allSimilarSuppliers = suppliers
       .filter(s => s.company_name.toUpperCase().includes(basePrefix))
       .sort((a, b) => a.company_name.localeCompare(b.company_name));
-    
+   
     const targetIndex = allSimilarSuppliers.findIndex(s => s.id === targetSupplier.id);
-    
+   
     if (targetIndex === 0) {
       return basePrefix; // First one keeps the original prefix
     } else {
@@ -131,7 +131,7 @@ const ProductForm = () => {
     const randomCode = Math.random().toString(36).substring(2, 4).toUpperCase();
     const timestamp = Date.now().toString().slice(-2);
     const code = `${supplierPrefix}-${randomCode}${timestamp}`;
-    
+   
     setRows((prev) => {
       const newRows = [...prev];
       newRows[index].system_code = code;
@@ -143,7 +143,7 @@ const ProductForm = () => {
   const getSupplierInfo = (supplierId) => {
     const supplier = suppliers.find(s => s.id == supplierId);
     if (!supplier) return { name: '', prefix: '' };
-    
+   
     const prefix = generateUniqueSupplierPrefix(supplier);
     return {
       name: supplier.company_name,
@@ -158,7 +158,7 @@ const ProductForm = () => {
         showNotice('Please select a valid image file.', 'error');
         return;
       }
-      
+     
       if (file.size > 5 * 1024 * 1024) {
         showNotice('Image size should be less than 5MB.', 'error');
         return;
@@ -191,14 +191,14 @@ const ProductForm = () => {
 
   const handleChange = (index, e) => {
     const { name, value, type, checked } = e.target;
-    
+   
     // Handle "Add new" option selection
     if (value === "ADD_NEW_CATEGORY" || value === "ADD_NEW_SHELL" || value === "ADD_NEW_CONTENT") {
       const key = `${name}_${index}`;
       setShowAddNewInput(prev => ({ ...prev, [key]: true }));
       return;
     }
-    
+   
     setRows((prev) => {
       const newRows = [...prev];
       if (name === "returnable") {
@@ -210,15 +210,15 @@ const ProductForm = () => {
       } else {
         newRows[index][name] = type === "checkbox" ? checked : value;
       }
-      
+     
       // Regenerate system code when supplier changes
       if (name === "supplier" && value) {
         setTimeout(() => generateSystemCode(index, value), 100);
       }
-      
+     
       return newRows;
     });
-    
+   
     setValidationErrors(prev => prev.filter(error => !(error.rowIndex === index && error.field === name)));
     checkAndAddRow(index);
   };
@@ -253,11 +253,11 @@ const ProductForm = () => {
         newRows[rowIndex][fieldName] = res.data.id;
         return newRows;
       });
-      
+     
       // Clear the input and hide add new input
       const key = `${fieldName}_${rowIndex}`;
       setShowAddNewInput(prev => ({ ...prev, [key]: false }));
-      
+     
       if (type === "category") {
         setNewCategoryInput(prev => ({ ...prev, [rowIndex]: "" }));
       } else if (type === "shell") {
@@ -265,7 +265,7 @@ const ProductForm = () => {
       } else if (type === "content") {
         setNewContentInput(prev => ({ ...prev, [rowIndex]: "" }));
       }
-      
+     
       // ✅ REMOVED: No more notifications for inline additions
     } catch (err) {
       console.error("❌ Add New Error:", err.response?.data || err.message);
@@ -294,10 +294,10 @@ const ProductForm = () => {
             product_name: "",
             product_category: "",
             returnable: true,
-            purchase_price: "",
-            selling_price: "",
-            shell_price: "",
-            bottle_price: "",
+            purchase_price: "0",
+            selling_price: "0",
+            shell_price: "0",
+            bottle_price: "0",
             content_no: "",
             shell_type: "",
             content_type: "",
@@ -316,14 +316,14 @@ const ProductForm = () => {
 
   const showNotice = (text, type = "success") => {
     setNotice({ open: true, type, text });
-    
+   
     let timeout = 1000;
     if (type === "info") {
       timeout = 800;
     } else if (type === "error") {
       timeout = 2000;
     }
-    
+   
     setTimeout(() => {
       setNotice({ open: false, type: "success", text: "" });
     }, timeout);
@@ -332,7 +332,7 @@ const ProductForm = () => {
   const validateForm = () => {
     const errors = [];
     const filledRows = rows.filter(row => row.product_name.trim() !== "");
-    
+   
     if (filledRows.length === 0) {
       showNotice("❌ Please fill at least one product row before saving.", "error");
       return false;
@@ -340,7 +340,7 @@ const ProductForm = () => {
 
     filledRows.forEach((row, index) => {
       const actualIndex = rows.findIndex(r => r === row);
-      
+     
       const requiredFields = [
         { field: 'supplier', label: 'Supplier' },
         { field: 'supplier_code', label: 'Supplier Product Code' },
@@ -414,14 +414,14 @@ const ProductForm = () => {
     }
 
     if (!currentWarehouse || !currentWarehouse.id) {
-      showNotice("❌ No warehouse assigned. Please contact administrator.", "error");
+      showNotice("No warehouse assigned. Please contact administrator.", "error");
       return;
     }
 
     try {
       const filledRows = rows.filter(row => row.product_name.trim() !== "");
       let createdProducts = [];
-      
+     
       for (let formData of filledRows) {
         const pricingRes = await api.post("/pricing/", {
           purchase_price: parseFloat(formData.purchase_price) || 0,
@@ -447,7 +447,7 @@ const ProductForm = () => {
         productData.append('unit_type', unitTypeRes.data.id);
         productData.append('price', pricingRes.data.id);
         productData.append('warehouse', currentWarehouse.id);
-        
+       
         if (formData.image) {
           productData.append('image', formData.image);
         }
@@ -467,11 +467,11 @@ const ProductForm = () => {
           });
         }
       }
-      
+     
       if (createdProducts.length > 0) {
         console.log('📦 Products created successfully:', createdProducts.length);
         console.log('🏭 Notifying ONLY current warehouse users:', currentWarehouse.name);
-        
+       
         // Enhanced notifications with smart prefixes
         createdProducts.forEach(product => {
           const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
@@ -551,14 +551,12 @@ const ProductForm = () => {
           console.log(`📦 Product notification sent for: ${product.formData.product_name} from ${supplierInfo.name} (${supplierInfo.prefix})`);
         });
       }
-      
-      showNotice(`✅ ${createdProducts.length} product(s) saved to ${currentWarehouse.name}!`, "success");
-      
+           
       setTimeout(() => {
         if (returnTo) {
           const firstCreatedProduct = createdProducts[0];
           const supplierInfo = getSupplierInfo(firstCreatedProduct.formData.supplier);
-          const navigationState = { 
+          const navigationState = {
             message: `Product "${firstCreatedProduct.formData.product_name}" from ${supplierInfo.name} (${supplierInfo.prefix}) added successfully!`,
             refreshProducts: true,
             newProduct: {
@@ -569,11 +567,11 @@ const ProductForm = () => {
               supplier_prefix: supplierInfo.prefix
             }
           };
-          
+         
           if (savedFormState) {
             navigationState.savedFormState = savedFormState;
           }
-          
+         
           navigate(returnTo, { state: navigationState });
         } else {
           navigate("/products/");
@@ -581,15 +579,15 @@ const ProductForm = () => {
       }, 1200);
     } catch (err) {
       console.log("Form values when saving:", rows);
-      console.error("❌ Save Error:", err.response?.data || err.message);
-      showNotice("❌ Error saving products: " + (err.response?.data?.message || err.message), "error");
+      console.error("Save Error:", err.response?.data || err.message);
+      showNotice("Error saving products: " + (err.response?.data?.message || err.message), "error");
     }
   };
 
   const handleCancel = () => {
     if (returnTo && savedFormState) {
-      navigate(returnTo, { 
-        state: { 
+      navigate(returnTo, {
+        state: {
           savedFormState: savedFormState,
           message: "Product creation cancelled - returning to receiving form",
           refreshProducts: false
@@ -608,9 +606,9 @@ const ProductForm = () => {
         <h2 className="page-title">
           Product Form
           {currentWarehouse && (
-            <span style={{ 
-              fontSize: '14px', 
-              fontWeight: 'normal', 
+            <span style={{
+              fontSize: '14px',
+              fontWeight: 'normal',
               color: '#6b7280',
               marginLeft: '12px'
             }}>
@@ -618,9 +616,9 @@ const ProductForm = () => {
             </span>
           )}
           {returnTo && (
-            <span style={{ 
-              fontSize: '12px', 
-              fontWeight: 'normal', 
+            <span style={{
+              fontSize: '12px',
+              fontWeight: 'normal',
               color: '#059669',
               marginLeft: '8px',
               background: '#f0fdf4',
@@ -670,7 +668,6 @@ const ProductForm = () => {
                 "System Product Code",
                 "Product Name*",
                 "Product Category*",
-                "Image",
                 "Return Required",
                 "Purchase Price (Pcs.)*",
                 "Shell Price",
@@ -679,6 +676,7 @@ const ProductForm = () => {
                 "Quantity (Pcs.)*",
                 "Content Type*",
                 "Selling Price",
+                "Image",
               ].map((header) => (
                 <th key={header}>{header}</th>
               ))}
@@ -688,11 +686,11 @@ const ProductForm = () => {
           <tbody>
             {rows.map((row, index) => {
               const supplierInfo = getSupplierInfo(row.supplier);
-              
+             
               return (
                 <tr key={index}>
                   {/* Supplier */}
-                  <td>
+                  <td style={{ minWidth: '80px' }}>
                     <select
                       name="supplier"
                       value={row.supplier || ""}
@@ -734,30 +732,28 @@ const ProductForm = () => {
                   </td>
 
                   {/* System Product Code */}
-                  <td>
-                    <input
+                  <td style={{ minWidth: '80px'}}>
+                    {row.supplier ? (
+                      <input
                       name="system_code"
                       value={row.system_code}
                       readOnly
                       className="pf-input pf-readonly"
-                      style={{
-                        backgroundColor: row.supplier ? '#f0fdf4' : '#f3f4f6',
-                        border: row.supplier ? '2px solid #bbf7d0' : '1px solid #d1d5db',
-                        fontWeight: '600',
-                        fontFamily: 'monospace'
-                      }}
                     />
-                    {row.supplier && (
-                      <div style={{
-                        fontSize: '10px',
-                        color: '#059669',
-                        marginTop: '2px',
-                        fontWeight: '500'
+                    ) : (
+                      <div
+                      style={{
+                        height: '80px',
+                        display: 'flex',
+                        alignItems: 'Center',
+                        color: '#9ca3af',
+                        fontSize: '12px',
                       }}>
+                        Select supplier first
                       </div>
                     )}
                   </td>
-
+                   
                   {/* Product Name */}
                   <td>
                     <input
@@ -827,81 +823,6 @@ const ProductForm = () => {
                           }}
                         />
                       )}
-                    </div>
-                  </td>
-
-                  {/* Image Upload Column */}
-                  <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
-                      {row.imagePreview ? (
-                        <>
-                          <img
-                            src={row.imagePreview}
-                            alt="Product preview"
-                            style={{ 
-                              width: '80px', 
-                              height: '80px', 
-                              borderRadius: '6px', 
-                              objectFit: 'cover',
-                              border: '2px solid #e5e7eb'
-                            }}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveImage(index)}
-                            style={{
-                              padding: '4px 8px',
-                              fontSize: '12px',
-                              background: '#fef2f2',
-                              color: '#dc2626',
-                              border: '1px solid #fecaca',
-                              borderRadius: '4px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Remove
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <div style={{
-                            width: '80px',
-                            height: '80px',
-                            borderRadius: '6px',
-                            background: '#f3f4f6',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            color: '#9ca3af',
-                            fontSize: '12px',
-                            border: '2px solid #e5e7eb'
-                          }}>
-                            📷
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => fileInputRefs.current[index]?.click()}
-                            style={{
-                              padding: '4px 8px',
-                              fontSize: '12px',
-                              background: '#f3f4f6',
-                              color: '#374151',
-                              border: '1px solid #d1d5db',
-                              borderRadius: '4px',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Upload
-                          </button>
-                        </>
-                      )}
-                      <input
-                        ref={(el) => (fileInputRefs.current[index] = el)}
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(index, e)}
-                        style={{ display: 'none' }}
-                      />
                     </div>
                   </td>
 
@@ -1022,7 +943,7 @@ const ProductForm = () => {
                   </td>
 
                   {/* Quantity */}
-                  <td>
+                  <td style= {{ minWidth: '20px' }}>
                     <input
                       type="number"
                       name="content_no"
@@ -1034,7 +955,7 @@ const ProductForm = () => {
                   </td>
 
                   {/* ✅ UPDATED: Content Type - No notifications, save on blur/enter */}
-                  <td>
+                  <td style= {{ minWidth: '20px' }}>
                     <div style={{ position: 'relative' }}>
                       {!showAddNewInput[`content_type_${index}`] ? (
                         <select
@@ -1096,6 +1017,81 @@ const ProductForm = () => {
                       placeholder="Selling price"
                     />
                   </td>
+
+                  {/* Image Upload Column */}
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                      {row.imagePreview ? (
+                        <>
+                          <img
+                            src={row.imagePreview}
+                            alt="Product preview"
+                            style={{
+                              width: '80px',
+                              height: '80px',
+                              borderRadius: '6px',
+                              objectFit: 'cover',
+                              border: '2px solid #e5e7eb'
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveImage(index)}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              background: '#fef2f2',
+                              color: '#dc2626',
+                              border: '1px solid #fecaca',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Remove
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div style={{
+                            width: '80px',
+                            height: '80px',
+                            borderRadius: '6px',
+                            background: '#f3f4f6',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#9ca3af',
+                            fontSize: '24px',
+                            border: '2px solid #e5e7eb'
+                          }}>
+                            📷
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRefs.current[index]?.click()}
+                            style={{
+                              padding: '4px 8px',
+                              fontSize: '12px',
+                              background: '#f3f4f6',
+                              color: '#374151',
+                              border: '1px solid #d1d5db',
+                              borderRadius: '4px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Upload
+                          </button>
+                        </>
+                      )}
+                      <input
+                        ref={(el) => (fileInputRefs.current[index] = el)}
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(index, e)}
+                        style={{ display: 'none' }}
+                      />
+                    </div>
+                  </td>
                 </tr>
               );
             })}
@@ -1110,8 +1106,8 @@ const ProductForm = () => {
           >
             Cancel
           </button>
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="btn btn-primary"
             disabled={!currentWarehouse}
           >
@@ -1122,9 +1118,9 @@ const ProductForm = () => {
 
       {/* Notice Modal */}
       {notice.open && (
-        <div 
-          className="modal-overlay" 
-          style={{ 
+        <div
+          className="modal-overlay"
+          style={{
             position: 'fixed',
             top: 0,
             left: 0,
@@ -1137,7 +1133,7 @@ const ProductForm = () => {
             zIndex: notice.type === "info" ? 1000 : 9999
           }}
         >
-          <div 
+          <div
             className={`modal ${notice.type === "success" ? "modal--success" : notice.type === "info" ? "modal--info" : "modal--error"}`}
             style={{
               minWidth: '320px',
@@ -1155,9 +1151,9 @@ const ProductForm = () => {
                 fontSize: notice.type === "info" ? '24px' : '32px',
                 marginBottom: '12px'
               }}>
-                {notice.type === "success" ? "✅" : notice.type === "info" ? "ℹ️" : "❌"}
+                {notice.type === "success" ? "✅" : notice.type === "info" ? "ℹ️" : ""}
               </div>
-              <p 
+              <p
                 style={{
                   fontSize: '16px',
                   lineHeight: '1.5',
@@ -1177,3 +1173,5 @@ const ProductForm = () => {
 };
 
 export default ProductForm;
+
+             

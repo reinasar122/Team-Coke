@@ -110,7 +110,7 @@ const ProductEdit = () => {
         imagePreview: null,
         removeImage: true
       }));
-      
+     
       // Clear file input safely
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -122,7 +122,7 @@ const ProductEdit = () => {
         type: "success",
         text: "✅ Image marked for removal",
       });
-      
+     
       // Auto-hide notice after 2 seconds
       setTimeout(() => {
         setNotice(prev => ({ ...prev, open: false }));
@@ -196,7 +196,7 @@ const ProductEdit = () => {
         };
 
         setFormData(productData);
-        
+       
         setOriginalData({
           product_name: product.product_name || "",
           supplier_code: product.supplier_code || "",
@@ -255,15 +255,15 @@ const ProductEdit = () => {
 
   const detectChanges = () => {
     const changes = {};
-    
+   
     if (originalData.product_name !== formData.product_name) {
       changes.name = { old: originalData.product_name, new: formData.product_name };
     }
-    
+   
     if (originalData.supplier_code !== formData.supplier_code) {
       changes.supplier_code = { old: originalData.supplier_code, new: formData.supplier_code };
     }
-    
+   
     if (originalData.product_category.toString() !== formData.product_category.toString()) {
       const newCategoryName = categories.find(c => c.id.toString() === formData.product_category.toString())?.name || 'Unknown';
       changes.category = { old: originalData.category_name, new: newCategoryName };
@@ -272,27 +272,27 @@ const ProductEdit = () => {
     if (originalData.returnable !== formData.returnable) {
       changes.returnable = { old: originalData.returnable, new: formData.returnable };
     }
-    
+   
     if (Number(originalData.purchase_price) !== Number(formData.purchase_price)) {
       changes.purchase_price = { old: Number(originalData.purchase_price), new: Number(formData.purchase_price) };
     }
-    
+   
     if (Number(originalData.selling_price) !== Number(formData.selling_price)) {
       changes.price = { old: Number(originalData.selling_price), new: Number(formData.selling_price) };
     }
-    
+   
     if (Number(originalData.shell_price) !== Number(formData.shell_price)) {
       changes.shell_price = { old: Number(originalData.shell_price), new: Number(formData.shell_price) };
     }
-    
+   
     if (Number(originalData.bottle_price) !== Number(formData.bottle_price)) {
       changes.bottle_price = { old: Number(originalData.bottle_price), new: Number(formData.bottle_price) };
     }
-    
+   
     if (originalData.content_no !== formData.content_no) {
       changes.content_no = { old: originalData.content_no, new: formData.content_no };
     }
-    
+   
     if (formData.removeImage && originalData.currentImage) {
       changes.image = { old: 'has image', new: 'removed' };
     } else if (formData.image && !originalData.currentImage) {
@@ -300,7 +300,7 @@ const ProductEdit = () => {
     } else if (formData.image && originalData.currentImage) {
       changes.image = { old: 'has image', new: 'updated' };
     }
-    
+   
     return changes;
   };
 
@@ -338,7 +338,7 @@ const ProductEdit = () => {
 
       // 3) Update product with proper image handling
       const updateData = new FormData();
-      
+     
       updateData.append('system_code', formData.system_code || '');
       updateData.append('supplier_code', formData.supplier_code || '');
       updateData.append('supplier', formData.supplier || '');
@@ -368,10 +368,10 @@ const ProductEdit = () => {
 
       // ✅ FIXED: Detect changes and send notification WITH warehouse info
       const changes = detectChanges();
-      
+     
       if (Object.keys(changes).length > 0) {
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
-        
+       
         // ✅ CRITICAL FIX: Include warehouse information for notification filtering
         notifyProductChange({
           action: 'updated',
@@ -395,7 +395,7 @@ const ProductEdit = () => {
             event_timestamp: Date.now()
           }
         });
-        
+       
         console.log('📦 Product update notification sent for warehouse:', formData.warehouse);
       } else {
         console.log('📦 No changes detected in product update');
@@ -413,9 +413,9 @@ const ProductEdit = () => {
 
     } catch (err) {
       console.error("❌ Update Error:", err);
-      
+     
       let errorMessage = "❌ Failed to update product";
-      
+     
       if (err.response?.data) {
         if (typeof err.response.data === 'string') {
           errorMessage += `: ${err.response.data}`;
@@ -427,7 +427,7 @@ const ProductEdit = () => {
       } else if (err.message) {
         errorMessage += `: ${err.message}`;
       }
-      
+     
       setNotice({
         open: true,
         type: "error",
@@ -501,16 +501,16 @@ const ProductEdit = () => {
       <div className="page-header">
         <h2 className="page-title">Product Edit</h2>
         <div className="actions" style={{ gap: '5px', display: 'flex', alignItems: 'center' }}>
-          <button 
-            type="button" 
-            className="btn btn-back" 
+          <button
+            type="button"
+            className="btn btn-back"
             onClick={() => navigate("/products")}
             disabled={saving}
           >
             Back
           </button>
-          <button 
-            type="submit" 
+          <button
+            type="submit"
             className="btn btn-primary"
             disabled={saving}
           >
@@ -526,18 +526,18 @@ const ProductEdit = () => {
               {[
                 "Supplier",
                 "Supplier Product Code",
-                "System Product Code", 
+                "System Product Code",
                 "Product Name",
                 "Product Category",
-                "Image",
                 "Return Required",
                 "Purchase Price (Pcs.)",
                 "Shell Price",
-                "Empty Bottle/s Price", 
+                "Empty Bottle/s Price",
                 "Shell Type",
                 "Quantity (Pcs.)",
                 "Content Type",
                 "Selling Price",
+                "Image",
               ].map((h) => (
                 <th key={h}>{h}</th>
               ))}
@@ -610,152 +610,6 @@ const ProductEdit = () => {
                   ))}
                   <option value="add_new">+ Add New</option>
                 </select>
-              </td>
-
-              {/* Fixed Image display logic that won't break UI */}
-              <td>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
-                  {formData.removeImage ? (
-                    // Show removal state
-                    <>
-                      <div style={{
-                        width: '80px',
-                        height: '80px',
-                        background: '#fee2e2',
-                        border: '2px dashed #dc2626',
-                        borderRadius: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#dc2626',
-                        fontSize: '12px',
-                        textAlign: 'center',
-                        padding: '4px'
-                      }}>
-                       📷
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setFormData(prev => ({ ...prev, removeImage: false }));
-                        }}
-                        disabled={saving}
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: '12px',
-                          background: '#f3f4f6',
-                          color: '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          cursor: saving ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        Undo Remove
-                      </button>
-                    </>
-                  ) : (formData.imagePreview || formData.currentImage) ? (
-                    // Show existing or new image
-                    <>
-                      <img
-                        src={formData.imagePreview || formData.currentImage}
-                        alt="Product"
-                        style={{ 
-                          width: '80px', 
-                          height: '80px', 
-                          objectFit: 'cover', 
-                          borderRadius: '6px',
-                          border: '2px solid #e5e7eb'
-                        }}
-                      />
-                      <div style={{ display: 'flex', gap: '4px' }}>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            fileInputRef.current?.click();
-                          }}
-                          disabled={saving}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '12px',
-                            background: '#f3f4f6',
-                            color: '#374151',
-                            border: '1px solid #d1d5db',
-                            borderRadius: '4px',
-                            cursor: saving ? 'not-allowed' : 'pointer'
-                          }}
-                        >
-                          Change
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleRemoveImage}
-                          disabled={saving}
-                          style={{
-                            padding: '4px 8px',
-                            fontSize: '12px',
-                            background: '#fef2f2',
-                            color: '#dc2626',
-                            border: '1px solid #fecaca',
-                            borderRadius: '4px',
-                            cursor: saving ? 'not-allowed' : 'pointer'
-                          }}
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    // Show upload state
-                    <>
-                      <div style={{
-                        width: '80px',
-                        height: '80px',
-                        background: '#f3f4f6',
-                        border: '2px dashed #d1d5db',
-                        borderRadius: '6px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        color: '#9ca3af',
-                        fontSize: '24px'
-                      }}>
-                        📷
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          fileInputRef.current?.click();
-                        }}
-                        disabled={saving}
-                        style={{
-                          padding: '4px 8px',
-                          fontSize: '12px',
-                          background: '#f3f4f6',
-                          color: '#374151',
-                          border: '1px solid #d1d5db',
-                          borderRadius: '4px',
-                          cursor: saving ? 'not-allowed' : 'pointer'
-                        }}
-                      >
-                        Upload
-                      </button>
-                    </>
-                  )}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageUpload}
-                    style={{ display: 'none' }}
-                    disabled={saving}
-                  />
-                </div>
               </td>
 
               <td>
@@ -862,6 +716,152 @@ const ProductEdit = () => {
                   disabled={saving}
                 />
               </td>
+
+              {/* Fixed Image display logic that won't break UI */}
+              <td>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px', minWidth: '120px' }}>
+                  {formData.removeImage ? (
+                    // Show removal state
+                    <>
+                      <div style={{
+                        width: '80px',
+                        height: '80px',
+                        background: '#fee2e2',
+                        border: '2px dashed #dc2626',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#dc2626',
+                        fontSize: '12px',
+                        textAlign: 'center',
+                        padding: '4px'
+                      }}>
+                       📷
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setFormData(prev => ({ ...prev, removeImage: false }));
+                        }}
+                        disabled={saving}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          cursor: saving ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        Undo Remove
+                      </button>
+                    </>
+                  ) : (formData.imagePreview || formData.currentImage) ? (
+                    // Show existing or new image
+                    <>
+                      <img
+                        src={formData.imagePreview || formData.currentImage}
+                        alt="Product"
+                        style={{
+                          width: '80px',
+                          height: '80px',
+                          objectFit: 'cover',
+                          borderRadius: '6px',
+                          border: '2px solid #e5e7eb'
+                        }}
+                      />
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            fileInputRef.current?.click();
+                          }}
+                          disabled={saving}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            background: '#f3f4f6',
+                            color: '#374151',
+                            border: '1px solid #d1d5db',
+                            borderRadius: '4px',
+                            cursor: saving ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          Change
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveImage}
+                          disabled={saving}
+                          style={{
+                            padding: '4px 8px',
+                            fontSize: '12px',
+                            background: '#fef2f2',
+                            color: '#dc2626',
+                            border: '1px solid #fecaca',
+                            borderRadius: '4px',
+                            cursor: saving ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    // Show upload state
+                    <>
+                      <div style={{
+                        width: '80px',
+                        height: '80px',
+                        background: '#f3f4f6',
+                        border: '2px solid #e5e7eb',
+                        borderRadius: '6px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#9ca3af',
+                        fontSize: '24px'
+                      }}>
+                        📷
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                        disabled={saving}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '12px',
+                          background: '#f3f4f6',
+                          color: '#374151',
+                          border: '1px solid #d1d5db',
+                          borderRadius: '4px',
+                          cursor: saving ? 'not-allowed' : 'pointer'
+                        }}
+                      >
+                        Upload
+                      </button>
+                    </>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    style={{ display: 'none' }}
+                    disabled={saving}
+                  />
+                </div>
+              </td>  
             </tr>
           </tbody>
         </table>
@@ -930,7 +930,7 @@ const ProductEdit = () => {
         {notice.text}
       </p>
       {notice.type === "error" && (
-        <button 
+        <button
           onClick={() => setNotice(prev => ({ ...prev, open: false }))}
           className="btn btn-back"
           style={{ fontSize: '14px', padding: '8px 16px' }}

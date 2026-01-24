@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import axios from "axios";  
 import api from "../api"; // ✅ correct
+import { FaEye, FaEyeSlash } from "react-icons/fa";
 
 const isStrongPassword = (password) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
@@ -16,6 +16,7 @@ const ChangePassword = () => {
   const [success, setSuccess] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // ✅ Updated logic to properly detect scenarios
   const isMandatoryChange = id && !uid && !token; // Has id but no uid/token = mandatory change
@@ -32,7 +33,7 @@ const ChangePassword = () => {
       navigate("/login");
       return;
     }
-    
+   
     if (isMandatoryChange && (!id || !userFromStorage?.id)) {
       console.log("❌ Missing user data for mandatory change, redirecting to login");
       navigate("/login");
@@ -57,7 +58,7 @@ const ChangePassword = () => {
       // ... add other routes
     };
     const routeOrder = ["dashboard", "users", "products"]; // Replace with your actual route order
-    
+   
     const allowed = new Set(
       accessList.filter((acc) => acc.full || acc.view).map((acc) => acc.submenu)
     );
@@ -114,11 +115,11 @@ const ChangePassword = () => {
 
       if (isMandatoryChange) {
         setSuccess("✅ Password changed successfully! Redirecting to dashboard...");
-        
+       
         // ✅ Update user data to reflect password was changed
         const updatedUser = { ...userFromStorage, must_change_password: false };
         localStorage.setItem("user", JSON.stringify(updatedUser));
-        
+       
         // ✅ Redirect to dashboard
         setTimeout(() => {
           const accessibleRoutes = getAccessibleRoutes();
@@ -163,7 +164,7 @@ const ChangePassword = () => {
         <h3 className="text-2xl font-bold mb-6 text-center text-white uppercase tracking-wide">
           {isMandatoryChange ? "Set New Password" : "Change Password"}
         </h3>
-        
+       
         {isMandatoryChange && (
           <p className="text-center text-gray-300 text-sm mb-4">
             Please set a new password to continue using your account.
@@ -186,37 +187,50 @@ const ChangePassword = () => {
           <div>
             <label className="block text-sm font-medium mb-1 text-white">
               New Password
-            </label>
-            <div className="relative">
-              <input
+              </label>
+             
+              <div className="relative">
+                <input
                 type={showPassword ? "text" : "password"}
-                className="w-full p-3 bg-black/70 text-white border border-gray-600 rounded focus:outline-none focus:border-red-500"
+                className="w-full p-3 pr-10 bg-black/70 text-white border border-gray-600 rounded focus:outline-none focus:border-red-500"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
-              />
-              <button
+                />
+               
+                <button
                 type="button"
-                className="absolute right-3 top-3 text-xs text-red-400 hover:text-red-600"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? "Hide" : "Show"}
-              </button>
-            </div>
-          </div>
+                onClick={() => setShowPassword((v) => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500"
+                aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {!showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                  </button>
+                  </div>
 
-          {/* Confirm Password */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-white">
-              Confirm Password
-            </label>
-            <input
-              type={showPassword ? "text" : "password"}
-              className="w-full p-3 bg-black/70 text-white border border-gray-600 rounded focus:outline-none focus:border-red-500"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-          </div>
-
+                  </div>
+                  {/* Confirm Password */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-white">
+                      Confirm Password
+                      </label>
+                      <div className="relative">
+                        <input
+                        type={showConfirmPassword ? "text" : "password"}
+                        className="w-full p-3 pr-10 bg-black/70 text-white border border-gray-600 rounded focus:outline-none focus:border-red-500"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        />
+                        <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        >
+                          {!showConfirmPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                          </button>
+                          </div>
+                          </div>
+                         
           {/* Password requirements */}
           <ul className="space-y-1 text-xs">
             <li className={getValidationColor(newPassword.length >= 8)}>

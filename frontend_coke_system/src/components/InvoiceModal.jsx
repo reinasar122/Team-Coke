@@ -17,6 +17,12 @@ const InvoiceModal = ({
   isViewOnly = false,
  }) => {
 
+  // ✅ DEBUG: Log invoiceData warehouse when component renders (en)
+  console.log("🧾 InvoiceModal received invoiceData.warehouse:", invoiceData.warehouse);
+  console.log("🧾 InvoiceModal invoiceData.warehouse type:", typeof invoiceData.warehouse);
+  console.log("🧾 InvoiceModal invoiceData.warehouse keys:", invoiceData.warehouse ? Object.keys(invoiceData.warehouse) : "null/undefined");
+  console.log("🧾 InvoiceModal invoiceData.warehouse phone:", invoiceData.warehouse?.phone);
+
   const navigate = useNavigate();
   const saleId = invoiceData?.id || null;
 
@@ -69,6 +75,7 @@ const InvoiceModal = ({
     warehouseCity,
     warehouseRegion,
     warehouseEmail,
+    warehouse_full_address,
 
     // Additional possible warehouse field names
     warehouse,
@@ -95,6 +102,12 @@ const InvoiceModal = ({
     miscItems = [],
     remarks = "",
 
+    // Route and Van information
+    route,
+    van,
+    route_name,
+    van_name,
+
     amountDue, // final due from PaymentModal
 
     // Van Load breakdown pieces
@@ -107,6 +120,13 @@ const InvoiceModal = ({
 
     transactionTypes = "", //Kath
   } = invoiceData;
+
+  // ✅ DEBUG: Log destructured warehouse fields (en)
+  console.log("🏪 InvoiceModal destructured warehouse fields:");
+  console.log("warehouse_phone:", warehouse_phone);
+  console.log("warehouse_name:", warehouse_name);
+  console.log("warehouse_address:", warehouse_address);
+  console.log("warehouse:", warehouse);
 
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
   const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
@@ -172,6 +192,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
       invoiceData.currentWarehouse?.warehouse,
       currentWarehouse?.warehouse,
       currentWarehouse?.name,
+      invoiceData.warehouse_name, // ✅ Add direct invoiceData field (en)
       "Warehouse",
     ];
 
@@ -189,8 +210,10 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
       warehouseAddress,
       warehouse_address,
       warehouse?.address,
+      warehouse?.street_address, // ✅ Add WarehouseSerializer field (en)
       invoiceData.currentWarehouse?.address,
       currentWarehouse?.address,
+      invoiceData.warehouse_address, // ✅ Add direct invoiceData field (en)
     ];
 
     for (const addr of possibleAddresses) {
@@ -235,20 +258,34 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     return "";
   };
 
+  //(en)
   const getWarehousePhone = () => {
+    console.log("🔍 getWarehousePhone debugging:");
+    console.log("warehousePhone:", warehousePhone);
+    console.log("warehouse_phone:", warehouse_phone);
+    console.log("warehouse?.phone:", warehouse?.phone);
+    console.log("invoiceData.currentWarehouse?.phone:", invoiceData.currentWarehouse?.phone);
+    console.log("currentWarehouse?.phone:", currentWarehouse?.phone);
+    console.log("Full warehouse object:", warehouse);
+    console.log("Full invoiceData:", invoiceData);
+
     const possiblePhones = [
       warehousePhone,
       warehouse_phone,
       warehouse?.phone,
+      warehouse?.phone_number, // ✅ Add phone_number field
       invoiceData.currentWarehouse?.phone,
       currentWarehouse?.phone,
+      invoiceData.warehouse_phone, // ✅ Add direct invoiceData field
     ];
 
     for (const phone of possiblePhones) {
       if (phone && phone.trim() !== "") {
+        console.log("✅ Found phone:", phone);
         return phone;
       }
     }
+    console.log("❌ No phone found");
     return "";
   };
 
@@ -259,6 +296,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
       warehouse?.email,
       invoiceData.currentWarehouse?.email,
       currentWarehouse?.email,
+      invoiceData.warehouse_email, // ✅ Add direct invoiceData field
     ];
 
     for (const email of possibleEmails) {
@@ -269,7 +307,20 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     return "";
   };
 
+  //(en)
   const getWarehouseFullAddress = () => {
+    // First check if we have the pre-constructed full address from backend
+    const possibleFullAddresses = [
+      warehouse_full_address,
+      invoiceData.warehouse_full_address,
+    ];
+    for (const fullAddr of possibleFullAddresses) {
+      if (fullAddr && fullAddr.trim() !== "") {
+        return fullAddr;
+      }
+    }
+
+    // Fallback to constructing it from parts
     const parts = [];
     const addr = getWarehouseAddress();
     const city = getWarehouseCity();
@@ -486,6 +537,14 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     transactionTypeName,
     remarks,
 
+    // Add individual warehouse fields for receipt printing fallback
+    warehouse_address: getWarehouseAddress(),
+    warehouse_city: getWarehouseCity(),
+    warehouse_region: getWarehouseRegion(),
+    warehouse_phone: getWarehousePhone(),
+    warehouse_email: getWarehouseEmail(),
+    warehouse_full_address: getWarehouseFullAddress(),
+
     customer: {
       name: customerName || "Walk-in",
       address: customerAddress || "",
@@ -493,10 +552,26 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     },
 
     warehouse: {
-      name: getWarehouseName(),
-      fullAddress: getWarehouseFullAddress(),
-      phone: getWarehousePhone(),
-      email: getWarehouseEmail(),
+      name: getWarehouseName() || currentWarehouse?.name || "Warehouse",
+      fullAddress: getWarehouseFullAddress() || 
+        (currentWarehouse ? `${currentWarehouse.address || ""} ${currentWarehouse.city || ""} ${currentWarehouse.region || ""}`.trim().replace(/\s+/g, " ") : "") ||
+        "Warehouse Address",
+      phone: getWarehousePhone() || currentWarehouse?.phone || "",
+      email: getWarehouseEmail() || currentWarehouse?.email || "",
+      // Add individual fields for fallback in receipt printing
+      address: getWarehouseAddress(),
+      city: getWarehouseCity(),
+      region: getWarehouseRegion(),
+    },
+
+    route: {
+      id: route,
+      name: route_name || route?.name || "",
+    },
+
+    van: {
+      id: van,
+      name: van_name || van?.name || "",
     },
 
     totals: {
@@ -571,9 +646,14 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
       showCustomAlert("Error generating PDF. Please try again.");
     }
   };
-
+//(en)
   const handlePrintInvoice = () => {
+    console.log("🧾 Building invoice payload for printing...");
+    console.log("🧾 invoiceData:", invoiceData);
+    console.log("🧾 warehouse_phone from invoiceData:", invoiceData.warehouse_phone);
+    console.log("🧾 warehouse from invoiceData:", invoiceData.warehouse);
     const payload = buildInvoicePdfPayload();   // ✅ reuse what you already have
+    console.log("🧾 Final payload warehouse:", payload.warehouse);
     // Optional: pass "80mm" if you use wider paper
     printReceipt(payload, { width: "58mm" });   // or { width: "80mm", cols: 48 }
   };
