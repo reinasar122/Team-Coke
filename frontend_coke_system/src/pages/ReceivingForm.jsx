@@ -936,7 +936,7 @@ const ReceivingForm = () => {
           name: selectedSupplier?.company_name
         },
         returnTo: '/receiving/new',
-        message: `Adding products for ${selectedSupplier?.company_name}`,
+        // message: `Adding products for ${selectedSupplier?.company_name}`,
         savedFormState: currentFormState
       }
     });
@@ -1215,7 +1215,7 @@ const ReceivingForm = () => {
             </div>
             <div>
               <label className="form-label">
-                Return Total Amount (Less):
+                Less Returnable Value:
                 {supplierReturns.length > 0 && (
                   <span className="ml-2 text-sm text-primary">({supplierReturns.length} returns)</span>
                 )}

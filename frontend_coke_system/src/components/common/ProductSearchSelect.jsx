@@ -18,10 +18,21 @@ const ProductSearchSelect = ({
 
   const filtered = useMemo(() => {
     const excludes = new Set(excludeIds);
-    return products
+    const seen = new Set(); // Track product names we've already added //Reina
+    const result = [];
+    
+    products
       .filter((p) => !excludes.has(p.id))
       .filter((p) => (safeQuery ? p.product_name.toLowerCase().includes(safeQuery) : true))
-      .slice(0, 100);
+      .forEach((p) => { //remove slice reina
+        // Only add product if we haven't seen this product name before
+        if (!seen.has(p.product_name)) {
+          seen.add(p.product_name);
+          result.push(p);
+        }
+      });
+    
+    return result.slice(0, 100);
   }, [products, excludeIds, safeQuery]);
 
   const commit = useCallback(

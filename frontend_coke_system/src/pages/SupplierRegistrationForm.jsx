@@ -28,9 +28,6 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
   const [cities, setCities] = useState([]);
   const [barangays, setBarangays] = useState([]);
   const [errors, setErrors] = useState({});
-   // ✅ ADDED: Real-time datetime toggle (true by default)
-  const [autoTime, setAutoTime] = useState(true);
-  //updatedddddddddddddd
 
 
   const [newContact, setNewContact] = useState({

@@ -10,6 +10,7 @@ import api from "../api";
 
 
 /* --------------------------- tiny UI helpers --------------------------- */
+
 const z = (v) =>
   v === undefined || v === null || v === '' || Number.isNaN(v) ? 0 : v;
 
@@ -110,7 +111,33 @@ const shouldDisableEditableField = (row, field) => {
   return false;
 };
 
+//update remittance
+
 const VanLoadUpdate = () => {
+
+  // ✅ BLOCK remittance if ANY row has no sold value
+const validateSoldBeforeRemit = () => {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    showAlert("Sold is required.");
+    return false;
+  }
+
+  // ❗ EVERY row must have sold
+  const hasInvalidRow = rows.some((r) => {
+    const soldShell = Number(r?.sold_shell || 0);
+    const soldPcs = Number(r?.sold_pcs || 0);
+    return soldShell <= 0 && soldPcs <= 0;
+  });
+
+  if (hasInvalidRow) {
+    showAlert("Sold is required for all products before remittance.");
+    return false;
+  }
+
+  return true;
+};
+//update of blocking remittance end
+
   const location = useLocation();
   const navigate = useNavigate();
   const { addNotification } = useNotifications();
@@ -118,7 +145,7 @@ const VanLoadUpdate = () => {
   const saleId = location.state?.id;
 
   const [showPaymentModal, setShowPaymentModal] = useState(false);
-
+//updated remittance blocking
   const [sale, setSale] = useState(null);
   const [rows, setRows] = useState([]);
   const [unitTypes, setUnitTypes] = useState([]);
@@ -1109,15 +1136,22 @@ const VanLoadUpdate = () => {
           >
           Back
         </button>
+      
         <button
-          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
-          onClick={() => setShowPaymentModal(true)}
-        >
-          Remittance
-        </button>
+  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
+  onClick={() => {
+    // ✅ HARD BLOCK before opening confirmation
+    if (!validateSoldBeforeRemit()) return;
+
+    setShowPaymentModal(true);
+  }}
+>
+  Remittance
+</button>
+   
       </div>
 
-      {showPaymentModal && (
+       {showPaymentModal && (
         <PaymentModal
           open={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
@@ -1141,10 +1175,21 @@ const VanLoadUpdate = () => {
           remarks={remarks}
           onRemarksChange={setRemarks}
           onPaymentSuccess={handleVanLoadPaymentSuccess}
+          warehouse={{ //reina
+            name: sale.warehouse_name,
+            address: sale.warehouse_address,
+            phone: sale.warehouse_phone,
+            city: sale.warehouse_city,
+            region: sale.warehouse_region,
+            email: sale.warehouse_email,
+            fullAddress: sale.warehouse_full_address,
+          }}
         />
       )}
     </div>
   );
-};
+}; 
+
+
 
 export default VanLoadUpdate;

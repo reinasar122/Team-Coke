@@ -1148,7 +1148,6 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   const supplierReturnsList = [...supplierReturns]
     .filter((sr) => !sr.date || isWithinDateRange(sr.date))
     .sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0))
-    .slice(0, 5)
     .map((sr) => ({
       id: sr.id,
       sup_no: sr.sup_no || `#${sr.id}`,

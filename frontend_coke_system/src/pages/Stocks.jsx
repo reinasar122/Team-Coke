@@ -232,6 +232,29 @@ const Stocks = () => {
     (a, b) => statusOrder[a.stock_status] - statusOrder[b.stock_status]
   );
 
+  // Group stocks by product NAME to combine quantities with the same product name // en
+  const groupedStocks = Object.values(
+    stocks.reduce((acc, stock) => {
+      const key = stock.product_name; // Group by product name
+      if (!acc[key]) {
+        acc[key] = {
+          ...stock,
+          quantity_available: 0,
+          grouped_count: 0, // Track how many stocks were combined
+          system_codes: [] // Collect all system product codes
+        };
+      }
+      acc[key].quantity_available += stock.quantity_available;
+      acc[key].grouped_count += 1;
+      if (stock.system_product_code && !acc[key].system_codes.includes(stock.system_product_code)) {
+        acc[key].system_codes.push(stock.system_product_code);
+      }
+      // Update status based on combined quantity
+      acc[key].stock_status = calculateStockStatus(acc[key].quantity_available);
+      return acc;
+    }, {})
+  ).sort((a, b) => statusOrder[a.stock_status] - statusOrder[b.stock_status]);
+
   // Show loading state while setting up warehouse
   if (loading && !currentWarehouse) {
     return (
@@ -298,9 +321,9 @@ const Stocks = () => {
                 </td>
               </tr>
             ) : (
-              sortedStocks.map((item) => (
+              groupedStocks.map((item, idx) => (
                 <tr 
-                  key={item.id}
+                  key={`${item.product_name}-${idx}`}
                   className={
                     item.stock_status === "Out of Stock" ? "row--critical" :
                     item.stock_status === "Low" ? "row--warning" : ""
@@ -310,7 +333,7 @@ const Stocks = () => {
                     {item.product_name}
                   </td>
                   <td className="cell-left nowrap">
-                    {item.system_product_code || 'N/A'}
+                    {item.system_codes.length > 0 ? item.system_codes.join(", ") : 'N/A'}
                   </td>
                   <td className="text-center">
                     <span className={item.quantity_available === 0 ? "quantity--zero" : ""}>

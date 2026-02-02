@@ -1423,6 +1423,12 @@ const PaymentModal = ({
                 // 1) If credit, create the ledger first
                 let createdLedger = null;
                   if (isCredit) {
+                    // ✅ Van Load transactions are NOT applicable for credit
+                    if (isVanLoad) {
+                      showAlert("Van Load transactions are not applicable for credit. Please provide full cash payment.");
+                      setSubmitting(false);
+                      return;
+                    }
 
                     // 🔹 ADD THIS BLOCK
                     // Always map Van Load rows

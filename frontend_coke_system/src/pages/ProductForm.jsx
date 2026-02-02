@@ -88,68 +88,65 @@ const ProductForm = () => {
     api.get("/suppliers/").then((res) => setSuppliers(res.data));
   };
 
-  // ✅ Smart supplier prefix generation
-  const generateUniqueSupplierPrefix = (targetSupplier) => {
-    if (!targetSupplier) return 'PROD';
-   
-    const targetName = targetSupplier.company_name.toUpperCase();
-    let basePrefix = targetName.substring(0, 3).replace(/[^A-Z]/g, '');
-   
-    // If basePrefix is too short, try to get more characters
-    if (basePrefix.length < 2) {
-      basePrefix = targetName.replace(/[^A-Z]/g, '').substring(0, 3);
-    }
-   
-    // Check for conflicts with other suppliers
-    const conflictingSuppliers = suppliers.filter(s =>
-      s.id !== targetSupplier.id &&
-      s.company_name.toUpperCase().startsWith(basePrefix)
-    );
-   
-    if (conflictingSuppliers.length === 0) {
-      return basePrefix;
-    }
-   
-    // Handle conflicts by adding numbers
-    const allSimilarSuppliers = suppliers
-      .filter(s => s.company_name.toUpperCase().includes(basePrefix))
-      .sort((a, b) => a.company_name.localeCompare(b.company_name));
-   
-    const targetIndex = allSimilarSuppliers.findIndex(s => s.id === targetSupplier.id);
-   
-    if (targetIndex === 0) {
-      return basePrefix; // First one keeps the original prefix
-    } else {
-      return `${basePrefix}-${targetIndex}`; // Others get numbers
-    }
-  };
+// ✅ CHANGE: use supplier's official SUP code as base for system_code
+//updateeeee
+const getSupplierBaseCode = (supplier) => {
+  if (!supplier) return "PROD";
 
+  // Use supplier's official SUP code (e.g., "SUP-024EF1")
+  const supCode =
+    supplier?.supplier_code ||      // primary: official SUP code
+    supplier?.sup_code ||
+    supplier?.code ||
+    supplier?.registration_number ||
+    "";
+
+  // Clean + normalize
+  const cleaned = String(supCode).trim().toUpperCase();
+
+  // Return cleaned SUP code or fallback to "PROD" if empty
+  return cleaned || "PROD";
+};
+
+// ✅ CHANGE: create short unique suffix
+const generateProductSuffix = () => {
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase(); // 4 chars
+  const time = Date.now().toString().slice(-2); // last 2 digits
+  return `${random}${time}`; // ex: "A9K212"
+};
+// ✅ CHANGE: generate unique supplier prefix from official SUP code
   // ✅ Enhanced system code generation with smart prefixes
-  const generateSystemCode = (index, supplierId = null) => {
-    const supplier = suppliers.find(s => s.id == supplierId);
-    const supplierPrefix = generateUniqueSupplierPrefix(supplier);
-    const randomCode = Math.random().toString(36).substring(2, 4).toUpperCase();
-    const timestamp = Date.now().toString().slice(-2);
-    const code = `${supplierPrefix}-${randomCode}${timestamp}`;
-   
-    setRows((prev) => {
-      const newRows = [...prev];
-      newRows[index].system_code = code;
-      return newRows;
-    });
-  };
+  
+// ✅ CHANGE: system_code now starts with supplier SUP code (ex: SUP-024EF1-XXXX)
+const generateSystemCode = (index, supplierId = null) => {
+  const supplier = suppliers.find((s) => String(s.id) === String(supplierId));
+  const baseCode = getSupplierBaseCode(supplier); // <-- SUP-024EF1
+  const suffix = generateProductSuffix();         // <-- random+time
+  const code = `${baseCode}-${suffix}`;
 
-  // ✅ Helper function to get supplier name and show prefix info
-  const getSupplierInfo = (supplierId) => {
-    const supplier = suppliers.find(s => s.id == supplierId);
-    if (!supplier) return { name: '', prefix: '' };
-   
-    const prefix = generateUniqueSupplierPrefix(supplier);
-    return {
-      name: supplier.company_name,
-      prefix: prefix
-    };
+  setRows((prev) => {
+    const newRows = [...prev];
+    newRows[index].system_code = code;
+    return newRows;
+  });
+};
+
+
+  // ✅ Helpefr function to get supplier name and show prefix info
+ // ✅ CHANGE: now returns supplier SUP code as "prefix/base"
+const getSupplierInfo = (supplierId) => {
+  const supplier = suppliers.find((s) => String(s.id) === String(supplierId));
+  if (!supplier) return { name: "", prefix: "" };
+
+  const base = getSupplierBaseCode(supplier);
+  return {
+    name: supplier.company_name,
+    prefix: base, // now this is "SUP-024EF1"
   };
+};
+
+//update changeeeeeeeeeeees
+
 
   const handleImageUpload = (index, e) => {
     const file = e.target.files[0];
@@ -557,7 +554,7 @@ const ProductForm = () => {
           const firstCreatedProduct = createdProducts[0];
           const supplierInfo = getSupplierInfo(firstCreatedProduct.formData.supplier);
           const navigationState = {
-            message: `Product "${firstCreatedProduct.formData.product_name}" from ${supplierInfo.name} (${supplierInfo.prefix}) added successfully!`,
+            //message: `Product "${firstCreatedProduct.formData.product_name}" from ${supplierInfo.name} (${supplierInfo.prefix}) added successfully!`,
             refreshProducts: true,
             newProduct: {
               id: firstCreatedProduct.id,
