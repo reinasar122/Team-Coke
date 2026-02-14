@@ -40,6 +40,12 @@ const ReceivingForm = () => {
 
   // NEW: State to prevent form reset during auto-selection
   const [isAutoSelecting, setIsAutoSelecting] = useState(false);
+  
+  // NEW: State to track if we're restoring from product form
+  const [isRestoring, setIsRestoring] = useState(false);
+  
+  // NEW: Track the newly added product for auto-selection
+  const [newProductToSelect, setNewProductToSelect] = useState(null);
 
   const [form, setForm] = useState({
     supplier: "",
@@ -79,9 +85,14 @@ const ReceivingForm = () => {
 
   // NEW: Handle return from product form and refresh products + auto-select new product + restore form state
   useEffect(() => {
-    if (location.state?.message && location.state?.refreshProducts && currentWarehouse?.id) {
-      // Show success message from product form
-      showNotice(location.state.message, "success");
+    if (location.state?.refreshProducts && currentWarehouse?.id) {
+      // Show success message from product form if available
+      if (location.state?.message) {
+        showNotice(location.state.message, "success");
+      }
+      
+      // Mark that we're restoring to prevent other effects from interfering
+      setIsRestoring(true);
       
       // Reload products to include the newly added product
       const config = getAxiosConfig();
@@ -100,68 +111,52 @@ const ReceivingForm = () => {
             setSupplierReturns(savedState.supplier_returns || []);
             setReceivedByName(savedState.received_by_name || "");
             
-            console.log('✅ Form state restored successfully');
+            //Reiina
+            console.log('✅ Form state restored successfully', {
+              supplier: savedState.supplier,
+              invoice_no: savedState.invoice_no,
+              receive_no: savedState.receive_no
+            });
             
-            // NEW: Auto-select the newly created product AFTER form state is restored
+            // Store the new product info for auto-selection AFTER filteredProducts updates
             if (location.state?.newProduct) {
               const newProductId = location.state.newProduct.id;
               const newProductName = location.state.newProduct.name;
               
-              console.log(`🎯 Auto-selecting new product: ${newProductName} (ID: ${newProductId})`);
+              //Reiina
+              console.log(`📦 New product marked for auto-selection: ${newProductName} (ID: ${newProductId})`);
               
-              // Set flag to prevent form reset during auto-selection
+              //Reina
+              setNewProductToSelect({
+                id: newProductId,
+                name: newProductName,
+                allProducts: res.data
+              });
+              
               setIsAutoSelecting(true);
-              
-              // Wait a bit for form state and filtered products to settle
-              setTimeout(() => {
-                setForm(prev => {
-                  const newForm = { ...prev };
-                  const firstEmptyRowIndex = newForm.details.findIndex(row => !row.product_id || row.product_id === "");
-                  
-                  if (firstEmptyRowIndex !== -1) {
-                    // Set the product in the first empty row
-                    newForm.details[firstEmptyRowIndex].product_id = newProductId;
-                    
-                    // Calculate costs for the new product
-                    const product = res.data.find(p => p.id === newProductId);
-                    if (product?.price) {
-                      const { purchase_price = 0, shell_price = 0, bottle_price = 0 } = product.price;
-                      const content_no = product?.unit_type?.content_no || 1;
-                      const unit_cost = purchase_price + bottle_price + (shell_price / content_no);
-                      newForm.details[firstEmptyRowIndex].unit_cost = unit_cost.toFixed(2);
-                    }
-                    
-                    console.log(`✅ Auto-selected product "${newProductName}" in row ${firstEmptyRowIndex + 1}`);
-                    
-                    // Focus on the shell quantity field after a short delay
-                    setTimeout(() => {
-                      if (shellQtyRefs.current[firstEmptyRowIndex]) {
-                        shellQtyRefs.current[firstEmptyRowIndex].focus();
-                        console.log(`🎯 Focused on shell quantity field for row ${firstEmptyRowIndex + 1}`);
-                      }
-                      // Clear the auto-selecting flag
-                      setIsAutoSelecting(false);
-                    }, 300);
-                  } else {
-                    console.log('⚠️ No empty rows found for auto-selection');
-                    setIsAutoSelecting(false);
-                  }
-                  
-                  return newForm;
-                });
-              }, 500); // Wait longer for everything to settle
+            } else {
+              setIsAutoSelecting(false);
             }
+            
+            // Clear the restoring flag after a short delay
+            setTimeout(() => {
+              setIsRestoring(false);
+            }, 100);
+          } else {
+            // No saved form state, clear the restoring flag
+            setIsRestoring(false); // reina
           }
         })
         .catch((err) => {
           console.error("❌ Error reloading products:", err);
           setIsAutoSelecting(false);
+          setIsRestoring(false); //Reina
         });
       
       // Clear the message from state to prevent showing it again
       navigate(location.pathname, { replace: true, state: {} });
     }
-  }, [location.state?.message, location.state?.refreshProducts, location.state?.newProduct, location.state?.savedFormState, currentWarehouse?.id, navigate]);
+  }, [location.state?.refreshProducts, currentWarehouse?.id, navigate]); //Reiina
 
   // NEW: Reset form when warehouse changes
   const resetForm = useCallback(() => {
@@ -489,8 +484,9 @@ const ReceivingForm = () => {
 
       setFilteredProducts(warehouseFilteredProducts);
 
-      // UPDATED: Only reset product details when NOT auto-selecting
-      if (!isAutoSelecting) {
+      //Reina
+      // UPDATED: Only reset product details when NOT auto-selecting and NOT restoring
+      if (!isAutoSelecting && !isRestoring) {
         setForm((prev) => ({
           ...prev,
           details: [
@@ -505,6 +501,8 @@ const ReceivingForm = () => {
             },
           ],
         }));
+      } else if (isRestoring) { //Reina
+        console.log('🔒 Preventing details reset during form restoration');
       }
     } else {
       setFilteredProducts([]);
@@ -517,8 +515,80 @@ const ReceivingForm = () => {
       } else if (!currentWarehouse?.id) {
         console.log("🔍 No warehouse selected");
       }
+    } //Reina
+  }, [form.supplier, products, suppliers, currentWarehouse?.id, currentWarehouse?.name, isAutoSelecting, isRestoring]);
+
+  // NEW: Auto-select product once it appears in filteredProducts
+  useEffect(() => {
+    if (newProductToSelect && filteredProducts.length > 0 && form.supplier) {
+      const { id: productId, name: productName, allProducts } = newProductToSelect;
+      
+      // Check if the new product is now in filteredProducts
+      const productInFiltered = filteredProducts.find(p => p.id === productId);
+      
+      if (productInFiltered) {
+        console.log(`✅ Product "${productName}" found in filteredProducts! Auto-selecting...`);
+        
+        setForm(prev => {
+          const newForm = { ...prev };
+          
+          // Find the first empty row
+          let targetRowIndex = newForm.details.findIndex(row => !row.product_id || row.product_id === "");
+          
+          // If no empty row, add a new one
+          if (targetRowIndex === -1) {
+            newForm.details.push({
+              product_id: "",
+              pcs_qty: 0,
+              shell_qty: 0,
+              bottle_qty: 0,
+              bad_order_pcs: 0,
+              unit_cost: 0,
+              total: 0,
+            });
+            targetRowIndex = newForm.details.length - 1;
+          }
+          
+          // Set the product ID
+          newForm.details[targetRowIndex].product_id = productId;
+          
+          // Calculate unit cost from the product data
+          const product = allProducts.find(p => p.id === productId);
+          if (product?.price) {
+            const { purchase_price = 0, shell_price = 0, bottle_price = 0 } = product.price;
+            const content_no = product?.unit_type?.content_no || 1;
+            const unit_cost = purchase_price + bottle_price + (shell_price / content_no);
+            newForm.details[targetRowIndex].unit_cost = parseFloat(unit_cost.toFixed(2));
+            
+            console.log(`💰 Unit cost calculated: ${unit_cost}`);
+          }
+          
+          console.log(`✅ Product "${productName}" auto-selected in row ${targetRowIndex + 1}`);
+          
+          return newForm;
+        });
+        
+        // Focus on shell quantity field
+        setTimeout(() => {
+          const firstEmptyRow = form.details.findIndex(row => !row.product_id || row.product_id === "");
+          const targetRowIndex = firstEmptyRow !== -1 ? firstEmptyRow : form.details.length - 1;
+          
+          if (shellQtyRefs.current[targetRowIndex]) {
+            shellQtyRefs.current[targetRowIndex].focus();
+            console.log(`🎯 Focused on shell quantity field for row ${targetRowIndex + 1}`);
+          }
+        }, 150);
+        
+        // Clear the auto-selection state
+        setIsAutoSelecting(false);
+        setNewProductToSelect(null);
+        setIsRestoring(false);
+      } else {
+        console.log(`⏳ Waiting for product "${productName}" to appear in filteredProducts...`);
+      }
     }
-  }, [form.supplier, products, suppliers, currentWarehouse?.id, currentWarehouse?.name, isAutoSelecting]);
+  }, [filteredProducts, newProductToSelect, form.supplier]);
+  //end
 
   // Function to update form with return amount calculation
   const updateFormWithReturnAmount = useCallback((returnAmount) => {
@@ -1114,13 +1184,25 @@ const ReceivingForm = () => {
                             : `Select Product (${filteredProducts.length} available)` }
                         </option>
 
-                        {filteredProducts
+                        {filteredProducts //Reina
                           .filter(
-                            (p) =>
-                              // Hide if already selected in another row
-                              !(form.details || []).some(
+                            (p) => {
+                              // Hide if already selected in another row (by product ID)
+                              const alreadySelectedById = (form.details || []).some(
                                 (item, i) => i !== index && String(item.product_id) === String(p.id)
-                              )
+                              );
+                              
+                              // Hide if a product with the same name is already selected in another row
+                              const alreadySelectedByName = (form.details || []).some(
+                                (item, i) => {
+                                  if (i === index) return false; // Don't check current row
+                                  const selectedProduct = filteredProducts.find(fp => String(fp.id) === String(item.product_id));
+                                  return selectedProduct && selectedProduct.product_name === p.product_name;
+                                }
+                              );
+                              
+                              return !alreadySelectedById && !alreadySelectedByName;
+                            } //end
                           )
                           .map((p) => (
                             <option key={p.id} value={p.id}>
