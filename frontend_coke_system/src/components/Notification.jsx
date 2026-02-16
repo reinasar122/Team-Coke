@@ -3597,8 +3597,8 @@ useEffect(() => {
                         onClick={() => window.location.href = '/expense-settings'}
                         className="w-full text-left px-4 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-400 dark:hover:bg-gray-600 flex items-center"
                       >
-                        <FontAwesomeIcon icon={faCog} className="mr-2" />
-                        Settings
+                        {/* <FontAwesomeIcon icon={faCog} className="mr-2" />
+                        Settings */}
                       </button>
                     </div>
                   )}

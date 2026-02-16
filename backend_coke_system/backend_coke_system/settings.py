@@ -92,13 +92,13 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'cokedb4',
-         'USER': 'cokeuser',
-         'PASSWORD': '@-@Coke123',
-         'HOST': '129.168.0.167',
+         'NAME': 'cokedb5',
+         'USER': 'root',
+         'PASSWORD': 'karen_123',
+         'HOST': 'localhost',
          'PORT': '3306',
      }
- }
+ } 
 # ✅ ADD THIS BLOCK
 CACHES = {
     "default": {

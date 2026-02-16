@@ -885,24 +885,24 @@ const SupplierReturnForm = () => {
       
       let message = `Supplier return saved successfully for ${currentWarehouse.name}!`;
       
-      if (merchandisingResult.updated > 0) {
-        message += ` ${merchandisingResult.updated} merchandising entries have been updated with remaining quantities.`;
-      }
+      // if (merchandisingResult.updated > 0) {
+      //   message += ` ${merchandisingResult.updated} merchandising entries have been updated with remaining quantities.`;
+      // }
 
-      if (returnableStockResult.removed > 0) {
-        message += ` ${returnableStockResult.removed} returnable stock entries have been completely removed.`;
-      }
+      // if (returnableStockResult.removed > 0) {
+      //   message += ` ${returnableStockResult.removed} returnable stock entries have been completely removed.`;
+      // }
 
-      if (returnableStockResult.updated > 0) {
-        message += ` ${returnableStockResult.updated} returnable stock entries have been updated with remaining quantities.`;
-      }
+      // if (returnableStockResult.updated > 0) {
+      //   message += ` ${returnableStockResult.updated} returnable stock entries have been updated with remaining quantities.`;
+      // }
       
       const totalErrors = (merchandisingResult.errors || 0) + (returnableStockResult.errors || 0);
       if (totalErrors > 0) {
         message += ` Note: ${totalErrors} items had errors during update.`;
       }
       
-      message += " Remaining empty returns are preserved for future returns.";
+      //message += " Remaining empty returns are preserved for future returns.";
       
       // Show success modal and redirect
       showSuccessModal(message);
@@ -1080,8 +1080,9 @@ const SupplierReturnForm = () => {
                             }
                           }}
                           onChange={(e) => handleItemChange(index, "qty_shell", e.target.value)}
+                          disabled={!form.supplier}
                           className="input"
-                          style={{ border: '1px solid var(--border)', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)' }}
+                          style={{ border: '1px solid var(--border)', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)', background: !form.supplier ? 'var(--bg)' : '', cursor: !form.supplier ? 'not-allowed' : 'text' }}
                         />
                       </td>
                       <td>
@@ -1098,8 +1099,9 @@ const SupplierReturnForm = () => {
                             }
                           }}
                           onChange={(e) => handleItemChange(index, "qty_pcs", e.target.value)}
+                          disabled={!form.supplier}
                           className="input"
-                          style={{ border: '1px solid var(--border)', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)' }}
+                          style={{ border: '1px solid var(--border)', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)', background: !form.supplier ? 'var(--bg)' : '', cursor: !form.supplier ? 'not-allowed' : 'text' }}
                         />
                       </td>
                       <td>

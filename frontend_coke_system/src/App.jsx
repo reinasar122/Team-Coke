@@ -240,8 +240,9 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-
-                {/* ✅ Sales Report page title */}
+                
+                {/*}
+                ✅ Sales Report page title
                 <Route
                   path="/reports/sales"
                   element={
@@ -250,7 +251,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                     </h1>
                   }
                 />
-
+                  `removing duplicate sales report*/}
                 <Route path="/expenses" />
               </Routes>
             </div>

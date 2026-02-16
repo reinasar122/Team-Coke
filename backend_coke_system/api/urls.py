@@ -5,7 +5,7 @@ from .views import (
     WarehouseListCreateView, WarehouseDetailView,
     SupplierListCreateView, SupplierRetrieveUpdateDestroyView,
     UserListCreateView, UserDetailView,
-    RoleListCreateView, RoleDetailView,  # ✅ Added Role views
+    RoleListCreateView, RoleDetailView,  # âœ… Added Role views
     ShellTypeListCreateView,
     ContentTypeListCreateView,
     UnitTypeListCreateView,
@@ -86,7 +86,7 @@ urlpatterns = [
     path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="credit-add-payment"),  # POST payment
 
 
-    # ✅ New Role URLs
+    # âœ… New Role URLs
     path('role-access/', RoleAccessibilityListView.as_view(), name='role-access-list'),
     path('role-access/<int:pk>/', RoleAccessibilityDetailView.as_view(), name='role-access-detail'),
     path('role-access/bulk-create/', BulkRoleAccessibilityCreateView.as_view(), name='bulk-role-access-create'),
@@ -199,9 +199,9 @@ urlpatterns = [
 
     path("forecasts/generate/", GenerateForecastAPIView.as_view(), name="generate-forecast"),
 
-    path('api/', include(router.urls)),
-    path('api/notifications/create/', CreateNotificationAPIView.as_view(), name='create-notification'),
-    path('api/notifications/cleanup/', NotificationCleanupAPIView.as_view(), name='notification-cleanup'),
+    path('', include(router.urls)),
+    path('notifications/create/', CreateNotificationAPIView.as_view(), name='create-notification'),
+    path('notifications/cleanup/', NotificationCleanupAPIView.as_view(), name='notification-cleanup'),
 
      # Admin approval for user
     path('admin/approve-user/<int:user_id>/', ConfirmUserCreation.as_view(), name='confirm-user-approval'),  # Admin confirms user creation
