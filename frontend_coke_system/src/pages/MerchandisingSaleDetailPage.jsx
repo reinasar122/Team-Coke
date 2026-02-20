@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import VanLoadTable from "../components/merchandisingcomponents/VanLoadTable";
 import api from "../api"; // ✅ correct
@@ -98,6 +98,21 @@ export default function MerchandisingSaleDetailPage() {
   const [saleDetail, setSaleDetail] = useState(sale);
 
  const [totalExpectedSaleWithoutDiscount, setTotalExpectedSaleWithoutDiscount] = useState(0);
+ const [editApprovalStatus, setEditApprovalStatus] = useState("none");
+ const [editApprovalRequestId, setEditApprovalRequestId] = useState(null);
+ const [isSendingApprovalRequest, setIsSendingApprovalRequest] = useState(false);
+
+ const currentUser = useMemo(() => {
+  try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return {};
+    }
+  }, []);
+
+  const currentUserRole = String(currentUser?.role || "").toLowerCase();
+  const isCashierUser = currentUserRole === "cashier";
+  const lastApprovalStatusRef = useRef("none");
 
   // Callback function to receive updated rows and calculate the total expectedSaleWithoutDiscount
   const handleTotalExpectedSaleWithoutDiscount = (rows) => {
@@ -447,10 +462,106 @@ const loadMerchandisingDetail = useCallback(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sale?.id, currentWarehouse?.id, loadProducts]);
 
+    const fetchEditApprovalStatus = useCallback(async () => {
+    if (!isCashierUser || !sale?.id || !currentUser?.id) return;
+    try {
+      const params = {
+        sale_id: sale.id,
+        requester_id: currentUser.id,
+      };
+      const resolvedWarehouseId = currentWarehouse?.id ?? currentUser?.warehouse_id ?? null;
+      if (resolvedWarehouseId != null) {
+        params.warehouse_id = Number(resolvedWarehouseId);
+      }
+
+      const res = await api.get("/van-load-edit-requests/status/", {
+        params,
+      });
+
+      const nextStatus = String(res?.data?.status || "none").toLowerCase();
+      const nextRequestId = res?.data?.request_id || null;
+
+      setEditApprovalStatus(nextStatus);
+      setEditApprovalRequestId(nextRequestId);
+      lastApprovalStatusRef.current = nextStatus;
+    } catch (error) {
+      console.warn("Failed to fetch edit approval status:", error?.response?.data || error.message);
+    }
+  }, [isCashierUser, sale?.id, currentUser?.id, currentUser?.warehouse_id, currentWarehouse?.id]);
+
+  useEffect(() => {
+    if (!isCashierUser || !sale?.id || !currentUser?.id || editMode) return;
+
+    fetchEditApprovalStatus();
+    const pollId = setInterval(fetchEditApprovalStatus, 5000);
+    return () => clearInterval(pollId);
+  }, [isCashierUser, sale?.id, currentUser?.id, editMode, fetchEditApprovalStatus]);
+
+  const handleEditVanLoadClick = () => {
+    if (!isCashierUser) {
+      setEditMode(true);
+      return;
+    }
+
+    if (editApprovalStatus === "approved") {
+      showAlert("Admin approved your request. Edit mode is now unlocked.");
+      setEditMode(true);
+      return;
+    }
+
+    if (editApprovalStatus === "pending") {
+      showAlert("Your approval request is already pending. Please wait for admin decision.");
+      return;
+    }
+
+    (async () => {
+      setIsSendingApprovalRequest(true);
+      try {
+        const res = await api.post("/van-load-edit-requests/request/", {
+          sale_id: sale.id,
+          msp_no: sale?.msp_no || null,
+          warehouse_id: currentWarehouse?.id ?? null,
+          requester_id: currentUser.id,
+        });
+
+        const nextStatus = String(res?.data?.status || "pending").toLowerCase();
+        setEditApprovalStatus(nextStatus);
+        setEditApprovalRequestId(res?.data?.request_id || null);
+        lastApprovalStatusRef.current = nextStatus;
+
+        if (nextStatus === "approved") {
+          showAlert("Admin approved your request. Edit mode is now unlocked.");
+          setEditMode(true);
+          return;
+        }
+
+        showAlert("Approval request sent. Waiting for admin decision.");
+      } catch (error) {
+        const data = error?.response?.data;
+        const statusCode = error?.response?.status;
+        const rawText = typeof data === "string" ? data.trim() : "";
+        const safeRawText = rawText && !rawText.startsWith("<!DOCTYPE") ? rawText : "";
+        const message =
+          (typeof data === "object" && (data?.error || data?.detail || data?.message)) ||
+          safeRawText ||
+          (statusCode === 404
+            ? "Approval request API not found. Please restart/update backend."
+            : statusCode === 500
+              ? "Server error while sending approval request. Please check backend migration/setup."
+              : "Failed to send approval request. Please try again.");
+        showAlert(message);
+      } finally {
+        setIsSendingApprovalRequest(false);
+      }
+    })();
+  };
 
   const handleSaveVanLoadEdit = async () => {
   if (!sale?.id) return showAlert("Sale not found.");
 
+  if (isCashierUser && editApprovalStatus !== "approved") {
+    return showAlert("Admin approval is required before editing Van Load.");
+  }
   const items = rows
     .filter((r) => Number(r.productId))
     .map((r) => {
@@ -473,6 +584,13 @@ const loadMerchandisingDetail = useCallback(
     expected_sale: Number(totalExpectedSale) || 0,
     status: "Pending",
   };
+
+  if (isCashierUser && editApprovalRequestId) {
+    payload.van_load_edit_request_id = Number(editApprovalRequestId);
+  }
+  if (isCashierUser && currentUser?.id) {
+    payload.requester_id = Number(currentUser.id);
+  }
 
   // Check stock availability before making the request
   try {
@@ -545,12 +663,24 @@ const loadMerchandisingDetail = useCallback(
     });
 
     showAlert("Van Load updated.");
+
+    // Cashier approval is single-use per save cycle; next edit requires new admin approval.
+    if (isCashierUser) {
+      setEditApprovalStatus("none");
+      setEditApprovalRequestId(null);
+      lastApprovalStatusRef.current = "none";
+    }    
+
     setEditMode(false);
     await loadMerchandisingDetail(sale.id);
 
   } catch (e) {
     console.error("Failed to save Van Load edits:", e?.response?.data || e.message);
-    showAlert("Failed to save changes.");
+    const serverMessage =
+      e?.response?.data?.error ||
+      e?.response?.data?.detail ||
+      "Failed to save changes.";
+    showAlert(serverMessage);    
   }
 };
 
@@ -772,9 +902,10 @@ const loadMerchandisingDetail = useCallback(
         <div className="flex gap-3 justify-end">
           <button
             className="btn btn-edit"
-            onClick={() => setEditMode(true)}
+            onClick={handleEditVanLoadClick}
+            disabled={isSendingApprovalRequest}
           >
-            Edit Van Load
+            {isSendingApprovalRequest ? "Requesting..." : "Edit Van Load"}
           </button>
           <button
             className="btn btn-primary"
@@ -786,6 +917,25 @@ const loadMerchandisingDetail = useCallback(
           >
             Receive Return
           </button>
+        </div>
+      )}
+
+      {!editMode && isVanLoad && !isComplete && isCashierUser && (
+        <div className="mt-2 text-sm">
+          {editApprovalStatus === "pending" && (
+            <span className="text-yellow-700">
+              Edit request sent{editApprovalRequestId ? ` (#${editApprovalRequestId})` : ""}. Waiting for admin approval.
+            </span>
+          )}
+          {editApprovalStatus === "approved" && (
+            <span className="text-green-700">Admin approved your request. You can edit this Van Load.</span>
+          )}
+          {editApprovalStatus === "rejected" && (
+            <span className="text-red-700">Your request was rejected. Click Edit Van Load to send a new request.</span>
+          )}
+          {editApprovalStatus === "none" && (
+            <span className="text-gray-600">Cashier role requires admin approval before editing Van Load.</span>
+          )}
         </div>
       )}
 

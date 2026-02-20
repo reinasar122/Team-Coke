@@ -1,3 +1,4 @@
+
 // Updated ReceivingForm.jsx - FIXED: Proper status update for supplier returns
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import axios from "axios";
@@ -144,7 +145,12 @@ const ReceivingForm = () => {
             }, 100);
           } else {
             // No saved form state, clear the restoring flag
+<<<<<<< HEAD
             setIsRestoring(false); // reina
+=======
+            setIsRestoring(false);
+            //end
+>>>>>>> 588988514fd1053bab99411941d2b2c56c688c0f
           }
         })
         .catch((err) => {

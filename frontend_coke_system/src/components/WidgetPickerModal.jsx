@@ -444,7 +444,7 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
             </button>
             <button
               onClick={() => onSave(Array.from(checked))}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-black text-xs shadow-sm hover:shadow"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-black text-xs shadow-sm hover:shadow btn-add"
             >
               <IconCheck />
               Add Selected

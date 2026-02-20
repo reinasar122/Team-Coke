@@ -2,6 +2,7 @@
 
 from decimal import Decimal, InvalidOperation          # 👈 for to_decimal()
 from django.db import transaction
+from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404  
 from django.db.models.functions import Coalesce
 from django.db.models import F, Case, When, Value, IntegerField, Sum, Count
@@ -60,9 +61,11 @@ from .models import Receiving, Warehouse, Stock, Product
 from .serializers import ReceivingSerializer
 import traceback  # Add this import
 from django.db.models import Q
+from django.db.utils import OperationalError, ProgrammingError
 from .models import *
 from .serializers import *
 from datetime import datetime
+from django.utils import timezone
 # api/views.py
 from rest_framework import generics, status
 from rest_framework.response import Response
@@ -92,7 +95,8 @@ from math import floor, ceil
 from datetime import date
 from collections import defaultdict
 
-from .models import Notification, NotificationPreference, ProcessedNotification
+from .models import Notification
+from .models import Notification, NotificationPreference, ProcessedNotification, VanLoadEditApprovalRequest
 from .serializers import (
     NotificationSerializer, NotificationCreateSerializer, NotificationUpdateSerializer,
     BulkNotificationUpdateSerializer, NotificationPreferenceSerializer,
@@ -407,13 +411,29 @@ class HasAccessPermission(BasePermission):
     based on boolean fields: full, view, create, edit, delete.
     """
 
-    def has_permission(self, request, view):
+    def _resolve_user(self, request):
+        # Preferred: authenticated user context
         user = request.user
-        role = getattr(user, "role", None)
+        if getattr(user, "is_authenticated", False):
+            return user
+
+        # Compatibility fallback for this codebase (custom login, no token auth)
+        header_user_id = request.headers.get("X-User-ID") or request.META.get("HTTP_X_USER_ID")
+        if not header_user_id:
+            return None
+
+        try:
+            return User.objects.select_related("role").get(pk=int(header_user_id))
+        except (User.DoesNotExist, ValueError, TypeError):
+            return None
+
+    def has_permission(self, request, view):
+        user = self._resolve_user(request)
+        role = getattr(user, "role", None) if user else None
         submenu_name = getattr(view, "submenu_name", None)
 
-        # Must be logged in and have a role + submenu name
-        if not user.is_authenticated or not role or not submenu_name:
+        # Must resolve a user role + submenu name
+        if not role or not submenu_name:
             return False
 
         # Always allow Admin role
@@ -628,24 +648,15 @@ class SupplierListCreateView(generics.ListCreateAPIView):
     serializer_class = SupplierSerializer
     
     def get_queryset(self):
-        # ✅ FIXED: Apply consistent warehouse filtering
-        warehouse_param = self.request.query_params.get('warehouse')
-        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
-        
-        if warehouse_id:
-            return Supplier.objects.filter(warehouse_id=warehouse_id)
+        #Supplier model currently has no warehouse FK, so ignore warehouse filter here.
+        #Keep endpoint stable for frontend polling that sends ?warehouse=...
         return Supplier.objects.all()
 
 class SupplierRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = SupplierSerializer
     
     def get_queryset(self):
-        # ✅ FIXED: Apply consistent warehouse filtering
-        warehouse_param = self.request.query_params.get('warehouse')
-        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
-        
-        if warehouse_id:
-            return Supplier.objects.filter(warehouse_id=warehouse_id)
+        #Supplier model currently has no warehouse FK.
         return Supplier.objects.all()
 
     def destroy(self, request, *args, **kwargs):
@@ -674,12 +685,7 @@ class VanListCreateView(generics.ListCreateAPIView):
     serializer_class = VanSerializer
 
     def get_queryset(self):
-        # ✅ FIXED: Apply consistent warehouse filtering
-        warehouse_param = self.request.query_params.get('warehouse')
-        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
-        
-        if warehouse_id:
-            return Van.objects.filter(warehouse_id=warehouse_id)
+        #Vans are shared accross warehouses; keep list global.
         return Van.objects.all()
 
     def perform_create(self, serializer):
@@ -690,12 +696,7 @@ class VanRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = VanSerializer
     
     def get_queryset(self):
-        # ✅ FIXED: Apply consistent warehouse filtering
-        warehouse_param = self.request.query_params.get('warehouse')
-        warehouse_id = get_user_warehouse_filter(self.request.user, warehouse_param)
-        
-        if warehouse_id:
-            return Van.objects.filter(warehouse_id=warehouse_id)
+        #vans are shared accross warehouses.
         return Van.objects.all()
 
 #Products
@@ -1087,6 +1088,154 @@ class MerchandisingDetailView(generics.RetrieveUpdateDestroyAPIView):
             queryset = queryset.filter(warehouse_id=warehouse_id)
         
         return queryset
+
+    def _get_user_role_name(self, user):
+        raw_role = getattr(user, "role", None)
+        if isinstance(raw_role, str):
+            return raw_role.strip().lower()
+        if raw_role is None:
+            return ""
+        return (getattr(raw_role, "name", "") or "").strip().lower()
+
+    def _is_cashier(self, user):
+        return self._get_user_role_name(user) == "cashier"
+
+    def _is_van_load(self, merchandising_obj):
+        transaction_type = getattr(merchandising_obj, "transaction_type", None)
+        transaction_name = (getattr(transaction_type, "name", "") or "").strip().lower()
+        return transaction_name == "van load"
+
+    def _resolve_requester_id(self, request):
+        raw_requester_id = request.data.get("requester_id")
+        if raw_requester_id is None:
+            raw_requester_id = getattr(request.user, "id", None)
+        try:
+            requester_id = int(raw_requester_id)
+        except (TypeError, ValueError):
+            return None
+        return requester_id if requester_id > 0 else None
+
+    def _is_cashier_actor(self, requester_id, request_user):
+        if requester_id is not None:
+            requester = User.objects.select_related("role").filter(id=requester_id).first()
+            if requester and self._is_cashier(requester):
+                return True
+        return self._is_cashier(request_user)
+
+    def _get_request_queryset(self, merchandising_obj, requester_id=None):
+        queryset = VanLoadEditApprovalRequest.objects.filter(
+            sale_id=merchandising_obj.id,
+        )
+        if requester_id is not None:
+            queryset = queryset.filter(requested_by_id=requester_id)
+        warehouse_id = getattr(merchandising_obj, "warehouse_id", None)
+        if warehouse_id is not None:
+            queryset = queryset.filter(warehouse_id=warehouse_id)
+        return queryset
+
+    def _get_latest_request(self, merchandising_obj, requester_id=None):
+        return (
+            self._get_request_queryset(merchandising_obj, requester_id)
+            .order_by("-requested_at", "-id")
+            .first()
+        )
+
+    def _get_latest_approved_request(self, merchandising_obj, requester_id=None):
+        latest_request = self._get_latest_request(merchandising_obj, requester_id)
+        if not latest_request:
+            return None
+        if str(latest_request.status or "").strip().lower() != VanLoadEditApprovalRequest.STATUS_APPROVED:
+            return None
+        return latest_request
+
+    def _get_approved_request_by_id(self, merchandising_obj, request_id, requester_id=None):
+        try:
+            request_id_int = int(request_id)
+        except (TypeError, ValueError):
+            return None
+
+        return (
+            self._get_request_queryset(merchandising_obj, requester_id)
+            .filter(
+                id=request_id_int,
+                status=VanLoadEditApprovalRequest.STATUS_APPROVED,
+            )
+            .order_by("-reviewed_at", "-requested_at", "-id")
+            .first()
+        )
+
+    def _consume_approval_request(self, approval_request, user=None, consumed_by_id=None):
+        if not approval_request:
+            return
+
+        consumed_at = timezone.now()
+        approval_request.status = "used"
+        approval_request.save(update_fields=["status", "updated_at"])
+
+        resolved_consumer_id = consumed_by_id
+        if resolved_consumer_id is None and user is not None:
+            resolved_consumer_id = getattr(user, "id", None)
+
+        request_notification = (
+            Notification.objects
+            .filter(
+                source_id=f"van_load_edit_request:{approval_request.id}",
+                source_type="van_load_edit_request",
+            )
+            .order_by("-created_at")
+            .first()
+        )
+        if request_notification:
+            request_data = request_notification.data or {}
+            request_data.update({
+                "request_status": "used",
+                "consumed_by_id": resolved_consumer_id,
+                "consumed_at": consumed_at.isoformat(),
+                "consumed_reason": "cashier_saved_van_load_edit",
+            })
+            request_notification.data = request_data
+            request_notification.is_read = True
+            request_notification.read_at = consumed_at
+            request_notification.save(update_fields=["data", "is_read", "read_at", "updated_at"])
+
+    def patch(self, request, *args, **kwargs):
+        merchandising_obj = self.get_object()
+        requester_id = self._resolve_requester_id(request)
+        is_cashier_actor = self._is_cashier_actor(requester_id, request.user)
+        approval_request = self._get_approved_request_by_id(
+            merchandising_obj,
+            request.data.get("van_load_edit_request_id"),
+            requester_id,
+        )
+
+        if is_cashier_actor and self._is_van_load(merchandising_obj):
+            if not approval_request:
+                approval_request = self._get_latest_approved_request(merchandising_obj, requester_id)
+            if not approval_request:
+                return Response(
+                    {
+                        "error": "Admin approval is required before editing Van Load.",
+                        "code": "van_load_edit_approval_required",
+                    },
+                    status=status.HTTP_403_FORBIDDEN,
+                )
+
+        response = super().patch(request, *args, **kwargs)
+
+        if (
+            is_cashier_actor
+            and
+            approval_request
+            and response.status_code >= 200
+            and response.status_code < 300
+        ):
+            self._consume_approval_request(
+                approval_request,
+                request.user,
+                consumed_by_id=requester_id,
+            )
+
+        return response
 
 class MerchandisingListView(generics.ListAPIView):
     serializer_class = MerchandisingSerializer
@@ -2519,16 +2668,28 @@ class NotificationViewSet(viewsets.ModelViewSet):
         queryset = Notification.objects.filter(is_deleted=False)
         
         # Get user role and warehouse
-        user_role = getattr(user, 'role', 'staff').lower()
+        user_role = getattr(user, 'role', None)
+        if isinstance(user_role, str):
+            user_role = user_role.strip().lower()
+        elif raw_role is not None:
+            user_role = (getattr(raw_role, 'name', '') or '').strip().lower()
+        else:
+            user_role = 'staff'
         warehouse_id = self.request.query_params.get('warehouse')
         
         if warehouse_id:
             queryset = queryset.filter(warehouse_id=warehouse_id)
         
         # Filter based on user role and targeting
-        if user_role == 'admin':
+        is_admin_role = (
+            user_role in {'admin', 'administrator', 'super admin'}
+            or ('admin' in user_role if user_role else False)
+        )
+        if is_admin_role:
             # Admin can see all notifications in their warehouse context
-            pass
+            admin_warehouse_id = getattr(user, 'warehouse_id', None)
+            if admin_warehouse_id:
+                queryset = queryset.filter(warehouse_id=admin_warehouse_id)
         else:
             # Other roles see notifications targeted to them or their role
             queryset = queryset.filter(
@@ -2949,7 +3110,391 @@ class CreateNotificationAPIView(APIView):
         amount = float(data.get('amount', 0))
         category = data.get('category', 'General')
         return f"Amount: ₱{amount:,.2f} - Category: {category}"
+    
+ADMIN_ROLE_NAMES = {'admin', 'administrator', 'super admin'}
 
+
+def _get_role_name(user):
+    role = getattr(user, 'role', None)
+    if role is None:
+        return ''
+    return (getattr(role, 'name', '') or '').strip().lower()
+
+
+def _is_admin_account(user):
+    role_name = _get_role_name(user)
+    return role_name in ADMIN_ROLE_NAMES or ('admin' in role_name if role_name else False)
+
+
+def _display_user_name(user):
+    full_name = f"{getattr(user, 'first_name', '')} {getattr(user, 'last_name', '')}".strip()
+    if full_name:
+        return full_name
+    if getattr(user, 'email', None):
+        return user.email
+    return f"User #{user.id}"
+
+
+class VanLoadEditApprovalRequestCreateAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        try:
+            sale_id = request.data.get('sale_id')
+            requester_id = request.data.get('requester_id')
+            warehouse_id = request.data.get('warehouse_id')
+            msp_no = (request.data.get('msp_no') or '').strip() or None
+
+            try:
+                sale_id = int(sale_id)
+                requester_id = int(requester_id)
+                warehouse_id = int(warehouse_id) if warehouse_id is not None else None
+            except (TypeError, ValueError):
+                return Response(
+                    {'error': 'sale_id, requester_id and warehouse_id must be valid integers.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            requester = User.objects.filter(id=requester_id).first()
+            if not requester:
+                return Response({'error': 'Requester not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+            if _get_role_name(requester) != 'cashier':
+                return Response(
+                    {'error': 'Only cashier users can request Van Load edit approval.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            requester_warehouse_id = getattr(requester, 'warehouse_id', None)
+            if requester_warehouse_id is not None and warehouse_id is not None and requester_warehouse_id != warehouse_id:
+                return Response(
+                    {'error': 'Cashier can only request approval for their assigned warehouse.'},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+
+            effective_warehouse_id = requester_warehouse_id if requester_warehouse_id is not None else warehouse_id
+            if effective_warehouse_id is None:
+                return Response(
+                    {'error': 'Cashier warehouse is required before sending approval request.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            latest_request = (
+                VanLoadEditApprovalRequest.objects
+                .filter(
+                    sale_id=sale_id,
+                    requested_by_id=requester_id,
+                    warehouse_id=effective_warehouse_id,
+                )
+                .order_by('-requested_at', '-id')
+                .first()
+            )
+            latest_status = str(getattr(latest_request, "status", "") or "").strip().lower()
+            if latest_status == VanLoadEditApprovalRequest.STATUS_PENDING:
+                return Response({
+                    'request_id': latest_request.id,
+                    'status': latest_request.status,
+                    'message': 'Approval request is already pending.',
+                    'already_requested': True,
+                }, status=status.HTTP_200_OK)
+            if latest_status == VanLoadEditApprovalRequest.STATUS_APPROVED:
+                return Response({
+                    'request_id': latest_request.id,
+                    'status': latest_request.status,
+                    'message': 'Approval already granted.',
+                    'already_requested': True,
+                }, status=status.HTTP_200_OK)
+
+            approval_request = VanLoadEditApprovalRequest.objects.create(
+                sale_id=sale_id,
+                msp_no=msp_no,
+                warehouse_id=effective_warehouse_id,
+                requested_by=requester,
+                status=VanLoadEditApprovalRequest.STATUS_PENDING,
+            )
+
+            requester_name = _display_user_name(requester)
+            reference_label = msp_no or f"Sale #{sale_id}"
+
+            Notification.objects.create(
+                type='van_load_edit_request',
+                category='warehouse',
+                title='Van Load Edit Approval Request',
+                message=f'{requester_name} requested to edit {reference_label}.',
+                details='Open this request and choose Approve or Reject.',
+                priority='high',
+                target_roles=['admin', 'administrator', 'super admin'],
+                warehouse_id=effective_warehouse_id,
+                data={
+                    'approval_flow': 'van_load_edit',
+                    'request_status': 'pending',
+                    'request_id': approval_request.id,
+                    'sale_id': sale_id,
+                    'msp_no': msp_no,
+                    'warehouse_id': effective_warehouse_id,
+                    'requested_by_id': requester.id,
+                    'requested_by_name': requester_name,
+                    'requested_at': approval_request.requested_at.isoformat(),
+                    'is_van_load': True,
+                },
+                source_id=f'van_load_edit_request:{approval_request.id}',
+                source_type='van_load_edit_request',
+            )
+
+            return Response({
+                'request_id': approval_request.id,
+                'status': approval_request.status,
+                'message': 'Approval request sent to admin.',
+                'requested_at': approval_request.requested_at,
+                'already_requested': False,
+            }, status=status.HTTP_201_CREATED)
+        except (OperationalError, ProgrammingError):
+            return Response(
+                {'error': 'Approval request setup is incomplete. Run database migration and restart backend.'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class VanLoadEditApprovalStatusAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        sale_id = request.query_params.get('sale_id')
+        requester_id = request.query_params.get('requester_id')
+        warehouse_id = request.query_params.get('warehouse_id')
+
+        try:
+            sale_id = int(sale_id)
+            requester_id = int(requester_id)
+            warehouse_id = int(warehouse_id) if warehouse_id is not None else None
+        except (TypeError, ValueError):
+            return Response(
+                {'error': 'sale_id and requester_id are required and must be integers. warehouse_id must be an integer when provided.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        requester = User.objects.filter(id=requester_id).only('id', 'warehouse_id').first()
+        if not requester:
+            return Response({'error': 'Requester not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        effective_warehouse_id = warehouse_id if warehouse_id is not None else getattr(requester, 'warehouse_id', None)
+        queryset = (
+            VanLoadEditApprovalRequest.objects
+            .filter(sale_id=sale_id, requested_by_id=requester_id)
+        )
+        if effective_warehouse_id is not None:
+            queryset = queryset.filter(warehouse_id=effective_warehouse_id)
+
+        latest_request = queryset.order_by('-requested_at', '-id').first()
+        if not latest_request:
+            return Response({'status': 'none'}, status=status.HTTP_200_OK)
+
+        normalized_status = str(latest_request.status or '').strip().lower()
+        if normalized_status not in {
+            VanLoadEditApprovalRequest.STATUS_PENDING,
+            VanLoadEditApprovalRequest.STATUS_APPROVED,
+            VanLoadEditApprovalRequest.STATUS_REJECTED,
+        }:
+            return Response({
+                'status': 'none',
+                'last_status': normalized_status,
+            }, status=status.HTTP_200_OK)
+
+        return Response({
+            'request_id': latest_request.id,
+            'status': latest_request.status,
+            'sale_id': latest_request.sale_id,
+            'msp_no': latest_request.msp_no,
+            'warehouse_id': latest_request.warehouse_id,
+            'review_notes': latest_request.review_notes,
+            'requested_at': latest_request.requested_at,
+            'reviewed_at': latest_request.reviewed_at,
+        }, status=status.HTTP_200_OK)
+
+
+class VanLoadEditApprovalPendingListAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        admin_id = request.query_params.get('admin_id')
+        warehouse_id = request.query_params.get('warehouse_id')
+
+        try:
+            admin_id = int(admin_id)
+            warehouse_id = int(warehouse_id) if warehouse_id is not None else None
+        except (TypeError, ValueError):
+            return Response(
+                {'error': 'admin_id must be an integer. warehouse_id must be an integer when provided.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        admin_user = User.objects.filter(id=admin_id).first()
+        if not admin_user:
+            return Response({'error': 'Admin user not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not _is_admin_account(admin_user):
+            return Response({'error': 'Only admin users can view pending requests.'}, status=status.HTTP_403_FORBIDDEN)
+        if not getattr(admin_user, 'warehouse_id', None):
+            return Response({'error': 'Admin must be assigned to a warehouse before reviewing requests.'}, status=status.HTTP_403_FORBIDDEN)
+
+        admin_warehouse_id = int(admin_user.warehouse_id)
+        if warehouse_id is not None and warehouse_id != admin_warehouse_id:
+            return Response(
+                {'error': 'You can only view requests for your assigned warehouse.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+
+        queryset = (
+            VanLoadEditApprovalRequest.objects
+            .filter(
+                status=VanLoadEditApprovalRequest.STATUS_PENDING,
+                warehouse_id=admin_warehouse_id
+            )
+            .select_related('requested_by')
+            .order_by('-requested_at')
+        )
+
+        payload = []
+        for item in queryset:
+            payload.append({
+                'request_id': item.id,
+                'sale_id': item.sale_id,
+                'msp_no': item.msp_no,
+                'warehouse_id': item.warehouse_id,
+                'status': item.status,
+                'requested_by_id': item.requested_by_id,
+                'requested_by_name': _display_user_name(item.requested_by),
+                'requested_at': item.requested_at,
+            })
+
+        return Response(payload, status=status.HTTP_200_OK)
+
+
+class VanLoadEditApprovalDecisionAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request, request_id):
+        action = (request.data.get('action') or '').strip().lower()
+        admin_id = request.data.get('admin_id')
+        review_notes = (request.data.get('review_notes') or '').strip() or None
+
+        if action not in {'approve', 'reject'}:
+            return Response({'error': "action must be either 'approve' or 'reject'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            admin_id = int(admin_id)
+            request_id = int(request_id)
+        except (TypeError, ValueError):
+            return Response(
+                {'error': 'request_id and admin_id must be valid integers.'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        admin_user = User.objects.filter(id=admin_id).first()
+        if not admin_user:
+            return Response({'error': 'Admin user not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if not _is_admin_account(admin_user):
+            return Response({'error': 'Only admin users can approve or reject requests.'}, status=status.HTTP_403_FORBIDDEN)
+        if not getattr(admin_user, 'warehouse_id', None):
+            return Response({'error': 'Admin must be assigned to a warehouse before reviewing requests.'}, status=status.HTTP_403_FORBIDDEN)
+
+        approval_request = (
+            VanLoadEditApprovalRequest.objects
+            .select_related('requested_by')
+            .filter(id=request_id)
+            .first()
+        )
+        if not approval_request:
+            return Response({'error': 'Approval request not found.'}, status=status.HTTP_404_NOT_FOUND)
+        if int(approval_request.warehouse_id or 0) != int(admin_user.warehouse_id):
+            return Response(
+                {'error': 'You can only approve/reject requests from your assigned warehouse.'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        if approval_request.status != VanLoadEditApprovalRequest.STATUS_PENDING:
+            return Response(
+                {'error': f"Request is already {approval_request.status}."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        new_status = (
+            VanLoadEditApprovalRequest.STATUS_APPROVED
+            if action == 'approve'
+            else VanLoadEditApprovalRequest.STATUS_REJECTED
+        )
+
+        approval_request.status = new_status
+        approval_request.reviewed_by = admin_user
+        approval_request.review_notes = review_notes
+        approval_request.reviewed_at = timezone.now()
+        approval_request.save(update_fields=['status', 'reviewed_by', 'review_notes', 'reviewed_at', 'updated_at'])
+
+        admin_name = _display_user_name(admin_user)
+        request_reference = approval_request.msp_no or f"Sale #{approval_request.sale_id}"
+
+        request_notification = (
+            Notification.objects
+            .filter(
+                source_id=f'van_load_edit_request:{approval_request.id}',
+                source_type='van_load_edit_request'
+            )
+            .order_by('-created_at')
+            .first()
+        )
+        if request_notification:
+            request_data = request_notification.data or {}
+            request_data.update({
+                'request_status': new_status,
+                'reviewed_by_id': admin_user.id,
+                'reviewed_by_name': admin_name,
+                'reviewed_at': approval_request.reviewed_at.isoformat(),
+                'review_notes': approval_request.review_notes,
+            })
+            request_notification.data = request_data
+            request_notification.is_read = True
+            request_notification.read_at = timezone.now()
+            request_notification.save(update_fields=['data', 'is_read', 'read_at', 'updated_at'])
+
+        decision_word = 'approved' if new_status == VanLoadEditApprovalRequest.STATUS_APPROVED else 'rejected'
+        Notification.objects.create(
+            type='van_load_edit_decision',
+            category='inventory',
+            title=f'Van Load Edit {decision_word.capitalize()}',
+            message=f'Your request to edit {request_reference} was {decision_word} by {admin_name}.',
+            details=(
+                approval_request.review_notes
+                if approval_request.review_notes
+                else f'Admin {decision_word} your request.'
+            ),
+            priority='medium' if decision_word == 'approved' else 'high',
+            user=approval_request.requested_by,
+            target_roles=['cashier'],
+            warehouse_id=approval_request.warehouse_id,
+            data={
+                'approval_flow': 'van_load_edit',
+                'request_status': new_status,
+                'decision': decision_word,
+                'request_id': approval_request.id,
+                'sale_id': approval_request.sale_id,
+                'msp_no': approval_request.msp_no,
+                'warehouse_id': approval_request.warehouse_id,
+                'reviewed_by_id': admin_user.id,
+                'reviewed_by_name': admin_name,
+                'reviewed_at': approval_request.reviewed_at.isoformat() if approval_request.reviewed_at else None,
+                'review_notes': approval_request.review_notes,
+                'is_van_load': True,
+            },
+            source_id=f'van_load_edit_decision:{approval_request.id}',
+            source_type='van_load_edit_decision',
+        )
+
+        return Response({
+            'request_id': approval_request.id,
+            'status': approval_request.status,
+            'decision': decision_word,
+            'reviewed_at': approval_request.reviewed_at,
+            'review_notes': approval_request.review_notes,
+        }, status=status.HTTP_200_OK)
+   
 class NotificationPreferenceViewSet(viewsets.ModelViewSet):
     serializer_class = NotificationPreferenceSerializer
     permission_classes = [permissions.IsAuthenticated]

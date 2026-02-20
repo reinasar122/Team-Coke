@@ -6,22 +6,31 @@ export const getCurrentWarehouse = () => {
   const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
   
   console.log('🏭 Getting current warehouse:', { userData, selectedWarehouse });
-  
+  const assignedWarehouseId = userData?.warehouse_id ? parseInt(userData.warehouse_id) : null;
   // For admin users, use selected warehouse or their enrolled warehouse
   if (userData.role?.toLowerCase() === "admin") {
     if (selectedWarehouse && selectedWarehouse.id) {
+      const selectedId = parseInt(selectedWarehouse.id);
+      if (assignedWarehouseId && selectedId !== assignedWarehouseId) {
+        const enforcedWarehouse = { id: assignedWarehouseId, name: userData.warehouse };
+        localStorage.setItem("selectedWarehouse", JSON.stringify(enforcedWarehouse));
+        console.log('👑 Admin selected warehouse mismatched assignment, enforcing assigned warehouse:', enforcedWarehouse);
+        return enforcedWarehouse;
+      }
       console.log('👑 Admin using selected warehouse:', selectedWarehouse);
       return selectedWarehouse;
-    } else if (userData.warehouse_id) {
+    } else if (assignedWarehouseId) {
       console.log('👑 Admin using enrolled warehouse:', { id: userData.warehouse_id, name: userData.warehouse });
-      return { id: userData.warehouse_id, name: userData.warehouse };
+      const enrolledWarehouse = { id: assignedWarehouseId, name: userData.warehouse };
+      localStorage.setItem("selectedWarehouse", JSON.stringify(enrolledWarehouse));
+      return enrolledWarehouse;
     }
   }
   
   // For non-admin users, always use their enrolled warehouse
-  if (userData.warehouse_id) {
+  if (assignedWarehouseId) {
     console.log('👤 Non-admin using enrolled warehouse:', { id: userData.warehouse_id, name: userData.warehouse });
-    return { id: userData.warehouse_id, name: userData.warehouse };
+    return { id: assignedWarehouseId, name: userData.warehouse };
   }
   
   // Fallback - try to find by warehouse name if warehouse_id doesn't exist
