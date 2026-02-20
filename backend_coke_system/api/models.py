@@ -7,6 +7,7 @@ from django.contrib.auth.hashers import make_password, check_password
 from django.core.validators import MinValueValidator, MaxValueValidator
 from decimal import Decimal
 from django.core.exceptions import ValidationError
+from datetime import datetime, timedelta
 # app: sales (or whatever app holds Merchandising)
 from django.db import models
 from django.utils import timezone
@@ -288,8 +289,6 @@ class User(models.Model):
         self.otp = str(random.randint(100000, 999999))  # Example: generates a 6-digit OTP
         self.otp_expiry = timezone.now() + timedelta(minutes=5)  # OTP expires in 5 minutes
         self.save()
-
-
 
 class Van(models.Model):
     van_id = models.CharField(max_length=50)
@@ -878,6 +877,53 @@ class Forecast(models.Model):
     def __str__(self):
         return f"{self.product.name} - {self.date}"
     
+class VanLoadEditApprovalRequest(models.Model):
+    STATUS_PENDING = 'pending'
+    STATUS_APPROVED = 'approved'
+    STATUS_REJECTED = 'rejected'
+    STATUS_CHOICES = [
+        (STATUS_PENDING, 'Pending'),
+        (STATUS_APPROVED, 'Approved'),
+        (STATUS_REJECTED, 'Rejected'),
+    ]
+
+    sale_id = models.PositiveIntegerField(db_index=True)
+    msp_no = models.CharField(max_length=50, blank=True, null=True)
+    warehouse_id = models.PositiveIntegerField(null=True, blank=True, db_index=True)
+    requested_by = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='van_load_edit_requests'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+        db_index=True
+    )
+    reviewed_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='van_load_edit_reviews'
+    )
+    review_notes = models.TextField(blank=True, null=True)
+    requested_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-requested_at']
+        indexes = [
+            models.Index(fields=['sale_id', 'requested_by']),
+            models.Index(fields=['warehouse_id', 'status']),
+            models.Index(fields=['status', 'requested_at']),
+        ]
+
+    def __str__(self):
+        return f"VanLoad#{self.sale_id} {self.requested_by_id} {self.status}"
+
 class NotificationType(models.TextChoices):
     # Inventory notifications
     LOW_STOCK = 'low_stock', 'Low Stock'

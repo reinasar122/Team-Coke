@@ -90,24 +90,57 @@ import {
   FaUserFriends, // ✅ ADD: for Customers
 } from "react-icons/fa";
 
-// ✅ Check if user is logged in
-const isAuthenticated = () => {
-  return localStorage.getItem("user") !== null;
+const getStoredUser = () => {
+  try {
+    const rawUser = localStorage.getItem("user");
+    if (!rawUser) return null;
+
+    const parsedUser = JSON.parse(rawUser);
+    if (!parsedUser || typeof parsedUser !== "object") return null;
+    if (!parsedUser.id) return null;
+
+    return parsedUser;
+  } catch (error) {
+    return null;
+  }
+};
+
+const isAdminRole = (role) => {
+  const normalizedRole = String(role || "").toLowerCase();
+  return ["admin", "administrator", "super admin"].includes(normalizedRole);
+};
+
+const isDefaultAdminUser = (user) => {
+  const userId = Number(user?.id);
+  const phoneNumber = String(user?.phone_number || "").trim();
+  return userId === 1 || phoneNumber === "09179902969";
+};
+
+const shouldForceMandatoryPasswordChange = (user) => {
+  const mustChangePassword = Boolean(
+    user?.must_change_password || user?.requires_password_change
+  );
+
+  if (!mustChangePassword) return false;
+  return isAdminRole(user?.role) && isDefaultAdminUser(user);
 };
 
 const ProtectedRoute = ({ children }) => {
   const location = useLocation();
-  const user = JSON.parse(localStorage.getItem("user") || 'null');
+  const user = getStoredUser();
 
-  // Not logged in → force login
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    localStorage.removeItem("user");
+    localStorage.removeItem("access");
+    localStorage.removeItem("selectedWarehouse");
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-  // Force password change
-  const requiresPasswordChange = user?.requires_password_change;
+  const requiresPasswordChange = shouldForceMandatoryPasswordChange(user);
   const isOnChangePasswordPage = location.pathname.startsWith("/change-password");
 
   if (requiresPasswordChange && !isOnChangePasswordPage) {
-    return <Navigate to="/change-password" replace />;
+    return <Navigate to={`/change-password/${user.id}`} replace />;
   }
 
   return children;
@@ -409,6 +442,8 @@ function App() {
         />
 
         <Routes>
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          
           {/* Public Routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/forgot-password" element={<ForgotPassword />} />

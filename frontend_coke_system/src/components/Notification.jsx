@@ -65,8 +65,63 @@ const NotificationAPI = {
 
   async clearAll(warehouseId, config) {
     await api.post('/notifications/clear_all/', { warehouse_id: warehouseId }, config);
+  },
+
+    async loadVanLoadEditRequests(warehouseId, adminId, config) {
+    const response = await api.get('/van-load-edit-requests/pending/', {
+      ...config,
+      params: {
+        warehouse_id: warehouseId,
+        admin_id: adminId,
+      },
+    });
+    return Array.isArray(response.data) ? response.data : [];
+  },
+
+  async decideVanLoadEditRequest(requestId, action, adminId, reviewNotes = '', config) {
+    const response = await api.post(
+      `/van-load-edit-requests/${requestId}/decision/`,
+      {
+        action,
+        admin_id: adminId,
+        review_notes: reviewNotes,
+      },
+      config
+    );
+    return response.data;
   }
 };
+
+const isVanLoadEditApprovalNotification = (notification) => {
+  if (!notification) return false;
+  const type = String(notification.type || '').toLowerCase();
+  const flow = String(notification.data?.approval_flow || '').toLowerCase();
+  return type === 'van_load_edit_request' && flow === 'van_load_edit';
+};
+
+const mapApprovalRequestToNotification = (requestItem, fallbackWarehouseId = null) => ({
+  id: `van-load-edit-request-${requestItem.request_id}`,
+  type: 'van_load_edit_request',
+  category: 'warehouse',
+  title: 'Van Load Edit Approval Request',
+  message: `${requestItem.requested_by_name || 'Cashier'} requested edit access for ${requestItem.msp_no || `Sale #${requestItem.sale_id}`}.`,
+  details: 'Approve or reject this request from the notification panel.',
+  priority: 'high',
+  timestamp: requestItem.requested_at || new Date().toISOString(),
+  is_read: false,
+  data: {
+    approval_flow: 'van_load_edit',
+    request_status: String(requestItem.status || 'pending').toLowerCase(),
+    request_id: requestItem.request_id,
+    sale_id: requestItem.sale_id,
+    msp_no: requestItem.msp_no,
+    warehouse_id: requestItem.warehouse_id ?? fallbackWarehouseId,
+    requested_by_id: requestItem.requested_by_id,
+    requested_by_name: requestItem.requested_by_name,
+    requested_at: requestItem.requested_at,
+    is_van_load: true,
+  },
+});
 
 const Notification = ({ closeProfile }) => {
   const { state, dispatch, addNotification, hasNotificationPermission } = useNotifications();
@@ -87,7 +142,9 @@ const Notification = ({ closeProfile }) => {
   // State for notification detail modal
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
-  
+  const [approvalActionRequestId, setApprovalActionRequestId] = useState(null);
+  const [pendingVanLoadApprovalRequests, setPendingVanLoadApprovalRequests] = useState([]);
+ 
   // Dynamic expense threshold with real-time updates
   const [largeExpenseThreshold, setLargeExpenseThreshold] = useState(10000);
   
@@ -95,10 +152,15 @@ const Notification = ({ closeProfile }) => {
   const optionsRef = useRef(null);
   const processedIdsRef = useRef(new Set(JSON.parse(localStorage.getItem('processedNotificationIds') || '[]')));
   const initializationRef = useRef(false);
+  const notificationsRef = useRef(notifications);
 
   // Force re-render when notifications change
   useEffect(() => {
     setForceUpdate(prev => prev + 1);
+  }, [notifications]);
+
+  useEffect(() => {
+    notificationsRef.current = notifications;
   }, [notifications]);
 
   // Dark mode detection
@@ -140,6 +202,11 @@ const Notification = ({ closeProfile }) => {
       return {};
     }
   }, []);
+
+  const isAdminUser = useCallback(() => {
+    const role = String(getCurrentUser()?.role || '').trim().toLowerCase();
+    return ['admin', 'administrator', 'super admin'].includes(role) || role.includes('admin');
+  }, [getCurrentUser]);
 
   // ✅ ENHANCED: Initialize warehouse using warehouse utils consistently
   const initializeWarehouse = useCallback(async () => {
@@ -269,10 +336,13 @@ const Notification = ({ closeProfile }) => {
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
       
       const backendNotifications = await NotificationAPI.loadNotifications(warehouseQueryParam, config);
-      
-      if (backendNotifications.length > 0) {
+      const visibleBackendNotifications = backendNotifications.filter(
+        (notification) => !isVanLoadEditApprovalNotification(notification)
+      );
+
+      if (visibleBackendNotifications.length > 0) {
         // Convert backend format to frontend format
-        const formattedNotifications = backendNotifications.map(notification => ({
+        const formattedNotifications = visibleBackendNotifications.map(notification => ({
           id: notification.id,
           type: notification.type,
           category: notification.category,
@@ -289,10 +359,13 @@ const Notification = ({ closeProfile }) => {
         }));
         
         // ✅ FIXED: Merge with existing notifications instead of replacing
-        const currentWarehouseNotifications = notifications.filter(notif => 
+        const existingNotifications = (notificationsRef.current || []).filter(
+          (notification) => !isVanLoadEditApprovalNotification(notification)
+        );
+         const currentWarehouseNotifications = existingNotifications.filter(notif =>
           notif.data?.warehouse_id === currentWarehouseId
         );
-        const otherWarehouseNotifications = notifications.filter(notif => 
+        const otherWarehouseNotifications = existingNotifications.filter(notif =>
           notif.data?.warehouse_id !== currentWarehouseId
         );
         
@@ -314,7 +387,56 @@ const Notification = ({ closeProfile }) => {
     } catch (error) {
       console.warn('❌ Failed to load notifications from backend:', error.message);
     }
-  }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch, notifications]);
+  }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch]);
+
+    const syncVanLoadEditRequestsForAdmin = useCallback(async () => {
+    if (!userDataReady || !isAdminUser()) {
+      setPendingVanLoadApprovalRequests([]);
+      return;
+    }
+
+    const currentUser = getCurrentUser();
+    if (!currentUser?.id) {
+      setPendingVanLoadApprovalRequests([]);
+      return;
+    }
+
+    const approvalWarehouseId = Number(currentUser?.warehouse_id || currentWarehouseId || 0);
+    if (!approvalWarehouseId) {
+      setPendingVanLoadApprovalRequests([]);
+      return;
+    }
+
+    try {
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      const pendingRequests = await NotificationAPI.loadVanLoadEditRequests(
+        approvalWarehouseId,
+        currentUser.id,
+        config
+      );
+
+      const normalized = pendingRequests.map((requestItem) => ({
+        ...requestItem,
+        request_id: requestItem.request_id,
+        status: String(requestItem.status || 'pending').toLowerCase(),
+        warehouse_id: requestItem.warehouse_id ?? approvalWarehouseId,
+      }));
+      setPendingVanLoadApprovalRequests(normalized);
+
+      // Keep regular notification list clean: approval requests live in dedicated tab.
+      const requestNotifications = (notificationsRef.current || []).filter(
+        (notification) =>
+          isVanLoadEditApprovalNotification(notification) &&
+          Number(notification.data?.warehouse_id || 0) === approvalWarehouseId
+      );
+      requestNotifications.forEach((notification) => {
+        dispatch({ type: 'REMOVE_NOTIFICATION', payload: notification.id });
+      });
+    } catch (error) {
+      console.warn('Failed to sync Van Load edit requests:', error?.response?.data || error.message);
+      setPendingVanLoadApprovalRequests([]);
+    }
+  }, [userDataReady, currentWarehouseId, isAdminUser, getCurrentUser, currentWarehouse, dispatch]);
 
   // ✅ ENHANCED: Create notification with backend sync
   const createNotificationWithBackend = useCallback(async (notificationType, data, userRole) => {
@@ -601,10 +723,13 @@ const Notification = ({ closeProfile }) => {
       dispatch({ type: 'MARK_AS_READ', payload: notification.id });
       
       // Also mark as read in backend
-      const config = getWarehouseAxiosConfig(currentWarehouse);
-      NotificationAPI.markAsRead(notification.id, config).catch(err => 
-        console.warn('Failed to mark as read in backend:', err.message)
-      );
+      const shouldSyncReadToBackend = !String(notification.id || '').startsWith('van-load-edit-request-');
+      if (shouldSyncReadToBackend) {
+        const config = getWarehouseAxiosConfig(currentWarehouse);
+        NotificationAPI.markAsRead(notification.id, config).catch(err =>
+          console.warn('Failed to mark as read in backend:', err.message)
+        );
+      }
       
       // Force update to refresh count immediately
       setTimeout(() => setForceUpdate(prev => prev + 1), 100);
@@ -627,6 +752,71 @@ const Notification = ({ closeProfile }) => {
     setSelectedNotification(null);
   };
 
+   const isPendingVanLoadEditRequest = useCallback((notification) => {
+    if (!notification) return false;
+    const reqId = notification.data?.request_id;
+    const reqStatus = String(notification.data?.request_status || '').toLowerCase();
+    const isPendingStatus = !reqStatus || reqStatus === 'pending';
+    return notification.type === 'van_load_edit_request' && Boolean(reqId) && isPendingStatus;
+  }, []);
+
+  const handleVanLoadEditDecision = useCallback(async (notification, action) => {
+    if (!notification || !isPendingVanLoadEditRequest(notification)) return;
+
+    const requestId = notification.data?.request_id;
+    const currentUser = getCurrentUser();
+    if (!requestId || !currentUser?.id || !isAdminUser()) return;
+
+    setApprovalActionRequestId(requestId);
+    try {
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      await NotificationAPI.decideVanLoadEditRequest(
+        requestId,
+        action,
+        currentUser.id,
+        '',
+        config
+      );
+
+      const requestIdKey = String(notification.data?.request_id || requestId);
+
+      // Remove from dedicated admin section immediately after decision.
+      setPendingVanLoadApprovalRequests((prev) =>
+        prev.filter((requestItem) => String(requestItem.request_id) !== requestIdKey)
+      );
+
+      // Remove any mirrored request notification from regular store to keep tabs clean.
+      const mirroredRequestNotifications = (notificationsRef.current || []).filter((item) => (
+        isVanLoadEditApprovalNotification(item) &&
+        String(item.data?.request_id || '') === requestIdKey
+      ));
+      mirroredRequestNotifications.forEach((item) => {
+        dispatch({ type: 'REMOVE_NOTIFICATION', payload: item.id });
+      });
+      dispatch({ type: 'REMOVE_NOTIFICATION', payload: notification.id });
+
+      closeDetailModal();
+      setTimeout(() => {
+        syncVanLoadEditRequestsForAdmin();
+        setForceUpdate((prev) => prev + 1);
+      }, 200);
+    } catch (error) {
+      const data = error?.response?.data;
+      const message = data?.error || data?.detail || 'Failed to process request.';
+      window.alert(message);
+    } finally {
+      setApprovalActionRequestId(null);
+    }
+  }, [
+    isPendingVanLoadEditRequest,
+    getCurrentUser,
+    isAdminUser,
+    currentWarehouse,
+    dispatch,
+    syncVanLoadEditRequestsForAdmin,
+    setPendingVanLoadApprovalRequests,
+  ]);
+ 
   // Format notification detail data for display with proper object handling
   const formatDetailData = (notification) => {
     const data = notification.data || {};
@@ -682,6 +872,25 @@ const Notification = ({ closeProfile }) => {
         );
         if (data.quantity_changed) {
           details.push({ label: 'Quantity Changed', value: `${data.change_type === 'increased' ? '+' : '-'}${safeToString(data.quantity_changed)}` });
+        }
+        break;
+
+      case 'van_load_edit_request':
+        details.push(
+          { label: 'MSP / Sale', value: safeToString(data.msp_no || `Sale #${data.sale_id || 'N/A'}`) },
+          { label: 'Requested By', value: safeToString(data.requested_by_name || data.requested_by_id || 'Unknown') },
+          { label: 'Request Status', value: safeToString(data.request_status || 'pending') }
+        );
+        break;
+
+      case 'van_load_edit_decision':
+        details.push(
+          { label: 'MSP / Sale', value: safeToString(data.msp_no || `Sale #${data.sale_id || 'N/A'}`) },
+          { label: 'Decision', value: safeToString(data.decision || data.request_status || 'N/A') },
+          { label: 'Reviewed By', value: safeToString(data.reviewed_by_name || data.reviewed_by_id || 'N/A') }
+        );
+        if (data.review_notes) {
+          details.push({ label: 'Admin Note', value: safeToString(data.review_notes) });
         }
         break;
 
@@ -1014,6 +1223,22 @@ const Notification = ({ closeProfile }) => {
   useEffect(() => {
     loadAllNotifications();
   }, [loadAllNotifications]);
+
+    useEffect(() => {
+    if (!userDataReady || !currentWarehouseId || !isAdminUser()) return;
+
+    syncVanLoadEditRequestsForAdmin();
+    if (!isOpen) return;
+
+    const intervalId = setInterval(syncVanLoadEditRequestsForAdmin, 5000);
+    return () => clearInterval(intervalId);
+  }, [userDataReady, currentWarehouseId, isOpen, isAdminUser, syncVanLoadEditRequestsForAdmin]);
+
+  useEffect(() => {
+    if (activeTab === 'approval' && !isAdminUser()) {
+      setActiveTab('all');
+    }
+  }, [activeTab, isAdminUser]);
 
   // ✅ ENHANCED: Persist notifications with warehouse awareness for admin
   useEffect(() => {
@@ -2369,6 +2594,9 @@ const Notification = ({ closeProfile }) => {
   // ✅ ENHANCED: Action handlers with backend sync
   const markAllAsRead = async () => {
     const currentWarehouseNotifications = notifications.filter(notif => {
+      if (isVanLoadEditApprovalNotification(notif)) {
+        return false;
+      }
       if (notif.data?.warehouse_id) {
         return notif.data.warehouse_id === currentWarehouseId;
       }
@@ -2397,6 +2625,9 @@ const Notification = ({ closeProfile }) => {
   // ✅ ENHANCED: Clear all notifications with backend sync
   const clearAllNotifications = async () => {
     const currentWarehouseNotifications = notifications.filter(notif => {
+      if (isVanLoadEditApprovalNotification(notif)) {
+        return false;
+      }
       if (notif.data?.warehouse_id) {
         return notif.data.warehouse_id === currentWarehouseId;
       }
@@ -2471,6 +2702,8 @@ const Notification = ({ closeProfile }) => {
       'supplier_return': faUndo,
       'warehouse_msp_created': faClipboardList,
       'warehouse_msp_updated': faEdit,
+      'van_load_edit_request': faClipboardList,
+      'van_load_edit_decision': faCheck,
       'new_sale': faDollarSign,
       'sale_voided': faTimesCircle,
       // Enhanced expense notification icons
@@ -3462,23 +3695,27 @@ useEffect(() => {
   // ✅ ENHANCED: Better notification count calculation for admin with warehouse context
   const currentWarehouseUnreadCount = React.useMemo(() => {
     const user = getCurrentUser();
-    const userRole = user.role?.toLowerCase();
+    const userRole = String(user.role || '').toLowerCase();
+    const isAdminRole = ['admin', 'administrator', 'super admin'].includes(userRole) || userRole.includes('admin');
     
     if (!currentWarehouseId) {
       return 0;
     }
     
     const count = notifications.filter(notif => {
-      // Check if notification is unread
+      if (isVanLoadEditApprovalNotification(notif)) {
+        return false;
+      }
+
       const isUnread = !notif.is_read;
       if (!isUnread) return false;
       
       // Check warehouse filtering
       const hasWarehouseId = notif.data?.warehouse_id;
-      const isCurrentWarehouse = hasWarehouseId && notif.data.warehouse_id === currentWarehouseId;
+      const isCurrentWarehouse = hasWarehouseId && Number(notif.data.warehouse_id) === Number(currentWarehouseId);
       
       // ✅ ADMIN: Show notifications for current warehouse
-      if (userRole === 'admin') {
+      if (isAdminRole) {
         return isCurrentWarehouse;
       }
       
@@ -3490,7 +3727,7 @@ useEffect(() => {
         // For credit notifications, also check if it's their own or if they can see all
         if (['credit_created', 'credit_overdue', 'paid_credit'].includes(notif.type)) {
           const isOwnCredit = (notif.data?.created_by === user.id || notif.data?.user_id === user.id);
-          const canSeeAllCredits = ['admin', 'supervisor'].includes(userRole);
+          const canSeeAllCredits = isAdminRole || userRole === 'supervisor';
           
           return hasPermission && (isOwnCredit || canSeeAllCredits);
         }
@@ -3504,16 +3741,53 @@ useEffect(() => {
     return count;
   }, [notifications, currentWarehouseId, getCurrentUser, hasNotificationPermission]);
 
-  // Strict warehouse filtering - Van Load notifications only show in correct warehouse
-  const filteredNotifications = (activeTab === 'all' 
-    ? notifications 
-    : notifications.filter(notif => !notif.is_read))
-    .filter(notif => {
+  const allNotificationsCount = React.useMemo(() => {
+    if (!currentWarehouseId) return 0;
+    return notifications.filter((notif) => {
+      if (isVanLoadEditApprovalNotification(notif)) return false;
+      if (!notif.data?.warehouse_id) return false;
+      return Number(notif.data.warehouse_id) === Number(currentWarehouseId);
+    }).length;
+  }, [notifications, currentWarehouseId]);
+
+  const pendingApprovalRequestsForCurrentWarehouse = React.useMemo(() => {
+    if (!isAdminUser() || !currentWarehouseId) return [];
+    return pendingVanLoadApprovalRequests.filter((requestItem) => (
+      Number(requestItem.warehouse_id || 0) === Number(currentWarehouseId) &&
+      String(requestItem.status || '').toLowerCase() === 'pending'
+    ));
+  }, [pendingVanLoadApprovalRequests, currentWarehouseId, isAdminUser]);
+
+  const approvalTabItems = React.useMemo(() => (
+    pendingApprovalRequestsForCurrentWarehouse.map((requestItem) =>
+      mapApprovalRequestToNotification(requestItem, currentWarehouseId)
+    )
+  ), [pendingApprovalRequestsForCurrentWarehouse, currentWarehouseId]);
+
+  const filteredNotifications = React.useMemo(() => {
+    if (activeTab === 'approval') {
+      return [];
+    }
+
+    const baseList = activeTab === 'all'
+      ? notifications
+      : notifications.filter((notif) => !notif.is_read);
+
+    return baseList.filter((notif) => {
+      if (isVanLoadEditApprovalNotification(notif)) {
+        return false;
+      }
+
       if (notif.data?.warehouse_id) {
-        return notif.data.warehouse_id === currentWarehouseId;
+        return Number(notif.data.warehouse_id) === Number(currentWarehouseId);
       }
       return false;
     });
+
+  }, [activeTab, notifications, currentWarehouseId]);
+
+  const isApprovalTab = activeTab === 'approval';
+  const activeTabNotifications = isApprovalTab ? approvalTabItems : filteredNotifications;
 
   return (
     <>
@@ -3615,7 +3889,7 @@ useEffect(() => {
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
-                  All ({filteredNotifications.length})
+                  All ({allNotificationsCount})
                 </button>
                 <button
                   onClick={() => setActiveTab('unread')}
@@ -3627,6 +3901,18 @@ useEffect(() => {
                 >
                   Unread ({currentWarehouseUnreadCount})
                 </button>
+                {isAdminUser() && (
+                  <button
+                    onClick={() => setActiveTab('approval')}
+                    className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                      activeTab === 'approval'
+                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white font-medium'
+                        : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
+                    }`}
+                  >
+                    Approval ({pendingApprovalRequestsForCurrentWarehouse.length})
+                  </button>
+                )}
               </div>
             </div>
 
@@ -3647,28 +3933,43 @@ useEffect(() => {
                     }
                   </p>
                 </div>
-              ) : filteredNotifications.length === 0 ? (
+              ) : activeTabNotifications.length === 0 ? (
                 <div className="p-8 text-center">
                   <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center">
-                    <FontAwesomeIcon icon={activeTab === 'unread' ? faBellSlash : faBell} className="text-2xl text-gray-400 dark:text-gray-500" />
+                    <FontAwesomeIcon
+                      icon={activeTab === 'unread' ? faBellSlash : faBell}
+                      className="text-2xl text-gray-400 dark:text-gray-500"
+                    />
                   </div>
                   <h4 className="text-lg font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    {activeTab === 'unread' ? 'All Caught Up!' : 'No Notifications Here'}
+                    {activeTab === 'approval'
+                      ? 'No Pending Requests'
+                      : activeTab === 'unread'
+                        ? 'All Caught Up!'
+                        : 'No Notifications Here'}
                   </h4>
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    {activeTab === 'unread' 
-                      ? 'No unread notifications for ' + getCurrentWarehouseName()
-                      : 'No notifications for ' + getCurrentWarehouseName() + ' right now.'
-                    }
+                    {activeTab === 'approval'
+                      ? 'No pending Van Load edit approvals for ' + getCurrentWarehouseName()
+                      : activeTab === 'unread'
+                        ? 'No unread notifications for ' + getCurrentWarehouseName()
+                        : 'No notifications for ' + getCurrentWarehouseName() + ' right now.'}
                   </p>
                 </div>
               ) : (
-                filteredNotifications.map((notification) => (
+                activeTabNotifications.map((notification) => (
                   <div
                     key={`${notification.id}-${forceUpdate}`}
-                    onClick={() => handleNotificationClick(notification)}
+                    onClick={() => {
+                      if (isApprovalTab) {
+                        setSelectedNotification(notification);
+                        setShowDetailModal(true);
+                        return;
+                      }
+                      handleNotificationClick(notification);
+                    }}
                     className={`px-4 py-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer ${
-                      !notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500' : ''
+                      (isApprovalTab || !notification.is_read) ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500' : ''
                     }`}
                   >
                     <div className="flex items-start space-x-3">
@@ -3715,6 +4016,16 @@ useEffect(() => {
                               {notification.data?.login_check && (
                                 <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                                   LOGIN
+                                </span>
+                              )}
+                                {notification.type === 'van_load_edit_request' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
+                                  APPROVAL
+                                </span>
+                              )}
+                              {notification.type === 'van_load_edit_decision' && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300">
+                                  DECISION
                                 </span>
                               )}
                             </div>
@@ -3791,6 +4102,16 @@ useEffect(() => {
                       {selectedNotification.data?.login_check && (
                         <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                           Login Check
+                        </span>
+                      )}
+                        {selectedNotification.type === 'van_load_edit_request' && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300">
+                          Approval Request
+                        </span>
+                      )}
+                      {selectedNotification.type === 'van_load_edit_decision' && (
+                        <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-300">
+                          Decision
                         </span>
                       )}
                     </div>
@@ -3891,6 +4212,35 @@ useEffect(() => {
                           {getCurrentWarehouseName()} (ID: {selectedNotification.data.warehouse_id})
                         </span>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {isAdminUser() && isPendingVanLoadEditRequest(selectedNotification) && (
+                  <div className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-orange-900 dark:text-orange-200 mb-2">
+                      Approval Action
+                    </h3>
+                    <p className="text-sm text-orange-800 dark:text-orange-300 mb-3">
+                      Approve to unlock Van Load edit for cashier, or reject to keep access blocked.
+                    </p>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded bg-gray-500 hover:bg-gray-600 text-white text-sm disabled:opacity-50"
+                        onClick={() => handleVanLoadEditDecision(selectedNotification, 'reject')}
+                        disabled={approvalActionRequestId === selectedNotification.data?.request_id}
+                      >
+                        Reject
+                      </button>
+                      <button
+                        type="button"
+                        className="px-3 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm disabled:opacity-50"
+                        onClick={() => handleVanLoadEditDecision(selectedNotification, 'approve')}
+                        disabled={approvalActionRequestId === selectedNotification.data?.request_id}
+                      >
+                        {approvalActionRequestId === selectedNotification.data?.request_id ? 'Processing...' : 'Approve'}
+                      </button>
                     </div>
                   </div>
                 )}

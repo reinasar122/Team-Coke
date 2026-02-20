@@ -132,19 +132,13 @@ const Login = () => {
   };
 
   const isDefaultAdmin = (user) => {
-    if (user.username === "admin" && user.phone_number === "09179902969") return true;
-    if (user.id === 1) return true;
-    return false;
-  };
+    const normalizedRole = String(user?.role || "").toLowerCase();
+    const isAdminRole = ["admin", "administrator", "super admin"].includes(normalizedRole);
+    if (!isAdminRole) return false;
 
-  const checkIfDefaultAdminChangedPassword = async () => {
-    try {
-      const response = await api.post("/check-default-admin-password/");
-      return response.data.password_changed || false;
-    } catch (error) {
-      console.error("Error checking default admin password status:", error);
-      return true;
-    }
+    if (String(user?.phone_number || "").trim() === "09179902969") return true;
+    if (Number(user?.id) === 1) return true;
+    return false;
   };
 
   const handleOtpVerified = (encodedUid, token) => {
@@ -319,27 +313,27 @@ const Login = () => {
 
       localStorage.setItem("user", JSON.stringify(res.data));
       localStorage.setItem("access", JSON.stringify(accessibilities));
+        if (res.data?.warehouse_id) {
+        localStorage.setItem(
+          "selectedWarehouse",
+          JSON.stringify({ id: res.data.warehouse_id, name: res.data.warehouse })
+        );
+      } else {
+        localStorage.removeItem("selectedWarehouse");
+      }
       localStorage.setItem("loginTime", Date.now().toString());
       window.dispatchEvent(new CustomEvent("userLoggedIn"));
 
       // ✅ Password change logic
       const userIsDefaultAdmin = isDefaultAdmin(res.data);
 
-      if (must_change_password) {
-        if (userIsDefaultAdmin) {
-          navigate(`/change-password/${id}`, { state: { userId: id } });
-          return;
-        } else {
-          try {
-            const defaultAdminPasswordChanged = await checkIfDefaultAdminChangedPassword();
-            if (!defaultAdminPasswordChanged) {
-              navigate(`/change-password/${id}`, { state: { userId: id } });
-              return;
-            }
-          } catch (_) {
-            // if check fails, allow normal redirect
-          }
-        }
+      const requiresPasswordChange = Boolean(
+        must_change_password || res.data?.requires_password_change
+      );
+
+      if (requiresPasswordChange && userIsDefaultAdmin) {
+        navigate(`/change-password/${id}`, { state: { userId: id } });
+        return;
       }
 
       // ✅ just mark success and let effect redirect

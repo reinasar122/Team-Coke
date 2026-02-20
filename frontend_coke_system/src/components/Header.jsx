@@ -85,7 +85,7 @@ const Header = ({ toggleSidebar }) => {
       const parsedUser = JSON.parse(userData);
       setUser(parsedUser);
 
-      if (parsedUser.role?.toLowerCase() === "admin") {
+      if (String(parsedUser.role || "").toLowerCase().includes("admin")) {
         const warehouseData = localStorage.getItem("selectedWarehouse");
         if (warehouseData) {
           setSelectedWarehouse(JSON.parse(warehouseData));
@@ -102,8 +102,9 @@ const Header = ({ toggleSidebar }) => {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-
-  const isAdmin = user?.role?.toLowerCase() === "admin";
+  
+  const normalizedRole = String(user?.role || "").toLowerCase();
+  const isAdmin = normalizedRole.includes("admin");
 
   const fetchWarehouses = async () => {
     setLoadingWarehouses(true);

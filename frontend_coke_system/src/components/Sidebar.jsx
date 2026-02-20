@@ -97,7 +97,7 @@ const Sidebar = ({ isSidebarOpen }) => {
         <li>
           {checkAccess("Dashboard") ? (
             <NavLink
-              to="/"
+              to="/dashboard"
               className={({ isActive }) =>
                 `p-2 hover:bg-gray-700 rounded flex items-center ${
                   isActive ? "bg-gray-800" : ""

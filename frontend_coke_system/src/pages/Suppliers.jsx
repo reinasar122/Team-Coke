@@ -1,5 +1,4 @@
 import React, { useEffect, useMemo, useState } from "react";
-import axios from "axios";
 import {
   FaTrash,
   FaEdit,
@@ -14,6 +13,7 @@ import { toast } from "react-toastify";
 import { errorStyle } from "../utils/toastStyles";
 import SupplierRegistrationForm from "./SupplierRegistrationForm";
 import SupplierEditForm from "./SupplierEditForm";
+import { canView, canCreate, canEdit, canDelete } from "../utils/accessControl";
 import api from "../api"; // ✅ correct
 
 //const API = "http://localhost:8080/api";
@@ -31,6 +31,11 @@ function Detail({ label, value, className = "" }) {
 const Suppliers = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  const supplierCanView = canView("Supplier");
+  const supplierCanCreate = canCreate("Supplier");
+  const supplierCanEdit = canEdit("Supplier");
+  const supplierCanDelete = canDelete("Supplier");
 
   // View mode: 'grid' | 'list'
   const [viewMode, setViewMode] = useState(
@@ -227,21 +232,32 @@ const Suppliers = () => {
         <div className="px-4 pb-3 pt-2 flex justify-end gap-2">
           <button
             type="button"
-            title="Edit"
-            className="icon-btn-edit hover:bg-gray-100 rounded-md p-2"
-            onClick={() => setEditSupplierId(s.id)}
+            title={supplierCanEdit ? "Edit" : "No permission to edit suppliers"}
+            className={`rounded-md p-2 ${
+              supplierCanEdit ? "icon-btn-edit hover:bg-gray-100" : "icon-btn-disabled"
+            }`}
+            onClick={() => {
+              if (supplierCanEdit) setEditSupplierId(s.id);
+            }}
+            disabled={!supplierCanEdit}
           >
             <FaEdit />
           </button>
           <button
             type="button"
-            title={s.can_delete ? "Delete" : "Cannot delete (has transactions)"}
+            title={
+              !supplierCanDelete
+                ? "No permission to delete suppliers"
+                : s.can_delete
+                ? "Delete"
+                : "Cannot delete (has transactions)"
+            }
             className={`icon-btn-danger hover:bg-red-50 rounded-md p-2 ${
-              !s.can_delete ? "opacity-50 cursor-not-allowed" : ""
+              !supplierCanDelete || !s.can_delete ? "opacity-50 cursor-not-allowed" : ""
             }`}
-            disabled={!s.can_delete}
+            disabled={!supplierCanDelete || !s.can_delete}
             onClick={() => {
-              if (s.can_delete) {
+              if (supplierCanDelete && s.can_delete) {
                 setSupplierToDelete(s);
                 setShowDeleteModal(true);
               }
@@ -281,22 +297,33 @@ const Suppliers = () => {
               <td className="border p-2">
                 <div className="flex justify-center gap-2">
                   <button
-                    className="icon-btn-edit hover:bg-gray-100 rounded-md p-2"
-                    onClick={() => setEditSupplierId(s.id)}
-                    title="Edit"
+                    className={`rounded-md p-2 ${
+                      supplierCanEdit ? "icon-btn-edit hover:bg-gray-100" : "icon-btn-disabled"
+                    }`}
+                    onClick={() => {
+                      if (supplierCanEdit) setEditSupplierId(s.id);
+                    }}
+                    title={supplierCanEdit ? "Edit" : "No permission to edit suppliers"}
                     type="button"
+                    disabled={!supplierCanEdit}
                   >
                     <FaEdit />
                   </button>
                   <button
                     type="button"
-                    title={s.can_delete ? "Delete" : "Cannot delete (has transactions)"}
+                    title={
+                      !supplierCanDelete
+                        ? "No permission to delete suppliers"
+                        : s.can_delete
+                        ? "Delete"
+                        : "Cannot delete (has transactions)"
+                    }
                     className={`icon-btn-danger hover:bg-red-50 rounded-md p-2 ${
-                      !s.can_delete ? "opacity-50 cursor-not-allowed" : ""
+                      !supplierCanDelete || !s.can_delete ? "opacity-50 cursor-not-allowed" : ""
                     }`}
-                    disabled={!s.can_delete}
+                    disabled={!supplierCanDelete || !s.can_delete}
                     onClick={() => {
-                      if (s.can_delete) {
+                      if (supplierCanDelete && s.can_delete) {
                         setSupplierToDelete(s);
                         setShowDeleteModal(true);
                       }
@@ -399,13 +426,28 @@ const Suppliers = () => {
           </select>
         </div>
 
-        <button onClick={() => setShowRegisterModal(true)} className="btn btn-add">
+        <button
+          onClick={() => {
+            if (supplierCanCreate) setShowRegisterModal(true);
+          }}
+          className={`btn ${supplierCanCreate ? "btn-add" : "btn-disabled"}`}
+          disabled={!supplierCanCreate}
+          title={supplierCanCreate ? "Add Supplier" : "No permission to add suppliers"}
+        >
           + Add Supplier
         </button>
       </div>
 
       {/* Content */}
-      {viewMode === "grid" ? <GridView /> : <ListView />}
+      {!supplierCanView ? (
+        <div className="w-full text-center py-16 border border-dashed rounded-xl text-gray-500">
+          You do not have permission to view Suppliers.
+        </div>
+      ) : viewMode === "grid" ? (
+        <GridView />
+      ) : (
+        <ListView />
+      )}
 
       {/* Registration Modal */}
       {showRegisterModal && (

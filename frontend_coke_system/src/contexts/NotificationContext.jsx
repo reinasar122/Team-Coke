@@ -724,6 +724,8 @@ export const NotificationProvider = ({ children }) => {
   const hasNotificationPermission = (type, userRole) => {
     const rolePermissions = {
       'admin': ['inventory', 'expenses', 'suppliers', 'warehouse', 'system', 'sales', 'payments', 'products', 'returns'],
+      'administrator': ['inventory', 'expenses', 'suppliers', 'warehouse', 'system', 'sales', 'payments', 'products', 'returns'],
+      'super admin': ['inventory', 'expenses', 'suppliers', 'warehouse', 'system', 'sales', 'payments', 'products', 'returns'],
       'supervisor': ['inventory', 'expenses', 'suppliers', 'warehouse', 'payments'],
       'cashier': ['inventory', 'payments'],
       'staff': ['inventory', 'payments']
@@ -745,6 +747,8 @@ export const NotificationProvider = ({ children }) => {
       'warehouse_msp': 'warehouse',
       'warehouse_msp_created': 'warehouse',
       'warehouse_msp_updated': 'warehouse',
+      'van_load_edit_request': 'inventory',
+      'van_load_edit_decision': 'inventory',
       'role_updated': 'system',
       'menu_access_changed': 'system',
       'admin_settings_changed': 'system',
