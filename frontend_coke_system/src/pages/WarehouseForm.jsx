@@ -6,7 +6,7 @@ import psgcData from "../data/updated_psgc_output.json";
 import { validatePhoneNumber} from "../utils/validators";
 import api from "../api"; // ✅ Use centralized API instance
 
-const WarehouseForm = ({ onClose, onSuccess }) => {
+const WarehouseForm = ({ onClose, onSuccess, existingNames = [] }) => {  // ✅ ADDED existingNames
   const [formData, setFormData] = useState({
     name: "",
     country: "Philippines",
@@ -25,9 +25,16 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
   const [barangays, setBarangays] = useState([]);
 
   const [errors, setErrors] = useState({
-    phone_number: null,
-    email: null,
-  });
+  phone_number: null,
+  email: null,
+});
+
+// 👇 function lives here (not inside state)
+const isDuplicateName = (name) => {
+  return existingNames.some(
+    (n) => n.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+};
 
   // Map municipality names to zip codes
   const zipCodeMap = new Map();
@@ -142,11 +149,17 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     
     window.dispatchEvent(event);
   };
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // ✅ ADDED: Check if warehouse name already exists
+  if (isDuplicateName(formData.name)) {
+    toast.error("Warehouse name already exists.", { style: errorStyle });
+    return;
+  }
 
-    if (!validateInputs()) return;
+  if (!validateInputs()) return;
+
 
     try {
       const res = await api.post("/warehouses/", formData); // ✅ Use centralized API call

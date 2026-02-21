@@ -153,28 +153,33 @@ const Warehouses = () => {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded shadow-lg w-full max-w-lg">
             <WarehouseForm
-              onClose={() => setShowCreateModal(false)}
-              onSuccess={() => {
-                fetchWarehouses();
-                setShowCreateModal(false);
-              }}
-            />
+  existingNames={warehouses.map(w => w.name)}   // ✅ ADDED: pass names for duplicate check updateee
+  onClose={() => setShowCreateModal(false)}
+  onSuccess={() => {
+    fetchWarehouses();
+    setShowCreateModal(false);
+  }}
+/>
+
           </div>
         </div>
       )}
+
 
       {/* Edit Modal */}
       {editWarehouseId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded shadow-lg w-full max-w-lg">
-            <EditWarehouse
-              id={editWarehouseId}
-              onClose={() => setEditWarehouseId(null)}
-              onSuccess={() => {
-                fetchWarehouses();
-                setEditWarehouseId(null);
-              }}
-            />
+           <EditWarehouse
+  id={editWarehouseId}
+  existingNames={warehouses.map(w => w.name)}   // ✅ ADDED duplicate protection updateee
+  onClose={() => setEditWarehouseId(null)}
+  onSuccess={() => {
+    fetchWarehouses();
+    setEditWarehouseId(null);
+  }}
+/>
+
           </div>
         </div>
       )}

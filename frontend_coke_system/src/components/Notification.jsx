@@ -123,6 +123,26 @@ const mapApprovalRequestToNotification = (requestItem, fallbackWarehouseId = nul
   },
 });
 
+const normalizeRole = (roleValue) => String(roleValue || '').trim().toLowerCase();
+
+const isAdminRole = (roleValue) => {
+  const role = normalizeRole(roleValue);
+  return role === 'admin' || role === 'administrator' || role === 'super admin' || role.includes('admin');
+};
+
+const getNotificationTimestampMs = (notification) => {
+  if (!notification) return 0;
+  const rawTimestamp = notification.timestamp || notification.created_at;
+  if (!rawTimestamp) return 0;
+  const parsedTimestamp = new Date(rawTimestamp).getTime();
+  return Number.isFinite(parsedTimestamp) ? parsedTimestamp : 0;
+};
+
+const isCurrentSessionNotification = (notification, loginTimeMs) => {
+  if (!loginTimeMs) return true;
+  return getNotificationTimestampMs(notification) >= loginTimeMs;
+};
+
 const Notification = ({ closeProfile }) => {
   const { state, dispatch, addNotification, hasNotificationPermission } = useNotifications();
   const { notifications } = state;
@@ -204,9 +224,13 @@ const Notification = ({ closeProfile }) => {
   }, []);
 
   const isAdminUser = useCallback(() => {
-    const role = String(getCurrentUser()?.role || '').trim().toLowerCase();
-    return ['admin', 'administrator', 'super admin'].includes(role) || role.includes('admin');
+    return isAdminRole(getCurrentUser()?.role);
   }, [getCurrentUser]);
+
+  const getLoginTimeMs = useCallback(() => {
+    const rawLoginTime = Number(localStorage.getItem('loginTime') || '0');
+    return Number.isFinite(rawLoginTime) && rawLoginTime > 0 ? rawLoginTime : 0;
+  }, []);
 
   // ✅ ENHANCED: Initialize warehouse using warehouse utils consistently
   const initializeWarehouse = useCallback(async () => {
@@ -334,60 +358,63 @@ const Notification = ({ closeProfile }) => {
     try {
       const config = getWarehouseAxiosConfig(currentWarehouse);
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
+      const loginTimeMs = getLoginTimeMs();
       
       const backendNotifications = await NotificationAPI.loadNotifications(warehouseQueryParam, config);
       const visibleBackendNotifications = backendNotifications.filter(
-        (notification) => !isVanLoadEditApprovalNotification(notification)
+        (notification) =>
+          !isVanLoadEditApprovalNotification(notification) &&
+          isCurrentSessionNotification(notification, loginTimeMs)
       );
 
-      if (visibleBackendNotifications.length > 0) {
-        // Convert backend format to frontend format
-        const formattedNotifications = visibleBackendNotifications.map(notification => ({
-          id: notification.id,
-          type: notification.type,
-          category: notification.category,
-          title: notification.title,
-          message: notification.message,
-          details: notification.details,
-          priority: notification.priority,
-          timestamp: notification.timestamp || notification.created_at,
-          is_read: notification.is_read,
-          data: {
-            ...notification.data,
-            warehouse_id: notification.warehouse_id || currentWarehouseId
-          }
-        }));
-        
-        // ✅ FIXED: Merge with existing notifications instead of replacing
-        const existingNotifications = (notificationsRef.current || []).filter(
-          (notification) => !isVanLoadEditApprovalNotification(notification)
-        );
-         const currentWarehouseNotifications = existingNotifications.filter(notif =>
-          notif.data?.warehouse_id === currentWarehouseId
-        );
-        const otherWarehouseNotifications = existingNotifications.filter(notif =>
-          notif.data?.warehouse_id !== currentWarehouseId
-        );
-        
-        // Keep local notifications that might not be in backend yet
-        const backendIds = new Set(formattedNotifications.map(n => n.id));
-        const recentLocalNotifications = currentWarehouseNotifications.filter(localNotif => {
-          return !backendIds.has(localNotif.id);
-        });
-        
-        const mergedNotifications = [
-          ...otherWarehouseNotifications,
-          ...formattedNotifications,
-          ...recentLocalNotifications
-        ];
-        
-        dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
-        console.log(`📥 Merged ${formattedNotifications.length} backend + ${recentLocalNotifications.length} recent local notifications`);
-      }
+      // Convert backend format to frontend format
+      const formattedNotifications = visibleBackendNotifications.map(notification => ({
+        id: notification.id,
+        type: notification.type,
+        category: notification.category,
+        title: notification.title,
+        message: notification.message,
+        details: notification.details,
+        priority: notification.priority,
+        timestamp: notification.timestamp || notification.created_at,
+        is_read: notification.is_read,
+        data: {
+          ...notification.data,
+          warehouse_id: notification.warehouse_id || currentWarehouseId
+        }
+      }));
+      
+      // ✅ FIXED: Merge with existing notifications instead of replacing
+      const existingNotifications = (notificationsRef.current || []).filter(
+        (notification) => !isVanLoadEditApprovalNotification(notification)
+      );
+      const currentWarehouseNotifications = existingNotifications.filter(
+        (notif) =>
+          notif.data?.warehouse_id === currentWarehouseId &&
+          isCurrentSessionNotification(notif, loginTimeMs)
+      );
+      const otherWarehouseNotifications = existingNotifications.filter(notif =>
+        notif.data?.warehouse_id !== currentWarehouseId
+      );
+      
+      // Keep local notifications that might not be in backend yet
+      const backendIds = new Set(formattedNotifications.map(n => n.id));
+      const recentLocalNotifications = currentWarehouseNotifications.filter(localNotif => {
+        return !backendIds.has(localNotif.id);
+      });
+      
+      const mergedNotifications = [
+        ...otherWarehouseNotifications,
+        ...formattedNotifications,
+        ...recentLocalNotifications
+      ];
+      
+      dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
+      console.log(`📥 Merged ${formattedNotifications.length} backend + ${recentLocalNotifications.length} recent local notifications`);
     } catch (error) {
       console.warn('❌ Failed to load notifications from backend:', error.message);
     }
-  }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch]);
+  }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch, getLoginTimeMs]);
 
     const syncVanLoadEditRequestsForAdmin = useCallback(async () => {
     if (!userDataReady || !isAdminUser()) {
@@ -1108,11 +1135,12 @@ const Notification = ({ closeProfile }) => {
     try {
       const user = getCurrentUser();
       const userRole = user.role?.toLowerCase();
+      const loginTimeMs = getLoginTimeMs();
       
       // ✅ FIXED: More lenient deleted notification filtering
       const deletedNotificationIds = new Set(JSON.parse(localStorage.getItem('deletedNotificationIds') || '[]'));
       
-      if (userRole === 'admin' && currentWarehouseId) {
+      if (isAdminRole(userRole) && currentWarehouseId) {
         // Load warehouse-specific notifications for admin
         const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
         const savedWarehouseNotifications = localStorage.getItem(warehouseKey);
@@ -1123,8 +1151,9 @@ const Notification = ({ closeProfile }) => {
           // ✅ FIXED: Only filter out explicitly deleted notifications, keep all messages
           const validNotifications = parsedNotifications.filter(notif => {
             const notDeleted = !deletedNotificationIds.has(notif.id);
+            const inCurrentSession = isCurrentSessionNotification(notif, loginTimeMs);
             
-            return notDeleted;
+            return notDeleted && inCurrentSession;
           });
           
           if (validNotifications.length > 0) {
@@ -1147,7 +1176,8 @@ const Notification = ({ closeProfile }) => {
             const allNotifications = JSON.parse(globalAdminNotifications);
             const warehouseNotifications = allNotifications.filter(notif =>
               notif.data?.warehouse_id === currentWarehouseId &&
-              !deletedNotificationIds.has(notif.id)
+              !deletedNotificationIds.has(notif.id) &&
+              isCurrentSessionNotification(notif, loginTimeMs)
             );
             
             if (warehouseNotifications.length > 0) {
@@ -1173,8 +1203,9 @@ const Notification = ({ closeProfile }) => {
           const validNotifications = parsedNotifications.filter(notif => {
             const notDeleted = !deletedNotificationIds.has(notif.id);
             const isCurrentWarehouse = notif.data?.warehouse_id === currentWarehouseId;
+            const inCurrentSession = isCurrentSessionNotification(notif, loginTimeMs);
             
-            return notDeleted && isCurrentWarehouse;
+            return notDeleted && isCurrentWarehouse && inCurrentSession;
           });
           
           if (validNotifications.length > 0) {
@@ -1191,13 +1222,13 @@ const Notification = ({ closeProfile }) => {
       const user = getCurrentUser();
       const userRole = user.role?.toLowerCase();
       
-      if (userRole === 'admin' && currentWarehouseId) {
+      if (isAdminRole(userRole) && currentWarehouseId) {
         localStorage.removeItem(`persistedNotifications_warehouse_${currentWarehouseId}`);
       } else {
         localStorage.removeItem('persistedNotifications');
       }
     }
-  }, [dispatch, currentWarehouseId, getCurrentUser, notifications]);
+  }, [dispatch, currentWarehouseId, getCurrentUser, notifications, getLoginTimeMs]);
 
   // ✅ NEW: Unified notification loading with priority
   const loadAllNotifications = useCallback(async () => {
@@ -1247,7 +1278,7 @@ const Notification = ({ closeProfile }) => {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
-        if (userRole === 'admin' && currentWarehouseId) {
+        if (isAdminRole(userRole) && currentWarehouseId) {
           // Store notifications per warehouse for admin
           const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
           const warehouseNotifications = notifications.filter(notif => 
@@ -1256,14 +1287,22 @@ const Notification = ({ closeProfile }) => {
           
           if (warehouseNotifications.length > 0) {
             localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
+          } else {
+            localStorage.removeItem(warehouseKey);
           }
           
           // Also maintain global admin notifications for migration purposes
-          localStorage.setItem('persistedNotifications_admin_all', JSON.stringify(notifications));
+          if (notifications.length > 0) {
+            localStorage.setItem('persistedNotifications_admin_all', JSON.stringify(notifications));
+          } else {
+            localStorage.removeItem('persistedNotifications_admin_all');
+          }
         } else {
           // Regular storage for non-admin users
           if (notifications.length > 0) {
             localStorage.setItem('persistedNotifications', JSON.stringify(notifications));
+          } else {
+            localStorage.removeItem('persistedNotifications');
           }
         }
       } catch (error) {
@@ -1651,7 +1690,7 @@ const Notification = ({ closeProfile }) => {
             // If the expense was created by current user
             (expense.created_by === currentUserId || expense.user_id === currentUserId) ||
             // OR if current user is admin/supervisor (can see all expenses)
-            (userRole === 'admin' || userRole === 'supervisor')
+            (isAdminRole(userRole) || userRole === 'supervisor')
           );
           
           if (!shouldNotify) {
@@ -1769,7 +1808,7 @@ const Notification = ({ closeProfile }) => {
               // ✅ Only notify about deleted expenses if user created them or is admin/supervisor
               const shouldNotifyDelete = (
                 (expenseData.created_by === currentUserId) ||
-                (userRole === 'admin' || userRole === 'supervisor')
+                (isAdminRole(userRole) || userRole === 'supervisor')
               );
               
               if (shouldNotifyDelete) {
@@ -1880,7 +1919,7 @@ const Notification = ({ closeProfile }) => {
               // ✅ Only notify about overdue credits if user should see them
               const shouldNotifyOverdue = (
                 (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
-                (userRole === 'admin' || userRole === 'supervisor')
+                (isAdminRole(userRole) || userRole === 'supervisor')
               );
               
               if (shouldNotifyOverdue) {
@@ -1907,7 +1946,7 @@ const Notification = ({ closeProfile }) => {
           // ✅ Only notify if this user created the credit OR if it's a supervisor/admin
           const shouldNotifyCreation = (
             (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
-            (userRole === 'admin' || userRole === 'supervisor')
+            (isAdminRole(userRole) || userRole === 'supervisor')
           );
           
           if (shouldNotifyCreation && !previousCredit) {
@@ -1932,7 +1971,7 @@ const Notification = ({ closeProfile }) => {
               // ✅ Credit was paid
               const shouldNotifyPayment = (
                 (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
-                (userRole === 'admin' || userRole === 'supervisor')
+                (isAdminRole(userRole) || userRole === 'supervisor')
               );
               
               if (shouldNotifyPayment) {
@@ -1964,7 +2003,7 @@ const Notification = ({ closeProfile }) => {
           if (shouldCheckOverdue && !processedIds.has(overdueId)) {
             const shouldNotifyOverdue = (
               (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
-              (userRole === 'admin' || userRole === 'supervisor')
+              (isAdminRole(userRole) || userRole === 'supervisor')
             );
             
             if (shouldNotifyOverdue) {
@@ -2536,7 +2575,7 @@ const Notification = ({ closeProfile }) => {
       }
 
       // SYSTEM & ROLE ACCESSIBILITY (Admin only) - Check for role changes, menu access, and settings
-      if (userRole === 'admin') {
+      if (isAdminRole(userRole)) {
         const systemNotifications = await checkSystemNotifications(warehouseId, userRole, processedIds);
         newNotifications += systemNotifications;
         
@@ -2664,7 +2703,7 @@ const Notification = ({ closeProfile }) => {
     const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
     
-    if (userRole === 'admin' && currentWarehouseId) {
+    if (isAdminRole(userRole) && currentWarehouseId) {
       const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
       const remainingNotifications = notifications.filter(notif => 
         !currentWarehouseNotifications.some(deleted => deleted.id === notif.id)
@@ -2779,7 +2818,7 @@ const Notification = ({ closeProfile }) => {
         setIsTransitioning(true);
         
         // ✅ FIXED: Save current notifications before switching
-        if (userRole === 'admin' && currentWarehouseId) {
+        if (isAdminRole(userRole) && currentWarehouseId) {
           const currentWarehouseNotifications = notifications.filter(notif => 
             notif.data?.warehouse_id === currentWarehouseId
           );
@@ -2857,7 +2896,7 @@ const Notification = ({ closeProfile }) => {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
-        if (userRole === 'admin') {
+        if (isAdminRole(userRole)) {
           const detail = event.detail;
           
           // ✅ CRITICAL: Only process if event is for CURRENT warehouse
@@ -3253,7 +3292,7 @@ useEffect(() => {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
-        if (userRole === 'admin') {
+        if (isAdminRole(userRole)) {
           const detail = event.detail;
           
           // Create immediate notification based on the event
@@ -3303,7 +3342,7 @@ useEffect(() => {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
-        if (userRole === 'admin') {
+        if (isAdminRole(userRole)) {
           const detail = event.detail;
           
           // Create immediate notification based on the event
@@ -3358,7 +3397,7 @@ useEffect(() => {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
-        if (userRole === 'admin') {
+        if (isAdminRole(userRole)) {
           const detail = event.detail;
           
           // Create immediate notification based on the event
@@ -3541,7 +3580,7 @@ useEffect(() => {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
-        if (userRole === 'admin') {
+        if (isAdminRole(userRole)) {
           checkSystemNotifications(currentWarehouseId, userRole, processedIdsRef.current);
         }
       }
@@ -3552,7 +3591,7 @@ useEffect(() => {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
-        if (userRole === 'admin') {
+        if (isAdminRole(userRole)) {
           checkProductsAndReturnsNotifications(currentWarehouseId, userRole, processedIdsRef.current);
         }
       }
@@ -3679,7 +3718,7 @@ useEffect(() => {
     }
     
     const user = getCurrentUser();
-    if (user.role?.toLowerCase() === "admin") {
+    if (isAdminRole(user.role)) {
       const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
       if (selectedWarehouse?.name) {
         return selectedWarehouse.name;

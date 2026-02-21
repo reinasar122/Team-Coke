@@ -104,15 +104,15 @@ export default function MetricsCards({ data = {} }) {
       title: "Total Revenue",
       value: peso(data.totalRevenue),
       IconComp: Icon.Dollar,
-      gradient: "from-green-500 to-emerald-600",
-      bgGradient: "from-green-50 to-emerald-50",
+      gradient: "from-cyan-500 to-blue-600",
+      bgGradient: "from-cyan-50 to-blue-50",
     },
     {
       title: "Products Sold",
       value: Number(data.productsSold || 0).toLocaleString(),
       IconComp: Icon.Box,
-      gradient: "from-blue-500 to-cyan-600",
-      bgGradient: "from-blue-50 to-cyan-50",
+      gradient: "from-purple-500 to-pink-600",
+      bgGradient: "from-purple-50 to-pink-50",
     },
     {
       title: "Supplier Returnables",
@@ -125,8 +125,8 @@ export default function MetricsCards({ data = {} }) {
       title: "Misc. Charges",
       value: peso(data.miscCharges),
       IconComp: Icon.Card,
-      gradient: "from-purple-500 to-pink-600",
-      bgGradient: "from-purple-50 to-pink-50",
+      gradient: "from-yellow-500 to-yellow-600",
+      bgGradient: "from-yellow-50 to-yellow-50",
     },
     {
       title: "Actual Profit",
@@ -135,8 +135,8 @@ export default function MetricsCards({ data = {} }) {
         maximumFractionDigits: 2,
       })}`, // 👈 force 2 decimals
       IconComp: Icon.Trend,
-      gradient: "from-indigo-500 to-blue-600",
-      bgGradient: "from-indigo-50 to-blue-50",
+      gradient: "from-green-500 to-emerald-600",
+      bgGradient: "from-green-50 to-emerald-50",
     },
   ];
 
