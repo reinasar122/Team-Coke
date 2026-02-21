@@ -1288,10 +1288,25 @@ const PaymentModal = ({
 
               let warehouseId = null;
               let warehouseName = null;
+              let warehouseAddressValue = "";
+              let warehouseCityValue = "";
+              let warehouseRegionValue = "";
+              let warehousePhoneValue = "";
+              let warehouseEmailValue = "";
+              let warehouseFullAddressValue = "";
 
               if (warehouse) {
                 warehouseId = warehouse.id || warehouse.warehouse_id;
                 warehouseName = warehouse.name || warehouse.warehouse_name || warehouse.warehouse;
+                warehouseAddressValue = warehouse.address || warehouse.street_address || "";
+                warehouseCityValue = warehouse.city || "";
+                warehouseRegionValue = warehouse.region || "";
+                warehousePhoneValue = warehouse.phone || warehouse.phone_number || "";
+                warehouseEmailValue = warehouse.email || "";
+                warehouseFullAddressValue =
+                  warehouse.fullAddress ||
+                  warehouse.full_address ||
+                  [warehouseAddressValue, warehouseCityValue, warehouseRegionValue].filter(Boolean).join(", ");
               }
 
               // Fallback: try to get from localStorage
@@ -1302,6 +1317,15 @@ const PaymentModal = ({
                 if (selectedWarehouse?.id) {
                   warehouseId = selectedWarehouse.id;
                   warehouseName = selectedWarehouse.name;
+                  warehouseAddressValue = selectedWarehouse.address || selectedWarehouse.street_address || warehouseAddressValue;
+                  warehouseCityValue = selectedWarehouse.city || warehouseCityValue;
+                  warehouseRegionValue = selectedWarehouse.region || warehouseRegionValue;
+                  warehousePhoneValue = selectedWarehouse.phone || selectedWarehouse.phone_number || warehousePhoneValue;
+                  warehouseEmailValue = selectedWarehouse.email || warehouseEmailValue;
+                  warehouseFullAddressValue =
+                    selectedWarehouse.fullAddress ||
+                    selectedWarehouse.full_address ||
+                    [warehouseAddressValue, warehouseCityValue, warehouseRegionValue].filter(Boolean).join(", ");
                 } else if (user.warehouse_id) {
                   warehouseId = user.warehouse_id;
                   warehouseName = user.warehouse;
@@ -1315,6 +1339,30 @@ const PaymentModal = ({
                 showAlert("Warehouse is required for credit transactions. Please refresh the page and try again.");
                 return;
               }
+
+              const normalizedWarehouse = {
+                ...(warehouse && typeof warehouse === "object" ? warehouse : {}),
+                id: warehouseId || warehouse?.id || warehouse?.warehouse_id,
+                name: warehouseName || warehouse?.name || warehouse?.warehouse_name || warehouse?.warehouse,
+                address:
+                  warehouseAddressValue ||
+                  warehouse?.address ||
+                  warehouse?.street_address ||
+                  "",
+                city: warehouseCityValue || warehouse?.city || "",
+                region: warehouseRegionValue || warehouse?.region || "",
+                phone:
+                  warehousePhoneValue ||
+                  warehouse?.phone ||
+                  warehouse?.phone_number ||
+                  "",
+                email: warehouseEmailValue || warehouse?.email || "",
+                fullAddress:
+                  warehouseFullAddressValue ||
+                  warehouse?.fullAddress ||
+                  warehouse?.full_address ||
+                  [warehouseAddressValue, warehouseCityValue, warehouseRegionValue].filter(Boolean).join(", "),
+              };
 
               // ✅ DEFINE DATA FIRST
               const data = {
@@ -1362,7 +1410,15 @@ const PaymentModal = ({
                 amountDue: amountDueFinal,
 
                 // ✅ Include full warehouse object (en)
-                warehouse: warehouse || { id: warehouseId, name: warehouseName },
+                warehouse: normalizedWarehouse,
+                warehouse_id: warehouseId || normalizedWarehouse.id || null,
+                warehouse_name: warehouseName || normalizedWarehouse.name || "",
+                warehouse_address: normalizedWarehouse.address || "",
+                warehouse_city: normalizedWarehouse.city || "",
+                warehouse_region: normalizedWarehouse.region || "",
+                warehouse_phone: normalizedWarehouse.phone || "",
+                warehouse_email: normalizedWarehouse.email || "",
+                warehouse_full_address: normalizedWarehouse.fullAddress || "",
 
                 merchandisingId: mspNo ? Number(String(mspNo).replace(/\D/g, "")) : null,
               };

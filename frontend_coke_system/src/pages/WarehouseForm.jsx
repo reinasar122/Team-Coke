@@ -94,16 +94,19 @@ const isDuplicateName = (name) => {
   // ✅ Handle change with live validation
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const nextValue =
+      name === "phone_number" ? value.replace(/\D/g, "").slice(0, 11) : value;
+
+    setFormData((prev) => ({ ...prev, [name]: nextValue }));
 
     if (name === "phone_number") {
-      const err = validatePhoneNumber(value);
+      const err = validatePhoneNumber(nextValue);
       setErrors((prev) => ({ ...prev, phone_number: err }));
     }
 
     if (name === "email") {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const err = !emailRegex.test(value)
+      const err = !emailRegex.test(nextValue)
         ? "Please enter a valid email address."
         : null;
       setErrors((prev) => ({ ...prev, email: err }));
@@ -362,6 +365,13 @@ const handleSubmit = async (e) => {
           <input
             type="text"
             name="phone_number"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            maxLength={11}
+            value={formData.phone_number}
             className={`w-full border p-2 rounded ${
               errors.phone_number ? "border-red-500" : ""
             }`}
