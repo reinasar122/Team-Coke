@@ -89,16 +89,17 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'cokedb5',
+         'NAME': 'coke_inven',
          'USER': 'root',
-         'PASSWORD': 'Ctugmarc@2003',
+         'PASSWORD': 'P455w0rd',
          'HOST': 'localhost',
          'PORT': '3306',
      }
- } 
+ }
 # ✅ ADD THIS BLOCK
 CACHES = {
     "default": {
