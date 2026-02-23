@@ -92,19 +92,21 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   // ✅ Handle field changes (with live validation)
   const handleChange = (e) => {
     const { name, value } = e.target;
+    const nextValue =
+      name === "phone_number" ? value.replace(/\D/g, "").slice(0, 11) : value;
 
     setFormData((prev) => {
       if (name === "region")
-        return { ...prev, region: value, province: "", city: "", barangay: "" };
+        return { ...prev, region: nextValue, province: "", city: "", barangay: "" };
       if (name === "province")
-        return { ...prev, province: value, city: "", barangay: "" };
-      if (name === "city") return { ...prev, city: value, barangay: "" };
-      return { ...prev, [name]: value };
+        return { ...prev, province: nextValue, city: "", barangay: "" };
+      if (name === "city") return { ...prev, city: nextValue, barangay: "" };
+      return { ...prev, [name]: nextValue };
     });
 
     // Live validations
     if (name === "phone_number") {
-      const err = validatePhoneNumber(value);
+      const err = validatePhoneNumber(nextValue);
       setErrors((prev) => ({ ...prev, phone_number: err }));
     }
   };
@@ -112,23 +114,25 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   // ✅ Handle Additional Contact Input (with live validation)
   const handleNewContactChange = (e) => {
     const { name, value } = e.target;
-    setNewContact((prev) => ({ ...prev, [name]: value }));
+    const nextValue =
+      name === "phone_number" ? value.replace(/\D/g, "").slice(0, 11) : value;
+    setNewContact((prev) => ({ ...prev, [name]: nextValue }));
 
     if (name === "phone_number") {
-      const err = validatePhoneNumber(value);
+      const err = validatePhoneNumber(nextValue);
       setContactErrors((prev) => ({ ...prev, phone_number: err }));
     }
 
     if (name === "email") {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const err = !emailRegex.test(value)
+      const err = !emailRegex.test(nextValue)
         ? "Please enter a valid email address."
         : null;
       setContactErrors((prev) => ({ ...prev, email: err }));
     }
 
     if (name === "contact_person") {
-      const err = value.trim() ? null : "Contact person is required.";
+      const err = nextValue.trim() ? null : "Contact person is required.";
       setContactErrors((prev) => ({ ...prev, contact_person: err }));
     }
   };
@@ -322,6 +326,12 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
             <input
               type="text"
               name="phone_number"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              maxLength={11}
               value={formData.phone_number}
               onChange={handleChange}
               className={`w-full border p-2 rounded ${
@@ -515,6 +525,12 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
                 type="text"
                 name="phone_number"
                 placeholder="Phone Number"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                maxLength={11}
                 value={newContact.phone_number}
                 onChange={handleNewContactChange}
                 className={`w-full border p-2 rounded ${

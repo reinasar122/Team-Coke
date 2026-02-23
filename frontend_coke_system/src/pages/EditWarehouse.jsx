@@ -74,24 +74,26 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
   // ✅ Handle field changes with live validation
   const handleChange = (e) => {
     const { name, value } = e.target;
+    const nextValue =
+      name === "phone_number" ? value.replace(/\D/g, "").slice(0, 11) : value;
 
     setFormData((prev) => {
       if (name === "region")
-        return { ...prev, region: value, province: "", city: "", barangay: "" };
+        return { ...prev, region: nextValue, province: "", city: "", barangay: "" };
       if (name === "province")
-        return { ...prev, province: value, city: "", barangay: "" };
-      if (name === "city") return { ...prev, city: value, barangay: "" };
-      return { ...prev, [name]: value };
+        return { ...prev, province: nextValue, city: "", barangay: "" };
+      if (name === "city") return { ...prev, city: nextValue, barangay: "" };
+      return { ...prev, [name]: nextValue };
     });
 
     if (name === "phone_number") {
-      const err = validatePhoneNumber(value);
+      const err = validatePhoneNumber(nextValue);
       setErrors((prev) => ({ ...prev, phone_number: err }));
     }
 
     if (name === "email") {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const err = value && !emailRegex.test(value)
+      const err = nextValue && !emailRegex.test(nextValue)
         ? "Please enter a valid email address."
         : null;
       setErrors((prev) => ({ ...prev, email: err }));

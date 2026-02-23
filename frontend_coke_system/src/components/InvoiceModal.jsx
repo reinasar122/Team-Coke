@@ -35,8 +35,9 @@ const InvoiceModal = ({
   const getCurrentWarehouse = () => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
     const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+    const role = String(user.role || "").toLowerCase();
 
-    if (user.role?.toLowerCase() === "admin") {
+    if (role.includes("admin")) {
       return (
         selectedWarehouse || {
           id: user.warehouse_id,
@@ -128,6 +129,64 @@ const InvoiceModal = ({
   console.log("warehouse_address:", warehouse_address);
   console.log("warehouse:", warehouse);
 
+  const hasText = (value) =>
+    value !== null && value !== undefined && String(value).trim() !== "";
+  const toText = (value) => (value === null || value === undefined ? "" : String(value).trim());
+  const toWarehouseId = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  };
+
+  const resolvedWarehouseId =
+    toWarehouseId(invoiceData?.warehouse_id) ??
+    toWarehouseId(warehouse?.id) ??
+    toWarehouseId(warehouse?.warehouse_id) ??
+    toWarehouseId(typeof warehouse === "number" ? warehouse : null) ??
+    toWarehouseId(invoiceData?.currentWarehouse?.id) ??
+    toWarehouseId(currentWarehouse?.id);
+
+  const [resolvedWarehouseDetails, setResolvedWarehouseDetails] = useState(null);
+
+  useEffect(() => {
+    if (!resolvedWarehouseId) {
+      setResolvedWarehouseDetails(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    api
+      .get(`/warehouses/${resolvedWarehouseId}/`)
+      .then((res) => {
+        if (!isMounted) return;
+        const wh = res?.data || {};
+        const streetAddress = wh.street_address || wh.address || "";
+        const cityName = wh.city || "";
+        const regionName = wh.region || "";
+        const fullAddress = wh.full_address || [streetAddress, cityName, regionName].filter(Boolean).join(", ");
+
+        setResolvedWarehouseDetails({
+          id: wh.id || resolvedWarehouseId,
+          name: wh.name || wh.warehouse || "",
+          address: streetAddress,
+          city: cityName,
+          region: regionName,
+          phone: wh.phone_number || wh.phone || "",
+          email: wh.email || "",
+          fullAddress,
+        });
+      })
+      .catch(() => {
+        if (isMounted) {
+          setResolvedWarehouseDetails(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [resolvedWarehouseId]);
+
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
   const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
 
@@ -185,6 +244,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     const possibleNames = [
       warehouseName,
       warehouse_name,
+      resolvedWarehouseDetails?.name,
       warehouse?.warehouse,
       warehouse?.name,
       warehouse?.warehouse_name,
@@ -197,8 +257,9 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     ];
 
     for (const name of possibleNames) {
-      if (name && name.trim() !== "" && name.trim() !== "Warehouse") {
-        return name;
+      const cleanName = toText(name);
+      if (cleanName && cleanName.toLowerCase() !== "warehouse") {
+        return cleanName;
       }
     }
 
@@ -209,6 +270,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     const possibleAddresses = [
       warehouseAddress,
       warehouse_address,
+      resolvedWarehouseDetails?.address,
       warehouse?.address,
       warehouse?.street_address, // ✅ Add WarehouseSerializer field (en)
       invoiceData.currentWarehouse?.address,
@@ -217,8 +279,8 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     ];
 
     for (const addr of possibleAddresses) {
-      if (addr && addr.trim() !== "") {
-        return addr;
+      if (hasText(addr)) {
+        return toText(addr);
       }
     }
     return "";
@@ -228,14 +290,15 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     const possibleCities = [
       warehouseCity,
       warehouse_city,
+      resolvedWarehouseDetails?.city,
       warehouse?.city,
       invoiceData.currentWarehouse?.city,
       currentWarehouse?.city,
     ];
 
     for (const city of possibleCities) {
-      if (city && city.trim() !== "") {
-        return city;
+      if (hasText(city)) {
+        return toText(city);
       }
     }
     return "";
@@ -245,14 +308,15 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     const possibleRegions = [
       warehouseRegion,
       warehouse_region,
+      resolvedWarehouseDetails?.region,
       warehouse?.region,
       invoiceData.currentWarehouse?.region,
       currentWarehouse?.region,
     ];
 
     for (const region of possibleRegions) {
-      if (region && region.trim() !== "") {
-        return region;
+      if (hasText(region)) {
+        return toText(region);
       }
     }
     return "";
@@ -272,6 +336,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     const possiblePhones = [
       warehousePhone,
       warehouse_phone,
+      resolvedWarehouseDetails?.phone,
       warehouse?.phone,
       warehouse?.phone_number, // ✅ Add phone_number field
       invoiceData.currentWarehouse?.phone,
@@ -280,9 +345,10 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     ];
 
     for (const phone of possiblePhones) {
-      if (phone && phone.trim() !== "") {
-        console.log("✅ Found phone:", phone);
-        return phone;
+      if (hasText(phone)) {
+        const cleanPhone = toText(phone);
+        console.log("✅ Found phone:", cleanPhone);
+        return cleanPhone;
       }
     }
     console.log("❌ No phone found");
@@ -293,15 +359,16 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     const possibleEmails = [
       warehouseEmail,
       warehouse_email,
+      resolvedWarehouseDetails?.email,
       warehouse?.email,
       invoiceData.currentWarehouse?.email,
       currentWarehouse?.email,
-      invoiceData.warehouse_email, // ✅ Add direct invoiceData field
+      invoiceData.warehouse_email,
     ];
 
     for (const email of possibleEmails) {
-      if (email && email.trim() !== "") {
-        return email;
+      if (hasText(email)) {
+        return toText(email);
       }
     }
     return "";
@@ -313,10 +380,11 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     const possibleFullAddresses = [
       warehouse_full_address,
       invoiceData.warehouse_full_address,
+      resolvedWarehouseDetails?.fullAddress,
     ];
     for (const fullAddr of possibleFullAddresses) {
-      if (fullAddr && fullAddr.trim() !== "") {
-        return fullAddr;
+      if (hasText(fullAddr)) {
+        return toText(fullAddr);
       }
     }
 
@@ -554,10 +622,11 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
     warehouse: {
       name: getWarehouseName() || currentWarehouse?.name || "Warehouse",
       fullAddress: getWarehouseFullAddress() || 
+        resolvedWarehouseDetails?.fullAddress ||
         (currentWarehouse ? `${currentWarehouse.address || ""} ${currentWarehouse.city || ""} ${currentWarehouse.region || ""}`.trim().replace(/\s+/g, " ") : "") ||
         "Warehouse Address",
-      phone: getWarehousePhone() || currentWarehouse?.phone || "",
-      email: getWarehouseEmail() || currentWarehouse?.email || "",
+      phone: getWarehousePhone() || resolvedWarehouseDetails?.phone || currentWarehouse?.phone || "",
+      email: getWarehouseEmail() || resolvedWarehouseDetails?.email || currentWarehouse?.email || "",
       // Add individual fields for fallback in receipt printing
       address: getWarehouseAddress(),
       city: getWarehouseCity(),

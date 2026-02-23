@@ -6,7 +6,7 @@ import psgcData from "../data/updated_psgc_output.json";
 import { validatePhoneNumber} from "../utils/validators";
 import api from "../api"; // ✅ Use centralized API instance
 
-const WarehouseForm = ({ onClose, onSuccess }) => {
+const WarehouseForm = ({ onClose, onSuccess, existingNames = [] }) => {  // ✅ ADDED existingNames
   const [formData, setFormData] = useState({
     name: "",
     country: "Philippines",
@@ -25,9 +25,16 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
   const [barangays, setBarangays] = useState([]);
 
   const [errors, setErrors] = useState({
-    phone_number: null,
-    email: null,
-  });
+  phone_number: null,
+  email: null,
+});
+
+// 👇 function lives here (not inside state)
+const isDuplicateName = (name) => {
+  return existingNames.some(
+    (n) => n.trim().toLowerCase() === name.trim().toLowerCase()
+  );
+};
 
   // Map municipality names to zip codes
   const zipCodeMap = new Map();
@@ -87,16 +94,19 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
   // ✅ Handle change with live validation
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const nextValue =
+      name === "phone_number" ? value.replace(/\D/g, "").slice(0, 11) : value;
+
+    setFormData((prev) => ({ ...prev, [name]: nextValue }));
 
     if (name === "phone_number") {
-      const err = validatePhoneNumber(value);
+      const err = validatePhoneNumber(nextValue);
       setErrors((prev) => ({ ...prev, phone_number: err }));
     }
 
     if (name === "email") {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const err = !emailRegex.test(value)
+      const err = !emailRegex.test(nextValue)
         ? "Please enter a valid email address."
         : null;
       setErrors((prev) => ({ ...prev, email: err }));
@@ -142,11 +152,17 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
     
     window.dispatchEvent(event);
   };
+const handleSubmit = async (e) => {
+  e.preventDefault();
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  // ✅ ADDED: Check if warehouse name already exists
+  if (isDuplicateName(formData.name)) {
+    toast.error("Warehouse name already exists.", { style: errorStyle });
+    return;
+  }
 
-    if (!validateInputs()) return;
+  if (!validateInputs()) return;
+
 
     try {
       const res = await api.post("/warehouses/", formData); // ✅ Use centralized API call
@@ -349,6 +365,13 @@ const WarehouseForm = ({ onClose, onSuccess }) => {
           <input
             type="text"
             name="phone_number"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            maxLength={11}
+            value={formData.phone_number}
             className={`w-full border p-2 rounded ${
               errors.phone_number ? "border-red-500" : ""
             }`}

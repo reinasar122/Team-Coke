@@ -268,7 +268,7 @@ export default function Statistics({
     return (
       <div className="rounded-md bg-white/95 px-2 py-1 text-xs shadow border space-y-0.5">
         <div className="font-medium">{label}</div>
-        <div className="flex items-center gap-2 text-blue-600-600">
+        <div className="flex items-center gap-2 text-blue-600">
           <span className="h-2 w-2 rounded-full bg-blue-500" />
           Revenue: {peso(row.revenue ?? 0)}
         </div>
