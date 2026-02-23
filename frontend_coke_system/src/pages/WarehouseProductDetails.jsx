@@ -21,7 +21,7 @@ export default function WarehouseProductDetails() {
       return selectedWarehouse || { id: user.warehouse_id, name: user.warehouse };
     }
     return { id: user.warehouse_id, name: user.warehouse };
-  }, []);
+  }, []); 
 
   // Format a Date to YYYY-MM-DD in Asia/Manila
   const toYMD_PH = (d) =>
