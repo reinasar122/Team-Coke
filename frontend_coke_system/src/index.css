@@ -248,6 +248,62 @@ code {
   color: #cbd5e1 !important;
 }
 
+/* Keep custom Recharts money tooltip readable in dark mode */
+.dark #statistics-money-tooltip {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+  opacity: 1 !important;
+}
+
+.dark #statistics-money-tooltip * {
+  opacity: 1 !important;
+}
+
+.dark #statistics-money-tooltip .money-tooltip-label {
+  color: #0f172a !important;
+}
+
+.dark #statistics-money-tooltip .money-tooltip-row-revenue {
+  color: #2563eb !important;
+}
+
+.dark #statistics-money-tooltip .money-tooltip-row-profit {
+  color: #059669 !important;
+}
+
+/* Keep Product Performance tooltip readable in dark mode */
+.dark #product-performance-tooltip {
+  background: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #e2e8f0 !important;
+  opacity: 1 !important;
+}
+
+.dark #product-performance-tooltip * {
+  opacity: 1 !important;
+}
+
+.dark #product-performance-tooltip .product-performance-tooltip-label {
+  color: #0f172a !important;
+}
+
+.dark #product-performance-tooltip .product-performance-tooltip-row,
+.dark #product-performance-tooltip .product-performance-tooltip-row .product-performance-tooltip-row-text {
+  color: var(--product-tooltip-row-color, #334155) !important;
+}
+
+/* Ensure rank badge contrast in Top Selling widget */
+.dark .top-selling-rank-badge {
+  background-color: #334155 !important;
+  color: #f8fafc !important;
+  border-color: #475569 !important;
+}
+
+.dark .top-selling-value {
+  color: #ef4444 !important;
+}
+
 /* Icons should inherit color */
 .dark svg, .dark i {
   color: inherit;

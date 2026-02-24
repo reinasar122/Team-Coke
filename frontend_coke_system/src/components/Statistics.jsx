@@ -57,15 +57,15 @@ const Icon = {
 const GlassCard = ({ title, icon, actions, children, className = "" }) => (
   <section
     className={[
-      "rounded-2xl border bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60",
-      "border-gray-200/70 shadow-sm hover:shadow-md transition-shadow p-4",
+      "rounded-2xl border bg-white/70 dark:bg-slate-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/70",
+      "border-gray-200/70 dark:border-slate-700/70 shadow-sm hover:shadow-md transition-shadow p-4",
       className,
     ].join(" ")}
   >
     <header className="flex items-center justify-between mb-2">
       <div className="flex items-center gap-2">
         {icon}
-        <h2 className="text-sm font-semibold text-slate-900 tracking-tight">{title}</h2>
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100 tracking-tight">{title}</h2>
       </div>
       {actions}
     </header>
@@ -74,8 +74,28 @@ const GlassCard = ({ title, icon, actions, children, className = "" }) => (
 );
 
 const Skeleton = ({ className = "" }) => (
-  <div className={`animate-pulse rounded-md bg-slate-200/60 ${className}`} />
+  <div className={`animate-pulse rounded-md bg-slate-200/60 dark:bg-slate-700/50 ${className}`} />
 );
+
+const getDarkFlag = () =>
+  typeof document !== "undefined" &&
+  document.documentElement.classList.contains("dark");
+
+const useDarkFlag = () => {
+  const [isDark, setIsDark] = React.useState(getDarkFlag);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return undefined;
+
+    const syncTheme = () => setIsDark(getDarkFlag());
+    syncTheme();
+
+    window.addEventListener("themeChanged", syncTheme);
+    return () => window.removeEventListener("themeChanged", syncTheme);
+  }, []);
+
+  return isDark;
+};
 
 /* ===== chart helpers ===== */
 export const TZ = "Asia/Manila";
@@ -238,10 +258,16 @@ export default function Statistics({
   customEndDate = '', // 🔧 NEW: Add custom date support
   revenue = 0, // Pass the revenue here
 }) {
+  const isDark = useDarkFlag();
   const data = React.useMemo(
     () => mergeRevenueProfit(salesPoints, profitPoints, period, customStartDate, customEndDate),
     [salesPoints, profitPoints, period, customStartDate, customEndDate]
   );
+
+  const axisTickColor = isDark ? "#cbd5e1" : "#64748b";
+  const axisLineColor = isDark ? "#475569" : "#cbd5e1";
+  const gridStrokeColor = isDark ? "#334155" : "#cbd5e1";
+  const zeroLineColor = isDark ? "#64748b" : "#94a3b8";
 
   const maxY = React.useMemo(() => {
     const m = Math.max(0, ...data.map((d) => Math.max(d.revenue ?? 0, d.profit ?? 0)));
@@ -266,13 +292,23 @@ export default function Statistics({
     const row = payload?.[0]?.payload ?? null;
     if (!row) return null;
     return (
-      <div className="rounded-md bg-white/95 px-2 py-1 text-xs shadow border space-y-0.5">
-        <div className="font-medium">{label}</div>
-        <div className="flex items-center gap-2 text-blue-600">
+      <div
+        id="statistics-money-tooltip"
+        data-money-tooltip
+        className="money-tooltip rounded-md px-2 py-1 text-xs shadow border space-y-0.5"
+        style={{
+          background: "#ffffff",
+          color: "#0f172a",
+          borderColor: "#e2e8f0",
+          opacity: 1,
+        }}
+      >
+        <div className="money-tooltip-label font-medium" style={{ color: "#0f172a" }}>{label}</div>
+        <div className="money-tooltip-row-revenue flex items-center gap-2" style={{ color: "#2563eb" }}>
           <span className="h-2 w-2 rounded-full bg-blue-500" />
           Revenue: {peso(row.revenue ?? 0)}
         </div>
-        <div className="flex items-center gap-2 text-emerald-600">
+        <div className="money-tooltip-row-profit flex items-center gap-2" style={{ color: "#059669" }}>
           <span className="h-2 w-2 rounded-full bg-emerald-500" />
           Profit: {peso(row.profit ?? 0)}
         </div>
@@ -343,18 +379,29 @@ export default function Statistics({
                   </linearGradient>
                 </defs>
 
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="x" tick={{ fontSize: 11 }} />
+                <CartesianGrid stroke={gridStrokeColor} strokeOpacity={0.95} strokeDasharray="3 3" vertical={false} />
+                <XAxis
+                  dataKey="x"
+                  tick={{ fontSize: 11, fill: axisTickColor }}
+                  axisLine={{ stroke: axisLineColor }}
+                  tickLine={{ stroke: axisLineColor }}
+                />
                 <YAxis
                   yAxisId="left"
                   tickFormatter={pesoShort}
                   width={60}
                   domain={[minY, maxY]}
-                  tick={{ fontSize: 11 }}
+                  tick={{ fontSize: 11, fill: axisTickColor }}
+                  axisLine={{ stroke: axisLineColor }}
+                  tickLine={{ stroke: axisLineColor }}
                 />
-                <Tooltip content={<MoneyTooltip />} />
-                <Legend verticalAlign="top" height={24} />
-                <ReferenceLine y={0} yAxisId="left" stroke="#cbd5e1" strokeDasharray="3 3" />
+                <Tooltip
+                  content={<MoneyTooltip />}
+                  isAnimationActive={false}
+                  wrapperStyle={{ opacity: 1, zIndex: 50 }}
+                />
+                <Legend verticalAlign="top" height={24} wrapperStyle={{ color: axisTickColor }} />
+                <ReferenceLine y={0} yAxisId="left" stroke={zeroLineColor} strokeOpacity={0.95} strokeDasharray="3 3" />
 
                 {/* Revenue area */}
                 <Area

@@ -117,6 +117,48 @@ export default function ProductPerformance({
   categoryResolver = undefined,
   topK = 3,
 }) {
+  const ProductTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+
+    const rows = payload.filter((item) => item && item.value != null);
+    if (!rows.length) return null;
+
+    return (
+      <div
+        id="product-performance-tooltip"
+        className="rounded-md px-2 py-1 text-xs shadow border space-y-1"
+        style={{
+          background: "#ffffff",
+          color: "#0f172a",
+          borderColor: "#e2e8f0",
+          opacity: 1,
+        }}
+      >
+        <div className="product-performance-tooltip-label font-medium" style={{ color: "#0f172a" }}>
+          {label}
+        </div>
+        {rows.map((item) => (
+          <div
+            key={item.dataKey || item.name}
+            className="product-performance-tooltip-row flex items-center gap-2"
+            style={{
+              color: item.color || item.stroke || "#64748b",
+              "--product-tooltip-row-color": item.color || item.stroke || "#64748b",
+            }}
+          >
+            <span
+              className="product-performance-tooltip-dot h-2 w-2 rounded-full"
+              style={{ backgroundColor: item.color || item.stroke || "#64748b" }}
+            />
+            <span className="product-performance-tooltip-row-text">
+              {item.name}: {peso(item.value ?? 0)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const src = Array.isArray(data) && data.length > 0 ? data : [];
 
   // 🛠️ FIX 1: Build productKeys as a UNION across ALL rows (not just the first row)
@@ -220,18 +262,24 @@ export default function ProductPerformance({
   }, [categoryChartData, categoryKeys, topK]);
 
   return (
-    <div className="w-full rounded-2xl p-4 bg-white shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-800 mb-2">{title}</h3>
+    <div
+      className={[
+        "w-full rounded-2xl p-4",
+        "border bg-white/70 dark:bg-slate-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/70",
+        "border-gray-200/70 dark:border-slate-700/70 shadow-sm hover:shadow-md transition-shadow",
+      ].join(" ")}
+    >
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">{title}</h3>
 
       <div style={{ width: "100%", height }}>
         <ResponsiveContainer>
           <LineChart data={categoryChartData} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
-            <CartesianGrid vertical={false} stroke="#e5e7eb" strokeDasharray="3 6" />
+            <CartesianGrid vertical={false} stroke="#cbd5e1" strokeOpacity={0.95} strokeDasharray="3 6" />
             <XAxis
               dataKey="x"
               tick={{ fontSize: 11, fill: "#94a3b8" }}
               tickLine={false}
-              axisLine={{ stroke: "#e5e7eb" }}
+              axisLine={{ stroke: "#cbd5e1" }}
               interval="preserveStartEnd"
             />
             <YAxis
@@ -239,11 +287,12 @@ export default function ProductPerformance({
               tick={{ fontSize: 11, fill: "#94a3b8" }}
               width={78}
               tickLine={false}
-              axisLine={{ stroke: "#e5e7eb" }}
+              axisLine={{ stroke: "#cbd5e1" }}
             />
             <Tooltip
-              formatter={(v, name) => [peso(v), name]}
-              contentStyle={{ borderRadius: 8, borderColor: "#e5e7eb" }}
+              content={<ProductTooltip />}
+              isAnimationActive={false}
+              wrapperStyle={{ opacity: 1, zIndex: 50 }}
             />
             {categoryKeys.map((cat, idx) => (
               <Line

@@ -70,19 +70,19 @@ const Icon = {
   ),
 };
 
-function MetricCard({ title, value, gradient, bgGradient, IconComp }) {
+function MetricCard({ title, value, gradient, bgGradient, darkBgGradient, IconComp }) {
   return (
     <div
-      className={`bg-gradient-to-br ${bgGradient} rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5`}
+      className={`bg-gradient-to-br ${bgGradient} ${darkBgGradient} rounded-xl border border-white/70 dark:border-slate-700/70 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5`}
     >
       <div className="px-4 pt-4 pb-2 flex items-center justify-between">
-        <div className="text-sm font-medium text-gray-700">{title}</div>
-        <div className={`p-2 rounded-lg bg-gradient-to-r ${gradient}`}>
+        <div className="text-sm font-medium text-gray-700 dark:text-slate-200">{title}</div>
+        <div className={`p-2 rounded-lg bg-gradient-to-r ${gradient} ring-1 ring-white/20`}>
           <IconComp />
         </div>
       </div>
       <div className="px-4 pb-4">
-        <div className="text-2xl font-bold text-gray-900">{value}</div>
+        <div className="text-2xl font-bold text-gray-900 dark:text-white">{value}</div>
       </div>
     </div>
   );
@@ -106,13 +106,15 @@ export default function MetricsCards({ data = {} }) {
       IconComp: Icon.Dollar,
       gradient: "from-cyan-500 to-blue-600",
       bgGradient: "from-cyan-50 to-blue-50",
+      darkBgGradient: "dark:from-slate-900 dark:to-cyan-950/70",
     },
     {
       title: "Products Sold",
       value: Number(data.productsSold || 0).toLocaleString(),
       IconComp: Icon.Box,
-     gradient: "from-purple-500 to-pink-600",
+      gradient: "from-purple-500 to-pink-600",
       bgGradient: "from-purple-50 to-pink-50",
+      darkBgGradient: "dark:from-slate-900 dark:to-fuchsia-950/70",
     },
     {
       title: "Supplier Returnables",
@@ -120,13 +122,15 @@ export default function MetricsCards({ data = {} }) {
       IconComp: Icon.Rotate,
       gradient: "from-orange-500 to-red-600",
       bgGradient: "from-orange-50 to-red-50",
+      darkBgGradient: "dark:from-slate-900 dark:to-orange-950/70",
     },
     {
       title: "Misc. Charges",
       value: peso(data.miscCharges),
       IconComp: Icon.Card,
-     gradient: "from-yellow-500 to-yellow-600",
+      gradient: "from-yellow-500 to-yellow-600",
       bgGradient: "from-yellow-50 to-yellow-50",
+      darkBgGradient: "dark:from-slate-900 dark:to-amber-950/70",
     },
     {
       title: "Actual Profit",
@@ -137,6 +141,7 @@ export default function MetricsCards({ data = {} }) {
       IconComp: Icon.Trend,
       gradient: "from-green-500 to-emerald-600",
       bgGradient: "from-green-50 to-emerald-50",
+      darkBgGradient: "dark:from-slate-900 dark:to-emerald-950/70",
     },
   ];
 
@@ -149,6 +154,7 @@ export default function MetricsCards({ data = {} }) {
           value={m.value}
           gradient={m.gradient}
           bgGradient={m.bgGradient}
+          darkBgGradient={m.darkBgGradient}
           IconComp={m.IconComp}
         />
       ))}

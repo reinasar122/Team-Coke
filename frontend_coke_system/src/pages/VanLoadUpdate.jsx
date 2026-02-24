@@ -115,29 +115,43 @@ const shouldDisableEditableField = (row, field) => {
 
 const VanLoadUpdate = () => {
 
-  // ✅ BLOCK remittance if ANY row has no sold value
+  // ✅ STRICT VALIDATION: Every product must have activity
 const validateSoldBeforeRemit = () => {
   if (!Array.isArray(rows) || rows.length === 0) {
-    showAlert("Sold is required.");
+    showAlert("No products found.");
     return false;
   }
 
-  // ❗ EVERY row must have sold
-  const hasInvalidRow = rows.some((r) => {
+    // Find rows that have NO movement
+  const invalidRows = rows.filter((r) => {
     const soldShell = Number(r?.sold_shell || 0);
     const soldPcs = Number(r?.sold_pcs || 0);
-    return soldShell <= 0 && soldPcs <= 0;
+
+    const returnedShell = Number(r?.actual_return_shell || 0);
+    const returnedPcs = Number(r?.actual_return_pcs || 0);
+
+     // ❌ No sold AND no returned-with-content
+    return (
+      soldShell <= 0 &&
+      soldPcs <= 0 &&
+      returnedShell <= 0 &&
+      returnedPcs <= 0
+    );
   });
 
-  if (hasInvalidRow) {
-    showAlert("Sold is required for all products before remittance.");
+    if (invalidRows.length > 0) {
+    showAlert(
+      "Each product must have a Sold value or Returned (With Content/s). " 
+      //"Please complete all rows before remittance."
+    );
     return false;
   }
 
   return true;
 };
-//update of blocking remittance end
 
+
+//update of blocking remittance end
   const location = useLocation();
   const navigate = useNavigate();
   const { addNotification } = useNotifications();

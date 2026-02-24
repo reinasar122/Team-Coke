@@ -29,6 +29,13 @@ const dedupeMessage = (msg) =>
     .replace(/\.\s*$/, "") 
     .replace(/\s+/g, " ") + ".";
 
+const PERMISSION_KEYS = ["full_access", "view", "create", "edit", "delete"];
+
+const hasAnySelectedPermission = (permissions) =>
+  Object.values(permissions || {}).some((perms) =>
+    PERMISSION_KEYS.some((key) => !!perms?.[key])
+  );
+
 const initializePermissions = (role) => {
   const permissions = {};
   Object.values(MODULES).flat().forEach((submenu) => {
@@ -117,6 +124,7 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
   const [roleName, setRoleName] = useState("Admin");
   const [permissions, setPermissions] = useState(initializePermissions("Admin"));
   const [saving, setSaving] = useState(false);
+  const hasSelectedPermission = hasAnySelectedPermission(permissions);
 
   const handleRoleChange = (e) => {
     const newRole = e.target.value;
@@ -158,6 +166,12 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
   if (!trimmed) {
     toast.dismiss();
     toast.error("Role name is required.", { style: errorStyle });
+    return;
+  }
+
+  if (!hasAnySelectedPermission(permissions)) {
+    toast.dismiss();
+    toast.error("Select at least one permission before saving.", { style: errorStyle });
     return;
   }
 
@@ -251,9 +265,12 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
             Cancel
           </button>
           <button
-            className="px-6 py-2 btn btn-primary"
+            className={`px-6 py-2 btn btn-primary ${
+              !hasSelectedPermission ? "opacity-50 cursor-not-allowed" : ""
+            }`}
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || !hasSelectedPermission}
+            type="button"
           >
             {saving ? "Saving..." : "Save Permissions"}
           </button>

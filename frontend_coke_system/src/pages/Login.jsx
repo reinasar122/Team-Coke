@@ -77,6 +77,7 @@ const Login = () => {
   const [signupPhone, setSignupPhone] = useState("");
 
   const recentNumbersRef = useRef(null);
+  const signInPasswordRef = useRef(null);
 
   // ✅ Load recent numbers on mount
   useEffect(() => {
@@ -93,6 +94,23 @@ const Login = () => {
       const savedPhone = localStorage.getItem("rememberPhoneNumber") || "";
       if (savedPhone) setPhoneNumber(savedPhone);
     }
+  }, []);
+
+  // Keep password blank on fresh page load (browser/password manager may try to autofill it).
+  useEffect(() => {
+    const clearAutofilledPassword = () => {
+      setPassword("");
+      if (signInPasswordRef.current) signInPasswordRef.current.value = "";
+    };
+
+    clearAutofilledPassword();
+    const t1 = setTimeout(clearAutofilledPassword, 120);
+    const t2 = setTimeout(clearAutofilledPassword, 400);
+
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
   }, []);
 
   // ✅ Save recent numbers (top 5)
@@ -170,6 +188,20 @@ const Login = () => {
     }
   };
 
+    const handleVerifyOtpClose = async () => {
+    if (otpMode === "signup" && signupPhone) {
+      try {
+        await api.post("/cancel-phone-signup/", { phone_number: signupPhone });
+      } catch (err) {
+        // Best-effort cleanup only; backend now also allows retrying unverified signup.
+        console.warn("Failed to cancel pending signup:", err?.response?.data || err.message);
+      }
+      localStorage.removeItem("signupPhone");
+      setSignupPhone("");
+    }
+
+    setShowVerifyOTPModal(false);
+  };
   // Password Complexity Validation
   const passwordComplexityRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
   const [passwordError, setPasswordError] = useState("");
@@ -281,20 +313,12 @@ const Login = () => {
       const res = await api.post(isSignUp ? "/register/" : "/login/", formData);
 
       if (isSignUp) {
-        try {
-          const otpRes = await api.post("/send-phone-otp/", { phone_number: phoneNumber.trim() });
-          if (otpRes.status === 200) {
-            setSignupPhone(phoneNumber);
-            localStorage.setItem("signupPhone", phoneNumber);
-            setOtpMode("signup");
-            setShowVerifyOTPModal(true);
-            setLoading(false);
-          }
-        } catch (otpErr) {
-          setError(otpErr.response?.data?.error || "Failed to send OTP. Please try again.");
-          setLoading(false);
-          return;
-        }
+        const signupPhoneNumber = phoneNumber.trim();
+        setSignupPhone(signupPhoneNumber);
+        localStorage.setItem("signupPhone", signupPhoneNumber);
+        setOtpMode("signup");
+        setShowVerifyOTPModal(true);
+        setLoading(false);
         return;
       }
 
@@ -436,7 +460,13 @@ const Login = () => {
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-5">
+          <form onSubmit={handleLogin} className="space-y-5" autoComplete="off">
+            {!isSignUp && (
+              <div className="sr-only" aria-hidden="true">
+                <input type="text" name="fake-username" autoComplete="username" tabIndex={-1} />
+                <input type="password" name="fake-password" autoComplete="current-password" tabIndex={-1} />
+              </div>
+            )}
             {isSignUp ? (
               <>
                 {/* Sign Up Form */}
@@ -590,11 +620,13 @@ const Login = () => {
                   <label className="block text-sm font-medium text-gray-200 mb-2">Phone Number</label>
                   <input
                     type="text"
+                    name="signin-phone"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     autoCorrect="off"
                     autoCapitalize="off"
                     spellCheck={false}
+                    autoComplete="off"
                     value={phoneNumber}
                     onChange={handlePhoneNumberChange}
                     placeholder="Enter phone number"
@@ -637,6 +669,8 @@ const Login = () => {
                   <label className="block text-sm font-medium text-gray-200 mb-2">Password</label>
                   <div className="relative">
                     <input
+                      ref={signInPasswordRef}
+                      name="signin-password"
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
@@ -646,7 +680,9 @@ const Login = () => {
                       onBlur={() => setCapsLockOn(false)}
                       placeholder="••••••••"
                       required
-                      autoComplete="current-password"
+                      autoComplete="new-password"
+                      data-lpignore="true"
+                      data-1p-ignore="true"
                       className="w-full rounded-xl border border-gray-400/50 px-4 py-3 pr-12 text-base text-white placeholder-gray-300 bg-white/10
                       focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
                       focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
@@ -756,7 +792,7 @@ const Login = () => {
         <VerifyOTPModal
           mode={otpMode}
           phone={otpMode === "signup" ? signupPhone : localStorage.getItem("resetPhoneNumber")}
-          onClose={() => setShowVerifyOTPModal(false)}
+          onClose={handleVerifyOtpClose}
           onVerified={handleOtpVerified}
         />
       )}

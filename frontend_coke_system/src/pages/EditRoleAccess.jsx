@@ -83,6 +83,16 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
 
   // ✅ Save using your axios instance
   const handleSave = async () => {
+    const hasSelectedPermission = Object.values(permissions).some((perms) =>
+      ["full_access", "view", "create", "edit", "delete"].some(
+        (key) => !!perms?.[key]
+      )
+    );
+
+    if (!hasSelectedPermission) {
+      return;
+    }
+
     const payload = Object.entries(permissions).map(([submenu, perms]) => ({
       role: roleId,
       submenu,
@@ -129,6 +139,12 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
       </div>
     );
 
+  const hasSelectedPermission = Object.values(permissions).some((perms) =>
+    ["full_access", "view", "create", "edit", "delete"].some(
+      (key) => !!perms?.[key]
+    )
+  );
+
   return (
     <div>
       <h2 className="text-lg font-bold mb-4">
@@ -149,7 +165,14 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
         <button className="px-4 py-2 btn btn-cancel" onClick={onClose}>
           Cancel
         </button>
-        <button className="px-6 py-2 btn btn-primary" onClick={handleSave}>
+        <button
+          className={`px-6 py-2 btn btn-primary ${
+            !hasSelectedPermission ? "opacity-50 cursor-not-allowed" : ""
+          }`}
+          onClick={handleSave}
+          disabled={!hasSelectedPermission}
+          type="button"
+        >
           Save
         </button>
       </div>

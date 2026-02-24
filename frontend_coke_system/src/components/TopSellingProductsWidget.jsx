@@ -64,25 +64,31 @@ export default function TopSellingProductsWidget({
   }, [series, from, to, topN]);
 
   return (
-    <div className="w-full rounded-2xl p-4 bg-white shadow-sm">
-      <h3 className="text-sm font-semibold text-slate-800 mb-2">{title}</h3>
+    <div
+      className={[
+        "w-full rounded-2xl p-4",
+        "border bg-white/70 dark:bg-slate-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/70",
+        "border-gray-200/70 dark:border-slate-700/70 shadow-sm hover:shadow-md transition-shadow",
+      ].join(" ")}
+    >
+      <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">{title}</h3>
       {!series || series.length === 0 ? (
-        <div className="text-xs text-slate-500">No product sales data.</div>
+        <div className="text-xs text-slate-500 dark:text-slate-300">No product sales data.</div>
       ) : rows.length === 0 ? (
-        <div className="text-xs text-slate-500">No sales for the selected period.</div>
+        <div className="text-xs text-slate-500 dark:text-slate-300">No sales for the selected period.</div>
       ) : (
-        <ul className="text-xs text-slate-700 divide-y">
+        <ul className="text-xs text-slate-700 dark:text-slate-200 divide-y divide-slate-200 dark:divide-slate-700">
           {rows.map((r, i) => (
             <li key={r.name} className="py-2 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-semibold w-10 text-center">
+                <span className="top-selling-rank-badge px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 font-semibold w-10 text-center border border-transparent dark:border-slate-600">
                   {i + 1}
                 </span>
                 <span className="font-medium truncate max-w-[180px]" title={r.name}>
                   {r.name}
                 </span>
               </div>
-              <span className="text-red-600 font-semibold">{peso(r.value)}</span>
+              <span className="top-selling-value text-red-600 dark:text-red-600 font-semibold">{peso(r.value)}</span>
             </li>
           ))}
         </ul>
