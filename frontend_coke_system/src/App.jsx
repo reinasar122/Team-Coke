@@ -163,14 +163,14 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
   const lockScroll = lockPrefixes.some(p => path === p || path.startsWith(p + "/"));
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="app-shell flex flex-col h-screen">
       {!hideLayout && <Header toggleSidebar={toggleSidebar} />}
       <div className="flex flex-1">
         {!hideLayout && <Sidebar isSidebarOpen={isSidebarOpen} />}
 
         {/* 👇 app-content + conditional lock */}
         <div
-          className={`app-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${
+          className={`app-content app-shell-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${
             !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
           }`}
         >

@@ -1068,41 +1068,49 @@ const SupplierReturnForm = () => {
                         />
                       </td>
                       <td>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={item.qty_shell}
-                          onFocus={(e) => e.target.value === "0" && handleItemChange(index, "qty_shell", "")}
-                          onBlur={(e) => {
-                            if (e.target.value === "") {
-                              handleItemChange(index, "qty_shell", "0");
-                            }
-                          }}
-                          onChange={(e) => handleItemChange(index, "qty_shell", e.target.value)}
-                          disabled={!form.supplier}
-                          className="input"
-                          style={{ border: '1px solid var(--border)', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)', background: !form.supplier ? 'var(--bg)' : '', cursor: !form.supplier ? 'not-allowed' : 'text' }}
-                        />
+                      <input
+  type="text"
+  inputMode="numeric"
+  pattern="[0-9]*"
+  value={item.qty_shell}
+  onChange={(e) => handleItemChange(index, "qty_shell", e.target.value)}
+  disabled={!form.supplier || !item.product}
+  className="input"
+  style={{
+    border: '1px solid var(--border)',
+    padding: 'var(--sp-2)',
+    borderRadius: 'var(--r-sm)',
+    background: (!form.supplier || !item.product) ? 'var(--bg)' : 'var(--surface)',
+    cursor: (!form.supplier || !item.product) ? 'not-allowed' : 'text',
+    textAlign: 'left'
+  }}
+/>
                       </td>
                       <td>
                         {/* ✅ BOTH behaviors: Auto-calculates when shell changes, but can be manually edited */}
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          pattern="[0-9]*"
-                          value={item.qty_pcs}
-                          onFocus={(e) => e.target.value === "0" && handleItemChange(index, "qty_pcs", "")}
-                          onBlur={(e) => {
-                            if (e.target.value === "") {
-                              handleItemChange(index, "qty_pcs", "0");
-                            }
-                          }}
-                          onChange={(e) => handleItemChange(index, "qty_pcs", e.target.value)}
-                          disabled={!form.supplier}
-                          className="input"
-                          style={{ border: '1px solid var(--border)', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)', background: !form.supplier ? 'var(--bg)' : '', cursor: !form.supplier ? 'not-allowed' : 'text' }}
-                        />
+                       <input
+  type="text"
+  inputMode="numeric"
+  pattern="[0-9]*"
+  value={item.qty_pcs}
+  onFocus={(e) => e.target.value === "0" && handleItemChange(index, "qty_pcs", "")}
+  onBlur={(e) => {
+    if (e.target.value === "") {
+      handleItemChange(index, "qty_pcs", "0");
+    }
+  }}
+  onChange={(e) => handleItemChange(index, "qty_pcs", e.target.value)}
+  disabled={!form.supplier || !item.product}
+  className="input"
+  style={{
+    border: '1px solid var(--border)',
+    padding: 'var(--sp-2)',
+    borderRadius: 'var(--r-sm)',
+    background: (!form.supplier || !item.product) ? 'var(--bg)' : 'var(--surface)',
+    cursor: (!form.supplier || !item.product) ? 'not-allowed' : 'text',
+    textAlign: 'left'
+  }}
+/>
                       </td>
                       <td>
                         <input

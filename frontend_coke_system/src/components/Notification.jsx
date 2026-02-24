@@ -1,5 +1,6 @@
 // src/components/Notification.jsx - COMPLETE FIXED VERSION WITH BACKEND INTEGRATION
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
   faBell, 
@@ -32,6 +33,7 @@ import {
 import api from '../api'; // ✅ Using centralized API instance
 import { useNotifications } from '../contexts/NotificationContext';
 import { getCurrentWarehouse, getWarehouseAxiosConfig, getWarehouseQueryParam, findWarehouseByName } from '../utils/warehouseUtils';
+import { getStockThresholds, calculateStockStatus } from '../utils/stockThresholds';
 
 // ✅ NEW: Backend notification API helper functions
 const NotificationAPI = {
@@ -123,6 +125,27 @@ const mapApprovalRequestToNotification = (requestItem, fallbackWarehouseId = nul
   },
 });
 
+const buildStockAlertPayload = (stock, warehouseId) => {
+  const parsedQty = Number.parseInt(stock?.quantity_available ?? 0, 10);
+  const quantity = Number.isFinite(parsedQty) ? parsedQty : 0;
+  const thresholds = getStockThresholds();
+  const computedStatus = calculateStockStatus(quantity);
+
+  return {
+    quantity,
+    computedStatus,
+    payload: {
+      ...stock,
+      warehouse_id: warehouseId,
+      product_name: stock?.product_name || `Product ${stock?.id ?? 'Unknown'}`,
+      quantity_available: quantity,
+      stock_status: computedStatus,
+      minimum_stock: thresholds.low_threshold,
+      stock_thresholds: thresholds,
+    },
+  };
+};
+
 const Notification = ({ closeProfile }) => {
   const { state, dispatch, addNotification, hasNotificationPermission } = useNotifications();
   const { notifications } = state;
@@ -150,6 +173,7 @@ const Notification = ({ closeProfile }) => {
   
   const dropdownRef = useRef(null);
   const optionsRef = useRef(null);
+  const detailModalBodyRef = useRef(null);
   const processedIdsRef = useRef(new Set(JSON.parse(localStorage.getItem('processedNotificationIds') || '[]')));
   const initializationRef = useRef(false);
   const notificationsRef = useRef(notifications);
@@ -752,6 +776,24 @@ const Notification = ({ closeProfile }) => {
     setSelectedNotification(null);
   };
 
+  useEffect(() => {
+    if (!showDetailModal) return undefined;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const resetTimer = window.setTimeout(() => {
+      if (detailModalBodyRef.current) {
+        detailModalBodyRef.current.scrollTop = 0;
+      }
+    }, 0);
+
+    return () => {
+      window.clearTimeout(resetTimer);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [showDetailModal, selectedNotification?.id]);
+
    const isPendingVanLoadEditRequest = useCallback((notification) => {
     if (!notification) return false;
     const reqId = notification.data?.request_id;
@@ -846,10 +888,13 @@ const Notification = ({ closeProfile }) => {
     switch (notification.type) {
       case 'low_stock':
       case 'out_of_stock':
+        {
+          const qty = Number.parseInt(data.quantity_available ?? 0, 10);
+          const derivedStockStatus = calculateStockStatus(Number.isFinite(qty) ? qty : 0);
         details.push(
           { label: 'Product', value: safeToString(data.product_name || 'Unknown Product') },
           { label: 'Available Quantity', value: safeToString(data.quantity_available || 0) },
-          { label: 'Stock Status', value: safeToString(data.stock_status || 'Unknown') }
+          { label: 'Stock Status', value: safeToString(data.stock_status || derivedStockStatus || 'Unknown') }
         );
         if (data.minimum_stock) {
           details.push({ label: 'Minimum Stock', value: safeToString(data.minimum_stock) });
@@ -861,6 +906,7 @@ const Notification = ({ closeProfile }) => {
           details.push({ label: 'Summary', value: safeToString(data.summary_details || 'Multiple items need attention') });
         }
         break;
+        }
 
       case 'stock_adjustment':
         details.push(
@@ -1366,6 +1412,7 @@ const Notification = ({ closeProfile }) => {
     const warehouseId = currentWarehouseId;
     const processedIds = processedIdsRef.current;
     let newNotifications = 0;
+    let processedIdsUpdated = false;
 
     try {
       // ✅ Using warehouse utils for consistent configuration
@@ -1385,31 +1432,40 @@ const Notification = ({ closeProfile }) => {
 
       stocks.forEach(stock => {
         const stockId = `stock-${stock.id}-${warehouseId}`;
-        const status = (stock.stock_status || "").toLowerCase();
-        const currentQuantity = parseInt(stock.quantity_available || 0);
+        const { quantity: currentQuantity, computedStatus, payload: stockAlertPayload } = buildStockAlertPayload(stock, warehouseId);
         const previousQuantity = previousStocks[stock.id]?.quantity;
         const lastChecked = previousStocks[stock.id]?.timestamp;
+        const outKey = stockId + "-out";
+        const lowKey = stockId + "-low";
+
+        // Re-arm stock alerts when item recovers, so future low/out events notify again
+        if (computedStatus !== "Out of Stock") {
+          if (processedIds.delete(outKey)) {
+            processedIdsUpdated = true;
+          }
+        }
+        if (computedStatus !== "Low") {
+          if (processedIds.delete(lowKey)) {
+            processedIdsUpdated = true;
+          }
+        }
         
         // CHECK FOR OUT OF STOCK
-        if ((currentQuantity === 0 || status.includes("out")) && !processedIds.has(stockId + "-out")) {
+        if (computedStatus === "Out of Stock" && !processedIds.has(outKey)) {
           createNotificationWithBackend('out_of_stock', { 
-            ...stock, 
-            warehouse_id: warehouseId,
-            product_name: stock.product_name || `Product ${stock.id}`,
-            quantity_available: currentQuantity
+            ...stockAlertPayload,
           }, userRole);
-          processedIds.add(stockId + "-out");
+          processedIds.add(outKey);
+          processedIdsUpdated = true;
           newNotifications++;
         }
         // CHECK FOR LOW STOCK (but not out of stock)
-        else if (status.includes("low") && currentQuantity > 0 && !processedIds.has(stockId + "-low")) {
+        else if (computedStatus === "Low" && currentQuantity > 0 && !processedIds.has(lowKey)) {
           createNotificationWithBackend('low_stock', { 
-            ...stock, 
-            warehouse_id: warehouseId,
-            product_name: stock.product_name || `Product ${stock.id}`,
-            quantity_available: currentQuantity
+            ...stockAlertPayload,
           }, userRole);
-          processedIds.add(stockId + "-low");
+          processedIds.add(lowKey);
+          processedIdsUpdated = true;
           newNotifications++;
         }
 
@@ -1473,7 +1529,7 @@ const Notification = ({ closeProfile }) => {
       localStorage.setItem(previousStocksKey, JSON.stringify(previousStocks));
 
       // SAVE PROCESSED IDS
-      if (newNotifications > 0) {
+      if (newNotifications > 0 || processedIdsUpdated) {
         localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIds]));
         processedIdsRef.current = processedIds;
         
@@ -1514,30 +1570,23 @@ const Notification = ({ closeProfile }) => {
       const outOfStockItems = [];
 
       stocks.forEach(stock => {
-        const status = (stock.stock_status || "").toLowerCase();
-        const currentQuantity = parseInt(stock.quantity_available || 0);
+        const { quantity: currentQuantity, computedStatus, payload: stockAlertPayload } = buildStockAlertPayload(stock, warehouseId);
         
         // Check for out of stock - always notify on login
-        if (currentQuantity === 0 || status.includes("out")) {
-          outOfStockItems.push(stock.product_name || `Product ${stock.id}`);
+        if (computedStatus === "Out of Stock") {
+          outOfStockItems.push(stockAlertPayload.product_name);
           createNotificationWithBackend('out_of_stock', { 
-            ...stock, 
-            warehouse_id: warehouseId,
-            product_name: stock.product_name || `Product ${stock.id}`,
-            quantity_available: currentQuantity,
+            ...stockAlertPayload,
             login_check: true,
             id: `login-out-${stock.id}-${Date.now()}` // Unique ID for login check
           }, userRole);
           loginNotifications++;
         }
         // Check for low stock - always notify on login
-        else if (status.includes("low") && currentQuantity > 0) {
-          lowStockItems.push(`${stock.product_name || `Product ${stock.id}`} (${currentQuantity} left)`);
+        else if (computedStatus === "Low" && currentQuantity > 0) {
+          lowStockItems.push(`${stockAlertPayload.product_name} (${currentQuantity} left)`);
           createNotificationWithBackend('low_stock', { 
-            ...stock, 
-            warehouse_id: warehouseId,
-            product_name: stock.product_name || `Product ${stock.id}`,
-            quantity_available: currentQuantity,
+            ...stockAlertPayload,
             login_check: true,
             id: `login-low-${stock.id}-${Date.now()}` // Unique ID for login check
           }, userRole);
@@ -3582,6 +3631,33 @@ useEffect(() => {
     };
   }, [checkStockNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
 
+  // Keep inventory alerts in sync with Stocks.jsx and Settings.jsx threshold updates
+  useEffect(() => {
+    const handleNewStockNotification = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        setTimeout(() => {
+          checkStockNotifications();
+        }, 150);
+      }
+    };
+
+    const handleStockThresholdsChanged = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        setTimeout(() => {
+          checkStockNotifications();
+        }, 200);
+      }
+    };
+
+    window.addEventListener('newStockNotification', handleNewStockNotification);
+    window.addEventListener('stockThresholdsChanged', handleStockThresholdsChanged);
+
+    return () => {
+      window.removeEventListener('newStockNotification', handleNewStockNotification);
+      window.removeEventListener('stockThresholdsChanged', handleStockThresholdsChanged);
+    };
+  }, [checkStockNotifications, isLoaded, userDataReady, currentWarehouseId]);
+
   // Listen for page navigation/route changes
   useEffect(() => {
     const handlePageChange = () => {
@@ -4052,9 +4128,9 @@ useEffect(() => {
       </div>
 
       {/* Notification Detail Modal with proper X button behavior */}
-      {showDetailModal && selectedNotification && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999] p-4">
-          <div className="notification-detail-modal bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+      {showDetailModal && selectedNotification && createPortal(
+        <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center z-[9999] p-4 sm:p-6 overflow-y-auto">
+          <div className="notification-detail-modal my-16 sm:my-0 bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
               <div className="flex items-start justify-between">
@@ -4129,7 +4205,7 @@ useEffect(() => {
             </div>
 
             {/* Modal Body */}
-            <div className="p-6 max-h-[60vh] overflow-y-auto">
+            <div ref={detailModalBodyRef} className="p-6 flex-1 overflow-y-auto">
               {/* Notification Details */}
               <div className="space-y-4">
                 {/* Basic Information */}
@@ -4239,7 +4315,8 @@ useEffect(() => {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

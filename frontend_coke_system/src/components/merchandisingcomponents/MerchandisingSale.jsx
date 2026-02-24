@@ -99,6 +99,7 @@ const MerchandisingSale = () => {
   const [selectedVan, setSelectedVan] = useState("");
   const [isAddingRoute, setIsAddingRoute] = useState(false);
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
+  const [isCustomerDrawerClosing, setIsCustomerDrawerClosing] = useState(false);
   const [vans, setVans] = useState([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
@@ -114,6 +115,7 @@ const MerchandisingSale = () => {
 
   const [stocks, setStocks] = useState([]);
   const initTxTypeOnce = useRef(false);
+  const customerDrawerCloseTimerRef = useRef(null);
 
   const showAlert = (message) => {
     const alertDiv = document.createElement("div");
@@ -721,20 +723,47 @@ const MerchandisingSale = () => {
 
   // Navigate to Customer Registration component
   const navigateToCustomerRegistration = () => {
-    navigate('/customer-registration', {
-      state: {
-        from: 'merchandising-sale',
-        returnPath: location.pathname,
-        currentFormData: {
-          mspNo,
-          transactionType,
-          selectedUser,
-          transactionDate,
-          selectedVan,
-          route,
-          rows
-        }
-      }
+    if (customerDrawerCloseTimerRef.current) {
+      clearTimeout(customerDrawerCloseTimerRef.current);
+      customerDrawerCloseTimerRef.current = null;
+    }
+    setIsCustomerDrawerClosing(false);
+    setIsAddingCustomer(true);
+  };
+
+  const closeCustomerDrawer = () => {
+    if (!isAddingCustomer) return;
+
+    setIsCustomerDrawerClosing(true);
+    if (customerDrawerCloseTimerRef.current) {
+      clearTimeout(customerDrawerCloseTimerRef.current);
+    }
+
+    customerDrawerCloseTimerRef.current = setTimeout(() => {
+      setIsAddingCustomer(false);
+      setIsCustomerDrawerClosing(false);
+      customerDrawerCloseTimerRef.current = null;
+    }, 220);
+  };
+
+  const handleCustomerDrawerSelect = (customer) => {
+    if (!customer) return;
+
+    setCustomers((prev) => {
+      const exists = prev.some((c) => String(c.id) === String(customer.id));
+      return exists ? prev : [customer, ...prev];
+    });
+    setSelectedCustomerId(String(customer.id));
+    closeCustomerDrawer();
+  };
+
+  const handleCustomerDrawerListChange = (nextCustomers) => {
+    const safeList = Array.isArray(nextCustomers) ? nextCustomers : [];
+    setCustomers(safeList);
+    setSelectedCustomerId((prev) => {
+      if (!prev) return prev;
+      const stillExists = safeList.some((c) => String(c.id) === String(prev));
+      return stillExists ? prev : "";
     });
   };
 
@@ -752,6 +781,14 @@ const MerchandisingSale = () => {
 
     window.addEventListener('customerCreated', handleCustomerCreated);
     return () => window.removeEventListener('customerCreated', handleCustomerCreated);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (customerDrawerCloseTimerRef.current) {
+        clearTimeout(customerDrawerCloseTimerRef.current);
+      }
+    };
   }, []);
 
   const handleSubmit = async (paymentData = null) => {
@@ -1206,7 +1243,7 @@ const MerchandisingSale = () => {
           {/* Warehouse: CUSTOMER FIELD WITH ADD OPTION */}
           {selectedTransactionTypeName === "Warehouse" && (
             <div>
-              <label className="text-sm mb-1 block">Customer</label>
+              <label className="text-sm block mb-1">Customer</label>
               <select
                 value={selectedCustomerId}
                 onChange={(e) => {
@@ -1225,8 +1262,13 @@ const MerchandisingSale = () => {
                     {c.name}
                   </option>
                 ))}
-                <option value="add_new">+ New Customer</option>
+                <option value="add_new">+ New Customer (Open Drawer)</option>
               </select>
+              {selectedCustomerId && (
+                <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                  Selected: {customers.find((c) => String(c.id) === String(selectedCustomerId))?.name || "Customer"}
+                </div>
+              )}
             </div>
           )}
 
@@ -1406,6 +1448,21 @@ const MerchandisingSale = () => {
             selectedTransactionTypeName === "Van Load" &&
             !dispatchAdjustments.length
           }
+        />
+      )}
+
+      {isAddingCustomer && (
+        <CustomerRegistration
+          embedded
+          isClosing={isCustomerDrawerClosing}
+          onClose={closeCustomerDrawer}
+          onCustomerSelected={handleCustomerDrawerSelect}
+          onCustomersChange={handleCustomerDrawerListChange}
+          saleContext={{
+            mspNo,
+            transactionTypeName: selectedTransactionTypeName || "Warehouse",
+            transactionDate,
+          }}
         />
       )}
 

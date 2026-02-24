@@ -91,7 +91,7 @@ const Sidebar = ({ isSidebarOpen }) => {
   const isAdmin = roleName.toLowerCase() === "admin";
 
   return (
-    <div className={`bg-gray-900 text-white w-64 h-screen p-5 fixed top-12 left-0 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-64"}`}>
+    <div className={`app-shell-sidebar app-sidebar bg-gray-900 text-white w-64 h-screen p-5 fixed top-12 left-0 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-64"}`}>
       <ul className="space-y-3">
         {/* Dashboard */}
         <li>

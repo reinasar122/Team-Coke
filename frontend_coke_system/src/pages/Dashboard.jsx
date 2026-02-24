@@ -1790,7 +1790,7 @@ const Dashboard = () => {
   });
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_50%_-100px,rgba(99,102,241,0.10),transparent)]">
+    <div className="min-h-screen bg-white dark:bg-none dark:bg-black">
       {/* Header */}
       <div className="px-4 pt-4">
         <div className="flex items-center justify-between">
@@ -1842,7 +1842,7 @@ const Dashboard = () => {
 
             <button
               onClick={() => setPickerOpen(true)}
-              className="btn btn-add"
+              className="btn btn-add dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white "
             >
               + Add Widgets
             </button>

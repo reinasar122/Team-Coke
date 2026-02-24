@@ -1,9 +1,17 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../api";
 import { getCurrentWarehouse, findWarehouseByName } from "../../utils/warehouseUtils";
 
-const CustomerRegistration = () => {
+const CustomerRegistration = ({
+  embedded = false,
+  onClose = null,
+  onCustomerSelected = null,
+  onCustomersChange = null,
+  saleContext = null,
+  isClosing = false,
+}) => {
   const navigate = useNavigate();
   const location = useLocation();
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
@@ -24,6 +32,47 @@ const CustomerRegistration = () => {
   
   const [customerErrors, setCustomerErrors] = useState({});
   const [successMessage, setSuccessMessage] = useState("");
+  const [isDrawerVisible, setIsDrawerVisible] = useState(false);
+  const cameFromMerchandisingSale = embedded || location.state?.from === "merchandising-sale";
+  const panelModeTitle = embedded ? "Add or Select Customer" : "Customer Management";
+  const panelModeSubtitle = embedded
+    ? "Stay on the sale page. Register or choose an existing customer."
+    : editingCustomer
+      ? "Edit customer information"
+      : cameFromMerchandisingSale
+        ? "Register new customer and return to sale"
+        : "Register new customers for merchandising sales";
+
+  useEffect(() => {
+    if (!embedded) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        onClose?.();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [embedded, onClose]);
+
+  useEffect(() => {
+    if (!embedded) return undefined;
+
+    setIsDrawerVisible(false);
+    const rafId = window.requestAnimationFrame(() => {
+      setIsDrawerVisible(true);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(rafId);
+    };
+  }, [embedded]);
 
   // Get current warehouse using utility
   useEffect(() => {
@@ -91,7 +140,7 @@ const CustomerRegistration = () => {
         const response = await api.get("customers/", {
           params: { warehouse: currentWarehouse.id }
         });
-        setCustomers(response.data);
+        updateCustomersList(response.data);
         console.log('✅ Customers loaded:', response.data.length, 'customers');
       } catch (error) {
         console.error("❌ Failed to load customers:", error);
@@ -108,7 +157,7 @@ const CustomerRegistration = () => {
       setTimeout(() => setSuccessMessage(""), 5000);
     } else {
       const alertDiv = document.createElement("div");
-      alertDiv.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+      alertDiv.className = "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1300]";
       alertDiv.innerHTML = `
         <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
           <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
@@ -123,7 +172,7 @@ const CustomerRegistration = () => {
 
   const showConfirmDialog = (message, onConfirm) => {
     const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
+    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[1300]';
     modal.innerHTML = `
       <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
         <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
@@ -199,6 +248,55 @@ const CustomerRegistration = () => {
     setEditingCustomer(null);
   };
 
+  const updateCustomersList = (updater) => {
+    setCustomers((prev) => {
+      const next = typeof updater === "function" ? updater(prev) : updater;
+      onCustomersChange?.(next);
+      return next;
+    });
+  };
+
+  const handleSelectCustomer = (customer) => {
+    if (!customer) return;
+
+    if (embedded) {
+      if (onCustomerSelected) {
+        onCustomerSelected(customer);
+      } else {
+        onClose?.();
+      }
+      return;
+    }
+
+    if (cameFromMerchandisingSale) {
+      navigate(location.state?.returnPath || "/merchandising-sale", {
+        state: {
+          ...location.state?.currentFormData,
+          newlyCreatedCustomer: customer,
+          autoSelectCustomer: true,
+        },
+      });
+      return;
+    }
+
+    showAlert(`Selected customer: ${customer.name}`, "success");
+  };
+
+  const handleExit = () => {
+    if (embedded) {
+      onClose?.();
+      return;
+    }
+
+    if (location.state?.from === "merchandising-sale") {
+      navigate(location.state.returnPath || "/merchandising-sale", {
+        state: location.state.currentFormData
+      });
+    } else {
+      navigate(-1);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -234,7 +332,7 @@ const CustomerRegistration = () => {
         response = await api.patch(`customers/${editingCustomer.id}/`, customerData);
         console.log("✅ Customer updated:", response.data);
         
-        setCustomers(prev => prev.map(customer => 
+        updateCustomersList(prev => prev.map(customer => 
           customer.id === editingCustomer.id ? response.data : customer
         ));
         
@@ -243,10 +341,17 @@ const CustomerRegistration = () => {
         response = await api.post("customers/", customerData);
         console.log("✅ New customer created:", response.data);
         
-        setCustomers(prev => [...prev, response.data]);
+        updateCustomersList(prev => {
+          const exists = prev.some(customer => customer.id === response.data.id);
+          return exists ? prev : [response.data, ...prev];
+        });
         
-        // Check if we came from merchandising sale
-        const cameFromMerchandisingSale = location.state?.from === 'merchandising-sale';
+        if (embedded) {
+          showAlert("Customer registered successfully!", "success");
+          resetForm();
+          handleSelectCustomer(response.data);
+          return;
+        }
         
         if (cameFromMerchandisingSale) {
           console.log("🔄 Returning to MerchandisingSale with new customer:", response.data);
@@ -298,7 +403,11 @@ const CustomerRegistration = () => {
     });
     setCustomerErrors({});
     
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (embedded) {
+      document.querySelector(".customer-registration-drawer-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
+    } else {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
   };
 
   const handleDelete = async (customer) => {
@@ -310,7 +419,7 @@ const CustomerRegistration = () => {
           await api.delete(`customers/${customer.id}/`);
           console.log("✅ Customer deleted:", customer.name);
           
-          setCustomers(prev => prev.filter(c => c.id !== customer.id));
+          updateCustomersList(prev => prev.filter(c => c.id !== customer.id));
           
           showAlert("Customer deleted successfully!", "success");
         } catch (error) {
@@ -336,283 +445,316 @@ const CustomerRegistration = () => {
     });
   };
 
-  const filteredCustomers = customers.filter(customer =>
-    customer.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    customer.phone?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  // Show loading while warehouse is being determined
-  if (warehouseLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-400">Loading warehouse information...</p>
-        </div>
-      </div>
+  const filteredCustomers = useMemo(() => {
+    const term = searchTerm.toLowerCase().trim();
+    const list = customers.filter(customer =>
+      customer.name?.toLowerCase().includes(term) ||
+      customer.phone?.toLowerCase().includes(term)
     );
-  }
 
-  // Show error if no warehouse is available
-  if (!currentWarehouse) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-500 mb-4">
-            <svg className="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-            </svg>
+    return [...list].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+  }, [customers, searchTerm]);
+
+  const fieldClass = (hasError) =>
+    `w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/60 bg-white dark:bg-slate-800/80 dark:text-white transition-colors ${
+      hasError ? "border-red-500 dark:border-red-500" : "border-gray-300 dark:border-slate-600"
+    }`;
+
+  const loadingOrErrorContent = warehouseLoading ? (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+        <p className="text-gray-600 dark:text-gray-400">Loading warehouse information...</p>
+      </div>
+    </div>
+  ) : !currentWarehouse ? (
+    <div className="flex-1 flex items-center justify-center p-8">
+      <div className="text-center max-w-md">
+        <div className="text-red-500 mb-4">
+          <svg className="w-14 h-14 mx-auto" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+          </svg>
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Warehouse Not Found</h2>
+        <p className="text-gray-600 dark:text-gray-400 mb-4">No warehouse is assigned to your account.</p>
+        <button onClick={handleExit} className="btn btn-back">Back</button>
+      </div>
+    </div>
+  ) : null;
+
+  const content = (
+    <div className={embedded ? "h-full flex flex-col" : ""}>
+      <div className={`mb-6 ${embedded ? "pb-4 border-b border-gray-200 dark:border-slate-700" : ""}`}>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className={`font-bold text-gray-900 dark:text-white ${embedded ? "text-2xl sm:text-3xl" : "text-3xl"}`}>
+              {panelModeTitle}
+            </h1>
+            <p className="text-gray-600 dark:text-gray-400 mt-2">{panelModeSubtitle}</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <span className="inline-flex items-center rounded-full border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 px-3 py-1 text-xs font-medium text-gray-700 dark:text-slate-200">
+                Warehouse: {currentWarehouse?.name || "Loading..."}
+              </span>
+              {saleContext?.mspNo && (
+                <span className="inline-flex items-center rounded-full border border-cyan-200 dark:border-cyan-800 bg-cyan-50 dark:bg-cyan-900/20 px-3 py-1 text-xs font-medium text-cyan-700 dark:text-cyan-300">
+                  MSP: {saleContext.mspNo}
+                </span>
+              )}
+              {saleContext?.transactionTypeName && (
+                <span className="inline-flex items-center rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-3 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                  {saleContext.transactionTypeName}
+                </span>
+              )}
+            </div>
           </div>
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Warehouse Not Found</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-4">No warehouse is assigned to your account.</p>
           <button
-            onClick={() => navigate(-1)}
-            className="btn btn-back"
+            onClick={handleExit}
+            className={embedded ? "btn btn-back px-4 py-2 self-start" : "btn btn-back"}
+            type="button"
           >
-            Go Back
+            {cameFromMerchandisingSale ? "Back to Sale" : "Back"}
           </button>
         </div>
       </div>
+
+      {loadingOrErrorContent || (
+        <>
+          {successMessage && (
+            <div className="mb-4 p-3 rounded-xl border border-emerald-300/60 dark:border-emerald-700/60 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 text-sm">
+              {successMessage}
+            </div>
+          )}
+
+          <div className={`grid gap-6 ${embedded ? "lg:grid-cols-[1.05fr_1.1fr] flex-1 min-h-0" : "lg:grid-cols-2"}`}>
+            <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-5 gap-3">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {editingCustomer ? "Edit Customer" : "Register New Customer"}
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    {editingCustomer ? "Update details then save changes." : "Create a customer and auto-use it in this sale."}
+                  </p>
+                </div>
+                {editingCustomer && (
+                  <button onClick={resetForm} className="btn btn-cancel" type="button">
+                    Cancel Edit
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Customer Name *
+                  </label>
+                  <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    value={newCustomer.name}
+                    onChange={handleInputChange}
+                    className={fieldClass(customerErrors.name)}
+                    placeholder="Enter customer name"
+                  />
+                  {customerErrors.name && <p className="text-red-500 text-xs mt-1">{customerErrors.name}</p>}
+                </div>
+
+                <div>
+                  <label htmlFor="address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Address *
+                  </label>
+                  <textarea
+                    id="address"
+                    name="address"
+                    value={newCustomer.address}
+                    onChange={handleInputChange}
+                    rows={3}
+                    className={`${fieldClass(customerErrors.address)} resize-none`}
+                    placeholder="Street, Barangay, City, Province"
+                  />
+                  {customerErrors.address && <p className="text-red-500 text-xs mt-1">{customerErrors.address}</p>}
+                </div>
+
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Phone Number *
+                    </label>
+                    <input
+                      type="text"
+                      id="phone_number"
+                      name="phone_number"
+                      value={newCustomer.phone_number}
+                      onChange={handleInputChange}
+                      className={fieldClass(customerErrors.phone_number)}
+                      placeholder="09XXXXXXXXX"
+                    />
+                    {customerErrors.phone_number && <p className="text-red-500 text-xs mt-1">{customerErrors.phone_number}</p>}
+                  </div>
+
+                  <div>
+                    <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Email (Optional)
+                    </label>
+                    <input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={newCustomer.email}
+                      onChange={handleInputChange}
+                      className={fieldClass(customerErrors.email)}
+                      placeholder="customer@example.com"
+                    />
+                    {customerErrors.email && <p className="text-red-500 text-xs mt-1">{customerErrors.email}</p>}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-3 pt-3">
+                  <button type="submit" disabled={isLoading} className="flex-1 min-w-[200px] btn btn-primary">
+                    {isLoading
+                      ? (editingCustomer ? "Updating..." : "Saving...")
+                      : editingCustomer
+                        ? "Update Customer"
+                        : cameFromMerchandisingSale
+                          ? "Save & Use Customer"
+                          : "Register Customer"}
+                  </button>
+
+                  {!editingCustomer && !cameFromMerchandisingSale && (
+                    <button type="button" onClick={handleContinueToSale} className="btn btn-add">
+                      Continue to Sale
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg p-5 sm:p-6 flex flex-col min-h-[320px]">
+              <div className="flex items-start justify-between gap-3 mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    Registered Customers ({customers.length})
+                  </h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Search, select, edit, or remove existing customers.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mb-4">
+                <input
+                  type="text"
+                  placeholder="Search by name or phone..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className={fieldClass(false)}
+                />
+              </div>
+
+              <div className={`space-y-3 overflow-y-auto pr-1 ${embedded ? "flex-1 min-h-0 max-h-none" : "max-h-[460px]"}`}>
+                {filteredCustomers.length > 0 ? (
+                  filteredCustomers.map((customer) => (
+                    <div
+                      key={customer.id}
+                      className={`rounded-xl border p-3 transition-colors ${
+                        editingCustomer?.id === customer.id
+                          ? "border-cyan-300 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-900/20"
+                          : "border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800/60"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-semibold text-gray-900 dark:text-white truncate">{customer.name}</div>
+                          <div className="text-sm text-gray-600 dark:text-gray-300">{customer.phone || "No phone"}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{customer.address || "No address"}</div>
+                          {customer.email && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{customer.email}</div>
+                          )}
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+                          {cameFromMerchandisingSale && (
+                            <button
+                              type="button"
+                              onClick={() => handleSelectCustomer(customer)}
+                              className="btn btn-add text-xs"
+                              disabled={isLoading}
+                              title="Use this customer for current sale"
+                            >
+                              Use
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleEdit(customer)}
+                            className="btn btn-edit text-xs"
+                            disabled={isLoading}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(customer)}
+                            className="btn btn-danger text-xs"
+                            disabled={isLoading || isDeleting === customer.id}
+                          >
+                            {isDeleting === customer.id ? "..." : "Delete"}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="flex-1 grid place-items-center rounded-xl border border-dashed border-gray-300 dark:border-slate-600 p-8 text-center">
+                    <div>
+                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {searchTerm ? "No customers found" : "No customers registered yet"}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        {searchTerm ? "Try another name or phone number." : "Create your first customer on the left form."}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+
+  if (embedded) {
+    const drawerIsShown = isDrawerVisible && !isClosing;
+
+    return createPortal(
+      <div
+        className={`fixed inset-0 z-[1200] p-3 sm:p-6 transition-all duration-200 ease-out motion-reduce:transition-none ${
+          drawerIsShown
+            ? "opacity-100 bg-black/70 backdrop-blur-sm"
+            : "opacity-0 bg-black/0 backdrop-blur-none"
+        }`}
+      >
+        <div className="ml-auto h-full w-full max-w-6xl">
+          <div
+            className={`h-full rounded-2xl border border-white/10 bg-white dark:bg-slate-950 shadow-2xl overflow-hidden transform-gpu transition-all duration-200 ease-out motion-reduce:transition-none ${
+              drawerIsShown ? "translate-x-0 opacity-100" : "translate-x-6 opacity-0"
+            }`}
+          >
+            <div className="customer-registration-drawer-scroll h-full overflow-y-auto p-4 sm:p-6">
+              {content}
+            </div>
+          </div>
+        </div>
+      </div>,
+      document.body
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-6 transition-colors duration-200">
-      <div className="max-w-6xl mx-auto">
-        
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Customer Management</h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
-                {editingCustomer ? 'Edit customer information' : 
-                 location.state?.from === 'merchandising-sale' ? 
-                 'Register new customer and return to sale' : 
-                 'Register new customers for merchandising sales'}
-              </p>
-              {location.state?.from === 'merchandising-sale' && (
-                <p className="text-blue-600 dark:text-blue-400 text-sm mt-1">
-                </p>
-              )}
-            </div>
-            <button
-              onClick={() => {
-                if (location.state?.from === 'merchandising-sale') {
-                  navigate(location.state.returnPath || '/merchandising-sale', {
-                    state: location.state.currentFormData
-                  });
-                } else {
-                  navigate(-1);
-                }
-              }}
-              className="btn btn-back"
-            >
-              Back
-            </button>
-          </div>
-        </div>
-
-        {/* Success Message */}
-        {successMessage && (
-          <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-lg">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              <span className="text-green-800 dark:text-green-200 font-medium">{successMessage}</span>
-            </div>
-          </div>
-        )}
-
-        <div className="grid lg:grid-cols-2 gap-8">
-          
-          {/* Registration/Edit Form */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                {editingCustomer ? 'Edit Customer' : 'Register New Customer'}
-              </h2>
-              {editingCustomer && (
-                <button
-                  onClick={resetForm}
-                  className="btn btn-cancel"
-                >
-                  Cancel Edit
-                </button>
-              )}
-            </div>
-            
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
-                <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Customer Name *
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={newCustomer.name}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white transition-colors ${
-                    customerErrors.name ? 'border-red-500 dark:border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Enter customer name"
-                />
-                {customerErrors.name && (
-                  <p className="text-red-500 text-sm mt-1">{customerErrors.name}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="address" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Address *
-                </label>
-                <textarea
-                  id="address"
-                  name="address"
-                  value={newCustomer.address}
-                  onChange={handleInputChange}
-                  rows={3}
-                  className={`w-full px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white resize-none transition-colors ${
-                    customerErrors.address ? 'border-red-500 dark:border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="Street, Barangay, City, Province"
-                />
-                {customerErrors.address && (
-                  <p className="text-red-500 text-sm mt-1">{customerErrors.address}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Phone Number *
-                </label>
-                <input
-                  type="text"
-                  id="phone_number"
-                  name="phone_number"
-                  value={newCustomer.phone_number}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white transition-colors ${
-                    customerErrors.phone_number ? 'border-red-500 dark:border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="09XXXXXXXXX"
-                />
-                {customerErrors.phone_number && (
-                  <p className="text-red-500 text-sm mt-1">{customerErrors.phone_number}</p>
-                )}
-              </div>
-
-              <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Email (Optional)
-                </label>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={newCustomer.email}
-                  onChange={handleInputChange}
-                  className={`w-full px-3 py-2 border rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white transition-colors ${
-                    customerErrors.email ? 'border-red-500 dark:border-red-500' : 'border-gray-300'
-                  }`}
-                  placeholder="customer@example.com"
-                />
-                {customerErrors.email && (
-                  <p className="text-red-500 text-sm mt-1">{customerErrors.email}</p>
-                )}
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="flex-1 btn btn-primary"
-                >
-                  {isLoading ? (editingCustomer ? "Updating..." : "Registering...") : 
-                   editingCustomer ? "Update Customer" : 
-                   location.state?.from === 'merchandising-sale' ? "Register & Return to Sale" : 
-                   "Register Customer"}
-                </button>
-                
-                {!editingCustomer && location.state?.from !== 'merchandising-sale' && (
-                  <button
-                    type="button"
-                    onClick={handleContinueToSale}
-                    className="btn btn-add"
-                  >
-                    Continue to Sale
-                  </button>
-                )}
-              </div>
-            </form>
-          </div>
-
-          {/* Customer List */}
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-                Registered Customers ({customers.length})
-              </h2>
-            </div>
-            
-            <div className="mb-4">
-              <input
-                type="text"
-                placeholder="Search customers..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-base focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white transition-colors"
-              />
-            </div>
-
-            <div className="max-h-96 overflow-y-auto space-y-2">
-              {filteredCustomers.length > 0 ? (
-                filteredCustomers.map((customer) => (
-                  <div
-                    key={customer.id}
-                    className={`p-3 border border-gray-200 dark:border-gray-600 rounded-lg transition-colors ${
-                      editingCustomer?.id === customer.id ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-600' : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                    }`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white">{customer.name}</div>
-                        <div className="text-sm text-gray-600 dark:text-gray-400">{customer.phone}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-500 truncate">{customer.address}</div>
-                        {customer.email && (
-                          <div className="text-xs text-gray-500 dark:text-gray-500">{customer.email}</div>
-                        )}
-                      </div>
-                      <div className="flex gap-2 ml-3">
-                        <button
-                          onClick={() => handleEdit(customer)}
-                          className="btn btn-edit text-xs"
-                          disabled={isLoading}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(customer)}
-                          className="btn btn-danger text-xs"
-                          disabled={isLoading || isDeleting === customer.id}
-                        >
-                          {isDeleting === customer.id ? "..." : "Delete"}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-                  {searchTerm ? "No customers found matching your search." : "No customers registered yet."}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+    <div className="min-h-screen bg-white dark:bg-black p-4 sm:p-6 transition-colors duration-200">
+      <div className="max-w-6xl mx-auto">{content}</div>
     </div>
   );
 };

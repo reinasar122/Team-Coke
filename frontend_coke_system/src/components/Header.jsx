@@ -145,7 +145,7 @@ const Header = ({ toggleSidebar }) => {
 
   return (
     <>
-      <header className="bg-gray-900 dark:bg-gray-950 text-white px-6 py-3 flex justify-between items-center shadow-md fixed w-full top-0 z-40 transition-all duration-300">
+      <header className="app-shell-header bg-gray-900 dark:bg-gray-950 text-white px-6 py-3 flex justify-between items-center shadow-md fixed w-full top-0 z-40 transition-all duration-300">
         {/* Left: Sidebar toggle + title */}
         <div className="flex items-center">
           <button onClick={toggleSidebar} className="text-xl mr-4 focus:outline-none hover:text-gray-300 transition-colors">
@@ -216,7 +216,7 @@ const Header = ({ toggleSidebar }) => {
       </header>
 
       {/* Mobile Warehouse Display */}
-      <div className="md:hidden bg-gray-800 dark:bg-gray-900 text-white px-6 py-2 fixed w-full top-16 z-10 transition-all duration-300">
+      <div className="app-shell-header-mobile md:hidden bg-gray-800 dark:bg-gray-900 text-white px-6 py-2 fixed w-full top-16 z-10 transition-all duration-300">
         <button
           onClick={isAdmin ? handleOpenWarehouseModal : undefined}
           className={`w-full px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 focus:outline-none border ${
