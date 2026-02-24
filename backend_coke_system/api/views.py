@@ -213,13 +213,15 @@ class SendOTPAPIView(APIView):
             # If OTP is already sent, clear it and generate a new one
             user.otp = None
             user.otp_required = True
-            user.save(update_fields=["otp", "otp_required"])
+            user.otp_expiry = None
+            user.save(update_fields=["otp", "otp_required", "otp_expiry"])
 
         # Generate a new 6-digit OTP
         otp = str(random.randint(100000, 999999))
         user.otp = otp
         user.otp_required = True
-        user.save(update_fields=["otp", "otp_required"])
+        user.otp_expiry = timezone.now() + timedelta(minutes=5)
+        user.save(update_fields=["otp", "otp_required", "otp_expiry"])
 
         # Send OTP to user via SMS (Simulated here)
         self.send_sms_otp(user.phone_number, otp)
@@ -248,19 +250,27 @@ class VerifyOTPAPIView(APIView):
         except User.DoesNotExist:
             return Response({"error": "User not found"}, status=404)
 
+        if user.otp_expiry and timezone.now() > user.otp_expiry:
+            user.otp = None
+            user.otp_required = False
+            user.otp_expiry = None
+            user.save(update_fields=["otp", "otp_required", "otp_expiry"])
+            return Response({"error": "OTP has expired. Please request a new OTP."}, status=400)
+
         if not user.otp or str(user.otp) != otp:
             return Response({"error": "Invalid OTP. Please try again."}, status=400)
 
         # Clear OTP
         user.otp = None
         user.otp_required = False
-        
+        user.otp_expiry = None
+
         if mode == "forgot":
             # Generate password reset token
             token = default_token_generator.make_token(user)
             encoded_uid = urlsafe_base64_encode(force_bytes(user.pk))
             
-            user.save(update_fields=["otp", "otp_required"])
+            user.save(update_fields=["otp", "otp_required", "otp_expiry"])
             
             return Response({
                 "message": "OTP verified. You can now reset your password.",
@@ -272,8 +282,7 @@ class VerifyOTPAPIView(APIView):
             user.is_active = False
             user.is_approved = False
             user.status = "Pending Approval"
-            user.save(update_fields=["otp", "otp_required", "is_active", "is_approved", "status"])
-            
+            user.save(update_fields=["otp", "otp_required", "otp_expiry", "is_active", "is_approved", "status"])            
             return Response({
                 "message": "Phone verified. Your account is now pending admin approval.",
                 "user": {
@@ -283,6 +292,36 @@ class VerifyOTPAPIView(APIView):
                     "status": user.status,
                 }
             }, status=200)
+        
+class CancelPendingSignupAPIView(APIView):
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        phone_number = request.data.get("phone_number", "").strip()
+        if not phone_number:
+            return Response({"error": "Phone number is required"}, status=400)
+
+        user = User.objects.filter(phone_number=phone_number).first()
+        if not user:
+            return Response({"message": "No pending signup found."}, status=200)
+
+        status_value = str(getattr(user, "status", "") or "").strip().lower()
+        is_cancellable_pending_signup = (
+            status_value == "pending"
+            and not bool(getattr(user, "is_approved", False))
+            and not bool(getattr(user, "is_active", False))
+            and getattr(user, "role_id", None) is None
+            and getattr(user, "warehouse_id", None) is None
+        )
+
+        if not is_cancellable_pending_signup:
+            return Response(
+                {"error": "This signup can no longer be cancelled."},
+                status=400,
+            )
+
+        user.delete()
+        return Response({"message": "Pending signup cancelled."}, status=200)        
 
 class MerchandisingViewSet(viewsets.ModelViewSet):
     queryset = Merchandising.objects.all()

@@ -37,6 +37,7 @@ from .views import (
     VerifyOTPAPIView, MerchandisingViewSet,VanLoadReturnUpdateAPIView,  CreditLedgerListCreateAPIView,
     CreditLedgerDetailAPIView,
     CreditPaymentCreateAPIView,BulkAdjustStockView, StockUpdateAPIView, ConfirmUserCreation, RegisterView, MandatoryChangePasswordAPIView,
+    CancelPendingSignupAPIView,
     VanLoadEditApprovalRequestCreateAPIView, VanLoadEditApprovalStatusAPIView,
     VanLoadEditApprovalPendingListAPIView, VanLoadEditApprovalDecisionAPIView
 
@@ -80,7 +81,7 @@ urlpatterns = [
      # Phone OTP for signup verification
     path('send-phone-otp/', SendOTPAPIView.as_view(), name='send-phone-otp'),
     path('verify-phone-otp/', VerifyOTPAPIView.as_view(), name='verify-phone-otp'),
-
+    path('cancel-phone-signup/', CancelPendingSignupAPIView.as_view(), name='cancel-phone-signup'),
     # --- CREDIT LEDGER ---
     path("credits/", CreditLedgerListCreateAPIView.as_view(), name="credit-list-create"),  # GET list, POST create
     path("credits/<int:pk>/", CreditLedgerDetailAPIView.as_view(), name="credit-detail"),  # GET detail/receipt

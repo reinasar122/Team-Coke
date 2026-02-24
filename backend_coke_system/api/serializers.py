@@ -40,41 +40,83 @@ class RegisterSerializer(serializers.ModelSerializer):
         model = User
         fields = ['phone_number', 'first_name', 'last_name', 'gender', 'email', 'password', 'confirm_password']
 
+    def _is_unverified_signup_draft(self, user):
+        if not user:
+            return False
+        status_value = str(getattr(user, "status", "") or "").strip().lower()
+        return (
+            status_value == "pending"
+            and not bool(getattr(user, "is_approved", False))
+            and not bool(getattr(user, "is_active", False))
+            and getattr(user, "role_id", None) is None
+            and getattr(user, "warehouse_id", None) is None
+        )
+
     def validate(self, attrs):
         # Ensure password and confirm password match
         if attrs['password'] != attrs['confirm_password']:
             raise serializers.ValidationError("Passwords do not match.")
         
-        # Check if phone number already exists
-        if User.objects.filter(phone_number=attrs['phone_number']).exists():
-            raise serializers.ValidationError("Phone number already registered.")
+        attrs["phone_number"] = (attrs.get("phone_number") or "").strip()
+        self._pending_signup_user = None
+
+        existing_user = User.objects.filter(phone_number=attrs["phone_number"]).first()
+        if existing_user:
+            if self._is_unverified_signup_draft(existing_user):
+                # Allow retrying signup for users who closed OTP before verification.
+                self._pending_signup_user = existing_user
+            elif str(existing_user.status or "").strip().lower() == "pending approval" and not existing_user.is_approved:
+                raise serializers.ValidationError("Phone number already verified and pending admin approval.")
+            else:
+                raise serializers.ValidationError("Phone number already registered.")
         
         # Handle empty email - convert to None to avoid unique constraint issues
         if 'email' in attrs and not attrs['email']:
             attrs['email'] = None
+        elif 'email' in attrs and attrs['email']:
+            attrs['email'] = attrs['email'].strip()
+
+        if attrs.get("email"):
+            email_qs = User.objects.filter(email__iexact=attrs["email"])
+            if self._pending_signup_user:
+                email_qs = email_qs.exclude(pk=self._pending_signup_user.pk)
+            if email_qs.exists():
+                raise serializers.ValidationError({"email": "Email already registered."})
         
         return attrs
 
     def create(self, validated_data):
-        validated_data.pop('confirm_password')  # Remove confirm_password field before saving
+        validated_data.pop('confirm_password', None)  # Remove confirm_password field before saving
+        raw_password = validated_data.pop('password')
 
-        # Create user with status and approval fields
-        user = User.objects.create(
-            status="Pending",  # Initial status as 'Pending'
-            is_approved=False,  # User is not approved yet
-            is_active=False,  # Account is not active until verified
-            otp_required=True,  # OTP is required for verification
-            **validated_data  # This will include the phone_number and other fields
-        )
-
-        # Set hashed password
-        user.set_password(validated_data['password'])
-        user.save()
+        user = getattr(self, "_pending_signup_user", None)
+        if user:
+            user.phone_number = validated_data.get("phone_number")
+            user.first_name = validated_data.get("first_name")
+            user.last_name = validated_data.get("last_name")
+            user.gender = validated_data.get("gender")
+            user.email = validated_data.get("email")
+            user.status = "Pending"
+            user.is_approved = False
+            user.is_active = False
+            user.otp_required = True
+        else:
+            user = User(
+                status="Pending",  # Initial status before OTP verification
+                is_approved=False,
+                is_active=False,
+                otp_required=True,
+                **validated_data
+            )
 
         # Generate OTP
-        otp = randint(100000, 999999)  # Generate a 6-digit OTP
+        otp = str(randint(100000, 999999))
+        user.password = make_password(raw_password)
+        user.must_change_password = True
         user.otp = otp
-        user.save(update_fields=["otp", "otp_required"])
+        user.otp_required = True
+        user.otp_expiry = timezone.now() + timedelta(minutes=5)
+        user.save()
 
         # Send OTP to user via SMS (Simulated here)
         self.send_sms_otp(user.phone_number, otp)
