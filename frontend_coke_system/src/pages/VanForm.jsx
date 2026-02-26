@@ -68,6 +68,14 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
     initializeForm();
   }, [vanToEdit]);
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -125,8 +133,8 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
 
   if (loading) {
     return (
-      <div className="modal-overlay bg-black bg-opacity-50">
-        <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+      <div className="modal-overlay app-modal-overlay" role="dialog" aria-modal="true">
+        <div className="app-modal-panel app-modal-panel-sm bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
           <div className="flex items-center justify-center py-8">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
             <span className="ml-3">Generating Van ID...</span>
@@ -137,8 +145,8 @@ const VanForm = ({ vanToEdit, onVanAdded, onClose }) => {
   }
 
   return (
-    <div className="modal-overlay bg-black bg-opacity-50">
-      <div className="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <div className="modal-overlay app-modal-overlay" role="dialog" aria-modal="true">
+      <div className="app-modal-panel app-modal-panel-sm bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
         <h2 className="text-xl font-bold mb-4">
           {vanToEdit ? "Edit Van" : "Add Van"}
         </h2>

@@ -134,7 +134,7 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
 
   if (loading)
     return (
-      <div className="text-center p-6 bg-white rounded shadow">
+      <div className="text-center p-6 bg-white dark:bg-slate-900 rounded-xl shadow border border-gray-200 dark:border-slate-700 text-gray-900 dark:text-slate-100">
         Loading role access...
       </div>
     );
@@ -146,12 +146,12 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
   );
 
   return (
-    <div>
-      <h2 className="text-lg font-bold mb-4">
-        Edit Access for: <span className="text-blue-600">{roleName}</span>
+    <div className="text-gray-900 dark:text-slate-100">
+      <h2 className="text-xl font-bold mb-4">
+        Edit Access for: <span className="text-blue-600 dark:text-cyan-300">{roleName}</span>
       </h2>
 
-      <div className="table-wrapper">
+      <div className="table-wrapper rounded-xl border border-gray-200 dark:border-slate-700 overflow-hidden">
         <PermissionTable
           modules={MODULES}
           permissions={permissions}
@@ -161,7 +161,7 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
         />
       </div>
 
-      <div className="flex justify-end mt-6 gap-3">
+      <div className="flex justify-end mt-6 gap-3 pt-1">
         <button className="px-4 py-2 btn btn-cancel" onClick={onClose}>
           Cancel
         </button>

@@ -67,6 +67,31 @@ const Suppliers = () => {
     localStorage.setItem("supplier_sort_order", sortOrder);
   }, [sortOrder]);
 
+  useEffect(() => {
+    const hasOpenModal = showRegisterModal || !!editSupplierId || showDeleteModal;
+    if (!hasOpenModal) return undefined;
+
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+
+      if (showDeleteModal) {
+        setShowDeleteModal(false);
+        setSupplierToDelete(null);
+        return;
+      }
+      if (editSupplierId) {
+        setEditSupplierId(null);
+        return;
+      }
+      if (showRegisterModal) {
+        setShowRegisterModal(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showRegisterModal, editSupplierId, showDeleteModal]);
+
   const fetchSuppliers = async () => {
     try {
       setLoading(true);
@@ -451,8 +476,8 @@ const Suppliers = () => {
 
       {/* Registration Modal */}
       {showRegisterModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-2xl shadow-lg w-11/12 md:w-3/4 max-h-[90vh] overflow-auto">
+        <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
+          <div className="app-modal-panel app-modal-panel-2xl bg-white p-6 rounded-2xl shadow-lg w-11/12 md:w-3/4 max-h-[90vh] overflow-auto">
             <SupplierRegistrationForm
               onClose={() => {
                 setShowRegisterModal(false);
@@ -465,8 +490,8 @@ const Suppliers = () => {
 
       {/* Edit Modal */}
       {editSupplierId && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex justify-center items-center">
-          <div className="bg-white p-6 rounded-2xl shadow-lg w-11/12 md:w-3/4 max-h-[90vh] overflow-auto">
+        <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
+          <div className="app-modal-panel app-modal-panel-2xl bg-white p-6 rounded-2xl shadow-lg w-11/12 md:w-3/4 max-h-[90vh] overflow-auto">
             <SupplierEditForm
               supplierId={editSupplierId}
               onClose={() => {
@@ -480,8 +505,8 @@ const Suppliers = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && supplierToDelete && (
-        <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50 px-4">
-          <div className="bg-white p-6 rounded-2xl shadow-lg max-w-full w-[520px]">
+        <div className="app-modal-overlay z-50 px-4" role="dialog" aria-modal="true">
+          <div className="app-modal-panel app-modal-panel-sm bg-white p-6 rounded-2xl shadow-lg max-w-full w-[520px]">
             <p className="text-lg font-semibold mb-6">
               Are you sure you want to delete{" "}
               <strong>{supplierToDelete.company_name}</strong>?

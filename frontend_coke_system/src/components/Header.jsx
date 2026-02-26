@@ -7,6 +7,7 @@ import axios from "axios";
 import Notification from "./Notification";
 import Profile from "../pages/Profile";
 import api from "../api";
+import ModalShell from "./common/ModalShell";
 
 const Header = ({ toggleSidebar }) => {
   const [showWarehouseModal, setShowWarehouseModal] = useState(false);
@@ -145,7 +146,7 @@ const Header = ({ toggleSidebar }) => {
 
   return (
     <>
-      <header className="app-shell-header bg-gray-900 dark:bg-gray-950 text-white px-6 py-3 flex justify-between items-center shadow-md fixed w-full top-0 z-40 transition-all duration-300">
+      <header className="app-shell-header bg-gray-900 dark:bg-gray-950 text-white px-6 py-3 flex justify-between items-center shadow-md fixed top-0 left-0 right-0 z-40 transition-all duration-300">
         {/* Left: Sidebar toggle + title */}
         <div className="flex items-center">
           <button onClick={toggleSidebar} className="text-xl mr-4 focus:outline-none hover:text-gray-300 transition-colors">
@@ -216,7 +217,7 @@ const Header = ({ toggleSidebar }) => {
       </header>
 
       {/* Mobile Warehouse Display */}
-      <div className="app-shell-header-mobile md:hidden bg-gray-800 dark:bg-gray-900 text-white px-6 py-2 fixed w-full top-16 z-10 transition-all duration-300">
+      <div className="app-shell-header-mobile md:hidden bg-gray-800 dark:bg-gray-900 text-white px-6 py-2 fixed top-16 left-0 right-0 z-10 transition-all duration-300">
         <button
           onClick={isAdmin ? handleOpenWarehouseModal : undefined}
           className={`w-full px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 focus:outline-none border ${
@@ -234,8 +235,12 @@ const Header = ({ toggleSidebar }) => {
 
       {/* Warehouse Modal */}
       {showWarehouseModal && isAdmin && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 dark:bg-opacity-70 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto transition-all duration-200">
+        <ModalShell
+          open
+          onClose={closeModal}
+          size="sm"
+          panelClassName="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-2xl w-full max-w-md mx-4 max-h-[80vh] overflow-y-auto"
+        >
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold text-gray-800 dark:text-white">
                 Switch Warehouse
@@ -290,11 +295,11 @@ const Header = ({ toggleSidebar }) => {
                 )}
               </div>
             )}
-          </div>
-        </div>
+        </ModalShell>
       )}
     </>
   );
 };
 
 export default Header;
+

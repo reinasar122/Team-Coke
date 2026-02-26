@@ -65,6 +65,14 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
     Promise.all([fetchRoles(), fetchWarehouses()]).then(fetchUser);
   }, [userId]);
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   // ---------------- ✅ Phone Number Validation ----------------
   const validatePhoneNumber = (phone) => {
     if (!phone) return "Phone number is required.";
@@ -181,8 +189,8 @@ const EditUser = ({ userId, onClose, onUserUpdated }) => {
 
   // ---------------- JSX ----------------
   return (
-    <div className="modal-overlay bg-gray-900 bg-opacity-50">
-      <div className="w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
+    <div className="modal-overlay app-modal-overlay" role="dialog" aria-modal="true">
+      <div className="app-modal-panel app-modal-panel-lg w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
         <h2 className="text-2xl font-semibold mb-4 text-left">Edit User</h2>
 
         <form onSubmit={handleSubmit}>

@@ -98,26 +98,43 @@ const VanList = () => {
 
   const showConfirmDialog = (message, onConfirm) => {
     const modal = document.createElement("div");
-    modal.className =
-      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
+    modal.className = "app-modal-overlay z-50 px-4";
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
 
     modal.innerHTML = `
-      <div class="bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
-        <p class="text mb-4">${message}</p>
+      <div class="app-modal-panel app-modal-panel-sm bg-white p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
+        <p class="text mb-4 font-medium">${message}</p>
         <div class="flex justify-end space-x-3">
-          <button class="cancel-btn px-4 py-2 text">Cancel</button>
-          <button class="confirm-btn px-4 py-2 text-white">Delete</button>
+          <button class="cancel-btn btn btn-cancel px-4 py-2">Cancel</button>
+          <button class="confirm-btn btn btn-danger px-4 py-2">Delete</button>
         </div>
       </div>
     `;
 
-    modal.querySelector(".cancel-btn").onclick = () => modal.remove();
-    modal.querySelector(".confirm-btn").onclick = () => {
+    const closeDialog = () => {
+      window.removeEventListener("keydown", handleKeyDown);
       modal.remove();
+    };
+
+    const handleKeyDown = (e) => {
+      if (e.key === "Escape") closeDialog();
+    };
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) closeDialog();
+    });
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    modal.querySelector(".cancel-btn").onclick = () => closeDialog();
+    modal.querySelector(".confirm-btn").onclick = () => {
+      closeDialog();
       onConfirm();
     };
 
     document.body.appendChild(modal);
+    modal.querySelector(".cancel-btn")?.focus();
   };
 
   const handleDelete = async (id) => {

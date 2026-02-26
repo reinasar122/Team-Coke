@@ -4,6 +4,7 @@ import axios from "axios";
 import { Link } from "react-router-dom";
 import { FaTrashAlt, FaEye,FaClipboardCheck } from "react-icons/fa";
 import api from "../api"; // ✅ correct
+import ModalShell from "../components/common/ModalShell";
 import "../styles/pages/receivinglist.scss"; // page-specific extras only
 
 const ReceiptModal = ({ isOpen, onClose, receipt }) => {
@@ -21,8 +22,12 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
   };
 
   return (
-    <div className="modal-overlay">
-      <div className="modal" style={{ maxWidth: 960 }}>
+    <ModalShell
+      open
+      onClose={onClose}
+      size="2xl"
+      panelClassName="bg-white w-full max-w-[960px] p-[10px]"
+    >
         <div className="modal-body">
           <div className="receiving-receipt-header">
             <h2 className="page-title">Receipt No.</h2>
@@ -101,8 +106,7 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
             <button className="btn btn-danger" onClick={onClose}>Close</button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 };
 
@@ -110,8 +114,12 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, receivingId }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
-      <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
+    <ModalShell
+      open
+      onClose={onClose}
+      size="sm"
+      panelClassName="bg-white p-6 rounded shadow-lg w-full max-w-xl max-h-[90vh] overflow-auto"
+    >
         <div className="modal-body">
           <h3 className="page-title">Confirm Delete</h3>
           <p>Are you sure you want to delete this receiving record?</p>
@@ -122,8 +130,7 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, receivingId }) => {
             <button type="button" className="btn btn-danger" onClick={onConfirm}>Delete</button>
           </div>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 };
 

@@ -2707,14 +2707,18 @@ class NotificationViewSet(viewsets.ModelViewSet):
         queryset = Notification.objects.filter(is_deleted=False)
         
         # Get user role and warehouse
-        user_role = getattr(user, 'role', None)
+        raw_role = getattr(user, 'role', None)
+        user_role = raw_role
         if isinstance(user_role, str):
             user_role = user_role.strip().lower()
         elif raw_role is not None:
             user_role = (getattr(raw_role, 'name', '') or '').strip().lower()
         else:
             user_role = 'staff'
-        warehouse_id = self.request.query_params.get('warehouse')
+        warehouse_id = (
+            self.request.query_params.get('warehouse')
+            or self.request.headers.get('X-Warehouse-ID')
+        )
         
         if warehouse_id:
             queryset = queryset.filter(warehouse_id=warehouse_id)
@@ -2727,7 +2731,7 @@ class NotificationViewSet(viewsets.ModelViewSet):
         if is_admin_role:
             # Admin can see all notifications in their warehouse context
             admin_warehouse_id = getattr(user, 'warehouse_id', None)
-            if admin_warehouse_id:
+            if admin_warehouse_id and not warehouse_id:
                 queryset = queryset.filter(warehouse_id=admin_warehouse_id)
         else:
             # Other roles see notifications targeted to them or their role

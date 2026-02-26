@@ -266,7 +266,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   }, [formData.city, formData.province, formData.region]);
 
   return (
-    <div className="container p-4">
+    <div className="container p-4 text-gray-900 dark:text-slate-100">
       <h2 className="text-2xl font-bold border-l-4 border-blue-500 pl-2 mb-4">
         Edit Supplier
       </h2>

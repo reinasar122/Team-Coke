@@ -6,6 +6,8 @@ import { downloadInvoicePDF } from "./PDFInvoice"; // ⬅️ new import
 import { printReceipt } from "./receiptPrint.jsx"; // Make sure the file name is exactly 'receiptPrint.jsx'
 import "react-toastify/dist/ReactToastify.css"
 import api from "../api"; // Assuming this is where your api helper is
+import ModalShell from "./common/ModalShell";
+import { showAppAlertDialog } from "./common/modalDialogs";
 
 
 
@@ -748,18 +750,11 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   // };
 
   const showCustomAlert = (message) => {
-    const modal = document.createElement("div");
-    modal.className =
-      "fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50";
-    modal.innerHTML = `
-      <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-lg max-w-sm w-full mx-4">
-        <p class="text-gray-700 dark:text-gray-300 mb-4">${message}</p>
-        <div class="flex justify-end">
-          <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
+    showAppAlertDialog({
+      message,
+      okLabel: "OK",
+      size: "sm",
+    });
   };
 
   // ✅ Subtotal logic
@@ -768,8 +763,13 @@ const subtotalFromRows = tableRows.reduce((sum, r) => sum + getRowActual(r), 0);
 const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white w-full max-w-5xl p-6 rounded-lg overflow-y-auto max-h-[90vh] shadow-lg relative">
+    <ModalShell
+      open
+      onClose={onClose}
+      size="2xl"
+      closeOnOverlay={false}
+      panelClassName="bg-white w-full max-w-5xl p-6 rounded-lg overflow-y-auto max-h-[90vh] shadow-lg relative"
+    >
         {/* Top Buttons */}
         <div className="flex justify-between items-center mb-4">
           <button
@@ -1190,8 +1190,7 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
             {isViewOnly ? "Close" : "Close"}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 };
 

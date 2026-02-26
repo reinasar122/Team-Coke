@@ -3,6 +3,8 @@ import React, { useState, useMemo, useEffect } from "react";
 import InvoiceModal from "./InvoiceModal";
 import axios from "axios";
 import api from "../api"; // ensure api is imported so env vars are loaded import ".";
+import ModalShell from "./common/ModalShell";
+import { showAppAlertDialog } from "./common/modalDialogs";
 
 
 // ---- Helper to create a Credit Ledger on the backend (POST /api/credits/) ----
@@ -202,17 +204,7 @@ const PaymentModal = ({
 
   // ✅ Custom alert function
   const showAlert = (message) => {
-    const alertDiv = document.createElement('div');
-    alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    alertDiv.innerHTML = `
-      <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-        <p class="text-gray-700 mb-4">${message}</p>
-        <div class="flex justify-end">
-          <button class="px-4 py-2 bg-blue-500 text-white hover:bg-blue-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(alertDiv);
+    showAppAlertDialog({ message, size: "sm" });
   };
 
 
@@ -564,8 +556,14 @@ const PaymentModal = ({
 
 
   return (
-    <div className="fixed inset-0 z-50 bg-black bg-opacity-30 flex items-center justify-center">
-      <div className="bg-white p-6 rounded-lg w-full max-w-4xl shadow-lg max-h-[90vh] overflow-y-auto">
+    <ModalShell
+      open
+      onClose={submitting ? undefined : onClose}
+      size="xl"
+      closeOnOverlay={!submitting}
+      closeOnEscape={!submitting}
+      panelClassName="bg-white p-6 rounded-lg w-full max-w-4xl shadow-lg max-h-[90vh] overflow-y-auto"
+    >
         <div className="border-b pb-2 mb-4">
           <h2 className="text-xl font-bold">{paymentTermLabel} Confirmation</h2>
         </div>
@@ -1516,20 +1514,13 @@ const PaymentModal = ({
                         : err?.message || String(err);
                       console.error("Create credit failed:", err);
 
-                      const alertDiv = document.createElement('div');
-                      alertDiv.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-                      alertDiv.innerHTML = `
-                        <div class="bg-white p-6 rounded-lg shadow-lg max-w-md w-full mx-4">
-                          <h3 class="text-lg font-semibold text-red-600 mb-3">Credit Save Failed</h3>
-                          <div class="text-gray-700 mb-4 text-sm max-h-48 overflow-y-auto">
-                            <pre class="whitespace-pre-wrap">${details}</pre>
-                          </div>
-                          <div class="flex justify-end">
-                            <button class="px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded" onclick="this.closest('.fixed').remove()">OK</button>
-                          </div>
-                        </div>
-                      `;
-                      document.body.appendChild(alertDiv);
+                      await showAppAlertDialog({
+                        title: "Credit Save Failed",
+                        details,
+                        danger: true,
+                        okLabel: "OK",
+                        size: "sm",
+                      });
 
                       setSubmitting(false);
                       return;
@@ -1602,7 +1593,6 @@ const PaymentModal = ({
 
           </button>
         </div>
-      </div>
 
 
       {showInvoiceModal && (
@@ -1617,7 +1607,7 @@ const PaymentModal = ({
                   id: transactionId || invoiceData?.id || null }}
         />
       )}
-    </div>
+    </ModalShell>
   );
 };
 

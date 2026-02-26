@@ -183,7 +183,7 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
   }, [formData.city, formData.province, formData.region]);
 
   return (
-    <div>
+    <div className="text-gray-900 dark:text-slate-100">
       <h2 className="text-2xl font-semibold mb-4">Edit Warehouse</h2>
 
       <form

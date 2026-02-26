@@ -148,12 +148,32 @@ code {
   background-color: #172033 !important;
 }
 
+/* Keep layout stable when dialogs open */
+body {
+  scrollbar-gutter: stable both-edges;
+}
+
+html:has(.modal-overlay),
+html:has(.app-modal-overlay),
+body:has(.modal-overlay),
+body:has(.app-modal-overlay) {
+  overflow: hidden;
+}
+
 /* Modals */
+.dark .app-modal-overlay,
+.dark .modal-overlay {
+  background: rgba(2, 6, 23, 0.7) !important;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.dark .app-modal-panel,
 .dark .modal-overlay > div,
 .dark .modal,
 .dark .bg-white.p-6,
 .dark .bg-white.p-8 {
-  background-color: #0b1018 !important;
+  background: linear-gradient(180deg, #0b1018 0%, #090e16 100%) !important;
   color: #d7e2f2 !important;
   border-color: rgba(148, 163, 184, 0.18) !important;
   box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(34, 211, 238, 0.04) !important;

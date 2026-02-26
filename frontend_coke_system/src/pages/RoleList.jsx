@@ -26,6 +26,31 @@ const RoleList = () => {
     fetchRoles();
   }, []);
 
+  useEffect(() => {
+    const hasOpenModal = isRoleFormVisible || showEditAccessModal || showDeleteModal;
+    if (!hasOpenModal) return undefined;
+
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+
+      if (showDeleteModal) {
+        setShowDeleteModal(false);
+        setRoleToDelete(null);
+        return;
+      }
+      if (showEditAccessModal) {
+        setShowEditAccessModal(false);
+        return;
+      }
+      if (isRoleFormVisible) {
+        setIsRoleFormVisible(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isRoleFormVisible, showEditAccessModal, showDeleteModal]);
+
   const fetchRoles = async () => {
     try {
       setLoading(true);
@@ -276,8 +301,8 @@ const RoleList = () => {
       )}
 
       {showEditAccessModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white rounded-lg shadow-lg w-[90%] md:w-[60%] max-h-[90vh] overflow-auto p-6">
+        <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
+          <div className="app-modal-panel app-modal-panel-2xl bg-white rounded-lg shadow-lg w-[95%] md:w-[80%] max-h-[92vh] overflow-auto p-6">
             <EditRoleAccess
               roleId={selectedRoleId}
               onClose={() => setShowEditAccessModal(false)}
@@ -289,9 +314,8 @@ const RoleList = () => {
 
       {/* Delete Confirmation Modal */}
       {showDeleteModal && roleToDelete && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
-          <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max
-          -h-[90vh] overflow-auto">
+        <div className="app-modal-overlay z-50 px-4" role="dialog" aria-modal="true">
+          <div className="app-modal-panel app-modal-panel-sm bg-white p-6 rounded shadow-lg max-w-full w-full max-w-xl max-h-[90vh] overflow-auto">
             <p className="text-lg font-semibold mb-2">
               Are you sure you want to delete{" "}
               <strong>{roleToDelete.name}</strong>?

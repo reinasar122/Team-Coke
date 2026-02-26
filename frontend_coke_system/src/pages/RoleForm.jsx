@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
 import PermissionTable from "../components/roles/PermissionTable";
@@ -229,10 +229,18 @@ const RoleForm = ({ onRoleAdded, onClose }) => {
   }
 };
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-      <div className="bg-white p-8 rounded-xl shadow-xl max-w-6xl w-full role-modal-container">
+    <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
+      <div className="app-modal-panel app-modal-panel-2xl bg-white p-8 rounded-xl shadow-xl max-w-6xl w-full role-modal-container">
         <h2 className="text-2xl font-bold text-gray-800 mb-6 border-b pb-2">
           Role Accessibility Settings
         </h2>

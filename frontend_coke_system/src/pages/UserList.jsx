@@ -76,8 +76,8 @@ const ApprovalModal = ({ isOpen, onClose, user, roles, warehouses, onApproved })
 
 
   return (
-    <div className="modal-overlay">
-      <div className="modal">
+    <div className="modal-overlay app-modal-overlay" role="dialog" aria-modal="true">
+      <div className="modal app-modal-panel app-modal-panel-sm">
         <div className="modal-body">
           <h3 className="page-title">Approve User</h3>
           <p style={{ marginBottom: "0.75rem" }}>
@@ -139,8 +139,8 @@ const DeleteConfirmModal = ({ isOpen, onClose, onConfirm, user }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4">
-      <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
+    <div className="app-modal-overlay z-50 px-4" role="dialog" aria-modal="true">
+      <div className="app-modal-panel app-modal-panel-sm p-6 w-full max-w-xl max-h-[90vh] overflow-auto">
         <div className="modal-body">
           <h3 className="page-title">Confirm Delete</h3>
           <p className="text-lg font-semibold mb-2">
@@ -182,6 +182,34 @@ const UserList = () => {
     fetchRoles();
     fetchWarehouses(); // Karen Changes
   }, []);
+
+  useEffect(() => {
+    const hasOpenModal = showForm || !!editingUser || deleteModal.open || approvalModal.open;
+    if (!hasOpenModal) return undefined;
+
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+
+      if (deleteModal.open) {
+        setDeleteModal({ open: false, user: null });
+        return;
+      }
+      if (approvalModal.open) {
+        setApprovalModal({ open: false, user: null });
+        return;
+      }
+      if (editingUser) {
+        setEditingUser(null);
+        return;
+      }
+      if (showForm) {
+        setShowForm(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showForm, editingUser, deleteModal.open, approvalModal.open]);
 
   const fetchUsers = async () => {
     try {
@@ -571,12 +599,10 @@ const UserList = () => {
 
       {/* Modals */}
       {showForm && (
-        <div className="modal-overlay">
-          <UserForm
-            onUserAdded={(newUser) => setUsers([...users, newUser])}
-            onClose={() => setShowForm(false)}
-          />
-        </div>
+        <UserForm
+          onUserAdded={(newUser) => setUsers([...users, newUser])}
+          onClose={() => setShowForm(false)}
+        />
       )}
 
       {editingUser && (

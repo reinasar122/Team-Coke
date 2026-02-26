@@ -223,7 +223,7 @@ const handleSubmit = async (e) => {
   }, [formData.city, formData.province, formData.region]);
 
   return (
-    <div>
+    <div className="text-gray-900 dark:text-slate-100">
       <h2 className="text-2xl font-semibold mb-4">New Warehouse</h2>
       <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Name */}

@@ -49,6 +49,14 @@ const UserForm = ({ onUserAdded, onClose }) => {
     fetchWarehouses();
   }, []);
 
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onClose]);
+
   // ---------------- Email Validation (unchanged) ----------------
   const validateEmail = (email) => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -206,8 +214,8 @@ const UserForm = ({ onUserAdded, onClose }) => {
 
   // ---------------- JSX Form ----------------
   return (
-    <div className="modal-overlay bg-gray-900 bg-opacity-50">
-      <div className="w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
+    <div className="modal-overlay app-modal-overlay" role="dialog" aria-modal="true">
+      <div className="app-modal-panel app-modal-panel-lg w-full max-w-3xl p-8 bg-white shadow-lg rounded-lg">
         <h2 className="text-2xl font-semibold mb-4">New User</h2>
         <form onSubmit={handleSubmit}>
           {/* Name Fields */}

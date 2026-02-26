@@ -6,6 +6,7 @@ import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaChevronDown, FaSearch
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
 import { notifyProductChange } from '../utils/productNotifier';
 import { getCurrentWarehouse, findWarehouseByName, getWarehouseAxiosConfig } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
+import { showAppAlertDialog, showAppConfirmDialog } from "../components/common/modalDialogs";
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -231,70 +232,45 @@ const ProductList = () => {
 
   const handleDelete = async (id) => {
     const productToDelete = products.find(p => p.id === id);
-   
-    const showConfirmDialog = (message, onConfirm) => {
-      const modal = document.createElement('div');
-      modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4';
-      modal.innerHTML = `
-        <div class="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
-          <div class="modal-body">
-            <h3 class="page-title">Confirm Delete</h3>
-            <p class="text-muted" style="margin-bottom: 12px; color: #64748b;">${message}</p>
-            <div class="flex justify-end mt-6 gap-3">
-              <button class="btn btn-cancel js-cancel">Cancel</button>
-              <button class="btn btn-danger js-confirm">Delete</button>
-            </div>
-          </div>
-        </div>
-      `;
-      modal.querySelector('.js-cancel').onclick = () => modal.remove();
-      modal.querySelector('.js-confirm').onclick = () => {
-        modal.remove();
-        onConfirm();
-      };
-      document.body.appendChild(modal);
-    };
 
-    const showAlert = (message, variant = 'primary') => {
-      const alert = document.createElement('div');
-      alert.className = 'fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 px-4';
-      alert.innerHTML = `
-        <div class="bg-white p-6 rounded shadow-lg max-w-full w-auto max-h-[90vh] overflow-auto">
-          <div class="modal-body">
-            <p class="text-muted" style="margin-bottom: 12px; color: #64748b;">${message}</p>
-            <div class="flex justify-end mt-6 gap-3">
-              <button class="btn js-ok">${variant === 'danger' ? 'Close' : 'OK'}</button>
-            </div>
-          </div>
-        </div>
-      `;
-      alert.querySelector('.js-ok').onclick = () => alert.remove();
-      document.body.appendChild(alert);
-    };
-
-    showConfirmDialog("Are you sure you want to delete this product?", async () => {
-      try {
-        // ✅ KEPT: Use warehouse config for delete request (from old version)
-        const config = getWarehouseAxiosConfig(currentWarehouse);
-        // ✅ NEW: Use api.delete() instead of axios.delete() (from new version)
-        await api.delete(`/products/${id}/`, config);
-        setProducts(prev => prev.filter(prod => prod.id !== id));
-        if (productToDelete) {
-          notifyProductChange({
-            action: 'deleted',
-            id: productToDelete.id,
-            product_name: productToDelete.product_name,
-            product_code: productToDelete.system_code,
-            category: productToDelete.product_category?.name || 'Unknown',
-            selling_price: productToDelete.price?.selling_price || 0
-          });
-        }
-       
-        showAlert("🗑️ Product deleted successfully!");
-      } catch (err) {
-        showAlert("❌ Failed to delete product. " + (err.response?.data?.message || err.message), 'danger');
-      }
+    const confirmed = await showAppConfirmDialog({
+      title: "Confirm Delete",
+      message: "Are you sure you want to delete this product?",
+      confirmLabel: "Delete",
+      cancelLabel: "Cancel",
+      danger: true,
+      size: "sm",
     });
+
+    if (!confirmed) return;
+
+    try {
+      // ✅ KEPT: Use warehouse config for delete request (from old version)
+      const config = getWarehouseAxiosConfig(currentWarehouse);
+      // ✅ NEW: Use api.delete() instead of axios.delete() (from new version)
+      await api.delete(`/products/${id}/`, config);
+      setProducts(prev => prev.filter(prod => prod.id !== id));
+      if (productToDelete) {
+        notifyProductChange({
+          action: 'deleted',
+          id: productToDelete.id,
+          product_name: productToDelete.product_name,
+          product_code: productToDelete.system_code,
+          category: productToDelete.product_category?.name || 'Unknown',
+          selling_price: productToDelete.price?.selling_price || 0
+        });
+      }
+
+      showAppAlertDialog({ message: "Product deleted successfully!", size: "sm" });
+    } catch (err) {
+      showAppAlertDialog({
+        title: "Delete Failed",
+        message: "Failed to delete product. " + (err.response?.data?.message || err.message),
+        danger: true,
+        okLabel: "Close",
+        size: "sm",
+      });
+    }
   };
 
   // ✅ KEPT: Show loading state while setting up warehouse (from old version)

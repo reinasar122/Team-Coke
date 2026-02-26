@@ -23,6 +23,31 @@ const Warehouses = () => {
     fetchWarehouses();
   }, []);
 
+  useEffect(() => {
+    const hasOpenModal = showCreateModal || !!editWarehouseId || showDeleteModal;
+    if (!hasOpenModal) return undefined;
+
+    const onKeyDown = (e) => {
+      if (e.key !== "Escape") return;
+
+      if (showDeleteModal) {
+        setShowDeleteModal(false);
+        setWarehouseToDelete(null);
+        return;
+      }
+      if (editWarehouseId) {
+        setEditWarehouseId(null);
+        return;
+      }
+      if (showCreateModal) {
+        setShowCreateModal(false);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showCreateModal, editWarehouseId, showDeleteModal]);
+
   const fetchWarehouses = async () => {
     setLoading(true);
     setError(null);
@@ -58,7 +83,7 @@ const Warehouses = () => {
   }
 
   return (
-    <div className="page++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++">
+    <div className="page">
       <div className="flex justify-between items-center mb-4">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -150,8 +175,8 @@ const Warehouses = () => {
         
       {/* Create Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded shadow-lg w-full max-w-lg">
+        <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
+          <div className="app-modal-panel app-modal-panel-md bg-white p-6 rounded shadow-lg w-full max-w-lg">
             <WarehouseForm
               onClose={() => setShowCreateModal(false)}
               onSuccess={() => {
@@ -165,8 +190,8 @@ const Warehouses = () => {
 
       {/* Edit Modal */}
       {editWarehouseId && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded shadow-lg w-full max-w-lg">
+        <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
+          <div className="app-modal-panel app-modal-panel-md bg-white p-6 rounded shadow-lg w-full max-w-lg">
             <EditWarehouse
               id={editWarehouseId}
               onClose={() => setEditWarehouseId(null)}
@@ -181,8 +206,8 @@ const Warehouses = () => {
 
       {/* Delete Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded shadow-lg max-w-full w-auto mx-4">
+        <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
+          <div className="app-modal-panel app-modal-panel-sm bg-white p-6 rounded shadow-lg max-w-full w-full max-w-xl mx-4">
             <p className="text-lg font-semibold mb-6">
               Are you sure you want to delete <strong>{warehouseToDelete?.name}</strong>?
             </p>
