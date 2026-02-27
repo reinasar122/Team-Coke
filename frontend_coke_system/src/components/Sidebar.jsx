@@ -43,13 +43,13 @@ const Sidebar = ({ isSidebarOpen }) => {
     setOpenDropdown(openDropdown === menu ? null : menu);
   };
 
-  // Handle logout logic
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("access");
-    localStorage.removeItem("resetEmail");
-    navigate("/login");
-  };
+  // // Handle logout logic
+  // const handleLogout = () => {
+  //   localStorage.removeItem("user");
+  //   localStorage.removeItem("access");
+  //   localStorage.removeItem("resetEmail");
+  //   navigate("/login");
+  // };
 
   // Determine the first accessible route based on user permissions
   const getAccessibleRoute = () => {
@@ -488,7 +488,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           )}
         </li>
 
-        {/* Logout */}
+        {/* Logout
         <li>
           <button
             onClick={handleLogout}
@@ -496,7 +496,7 @@ const Sidebar = ({ isSidebarOpen }) => {
           >
             <FontAwesomeIcon icon={faSignOutAlt} className="mr-2" /> Log out
           </button>
-        </li>
+        </li> */}
       </ul>
     </div>
   );

@@ -213,7 +213,7 @@ function Settings() {
           <button
             onClick={saveStockThresholds}
             disabled={!isDirty || saving}
-            className={`px-10 py-4 rounded-xl font-bold text-lg text-white transition-all
+            className={`px-4 py-2 rounded-xl font-bold text-lg text-white transition-all
               ${
                 !isDirty || saving
                   ? "bg-gray-400 cursor-not-allowed"

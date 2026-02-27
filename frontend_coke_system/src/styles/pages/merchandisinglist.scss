@@ -2,6 +2,52 @@
 
 /* Custom styles for the Merchandising List page */
 
+/* Trading page warehouse chip uses shared .trading-warehouse-chip style from global.scss */
+
+/* Trading status pills (scoped to avoid generic utility collisions) */
+.merch-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.25rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+
+.merch-status-pill--pending {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.merch-status-pill--completed {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.merch-status-pill--progress {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.merch-status-pill--default {
+  background: #f3f4f6;
+  color: #1f2937;
+  border-color: #e5e7eb;
+}
+
+.tradinglist-row {
+  border-top: 1px solid var(--border);
+  background: transparent;
+  transition: background-color 120ms ease;
+}
+
 /* Custom pill styles for status */
 // .trading-container {
 //   max-width: 100vw;
@@ -71,4 +117,36 @@
 /* Custom hover effect for rows */
 .table tbody tr:hover {
   background: var(--row-hover);
+}
+
+.dark .merch-status-pill {
+  box-shadow: none !important;
+}
+
+.dark .merch-status-pill--pending {
+  background: rgba(245, 158, 11, 0.14) !important;
+  color: #fcd34d !important;
+  border-color: rgba(245, 158, 11, 0.28) !important;
+}
+
+.dark .merch-status-pill--completed {
+  background: rgba(16, 185, 129, 0.14) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(16, 185, 129, 0.28) !important;
+}
+
+.dark .merch-status-pill--progress {
+  background: rgba(59, 130, 246, 0.14) !important;
+  color: #93c5fd !important;
+  border-color: rgba(59, 130, 246, 0.28) !important;
+}
+
+.dark .merch-status-pill--default {
+  background: rgba(148, 163, 184, 0.12) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}
+
+.dark .tradinglist-row {
+  border-top-color: rgba(148, 163, 184, 0.12) !important;
 }

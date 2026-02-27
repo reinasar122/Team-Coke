@@ -220,6 +220,58 @@ input::-webkit-contacts-auto-fill-button {
   letter-spacing: 0.2px;
 }
 
+/* Compact warehouse badge used beside page titles */
+.page-warehouse-chip,
+.trading-warehouse-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.28rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  color: #334155;
+  background:
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border: 1px solid #dbe7ff;
+  box-shadow:
+    0 6px 14px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+}
+
+.page-warehouse-chip--inline {
+  margin-left: 0.6rem;
+  vertical-align: middle;
+}
+
+.page-warehouse-chip__icon,
+.page-warehouse-chip svg,
+.trading-warehouse-chip svg {
+  flex: 0 0 auto;
+  font-size: 0.7rem;
+  line-height: 1;
+  color: #e2e8f0;
+}
+
+.page-warehouse-chip__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  font-size: 0.55rem;
+}
+
+.page-warehouse-chip__text {
+  color: inherit;
+  line-height: 1;
+}
+
 /* =========================
    Card
    ========================= */
@@ -597,6 +649,27 @@ input::-webkit-contacts-auto-fill-button {
 
 .dark .page-title {
   color: var(--text);
+}
+
+.dark .page-warehouse-chip,
+.dark .trading-warehouse-chip {
+  background:
+    linear-gradient(180deg, rgba(8, 16, 32, 0.98) 0%, rgba(5, 11, 23, 0.98) 100%) !important;
+  color: #eef4ff !important;
+  border-color: rgba(96, 165, 250, 0.22) !important;
+  box-shadow:
+    0 10px 22px rgba(2, 6, 23, 0.42),
+    inset 0 0 0 1px rgba(59, 130, 246, 0.05) !important;
+}
+
+.dark .page-warehouse-chip__icon {
+  background: linear-gradient(180deg, #334155 0%, #1e293b 100%) !important;
+  color: #dbeafe !important;
+}
+
+.dark .page-warehouse-chip *,
+.dark .trading-warehouse-chip * {
+  color: inherit !important;
 }
 
 .dark .card,

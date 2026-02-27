@@ -1262,7 +1262,7 @@ const MerchandisingSale = () => {
                     {c.name}
                   </option>
                 ))}
-                <option value="add_new">+ New Customer (Open Drawer)</option>
+                <option value="add_new">+ New Customer</option>
               </select>
               {selectedCustomerId && (
                 <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">

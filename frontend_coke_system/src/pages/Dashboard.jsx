@@ -26,7 +26,7 @@ import api from "../api"; // ✅ API import integration
 
 /* -------------------- Skeleton Component -------------------- */
 const Skeleton = ({ className = "" }) => (
-  <div className={`animate-pulse rounded-md bg-slate-200/60 ${className}`} />
+  <div className={`animate-pulse rounded-md bg-slate-200/60 dark:bg-slate-800/60 ${className}`} />
 );
 
 /* -------------------- Icon Components -------------------- */
@@ -175,12 +175,12 @@ const WarehouseDropdown = ({ selectedWarehouseIds, onWarehouseChange, warehouses
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 text-xs border rounded-md px-3 py-2 bg-white hover:bg-gray-50 transition-colors min-w-[160px]"
+        className="flex items-center gap-2 text-xs border rounded-md px-3 py-2 bg-white hover:bg-gray-50 dark:bg-slate-900 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-100 transition-colors min-w-[160px]"
       >
         <IconBuilding />
         <span className="truncate">{getDisplayText()}</span>
         <svg 
-          className={`w-3 h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+          className={`w-3 h-3 text-gray-400 dark:text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
           fill="none" 
           stroke="currentColor" 
           viewBox="0 0 24 24"
@@ -190,12 +190,12 @@ const WarehouseDropdown = ({ selectedWarehouseIds, onWarehouseChange, warehouses
       </button>
 
       {isOpen && (
-        <div className="absolute left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[240px]">
+        <div className="absolute left-0 mt-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-2xl z-50 min-w-[240px]">
           <div className="py-2">
             {warehouses.map((warehouse, index) => (
               <label
                 key={`warehouse-option-${warehouse.id}-${index}`}
-                className="flex items-center gap-3 px-3 py-2 text-xs hover:bg-gray-100 cursor-pointer"
+                className="flex items-center gap-3 px-3 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <input
                   type="checkbox"
@@ -206,7 +206,7 @@ const WarehouseDropdown = ({ selectedWarehouseIds, onWarehouseChange, warehouses
                 <span className="truncate">
                   {warehouse.name}
                   {warehouse.city && (
-                    <span className="text-gray-500 ml-1">({warehouse.city})</span>
+                    <span className="text-gray-500 dark:text-slate-400 ml-1">({warehouse.city})</span>
                   )}
                 </span>
               </label>
@@ -252,12 +252,12 @@ const PeriodDropdown = ({ period, onPeriodChange, customStartDate, customEndDate
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setIsOpen(!isOpen)}
-          className="flex items-center gap-2 text-xs border rounded-md px-3 py-2 bg-white hover:bg-gray-50 transition-colors min-w-[120px]"
+          className="flex items-center gap-2 text-xs border rounded-md px-3 py-2 bg-white hover:bg-gray-50 dark:bg-slate-900 dark:hover:bg-slate-800 dark:border-slate-700 dark:text-slate-100 transition-colors min-w-[120px]"
         >
           <IconCalendar />
           <span className="truncate">{getPeriodDisplayText()}</span>
           <svg 
-            className={`w-3 h-3 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
+            className={`w-3 h-3 text-gray-400 dark:text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} 
             fill="none" 
             stroke="currentColor" 
             viewBox="0 0 24 24"
@@ -267,14 +267,14 @@ const PeriodDropdown = ({ period, onPeriodChange, customStartDate, customEndDate
         </button>
 
         {isOpen && (
-          <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[200px]">
+          <div className="absolute right-0 mt-1 bg-white dark:bg-slate-900 border border-gray-200 dark:border-slate-700 rounded-lg shadow-lg dark:shadow-2xl z-50 min-w-[200px]">
             <div className="py-1">
               {extendedPeriodOptions.map((option, index) => (
                 <button
                   key={`period-option-${option.value}-${index}`}
                   onClick={() => handleOptionSelect(option.value)}
-                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 ${
-                    period === option.value ? 'bg-blue-50 text-blue-600' : 'text-gray-700'
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-gray-100 dark:hover:bg-slate-800 ${
+                    period === option.value ? 'bg-blue-50 dark:bg-blue-900/25 text-blue-600 dark:text-blue-300' : 'text-gray-700 dark:text-slate-200'
                   }`}
                 >
                   {option.label}
@@ -291,22 +291,22 @@ const PeriodDropdown = ({ period, onPeriodChange, customStartDate, customEndDate
             type="date"
             value={customStartDate}
             onChange={(e) => onCustomDatesChange(e.target.value, customEndDate)}
-            className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-white"
+            className="px-2 py-1 text-xs border border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-900 dark:text-slate-100"
             placeholder="Start Date"
           />
-          <span className="text-xs text-gray-500">to</span>
+          <span className="text-xs text-gray-500 dark:text-slate-400">to</span>
           <input
             type="date"
             value={customEndDate}
             onChange={(e) => onCustomDatesChange(customStartDate, e.target.value)}
             min={customStartDate}
-            className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-blue-500 focus:border-blue-500 bg-white"
+            className="px-2 py-1 text-xs border border-gray-300 dark:border-slate-700 rounded focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-slate-900 dark:text-slate-100"
             placeholder="End Date"
           />
           {customStartDate && customEndDate && (
             <button
               onClick={() => {/* Optional: Add apply action if needed */}}
-              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-400"
             >
               ✓
             </button>
@@ -349,9 +349,9 @@ const MiniCard = memo(function MiniCard({
       onClick={onClick}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick?.(e)}
       className={[
-        "group rounded-xl border bg-white/70 backdrop-blur supports-[backdrop-filter]:bg-white/60",
-        "border-gray-200/70 shadow-sm transition-all duration-200 ease-out",
-        "hover:shadow-lg hover:scale-[1.02] active:scale-[0.99]",
+        "group rounded-xl border bg-white/70 dark:bg-slate-950/75 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-950/60",
+        "border-gray-200/70 dark:border-slate-800/80 shadow-sm dark:shadow-[0_10px_24px_rgba(2,6,23,0.35)] transition-all duration-200 ease-out",
+        "hover:shadow-lg dark:hover:shadow-[0_14px_30px_rgba(2,6,23,0.55)] hover:scale-[1.02] active:scale-[0.99]",
         "hover:ring-2 focus:outline-none focus-visible:ring-2",
         accent,
         "p-3 cursor-pointer",
@@ -359,7 +359,7 @@ const MiniCard = memo(function MiniCard({
       ].join(" ")}
     >
       <div className="flex items-center justify-between mb-1">
-        <h3 className="text-[13px] font-semibold text-slate-900">{title}</h3>
+        <h3 className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">{title}</h3>
         <button
           type="button"
           onClick={(e) => {
@@ -368,13 +368,13 @@ const MiniCard = memo(function MiniCard({
           }}
           aria-label={`Remove ${title} widget`}
           title="Remove"
-          className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100"
+          className="h-7 w-7 inline-flex items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-800"
         >
           ×
         </button>
       </div>
       <div className="min-h-[92px]">
-        {children || <div className="text-slate-400">{title} quick glance</div>}
+        {children || <div className="text-slate-400 dark:text-slate-500">{title} quick glance</div>}
       </div>
     </div>
   );
@@ -392,13 +392,13 @@ const TableShell = ({ headers, rows, emptyText }) => {
     );
   }
   if (rows.length === 0) {
-    return <div className="text-xs text-slate-500">{emptyText}</div>;
+    return <div className="text-xs text-slate-500 dark:text-slate-400">{emptyText}</div>;
   }
   return (
     <div className="w-full">
-      <table className="w-full text-[12px] text-slate-800">
+      <table className="w-full text-[12px] text-slate-800 dark:text-slate-200">
         <thead>
-          <tr className="text-left text-slate-500">
+          <tr className="text-left text-slate-500 dark:text-slate-400">
             {headers.map((h, i) => (
               <th
                 key={`header-${h.key || h.label}-${i}`}
@@ -413,7 +413,7 @@ const TableShell = ({ headers, rows, emptyText }) => {
         </thead>
         <tbody>
           {rows.map((r, idx) => (
-            <tr key={`row-${r.id ?? `idx-${idx}`}`} className="border-t">
+            <tr key={`row-${r.id ?? `idx-${idx}`}`} className="border-t border-slate-200/70 dark:border-slate-800">
               {headers.map((h, i) => (
                 <td
                   key={`cell-${r.id ?? `idx-${idx}`}-${h.key}-${i}`}
@@ -609,17 +609,17 @@ const SuppliersWidget = memo(function SuppliersWidget({ rows }) {
 // Credit Widget components
 const CreditStatusPill = ({ status }) => {
   const st = String(status || "").toUpperCase();
-  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
-  if (st === "PENDING") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
-  if (st === "PARTIAL") return <span className={`${base} bg-amber-100 text-amber-800`}>Partial</span>;
-  if (st === "PAID") return <span className={`${base} bg-green-100 text-green-800`}>Paid</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "--"}</span>;
+  const base = "dash-status-pill";
+  if (st === "PENDING") return <span className={`${base} dash-status-pill--pending`}>Pending</span>;
+  if (st === "PARTIAL") return <span className={`${base} dash-status-pill--partial`}>Partial</span>;
+  if (st === "PAID") return <span className={`${base} dash-status-pill--paid`}>Paid</span>;
+  return <span className={`${base} dash-status-pill--default`}>{status || "--"}</span>;
 };
 
 const CreditWidget = memo(function CreditWidget({ rows, summary }) {
   return (
     <div className="grid gap-2">
-      <div className="flex items-center justify-between text-[11px] text-slate-600">
+      <div className="flex items-center justify-between text-[11px] text-slate-600 dark:text-slate-400">
         <div>
           <span className="font-medium">Outstanding:</span>{" "}
           <span>{summary?.countOutstanding ?? 0}</span>
@@ -651,7 +651,7 @@ const SalesReportWidget = memo(function SalesReportWidget({
   productsSold,
 }) {
   return (
-    <div className="text-[11px] text-slate-700 space-y-1">
+    <div className="text-[11px] text-slate-700 dark:text-slate-300 space-y-1">
       <div className="flex justify-between">
         <span>Revenue</span>
         <span className="font-semibold">{peso(revenue)}</span>
@@ -2055,11 +2055,11 @@ const Dashboard = () => {
         {visibleSelectedItems.length === 0 && (
           <button
             onClick={() => setPickerOpen(true)}
-            className="rounded-xl border-2 border-dashed border-slate-300/80 p-8 flex flex-col items-center justify-center text-slate-600 bg-white/50 hover:bg-white/70 transition"
+            className="rounded-xl border-2 border-dashed border-slate-300/80 dark:border-slate-700/80 p-8 flex flex-col items-center justify-center text-slate-600 dark:text-slate-300 bg-white/50 dark:bg-slate-950/40 hover:bg-white/70 dark:hover:bg-slate-900/60 transition"
           >
             <div className="text-base mb-1">➕</div>
             <div className="text-xs">No widgets selected</div>
-            <div className="text-[11px] text-slate-500">Click to add widgets</div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">Click to add widgets</div>
           </button>
         )}
       </div>
@@ -2085,23 +2085,23 @@ const Dashboard = () => {
 /* ---- Status components ---- */
 const StatusPill = ({ status }) => {
   const st = (status || "").toLowerCase();
-  const base = "px-2 py-0.5 rounded text-[11px] font-semibold inline-flex";
-  if (st === "pending") return <span className={`${base} bg-yellow-100 text-yellow-800`}>Pending</span>;
-  if (st === "complete" || st === "completed") return <span className={`${base} bg-green-100 text-green-800`}>Completed</span>;
-  return <span className={`${base} bg-gray-100 text-gray-800`}>{status || "--"}</span>;
+  const base = "dash-status-pill";
+  if (st === "pending") return <span className={`${base} dash-status-pill--pending`}>Pending</span>;
+  if (st === "complete" || st === "completed") return <span className={`${base} dash-status-pill--completed`}>Completed</span>;
+  return <span className={`${base} dash-status-pill--default`}>{status || "--"}</span>;
 };
 
 const TradingPreview = memo(function TradingPreview({ rows }) {
-  if (!rows) return <div className="text-xs text-slate-500">Loading…</div>;
-  if (rows.length === 0) return <div className="text-xs text-slate-500">No recent transactions</div>;
+  if (!rows) return <div className="text-xs text-slate-500 dark:text-slate-400">Loading…</div>;
+  if (rows.length === 0) return <div className="text-xs text-slate-500 dark:text-slate-400">No recent transactions</div>;
   const latest = rows[0];
   return (
-    <div className="text-sm text-slate-700">
+    <div className="text-sm text-slate-700 dark:text-slate-300">
       <div className="font-medium">
         Latest: {latest.msp_no} -- {latest.transaction_type_name || "--"}{" "}
         <span className="ml-1 align-middle"><StatusPill status={latest.status} /></span>
       </div>
-      <div className="text-xs text-slate-500 mt-1">
+      <div className="text-xs text-slate-500 dark:text-slate-400 mt-1">
         {rows.length} recent {rows.length === 1 ? "transaction" : "transactions"} ·{" "}
         {latest.date_time ? formatToManila(latest.date_time) : "--"}
       </div>

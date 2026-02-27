@@ -66,7 +66,13 @@ const IconClose = (props) => (
   </svg>
 );
 const IconChevron = ({ open }) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" className="text-slate-500">
+  <svg
+    viewBox="0 0 24 24"
+    width="16"
+    height="16"
+    aria-hidden="true"
+    className="text-slate-500 dark:text-slate-300"
+  >
     <path fill="currentColor" d={open ? "M7 14l5-5 5 5z" : "M7 10l5 5 5-5z"} />
   </svg>
 );
@@ -187,7 +193,7 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
         role="dialog"
         aria-modal="true"
         aria-label="Add Dashboard Widgets"
-        className="absolute inset-x-0 top-8 mx-auto w-[95%] max-w-6xl rounded-3xl shadow-2xl overflow-hidden ring-1 ring-black/10"
+        className="absolute inset-x-0 top-8 mx-auto w-[95%] max-w-6xl rounded-3xl shadow-2xl overflow-hidden ring-1 ring-black/10 dark:ring-white/10"
       >
         {/* Fancy header */}
         <div className="relative">
@@ -278,16 +284,16 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
 
         {/* Selection toolbar (appears only when selected) */}
         {checked.size > 0 && (
-          <div className="bg-emerald-50/80 border-b border-emerald-200 px-5 py-2 text-xs text-emerald-900 flex items-center justify-between">
+          <div className="bg-emerald-50/80 dark:bg-emerald-950/35 border-b border-emerald-200 dark:border-emerald-900 px-5 py-2 text-xs text-emerald-900 dark:text-emerald-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 border border-emerald-200">
+              <span className="px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-900/40 border border-emerald-200 dark:border-emerald-800">
                 {checked.size} selected
               </span>
 
             </div>
             <button
               onClick={clearAll}
-              className="text-emerald-900 hover:underline"
+              className="text-emerald-900 dark:text-emerald-200 hover:underline"
               title="Clear all selected"
             >
               Clear
@@ -296,7 +302,7 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
         )}
 
         {/* Body */}
-        <div className="px-5 py-5 max-h-[68vh] overflow-y-auto bg-white custom-scroll">
+        <div className="px-5 py-5 max-h-[68vh] overflow-y-auto bg-white dark:bg-slate-950 custom-scroll">
           {visibleBySection.map((sec) => {
             const visibleCount = sec.items.length;
             const selectedCount = sec.items.filter((it) => checked.has(it.id)).length;
@@ -306,26 +312,26 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
             return (
               <div
                 key={sec.id}
-                className="mb-4 rounded-2xl border border-slate-200 overflow-hidden shadow-[0_1px_0_#eaeef2]"
+                className="mb-4 rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-[0_1px_0_#eaeef2] dark:shadow-[0_1px_0_rgba(148,163,184,0.12)]"
               >
                 {/* Section header */}
-                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/70">
+                <div className="flex items-center justify-between px-4 py-3 bg-slate-50/70 dark:bg-slate-900/70">
                   <button
                     type="button"
                     onClick={() => toggleSection(sec.id)}
                     className="flex items-center gap-2 text-left"
                   >
                     <IconChevron open={isOpen} />
-                    <div className="text-sm font-semibold text-slate-800">{sec.label}</div>
-                    <div className="text-[11px] text-slate-500">
+                    <div className="text-sm font-semibold text-slate-800 dark:text-slate-100">{sec.label}</div>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
                       {selectedCount}/{visibleCount} selected
                     </div>
                     <div className="hidden md:flex gap-1 ml-2">
-                      <span className="px-1.5 py-0.5 rounded bg-white text-[10px] border border-slate-200 text-slate-600">
+                      <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-[10px] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                         {sec.items.length} items
                       </span>
                       {q && (
-                        <span className="px-1.5 py-0.5 rounded bg-white text-[10px] border border-slate-200 text-slate-600">
+                        <span className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 text-[10px] border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300">
                           filtered
                         </span>
                       )}
@@ -337,8 +343,8 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
                     className={[
                       "px-2.5 py-1.5 rounded-lg text-[11px] border transition-colors",
                       allSelected
-                        ? "bg-brand-50 text-brand-700 border-brand-200"
-                        : "bg-white text-slate-700 border-slate-200 hover:bg-slate-100",
+                        ? "bg-brand-50 dark:bg-brand-900/25 text-brand-700 dark:text-brand-200 border-brand-200 dark:border-brand-800"
+                        : "bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800",
                     ].join(" ")}
                     title={allSelected ? "Unselect all in this section" : "Select all in this section"}
                   >
@@ -356,15 +362,15 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
                           key={it.id}
                           className={[
                             "group relative border rounded-xl p-3 text-xs cursor-pointer transition-all select-none",
-                            "bg-white hover:shadow-md hover:-translate-y-[2px] focus-within:ring-2 focus-within:ring-brand-500/40",
+                            "bg-white dark:bg-slate-950/70 hover:shadow-md dark:hover:shadow-[0_10px_24px_rgba(2,6,23,0.45)] hover:-translate-y-[2px] focus-within:ring-2 focus-within:ring-brand-500/40",
                             isChecked
                               ? "border-brand-500 ring-1 ring-brand-500/30"
-                              : "border-slate-200",
+                              : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700",
                           ].join(" ")}
                         >
                           {/* Selected badge */}
                           {isChecked && (
-                            <span className="absolute right-2 top-2 inline-flex items-center gap-1 text-[10px] font-medium text-brand-800 bg-brand-50 border border-brand-200 px-1.5 py-0.5 rounded-md">
+                            <span className="absolute right-2 top-2 inline-flex items-center gap-1 text-[10px] font-medium text-brand-800 dark:text-brand-100 bg-brand-50 dark:bg-brand-900/30 border border-brand-200 dark:border-brand-800 px-1.5 py-0.5 rounded-md">
                               <IconCheck /> Selected
                             </span>
                           )}
@@ -379,22 +385,22 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
                             />
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 border border-slate-200 grid place-items-center">
-                                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" className="text-slate-500">
+                                <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border border-slate-200 dark:border-slate-700 grid place-items-center">
+                                  <svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" className="text-slate-500 dark:text-slate-300">
                                     <path fill="currentColor" d="M3 5h8v6H3V5Zm0 8h8v6H3v-6Zm10-8h8v10h-8V5Zm0 12h8v2h-8v-2Z"/>
                                   </svg>
                                 </div>
-                                <div className="font-medium text-slate-900 truncate">{it.name}</div>
+                                <div className="font-medium text-slate-900 dark:text-slate-100 truncate">{it.name}</div>
                               </div>
-                              <div className="text-[11px] text-slate-500 mt-1">
-                                Route: <span className="font-mono text-slate-700">{it.route}</span>
+                              <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                                Route: <span className="font-mono text-slate-700 dark:text-slate-200">{it.route}</span>
                               </div>
 
                               {/* Chips */}
                               <div className="mt-2 flex flex-wrap gap-1.5">
-                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] text-slate-700 border border-slate-200">Widget</span>
-                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] text-slate-700 border border-slate-200">Dashboard</span>
-                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 text-[10px] text-slate-700 border border-slate-200">Preview</span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 text-[10px] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">Widget</span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 text-[10px] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">Dashboard</span>
+                                <span className="px-1.5 py-0.5 rounded-md bg-slate-100 dark:bg-slate-900 text-[10px] text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">Preview</span>
                               </div>
                             </div>
                           </div>
@@ -419,11 +425,11 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
           {/* Empty state */}
           {visibleBySection.length === 0 && (
             <div className="py-20 text-center">
-              <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-slate-100 grid place-items-center">
-                <IconSearch className="text-slate-400" />
+              <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-slate-100 dark:bg-slate-900 grid place-items-center">
+                <IconSearch className="text-slate-400 dark:text-slate-500" />
               </div>
-              <p className="text-sm font-medium text-slate-700">No widgets match your search.</p>
-              <p className="text-xs text-slate-500 mt-1">
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-200">No widgets match your search.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
                 Try keywords like <span className="font-mono">sales</span>, <span className="font-mono">stocks</span>, or <span className="font-mono">users</span>.
               </p>
             </div>
@@ -431,20 +437,20 @@ export function WidgetPickerModal({ open, selectedIds, onClose, onSave }) {
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t px-5 py-4 flex items-center justify-between">
-          <div className="text-[11px] text-slate-500">
+        <div className="sticky bottom-0 bg-white/95 dark:bg-slate-950/95 backdrop-blur border-t border-slate-200 dark:border-slate-800 px-5 py-4 flex items-center justify-between">
+          <div className="text-[11px] text-slate-500 dark:text-slate-400">
             {Array.from(checked).length} selected total
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg bg-slate-100 text-xs text-slate-800 hover:bg-slate-200"
+              className="px-3 py-1.5 rounded-lg bg-slate-100 dark:bg-slate-900 text-xs text-slate-800 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-800 border border-transparent dark:border-slate-700"
             >
               Cancel
             </button>
             <button
               onClick={() => onSave(Array.from(checked))}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-black text-xs shadow-sm hover:shadow btn-add"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-brand-600 to-brand-500 text-white text-xs shadow-sm hover:shadow btn-add"
             >
               <IconCheck />
               Add Selected

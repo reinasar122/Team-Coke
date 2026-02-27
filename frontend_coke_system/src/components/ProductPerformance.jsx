@@ -120,7 +120,9 @@ export default function ProductPerformance({
   const ProductTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
 
-    const rows = payload.filter((item) => item && item.value != null);
+    const rows = payload
+      .filter((item) => item && item.value != null)
+      .sort((a, b) => n(b?.value) - n(a?.value));
     if (!rows.length) return null;
 
     return (
@@ -246,7 +248,7 @@ export default function ProductPerformance({
     return Array.from(set);
   }, [categoryChartData]);
 
-  const { topCategoriesList } = React.useMemo(() => {
+  const { topCategoriesList, sortedCategoryKeys } = React.useMemo(() => {
     const totals = {};
     categoryChartData.forEach((row) => {
       categoryKeys.forEach((cat) => {
@@ -258,7 +260,10 @@ export default function ProductPerformance({
       .map(([category, total]) => ({ category, total }))
       .sort((a, b) => b.total - a.total);
 
-    return { topCategoriesList: sorted.slice(0, Math.max(1, topK)) };
+    return {
+      topCategoriesList: sorted.slice(0, Math.max(1, topK)),
+      sortedCategoryKeys: sorted.map(({ category }) => category),
+    };
   }, [categoryChartData, categoryKeys, topK]);
 
   return (
@@ -294,7 +299,7 @@ export default function ProductPerformance({
               isAnimationActive={false}
               wrapperStyle={{ opacity: 1, zIndex: 50 }}
             />
-            {categoryKeys.map((cat, idx) => (
+            {sortedCategoryKeys.map((cat, idx) => (
               <Line
                 key={cat}
                 type={smooth ? "monotone" : "linear"}
