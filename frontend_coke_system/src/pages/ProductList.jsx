@@ -295,15 +295,10 @@ const ProductList = () => {
           <h2 className="page-title" style={{ margin: 0 }}>Product List</h2>
          
           {/* ✅ KEPT: Show current warehouse (from old version) */}
-          <div style={{
-            padding: '4px 8px',
-            background: '#f3f4f6',
-            borderRadius: '6px',
-            fontSize: '12px',
-            color: '#6b7280'
-          }}>
-            📦 {currentWarehouse.name}
-          </div>
+          <span className="page-warehouse-chip page-warehouse-chip--inline">
+            <span className="page-warehouse-chip__icon" aria-hidden="true">📦</span>
+            <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
+          </span>
          
           {/* View Mode Dropdown */}
           <div style={{ position: 'relative' }}>

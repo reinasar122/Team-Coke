@@ -156,45 +156,11 @@ export default function CreditList() {
     return String(s || "").toString();
   };
 
-  const getStatusStyle = (s) => {
-    if (isPending(s)) {
-      return { 
-       background: '#fee2e2',  // 🔴 light red background
-        color: '#b91c1c',  
-        padding: '4px 8px', 
-        borderRadius: '6px', 
-        fontSize: '0.875rem',
-        fontWeight: 500
-      };
-    }
-    if (isPartial(s)) {
-      return { 
-        background: '#fef3c7', 
-        color: '#d97706', 
-        padding: '4px 8px', 
-        borderRadius: '6px', 
-        fontSize: '0.875rem',
-        fontWeight: 500
-      };
-    }
-    if (isPaid(s)) {
-      return { 
-        background: '#dcfce7', 
-        color: '#16a34a', 
-        padding: '4px 8px', 
-        borderRadius: '6px', 
-        fontSize: '0.875rem',
-        fontWeight: 500
-      };
-    }
-    return { 
-      background: '#fef3c7', 
-      color: '#d97706', 
-      padding: '4px 8px', 
-      borderRadius: '6px', 
-      fontSize: '0.875rem',
-      fontWeight: 500
-    };
+  const getStatusClass = (s) => {
+    if (isPending(s)) return "app-status-pill app-status-pill--unpaid";
+    if (isPartial(s)) return "app-status-pill app-status-pill--partial";
+    if (isPaid(s)) return "app-status-pill app-status-pill--paid";
+    return "app-status-pill app-status-pill--default";
   };
 
   // --- sort: Unpaid first, then Partially Paid, then Fully Paid; each group by latest date ---
@@ -267,7 +233,7 @@ const sortedRows = [...rows].sort((a, b) => {
                   <td style={{ textAlign: 'center' }}>₱{fmt(r.amount_paid)}</td>
                   <td style={{ textAlign: 'center' }}>₱{fmt(r.balance)}</td>
                   <td style={{ textAlign: 'center' }}>
-                    <span style={getStatusStyle(r.status)}>
+                    <span className={getStatusClass(r.status)}>
                       {statusLabel(r.status)}
                     </span>
                   </td>

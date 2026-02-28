@@ -191,15 +191,9 @@ const VanList = () => {
             
             {/* ✅ KEPT: Show current warehouse (from old version) */}
             {currentWarehouse && (
-              <span style={{ 
-                padding: '4px 8px', 
-                background: '#f3f4f6', 
-                borderRadius: '6px', 
-                fontSize: '12px',
-                color: '#6b7280',
-                fontWeight: 'normal'
-              }}>
-                {currentWarehouse.name}
+              <span className="page-warehouse-chip page-warehouse-chip--inline">
+                <span className="page-warehouse-chip__icon" aria-hidden="true">🏢</span>
+                <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
               </span>
             )}
           </div>

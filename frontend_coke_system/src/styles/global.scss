@@ -252,19 +252,19 @@ input::-webkit-contacts-auto-fill-button {
   flex: 0 0 auto;
   font-size: 0.7rem;
   line-height: 1;
-  color: #e2e8f0;
+  color: inherit;
 }
 
 .page-warehouse-chip__icon {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 1rem;
-  height: 1rem;
-  border-radius: 999px;
-  background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  font-size: 0.55rem;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 0.7rem;
 }
 
 .page-warehouse-chip__text {
@@ -639,6 +639,103 @@ input::-webkit-contacts-auto-fill-button {
 .p-4 { padding: var(--sp-4); }
 
 /* =========================
+   Shared Status Pills
+   ========================= */
+.app-status-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.5rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+  border: 1px solid transparent;
+}
+
+.app-status-pill--pending {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fde68a;
+}
+
+.app-status-pill--completed,
+.app-status-pill--paid,
+.app-status-pill--active {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.app-status-pill--progress,
+.app-status-pill--partial {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #bfdbfe;
+}
+
+.app-status-pill--approve {
+  background: #dbeafe;
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.app-status-pill--inactive,
+.app-status-pill--unpaid {
+  background: #fee2e2;
+  color: #b91c1c;
+  border-color: #fecaca;
+}
+
+.app-status-pill--default {
+  background: #f3f4f6;
+  color: #1f2937;
+  border-color: #e5e7eb;
+}
+
+/* Stock status variants */
+.app-status-pill--stock-out {
+  background: #0f172a;
+  color: #ffffff;
+  border-color: #1e293b;
+}
+
+.app-status-pill--stock-low {
+  background: #dc2626;
+  color: #ffffff;
+  border-color: #b91c1c;
+}
+
+.app-status-pill--stock-moderate {
+  background: #f59e0b;
+  color: #111827;
+  border-color: #d97706;
+}
+
+.app-status-pill--stock-high {
+  background: #16a34a;
+  color: #ffffff;
+  border-color: #15803d;
+}
+
+.app-status-pill-btn {
+  cursor: pointer;
+  user-select: none;
+  transition: transform 120ms ease, filter 120ms ease, box-shadow 120ms ease;
+}
+
+.app-status-pill-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(0.96);
+}
+
+.app-status-pill-btn:focus-visible {
+  outline: 2px solid rgba(59, 130, 246, 0.45);
+  outline-offset: 2px;
+}
+
+/* =========================
    Dark Theme System Layer
    ========================= */
 .dark .app-content,
@@ -722,4 +819,76 @@ input::-webkit-contacts-auto-fill-button {
 
 .dark .btn-add {
   box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.2), 0 8px 18px rgba(16, 185, 129, 0.18);
+}
+
+.dark .app-status-pill {
+  box-shadow: none;
+}
+
+.dark .app-status-pill--pending {
+  background: rgba(245, 158, 11, 0.16) !important;
+  color: #fcd34d !important;
+  border-color: rgba(245, 158, 11, 0.34) !important;
+}
+
+.dark .app-status-pill--completed,
+.dark .app-status-pill--paid,
+.dark .app-status-pill--active {
+  background: rgba(16, 185, 129, 0.16) !important;
+  color: #6ee7b7 !important;
+  border-color: rgba(16, 185, 129, 0.34) !important;
+}
+
+.dark .app-status-pill--progress,
+.dark .app-status-pill--partial {
+  background: rgba(59, 130, 246, 0.16) !important;
+  color: #93c5fd !important;
+  border-color: rgba(59, 130, 246, 0.34) !important;
+}
+
+.dark .app-status-pill--approve {
+  background: rgba(59, 130, 246, 0.2) !important;
+  color: #93c5fd !important;
+  border-color: rgba(59, 130, 246, 0.4) !important;
+}
+
+.dark .app-status-pill--inactive,
+.dark .app-status-pill--unpaid {
+  background: rgba(239, 68, 68, 0.16) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(239, 68, 68, 0.34) !important;
+}
+
+.dark .app-status-pill--default {
+  background: rgba(148, 163, 184, 0.12) !important;
+  color: #cbd5e1 !important;
+  border-color: rgba(148, 163, 184, 0.24) !important;
+}
+
+.dark .app-status-pill--stock-out {
+  background: #0f172a !important;
+  color: #f8fafc !important;
+  border-color: #334155 !important;
+}
+
+.dark .app-status-pill--stock-low {
+  background: #dc2626 !important;
+  color: #ffffff !important;
+  border-color: #b91c1c !important;
+}
+
+.dark .app-status-pill--stock-moderate {
+  background: #f59e0b !important;
+  color: #111827 !important;
+  border-color: #d97706 !important;
+}
+
+.dark .app-status-pill--stock-high {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  border-color: #15803d !important;
+}
+
+.dark .app-status-pill-btn:hover {
+  filter: brightness(1.08);
 }

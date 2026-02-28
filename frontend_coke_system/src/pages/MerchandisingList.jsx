@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
-import { FaChartLine, FaWarehouse } from "react-icons/fa";
+import { FaChartLine } from "react-icons/fa";
 import {
   getCurrentWarehouse,
   findWarehouseByName,
@@ -55,12 +55,12 @@ const MerchandisingList = () => {
 
   // Setup warehouse (same pattern as ProductList)
   const setupWarehouse = useCallback(async () => {
-    console.log("[warehouse] Setting up warehouse for MerchandisingList...");
+    console.log("🏭 Setting up warehouse for MerchandisingList...");
 
     const warehouse = getCurrentWarehouse();
 
     if (!warehouse) {
-      console.warn("[warning] No warehouse found for user");
+      console.warn("⚠️ No warehouse found for user");
       setCurrentWarehouse(null);
       setLoading(false);
       return;
@@ -78,7 +78,7 @@ const MerchandisingList = () => {
 
   const fetchTransactions = useCallback(async () => {
     if (!currentWarehouse?.id) {
-      console.warn("[error] No warehouse ID available for fetching transactions");
+      console.warn("❌ No warehouse ID available for fetching transactions");
       setSales([]);
       return;
     }
@@ -86,7 +86,7 @@ const MerchandisingList = () => {
     try {
       setLoading(true);
       console.log(
-        `[warehouse] Fetching transactions for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`
+        `🏪 Fetching transactions for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`
       );
 
       const config = {
@@ -97,7 +97,7 @@ const MerchandisingList = () => {
       const response = await api.get("merchandisings/", config);
       const transactions = response.data || [];
       console.log(
-        `[ok] Loaded ${transactions.length} transactions for warehouse ${currentWarehouse.name}`
+        `✅ Loaded ${transactions.length} transactions for warehouse ${currentWarehouse.name}`
       );
 
       // Extra client-side filtering for safety
@@ -109,18 +109,18 @@ const MerchandisingList = () => {
 
         if (!warehouseMatch) {
           console.warn(
-            `[warning] Transaction ${transaction.msp_no} doesn't belong to current warehouse, filtering out`
+            `⚠️ Transaction ${transaction.msp_no} doesn't belong to current warehouse, filtering out`
           );
         }
         return warehouseMatch;
       });
 
       console.log(
-        `[list] After filtering: ${filteredTransactions.length} transactions for warehouse ${currentWarehouse.name}`
+        `📋 After filtering: ${filteredTransactions.length} transactions for warehouse ${currentWarehouse.name}`
       );
       setSales(filteredTransactions);
     } catch (err) {
-      console.error("[error] Error fetching sales:", err);
+      console.error("❌ Error fetching sales:", err);
       setSales([]);
     } finally {
       setLoading(false);
@@ -142,7 +142,7 @@ const MerchandisingList = () => {
   // React to warehouse change events
   useEffect(() => {
     const handleWarehouseChange = (event) => {
-      console.log("[warehouse] Warehouse change detected in MerchandisingList:", event.detail);
+      console.log("🏭 Warehouse change detected in MerchandisingList:", event.detail);
       setupWarehouse();
     };
 
@@ -285,10 +285,10 @@ const MerchandisingList = () => {
           </h1>
 
           {currentWarehouse && (
-            <div className="trading-warehouse-chip">
-              <FaWarehouse aria-hidden="true" />
-              <span className="truncate">{currentWarehouse.name}</span>
-            </div>
+            <span className="page-warehouse-chip page-warehouse-chip--inline">
+              <span className="page-warehouse-chip__icon" aria-hidden="true">🏪</span>
+              <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
+            </span>
           )}
         </div>
 
@@ -344,14 +344,13 @@ const MerchandisingList = () => {
                   return (
                     <tr
                       key={`wa-${row.msp_no}-${row.dateYmd}`}
-                      className="tradinglist-row cursor-pointer"
                       onClick={() => handleAnyRowClick(row)}
                       title="View warehouse products for this MSP (grouped)"
                     >
                       <td className="p-2 font-semibold">{row.msp_no}</td>
                       <td className="p-2">{row.date_display}</td>
                       <td className="p-2">Warehouse</td>
-                      <td className="p-2">--</td>
+                      <td className="p-2">—</td>
                       <td className="p-2">
                         <StatusPill status={status} />
                       </td>
@@ -363,7 +362,7 @@ const MerchandisingList = () => {
                 return (
                   <tr
                     key={sale.id}
-                    className="tradinglist-row text-center cursor-pointer"
+                    className="text-center border-t bg-white hover:bg-blue-100 cursor-pointer"
                     onClick={() => handleAnyRowClick(row)}
                   >
                     <td className="p-2">{sale.msp_no}</td>
@@ -389,3 +388,4 @@ const MerchandisingList = () => {
 };
 
 export default MerchandisingList;
+

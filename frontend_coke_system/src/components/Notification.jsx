@@ -204,21 +204,45 @@ const Notification = ({ closeProfile }) => {
     currentWarehouseIdRef.current = currentWarehouseId;
   }, [currentWarehouseId]);
 
-  // Dark mode detection
+  // Dark mode detection (respect user override from Header darkMode toggle)
   useEffect(() => {
-    if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      document.documentElement.classList.add('dark');
-    }
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (event) => {
-      if (event.matches) {
+    const applyThemeClass = (isDark) => {
+      if (isDark) {
         document.documentElement.classList.add('dark');
+        document.body.classList.add('dark');
       } else {
         document.documentElement.classList.remove('dark');
+        document.body.classList.remove('dark');
       }
     };
-    mediaQuery.addEventListener('change', handleChange);
-    return () => mediaQuery.removeEventListener('change', handleChange);
+
+    const savedTheme = localStorage.getItem('darkMode');
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+
+    // Only follow system theme when user has not explicitly chosen one.
+    if (savedTheme === null) {
+      applyThemeClass(mediaQuery.matches);
+    }
+
+    const handleChange = (event) => {
+      if (localStorage.getItem('darkMode') === null) {
+        applyThemeClass(event.matches);
+      }
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener('change', handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener('change', handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
   }, []);
 
   // Close notification when profile opens

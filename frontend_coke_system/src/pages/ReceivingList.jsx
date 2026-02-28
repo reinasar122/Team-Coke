@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
-import { FaTrashAlt, FaEye,FaClipboardCheck } from "react-icons/fa";
+import { FaTrash, FaEye,FaClipboardCheck } from "react-icons/fa";
 import api from "../api"; // ✅ correct
 import ModalShell from "../components/common/ModalShell";
 import "../styles/pages/receivinglist.scss"; // page-specific extras only
@@ -338,7 +338,7 @@ const ReceivingList = () => {
                         title="Delete"
                         onClick={() => setDeleteModal({ open: true, id: item.id })}
                       >
-                        <FaTrashAlt />
+                        <FaTrash />
                       </button>
                     </div>
                   </td>

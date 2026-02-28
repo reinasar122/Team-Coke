@@ -603,13 +603,9 @@ const getSupplierInfo = (supplierId) => {
         <h2 className="page-title">
           Product Form
           {currentWarehouse && (
-            <span style={{
-              fontSize: '14px',
-              fontWeight: 'normal',
-              color: '#6b7280',
-              marginLeft: '12px'
-            }}>
-              📍 {currentWarehouse.name}
+            <span className="page-warehouse-chip page-warehouse-chip--inline">
+              <span className="page-warehouse-chip__icon" aria-hidden="true">📍</span>
+              <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
             </span>
           )}
           {returnTo && (

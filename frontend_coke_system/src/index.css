@@ -137,15 +137,20 @@ code {
 .dark .border-t { border-top-color: rgba(148, 163, 184, 0.18) !important; }
 
 /* Buttons - preserve functionality but ensure visibility */
-.dark button:not(.btn):not(.btn-primary):not(.btn-success):not(.btn-danger):not(.btn-add):not(.bg-blue-600):not(.bg-green-500):not(.bg-red-500) {
+.dark button:not(.btn):not(.btn-primary):not(.btn-success):not(.btn-danger):not(.btn-add):not(.bg-blue-600):not(.bg-green-500):not(.bg-red-500):not(.text-white) {
   background-color: #111827 !important;
   color: #eef4ff !important;
   border-color: rgba(148, 163, 184, 0.18) !important;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18) !important;
 }
 
-.dark button:hover:not(.btn):not(.btn-primary):not(.btn-success):not(.btn-danger):not(.btn-add) {
+.dark button:hover:not(.btn):not(.btn-primary):not(.btn-success):not(.btn-danger):not(.btn-add):not(.text-white) {
   background-color: #172033 !important;
+}
+
+.dark button.text-white,
+.dark button.text-white * {
+  color: #ffffff !important;
 }
 
 /* Keep layout stable when dialogs open */
@@ -257,7 +262,7 @@ body:has(.app-modal-overlay) {
   border-color: rgba(148, 163, 184, 0.18) !important;
 }
 
-.dark *:not(button):not(.btn):not(.badge):not(.bg-blue-600):not(.bg-green-500):not(.bg-red-500):not(.bg-yellow-500):not(.bg-purple-600) {
+.dark *:not(button):not(.btn):not(.badge):not(.merch-status-pill):not(.merch-status-pill--pending):not(.merch-status-pill--completed):not(.merch-status-pill--progress):not(.merch-status-pill--default):not(.app-status-pill):not(.app-status-pill--pending):not(.app-status-pill--completed):not(.app-status-pill--paid):not(.app-status-pill--active):not(.app-status-pill--progress):not(.app-status-pill--partial):not(.app-status-pill--inactive):not(.app-status-pill--unpaid):not(.app-status-pill--default):not(.bg-blue-600):not(.bg-green-500):not(.bg-red-500):not(.bg-yellow-500):not(.bg-purple-600) {
   color: #d7e2f2 !important;
 }
 

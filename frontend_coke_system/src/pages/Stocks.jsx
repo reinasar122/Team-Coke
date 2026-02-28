@@ -2,10 +2,6 @@
 import React, { useEffect, useState, useCallback } from "react";
 import api from "../api";
 import {
-  FaExclamationTriangle,
-  FaCheckCircle,
-  FaMinusCircle,
-  FaCubes,
   FaWarehouse, // eslint-disable-line no-unused-vars
   FaBell, // eslint-disable-line no-unused-vars
 } from "react-icons/fa";
@@ -21,25 +17,19 @@ const statusOrder = {
   High: 3,
 };
 
-// Map status -> SCSS badge class
+// Map status -> Trading-style status pill classes
 const getBadgeClass = (s) => {
   switch (s) {
-    case "High": return "badge badge--high";
-    case "Moderate": return "badge badge--moderate";
-    case "Low": return "badge badge--low";
-    case "Out of Stock": return "badge badge--outofstock";
-    default: return "badge";
-  }
-};
-
-// Map status -> icon (gap handled by .badge)
-const getStatusIcon = (s) => {
-  switch (s) {
-    case "High": return <FaCheckCircle />;
-    case "Moderate": return <FaCubes />;
-    case "Low": return <FaExclamationTriangle />;
-    case "Out of Stock": return <FaMinusCircle />;
-    default: return null;
+    case "High":
+      return "app-status-pill app-status-pill--stock-high";
+    case "Moderate":
+      return "app-status-pill app-status-pill--stock-moderate";
+    case "Low":
+      return "app-status-pill app-status-pill--stock-low";
+    case "Out of Stock":
+      return "app-status-pill app-status-pill--stock-out";
+    default:
+      return "app-status-pill app-status-pill--default";
   }
 };
 
@@ -287,15 +277,10 @@ const Stocks = () => {
         
         {/* Show current warehouse */}
         {currentWarehouse && (
-          <div style={{ 
-            padding: '4px 8px', 
-            background: '#f3f4f6', 
-            borderRadius: '6px', 
-            fontSize: '12px',
-            color: '#6b7280'
-          }}>
-            📦 {currentWarehouse.name}
-          </div>
+          <span className="page-warehouse-chip page-warehouse-chip--inline">
+            <span className="page-warehouse-chip__icon" aria-hidden="true">📦</span>
+            <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
+          </span>
         )}
       </div>
     
@@ -350,7 +335,6 @@ const Stocks = () => {
                   </td>
                   <td className="text-center">
                     <span className={getBadgeClass(item.stock_status)}>
-                      {getStatusIcon(item.stock_status)}
                       {item.stock_status}
                     </span>
                   </td>

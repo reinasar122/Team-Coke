@@ -293,6 +293,23 @@ const UserList = () => {
     )
     .sort((a, b) => a.first_name.localeCompare(b.first_name));
 
+  const isPendingApproval = (user) =>
+    user.status === "Pending Approval" || (!user.is_active && !user.is_approved);
+
+  const getUserStatus = (user) => {
+    if (user.is_active) {
+      return {
+        label: "Active",
+        className: "app-status-pill app-status-pill--active",
+      };
+    }
+
+    return {
+      label: "Inactive",
+      className: "app-status-pill app-status-pill--inactive",
+    };
+  };
+
   return (
     <div className="page">
       {/* Compact Header */}
@@ -456,7 +473,10 @@ const UserList = () => {
                 </td>
               </tr>
             ) : (
-              filteredUsers.map((user) => (
+              filteredUsers.map((user) => {
+                const userStatus = getUserStatus(user);
+
+                return (
                 <tr key={user.id}>
                   <td className="text-left">
                     <div
@@ -518,38 +538,17 @@ const UserList = () => {
                   <td className="text-left">{user.warehouse?.name || "—"}</td>
 
                   <td style={{ textAlign: "center" }}>
-                    {user.status === "Pending Approval" || (!user.is_active && !user.is_approved) ? (
+                    {isPendingApproval(user) ? (
                       <button
                         onClick={() => handleUserApprovalClick(user)}
-                        className="btn btn-primary"
+                        className="btn app-status-pill app-status-pill--approve app-status-pill-btn"
+                        title="Approve User"
                       >
                         Approve
                       </button>
-                    ) : user.is_active ? (
-                      <span
-                        style={{
-                          background: "#dcfce7",
-                          color: "#16a34a",
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          fontSize: "0.875rem",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Active
-                      </span>
                     ) : (
-                      <span
-                        style={{
-                          background: "#fee2e2",
-                          color: "#dc2626",
-                          padding: "4px 8px",
-                          borderRadius: "6px",
-                          fontSize: "0.875rem",
-                          fontWeight: 500,
-                        }}
-                      >
-                        Inactive
+                      <span className={userStatus.className}>
+                        {userStatus.label}
                       </span>
                     )}
                   </td>
@@ -591,7 +590,8 @@ const UserList = () => {
                     </div>
                   </td>
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>

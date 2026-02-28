@@ -139,9 +139,12 @@ const InvoiceList = () => {
       <div className="flex justify-between items-center mb-4">
         <h2 className="text-2xl font-bold">Invoice List</h2>
         {currentWarehouse && (
-          <div className="text-sm text-gray-600 bg-gray-100 px-3 py-1 rounded">
-            Warehouse: {currentWarehouse.name || currentWarehouse.warehouse}
-          </div>
+          <span className="page-warehouse-chip page-warehouse-chip--inline">
+            <span className="page-warehouse-chip__icon" aria-hidden="true">🏢</span>
+            <span className="page-warehouse-chip__text">
+              {currentWarehouse.name || currentWarehouse.warehouse}
+            </span>
+          </span>
         )}
       </div>
       

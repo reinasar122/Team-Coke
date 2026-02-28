@@ -24,6 +24,35 @@ const getLargeExpenseThreshold = () => {
   return Number(localStorage.getItem('largeExpenseThreshold')) || 10000;
 };
 
+const sanitizeCurrencyInput = (value) => {
+  const stripped = (value || "").replace(/[^\d.]/g, "");
+  if (!stripped) return "";
+
+  const hasDot = stripped.includes(".");
+  const [rawInt = "", ...rest] = stripped.split(".");
+  const rawDec = rest.join("").slice(0, 2);
+
+  let normalizedInt = rawInt.replace(/^0+(?=\d)/, "");
+  if (!normalizedInt) normalizedInt = "0";
+
+  return hasDot ? `${normalizedInt}.${rawDec}` : normalizedInt;
+};
+
+const formatCurrencyInput = (rawValue) => {
+  if (rawValue === "") return "";
+
+  const hasDot = rawValue.includes(".");
+  const [intPart = "0", decPart = ""] = rawValue.split(".");
+  const intNum = Number.parseInt(intPart, 10);
+  const formattedInt = Number.isFinite(intNum)
+    ? intNum.toLocaleString("en-PH")
+    : "0";
+
+  return hasDot
+    ? `\u20B1${formattedInt}.${decPart}`
+    : `\u20B1${formattedInt}`;
+};
+
 // ✅ Custom alert component
 const showAlert = (message, type = 'info') => {
   const alertDiv = document.createElement('div');
@@ -285,7 +314,7 @@ export default function Expenses() {
     const { name, value } = e.target;
     setFormErr("");
     if (name === "amount") {
-      const cleaned = value.replace(/[^\d.]/g, "");
+      const cleaned = sanitizeCurrencyInput(value);
       setForm((f) => ({ ...f, [name]: cleaned }));
     } else {
       setForm((f) => ({ ...f, [name]: value }));
@@ -422,15 +451,10 @@ export default function Expenses() {
           
           {/* ✅ Show current warehouse */}
           {currentWarehouse && (
-            <div style={{ 
-              padding: '4px 8px', 
-              background: '#f3f4f6', 
-              borderRadius: '6px', 
-              fontSize: '12px',
-              color: '#6b7280'
-            }}>
-              💰 {currentWarehouse.name}
-            </div>
+            <span className="page-warehouse-chip page-warehouse-chip--inline">
+              <span className="page-warehouse-chip__icon" aria-hidden="true">💰</span>
+              <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
+            </span>
           )}
         </div>
         
@@ -706,7 +730,7 @@ export default function Expenses() {
                 </label>
                 <input
                   name="amount"
-                  value={form.amount}
+                  value={formatCurrencyInput(form.amount)}
                   onChange={onChange}
                   style={{
                     width: '100%',
@@ -717,8 +741,10 @@ export default function Expenses() {
                     background: 'var(--bg)',
                     color: 'var(--text)'
                   }}
+                  type="text"
                   placeholder="0.00"
                   inputMode="decimal"
+                  autoComplete="off"
                 />
                 <p style={{ 
                   fontSize: '11px', 
@@ -726,7 +752,7 @@ export default function Expenses() {
                   marginTop: '4px',
                   marginBottom: 0
                 }}>
-                  Will be saved as {peso(form.amount || 0)}
+                  {/* Will be saved as {peso(form.amount || 0)} */}
                 </p>
               </div>
 

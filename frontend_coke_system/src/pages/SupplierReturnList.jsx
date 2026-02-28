@@ -1,4 +1,4 @@
-// SupplierReturnList.jsx - UPDATED VERSION WITH STATUS COLUMN (NO DELETE FUNCTIONALITY)
+﻿// SupplierReturnList.jsx - UPDATED VERSION WITH STATUS COLUMN (NO DELETE FUNCTIONALITY)
 import React, { useEffect, useState, useCallback } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
@@ -136,35 +136,42 @@ const SupplierReturnList = () => {
 
   // Function to get status badge
   const getStatusBadge = (status) => {
-    if (status === 'completed') {
+    const normalizedStatus = String(status || "").trim().toLowerCase();
+
+    if (normalizedStatus === "completed" || normalizedStatus === "complete") {
       return (
-        <span style={{
-          padding: '4px 8px',
-          borderRadius: '12px',
-          fontSize: '12px',
-          fontWeight: '500',
-          backgroundColor: '#dcfce7',
-          color: '#166534',
-          border: '1px solid #bbf7d0'
-        }}>
-          ✅ Completed
-        </span>
-      );
-    } else {
-      return (
-        <span style={{
-          padding: '4px 8px',
-          borderRadius: '12px',
-          fontSize: '12px',
-          fontWeight: '500',
-          backgroundColor: '#fef3c7',
-          color: '#92400e',
-          border: '1px solid #fde68a'
-        }}>
-          ⏳ Pending
+        <span className="app-status-pill app-status-pill--completed">
+          Completed
         </span>
       );
     }
+
+    if (
+      normalizedStatus === "in progress" ||
+      normalizedStatus === "in-progress" ||
+      normalizedStatus === "ongoing" ||
+      normalizedStatus === "on going"
+    ) {
+      return (
+        <span className="app-status-pill app-status-pill--progress">
+          In Progress
+        </span>
+      );
+    }
+
+    if (normalizedStatus === "pending" || normalizedStatus === "draft" || !normalizedStatus) {
+      return (
+        <span className="app-status-pill app-status-pill--pending">
+          Pending
+        </span>
+      );
+    }
+
+    return (
+      <span className="app-status-pill app-status-pill--default">
+        {status || "Unknown"}
+      </span>
+    );
   };
 
   // Enhanced helper function to find the correct pricing for a product
