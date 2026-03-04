@@ -269,15 +269,15 @@ export default function ProductPerformance({
   return (
     <div
       className={[
-        "w-full rounded-2xl p-4",
+        "w-full min-w-0 rounded-2xl p-4",
         "border bg-white/70 dark:bg-slate-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/70",
         "border-gray-200/70 dark:border-slate-700/70 shadow-sm hover:shadow-md transition-shadow",
       ].join(" ")}
     >
       <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-2">{title}</h3>
 
-      <div style={{ width: "100%", height }}>
-        <ResponsiveContainer>
+      <div style={{ width: "100%", height }} className="min-w-0">
+        <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={180} debounce={80}>
           <LineChart data={categoryChartData} margin={{ top: 6, right: 12, left: 0, bottom: 0 }}>
             <CartesianGrid vertical={false} stroke="#cbd5e1" strokeOpacity={0.95} strokeDasharray="3 6" />
             <XAxis

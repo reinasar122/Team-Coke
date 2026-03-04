@@ -1884,7 +1884,7 @@ const Dashboard = () => {
         />
 
         {/* PRODUCT PERFORMANCE */}
-        <div className="col-span-1 md:col-span-1 lg:col-span-2">
+        <div className="col-span-1 md:col-span-1 lg:col-span-2 min-w-0">
           <ProductPerformance
             title="Product Performance"
             data={lists.productPerformanceSeries}
@@ -1897,7 +1897,7 @@ const Dashboard = () => {
         </div>
 
         {/* TOP SELLING PRODUCTS */}
-        <div className="col-span-1 md:col-span-1 lg:col-span-1">
+        <div className="col-span-1 md:col-span-1 lg:col-span-1 min-w-0">
           <TopSellingProductsWidget
             series={lists.productPerformanceSeries}
             period={period}

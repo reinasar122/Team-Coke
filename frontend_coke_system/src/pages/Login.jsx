@@ -40,6 +40,29 @@ const HighlightMatch = ({ text, match }) => {
 };
 
 const Login = () => {
+  // When we display the login/sign‑up page we want the appearance to stay
+  // light even if the rest of the app is in dark mode.  The global theme is
+  // applied by toggling the `dark` class on <html> (see tailwind config).  This
+  // component temporarily removes that class to keep all nested CSS in the
+  // light state.  We remember the previous value so it can be restored once the
+  // user navigates away.
+  useEffect(() => {
+    const html = document.documentElement;
+    const body = document.body;
+    const hadDarkHtml = html.classList.contains("dark");
+    const hadDarkBody = body.classList.contains("dark");
+    if (hadDarkHtml) html.classList.remove("dark");
+    if (hadDarkBody) body.classList.remove("dark");
+    html.dataset.prevDark = hadDarkHtml ? "true" : "false";
+    body.dataset.prevDark = hadDarkBody ? "true" : "false";
+    return () => {
+      if (html.dataset.prevDark === "true") html.classList.add("dark");
+      if (body.dataset.prevDark === "true") body.classList.add("dark");
+      delete html.dataset.prevDark;
+      delete body.dataset.prevDark;
+    };
+  }, []);
+
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [showVerifyOTPModal, setShowVerifyOTPModal] = useState(false);
 
@@ -427,14 +450,14 @@ const Login = () => {
 
   return (
     <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-black via-gray-900 to-black">
-      <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-700 rounded-full blur-3xl opacity-30 animate-pulse" />
-      <div className="absolute -bottom-32 -right-24 w-80 h-80 bg-red-800 rounded-full blur-3xl opacity-25 animate-pulse" />
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-700 rounded-full blur-3xl opacity-15 animate-pulse" />
+      <div className="absolute -bottom-32 -right-24 w-80 h-80 bg-red-800 rounded-full blur-3xl opacity-10 animate-pulse" />
 
       <div className="relative z-10 w-full max-w-md mx-4">
         {/* ✅ Entrance animation + error shake */}
         <div
-          className={`relative rounded-3xl bg-white/10 backdrop-blur-md shadow-2xl p-10 border border-white/20
-          animate-[fadeInUp_.55s_ease-out] ${error ? "animate-[shake_.35s_ease-in-out]" : ""}`}
+          className={`relative rounded-3xl bg-white/10 backdrop-blur-md shadow-2xl border border-white/20
+          animate-[fadeInUp_.55s_ease-out] ${error ? "animate-[shake_.35s_ease-in-out]" : ""} ${isSignUp ? "p-8" : "p-10"}`}
         >
           {/* ✅ Loading overlay */}
           {loading && (
@@ -446,21 +469,21 @@ const Login = () => {
             </div>
           )}
 
-          <div className="flex flex-col items-center mb-6">
-            <div className="w-52 h-52 rounded-full bg-white flex items-center justify-center mb-4">
-              <img src={logoSrc} alt="Logo" className="w-80 h-80 rounded-full object-cover mb-1" />
+          <div className={`flex flex-col items-center ${isSignUp ? "mb-2" : "mb-6"}`}>
+            <div className={`rounded-full bg-white flex items-center justify-center ${isSignUp ? "w-24 h-24 mb-2" : "w-52 h-52 mb-4"}`}>
+              <img src={logoSrc} alt="Logo" className={`rounded-full object-cover ${isSignUp ? "w-32 h-32" : "w-80 h-80 mb-1"}`} />
             </div>
-            <h1 className="text-3xl font-bold text-white mb-1">{isSignUp ? "Create Account" : "Welcome"}</h1>
-            <p className="text-sm text-gray-200 text-center">{isSignUp ? "Sign up to get started" : "Sign in to Continue"}</p>
+            <h1 className={`font-bold text-white mb-1 ${isSignUp ? "text-2xl" : "text-3xl"}`}>{isSignUp ? "Create Account" : "Welcome"}</h1>
+            <p className={`text-gray-200 text-center ${isSignUp ? "text-xs" : "text-sm"}`}>{isSignUp ? "Sign up to get started" : "Sign in to Continue"}</p>
           </div>
 
           {error && (
-            <div className="mb-4 px-4 py-3 rounded-lg bg-red-500/20 border border-red-700 text-red-200 text-sm">
+            <div className={`px-4 py-3 rounded-lg bg-red-500/20 border border-red-700 text-red-200 text-sm ${isSignUp ? "mb-2" : "mb-4"}`}>
               {error}
             </div>
           )}
 
-          <form onSubmit={handleLogin} className="space-y-5" autoComplete="off">
+          <form onSubmit={handleLogin} className={`${isSignUp ? "space-y-3" : "space-y-5"}`} autoComplete="off">
             {!isSignUp && (
               <div className="sr-only" aria-hidden="true">
                 <input type="text" name="fake-username" autoComplete="username" tabIndex={-1} />
@@ -471,7 +494,7 @@ const Login = () => {
               <>
                 {/* Sign Up Form */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Phone Number *</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Phone Number *</label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -484,26 +507,26 @@ const Login = () => {
                     placeholder="Enter phone number"
                     required
                     maxLength={11}
-                    className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 bg-white/10
-                    focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                    focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
+                    className="w-full rounded-xl border border-gray-400/50 px-4 py-2 text-base text-white placeholder-gray-300 bg-white/10
+                    focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                    focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
                   />
                   {fieldErrors.phoneNumber && <p className="text-red-400 text-sm mt-1">{fieldErrors.phoneNumber}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Password *</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Password *</label>
                   <div className="relative">
                     <input
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={handlePasswordChange}
-                      placeholder="••••••••"
+                      placeholder="Enter password"
                       required
                       autoComplete="new-password"
                       className="w-full rounded-xl border border-gray-400/50 px-4 py-3 pr-12 text-base text-white placeholder-gray-300 bg-white/10
-                      focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                      focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
+                      focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                      focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
                       style={showPassword ? { WebkitTextSecurity: "none" } : undefined}
                     />
 
@@ -511,7 +534,7 @@ const Login = () => {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-gray-200 hover:text-red-400 transition"
+                      className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-gray-200 hover:text-blue-400 transition"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {!showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
@@ -522,25 +545,25 @@ const Login = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Confirm Password *</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Confirm Password *</label>
                   <div className="relative">
                     <input
                       type={showConfirmPassword ? "text" : "password"}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
+                      placeholder="Confirm password"
                       required
                       autoComplete="new-password"
                       className="w-full rounded-xl border border-gray-400/50 px-4 py-3 pr-12 text-base text-white placeholder-gray-300 bg-white/10
-                      focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                      focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
+                      focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                      focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
                       style={showConfirmPassword ? { WebkitTextSecurity: "none" } : undefined}
                     />
 
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword((v) => !v)}
-                      className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-gray-200 hover:text-red-400 transition"
+                      className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-gray-200 hover:text-blue-400 transition"
                       aria-label={showConfirmPassword ? "Hide password" : "Show password"}
                     >
                       {!showConfirmPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
@@ -550,9 +573,9 @@ const Login = () => {
                   {fieldErrors.confirmPassword && <p className="text-red-400 text-sm mt-1">{fieldErrors.confirmPassword}</p>}
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">First Name *</label>
+                    <label className="block text-sm font-medium text-gray-200 mb-1">First Name *</label>
                     <input
                       type="text"
                       value={firstName}
@@ -560,13 +583,13 @@ const Login = () => {
                       placeholder="First Name"
                       required
                       className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 bg-white/10
-                      focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                      focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
+                      focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                      focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
                     />
                     {fieldErrors.firstName && <p className="text-red-400 text-sm mt-1">{fieldErrors.firstName}</p>}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-200 mb-2">Last Name *</label>
+                    <label className="block text-sm font-medium text-gray-200 mb-1">Last Name *</label>
                     <input
                       type="text"
                       value={lastName}
@@ -574,41 +597,59 @@ const Login = () => {
                       placeholder="Last Name"
                       required
                       className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 bg-white/10
-                      focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                      focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
+                      focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                      focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
                     />
                     {fieldErrors.lastName && <p className="text-red-400 text-sm mt-1">{fieldErrors.lastName}</p>}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Gender *</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Gender *</label>
+                  {/* custom dropdown with own arrow */}
+                <div className="relative">
                   <select
                     value={gender}
                     onChange={(e) => setGender(e.target.value)}
                     required
-                    className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white
-                    focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                    bg-gray-800 hover:bg-gray-700 transition"
+                    className="w-full rounded-xl border border-gray-400/50 px-4 py-2 pr-10 text-base text-white
+                    focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                    bg-gray-800 hover:bg-gray-700 transition appearance-none"
                   >
                     <option value="">Select Gender</option>
                     <option value="Male">Male</option>
                     <option value="Female">Female</option>
                     <option value="Other">Other</option>
                   </select>
+                  {/* SVG arrow positioned over the right side */}
+                  <svg
+                    className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-300"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                    xmlns="http://www.w3.org/2000/svg"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M19 9l-7 7-7-7"
+                    />
+                  </svg>
+                </div>
                   {fieldErrors.gender && <p className="text-red-400 text-sm mt-1">{fieldErrors.gender}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-2">Email (Optional)</label>
+                  <label className="block text-sm font-medium text-gray-200 mb-1">Email (Optional)</label>
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Email (Optional)"
-                    className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 bg-white/10
-                    focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                    focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
+                    className="w-full rounded-xl border border-gray-400/50 px-4 py-2 text-base text-white placeholder-gray-300 bg-white/10
+                    focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                    focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
                   />
                   {fieldErrors.email && <p className="text-red-400 text-sm mt-1">{fieldErrors.email}</p>}
                 </div>
@@ -633,8 +674,8 @@ const Login = () => {
                     required
                     maxLength={11}
                     className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 bg-white/10
-                    focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                    focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
+                    focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                    focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
                   />
 
                   {/* ✅ Dropdown with header + clear + highlighted match */}
@@ -645,7 +686,7 @@ const Login = () => {
                         <button
                           type="button"
                           onClick={clearRecentNumbers}
-                          className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                          className="text-xs text-blue-400 hover:text-red-300 hover:underline"
                         >
                           Clear
                         </button>
@@ -656,7 +697,7 @@ const Login = () => {
                           key={idx}
                           type="button"
                           onClick={() => handleSelectRecentNumber(number)}
-                          className="w-full text-left px-4 py-2 text-gray-200 hover:bg-red-600/20 transition-colors"
+                          className="w-full text-left px-4 py-2 text-gray-200 hover:bg-blue-600/20 transition-colors"
                         >
                           <HighlightMatch text={number} match={phoneNumber} />
                         </button>
@@ -678,14 +719,14 @@ const Login = () => {
                       onKeyUp={handleCapsLock}
                       onFocus={handleCapsLock}
                       onBlur={() => setCapsLockOn(false)}
-                      placeholder="••••••••"
+                      placeholder="Enter password"
                       required
                       autoComplete="new-password"
                       data-lpignore="true"
                       data-1p-ignore="true"
                       className="w-full rounded-xl border border-gray-400/50 px-4 py-3 pr-12 text-base text-white placeholder-gray-300 bg-white/10
-                      focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-600
-                      focus:shadow-[0_0_0_4px_rgba(239,68,68,0.15)] transition"
+                      focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                      focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
                       style={showPassword ? { WebkitTextSecurity: "none" } : undefined}
                     />
 
@@ -693,7 +734,7 @@ const Login = () => {
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-gray-200 hover:text-red-400 transition"
+                      className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-gray-200 hover:text-blue-400 transition"
                       aria-label={showPassword ? "Hide password" : "Show password"}
                     >
                       {!showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
@@ -730,7 +771,7 @@ const Login = () => {
               )}
 
               {!isSignUp && (
-                <p className="text-sm text-red-400 hover:underline cursor-pointer" onClick={() => setShowForgotModal(true)}>
+                <p className="text-sm text-blue-400 hover:underline cursor-pointer" onClick={() => setShowForgotModal(true)}>
                   Forgot password?
                 </p>
               )}
@@ -739,13 +780,13 @@ const Login = () => {
             <button
               type="submit"
               disabled={loading || (isSignUp && !passwordValid)}
-              className={`w-full flex items-center justify-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all
-              ${loading ? "bg-red-700/80 text-white cursor-wait" : "bg-red-600 text-white hover:bg-red-700 hover:shadow-lg"}`}
+              className={`w-full flex items-center justify-center gap-3 px-6 rounded-xl font-semibold transition-all ${isSignUp ? "py-2" : "py-3"}
+              ${loading ? "bg-blue-600/80 text-white cursor-wait" : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg"}`}
             >
               <span>{loading ? (isSignUp ? "Creating account..." : "Signing in...") : isSignUp ? "Sign up" : "Sign in"}</span>
             </button>
 
-            <div className="mt-8 border-t border-white/20 pt-5 text-center">
+            <div className={`border-t border-white/20 text-center ${isSignUp ? "mt-3 pt-3" : "mt-8 pt-5"}`}>
               <p className="text-sm text-gray-200">
                 {isSignUp ? (
                   <>
@@ -753,7 +794,7 @@ const Login = () => {
                     <button
                       type="button"
                       onClick={() => setIsSignUp(false)}
-                      className="text-red-400 font-semibold hover:text-red-300 hover:underline"
+                      className="text-blue-400 font-semibold hover:text-blue-300 hover:underline"
                     >
                       Sign in
                     </button>
@@ -764,7 +805,7 @@ const Login = () => {
                     <button
                       type="button"
                       onClick={() => setIsSignUp(true)}
-                      className="text-red-400 font-semibold hover:text-red-300 hover:underline"
+                      className="text-blue-400 font-semibold hover:text-blue-300 hover:underline"
                     >
                       Sign up
                     </button>

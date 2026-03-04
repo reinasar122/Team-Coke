@@ -12,7 +12,6 @@ import {
   Dot,
   ReferenceLine,
   Legend,
-  LabelList,
 } from "recharts";
 
 /* ===== helpers ===== */
@@ -57,7 +56,7 @@ const Icon = {
 const GlassCard = ({ title, icon, actions, children, className = "" }) => (
   <section
     className={[
-      "rounded-2xl border bg-white/70 dark:bg-slate-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/70",
+      "min-w-0 rounded-2xl border bg-white/70 dark:bg-slate-900/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-slate-900/70",
       "border-gray-200/70 dark:border-slate-700/70 shadow-sm hover:shadow-md transition-shadow p-4",
       className,
     ].join(" ")}
@@ -316,29 +315,6 @@ export default function Statistics({
     );
   };
 
-  // Find last profit point for a single floating label
-  const lastProfitIndex = React.useMemo(() => {
-    for (let i = data.length - 1; i >= 0; i--) {
-      if (data[i]?.profit !== null && data[i]?.profit !== undefined) return i;
-    }
-    return -1;
-  }, [data]);
-
-  const ProfitEndLabel = ({ x, y, value, index }) => {
-    if (index !== lastProfitIndex || value == null) return null;
-    const text = `Profit: ${peso(value)}`;
-    const dy = -10;
-    const w = Math.max(40, text.length * 6.4);
-    return (
-      <g>
-        <rect x={x - 6} y={y + dy - 14} rx="6" ry="6" width={w} height="18" fill="white" opacity="0.9" />
-        <text x={x} y={y + dy} fontSize="11" fill="#0ea5e9" fontWeight="600">
-          {text}
-        </text>
-      </g>
-    );
-  };
-
   return (
     <GlassCard title="Statistics" icon={<Icon.Sales className="text-slate-500" />} className={className}>
       {!metrics ? (
@@ -350,8 +326,8 @@ export default function Statistics({
       ) : (
         <div className="w-full">
           {/* header area intentionally empty now (dropdown moved to Dashboard) */}
-          <div className="h-56">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-56 min-w-0">
+            <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={180} debounce={80}>
               <AreaChart data={data} margin={{ top: 8, right: 24, left: 0, bottom: 0 }}>
                 <defs>
                   {/* Revenue fill */}
@@ -454,9 +430,7 @@ export default function Statistics({
                   activeDot={{ r: 7, stroke: "#fff", strokeWidth: 2, fill: "#10b981" }}
                   connectNulls
                   legendType="line"
-                >
-                  <LabelList dataKey="profit" content={ProfitEndLabel} />
-                </Line>
+                />
 
                 {/* NEGATIVE PROFIT -- halo */}
                 <Line

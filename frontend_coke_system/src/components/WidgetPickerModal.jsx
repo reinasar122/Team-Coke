@@ -10,7 +10,7 @@ export const SECTIONS = [
       { id: "trading", name: "Trading", route: "/trading" },
       { id: "supplier-returns", name: "Supplier Return", route: "/supplier-returns" },
       { id: "invoice", name: "Invoice", route: "/invoice" },
-      { id: "credit", name: "Credit", route: "/credit" },
+      { id: "credit", name: "Credit", route: "/credits" },
     ],
   },
   {

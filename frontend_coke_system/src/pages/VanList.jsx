@@ -216,7 +216,7 @@ const VanList = () => {
           disabled={!canCreate("Van") || !currentWarehouse?.id}
           className={`px-4 py-2 rounded-lg text-white font-semibold ${
             canCreate("Van") && currentWarehouse?.id
-              ? "bg-green-500 hover:bg-green-600 cursor-pointer"
+              ? "btn-add hover:bg-green-600 cursor-pointer"
               : "bg-gray-400 cursor-not-allowed"
           }`}
         >

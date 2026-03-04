@@ -157,6 +157,17 @@ const isSameWarehouseId = (a, b) => {
   return normalizedA !== null && normalizedB !== null && normalizedA === normalizedB;
 };
 
+const resolveNotificationWarehouseId = (notification) => {
+  if (!notification || typeof notification !== 'object') {
+    return null;
+  }
+  return normalizeWarehouseId(
+    notification?.data?.warehouse_id ??
+    notification?.warehouse_id ??
+    notification?.warehouseId
+  );
+};
+
 const Notification = ({ closeProfile }) => {
   const { state, dispatch, addNotification, hasNotificationPermission } = useNotifications();
   const { notifications } = state;
@@ -408,9 +419,7 @@ const Notification = ({ closeProfile }) => {
 
       const formattedNotifications = visibleBackendNotifications
         .map((notification) => {
-          const resolvedWarehouseId = normalizeWarehouseId(
-            notification.warehouse_id ?? notification.data?.warehouse_id
-          );
+          const resolvedWarehouseId = resolveNotificationWarehouseId(notification);
 
           if (!resolvedWarehouseId) {
             return null;
@@ -433,7 +442,7 @@ const Notification = ({ closeProfile }) => {
           };
         })
         .filter(Boolean)
-        .filter((notif) => isSameWarehouseId(notif.data?.warehouse_id, targetWarehouseId));
+        .filter((notif) => isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId));
 
       if (!isSameWarehouseId(currentWarehouseIdRef.current, targetWarehouseId)) {
         console.log(`⏭️ Skipping stale notification sync for warehouse ${targetWarehouseId}`);
@@ -444,10 +453,10 @@ const Notification = ({ closeProfile }) => {
         (notification) => !isVanLoadEditApprovalNotification(notification)
       );
       const currentWarehouseNotifications = existingNotifications.filter((notif) =>
-        isSameWarehouseId(notif.data?.warehouse_id, targetWarehouseId)
+        isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId)
       );
       const otherWarehouseNotifications = existingNotifications.filter((notif) =>
-        !isSameWarehouseId(notif.data?.warehouse_id, targetWarehouseId)
+        !isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId)
       );
       
       const backendIds = new Set(formattedNotifications.map((n) => String(n.id)));
@@ -521,19 +530,40 @@ const Notification = ({ closeProfile }) => {
   const createNotificationWithBackend = useCallback(async (notificationType, data, userRole) => {
     if (!userDataReady || !currentWarehouseId) return;
 
+    const payload = data && typeof data === 'object' ? data : {};
+    const payloadWarehouseId = normalizeWarehouseId(payload.warehouse_id);
+    const currentWarehouseInt = normalizeWarehouseId(currentWarehouseId);
+    const targetWarehouseId = payloadWarehouseId || currentWarehouseInt;
+
+    if (!targetWarehouseId) {
+      return;
+    }
+
+    if (payloadWarehouseId && !isSameWarehouseId(payloadWarehouseId, currentWarehouseInt)) {
+      console.log(
+        `🚫 BLOCKED: Notification ${notificationType} for warehouse ${payloadWarehouseId} while viewing ${currentWarehouseInt}`
+      );
+      return;
+    }
+
+    const normalizedPayload = {
+      ...payload,
+      warehouse_id: targetWarehouseId
+    };
+
     try {
       const config = getWarehouseAxiosConfig(currentWarehouse);
       
       // Create in backend
-      await NotificationAPI.createNotification(notificationType, data, userRole, currentWarehouseId, config);
+      await NotificationAPI.createNotification(notificationType, normalizedPayload, userRole, targetWarehouseId, config);
       
       // Also create locally for immediate display
-      addNotification(notificationType, data, userRole);
+      addNotification(notificationType, normalizedPayload, userRole);
       
     } catch (error) {
       console.warn('Failed to sync notification with backend:', error.message);
       // Still create locally if backend fails
-      addNotification(notificationType, data, userRole);
+      addNotification(notificationType, normalizedPayload, userRole);
     }
   }, [userDataReady, currentWarehouseId, currentWarehouse, addNotification]);
 
@@ -686,7 +716,7 @@ const Notification = ({ closeProfile }) => {
     const userRole = user.role?.toLowerCase();
     
     const warehouseNotifications = notifications.filter(notif => 
-      notif.data?.warehouse_id === currentWarehouseId && !notif.is_read
+      isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId) && !notif.is_read
     );
 
     const summary = {
@@ -746,7 +776,7 @@ const Notification = ({ closeProfile }) => {
   const exportNotifications = useCallback((format = 'json') => {
     const user = getCurrentUser();
     const warehouseNotifications = notifications.filter(notif => 
-      notif.data?.warehouse_id === currentWarehouseId
+      isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId)
     );
 
     const exportData = {
@@ -1216,7 +1246,7 @@ const Notification = ({ closeProfile }) => {
       
       if (userRole === 'admin' && targetWarehouseId) {
         const existingOtherWarehouseNotifications = (notificationsRef.current || []).filter((notif) =>
-          !isSameWarehouseId(notif.data?.warehouse_id, targetWarehouseId)
+          !isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId)
         );
 
         // Load warehouse-specific notifications for admin
@@ -1229,7 +1259,7 @@ const Notification = ({ closeProfile }) => {
           // ✅ FIXED: Only filter out explicitly deleted notifications, keep all messages
           const validNotifications = parsedNotifications.filter(notif => {
             const notDeleted = !deletedNotificationIds.has(notif.id);
-            const isCurrentWarehouse = isSameWarehouseId(notif.data?.warehouse_id, targetWarehouseId);
+            const isCurrentWarehouse = isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId);
             
             return notDeleted && isCurrentWarehouse;
           });
@@ -1246,7 +1276,7 @@ const Notification = ({ closeProfile }) => {
           if (globalAdminNotifications) {
             const allNotifications = JSON.parse(globalAdminNotifications);
             const warehouseNotifications = allNotifications.filter(notif =>
-              isSameWarehouseId(notif.data?.warehouse_id, targetWarehouseId) &&
+              isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId) &&
               !deletedNotificationIds.has(notif.id)
             );
             
@@ -1272,7 +1302,7 @@ const Notification = ({ closeProfile }) => {
           // ✅ FIXED: Less aggressive filtering - keep all messages
           const validNotifications = parsedNotifications.filter(notif => {
             const notDeleted = !deletedNotificationIds.has(notif.id);
-            const isCurrentWarehouse = isSameWarehouseId(notif.data?.warehouse_id, targetWarehouseId);
+            const isCurrentWarehouse = isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId);
             
             return notDeleted && isCurrentWarehouse;
           });
@@ -1357,7 +1387,7 @@ const Notification = ({ closeProfile }) => {
           // Store notifications per warehouse for admin
           const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
           const warehouseNotifications = notifications.filter(notif => 
-            notif.data?.warehouse_id === currentWarehouseId
+            isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId)
           );
           
           if (warehouseNotifications.length > 0) {
@@ -2706,10 +2736,7 @@ const Notification = ({ closeProfile }) => {
       if (isVanLoadEditApprovalNotification(notif)) {
         return false;
       }
-      if (notif.data?.warehouse_id) {
-        return notif.data.warehouse_id === currentWarehouseId;
-      }
-      return false;
+      return isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId);
     });
 
     currentWarehouseNotifications.forEach(notification => {
@@ -2737,10 +2764,7 @@ const Notification = ({ closeProfile }) => {
       if (isVanLoadEditApprovalNotification(notif)) {
         return false;
       }
-      if (notif.data?.warehouse_id) {
-        return notif.data.warehouse_id === currentWarehouseId;
-      }
-      return false;
+      return isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId);
     });
 
     // ✅ FIXED: Track deleted notification IDs permanently
@@ -2890,7 +2914,7 @@ const Notification = ({ closeProfile }) => {
         // ✅ FIXED: Save current notifications before switching
         if (userRole === 'admin' && currentWarehouseId) {
           const currentWarehouseNotifications = notifications.filter(notif => 
-            isSameWarehouseId(notif.data?.warehouse_id, currentWarehouseId)
+            isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId)
           );
           
           if (currentWarehouseNotifications.length > 0) {
@@ -3850,8 +3874,10 @@ useEffect(() => {
       if (!isUnread) return false;
       
       // Check warehouse filtering
-      const hasWarehouseId = notif.data?.warehouse_id;
-      const isCurrentWarehouse = hasWarehouseId && Number(notif.data.warehouse_id) === Number(currentWarehouseId);
+      const isCurrentWarehouse = isSameWarehouseId(
+        resolveNotificationWarehouseId(notif),
+        currentWarehouseId
+      );
       
       // ✅ ADMIN: Show notifications for current warehouse
       if (isAdminRole) {
@@ -3884,8 +3910,7 @@ useEffect(() => {
     if (!currentWarehouseId) return 0;
     return notifications.filter((notif) => {
       if (isVanLoadEditApprovalNotification(notif)) return false;
-      if (!notif.data?.warehouse_id) return false;
-      return Number(notif.data.warehouse_id) === Number(currentWarehouseId);
+      return isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId);
     }).length;
   }, [notifications, currentWarehouseId]);
 
@@ -3917,10 +3942,7 @@ useEffect(() => {
         return false;
       }
 
-      if (notif.data?.warehouse_id) {
-        return Number(notif.data.warehouse_id) === Number(currentWarehouseId);
-      }
-      return false;
+      return isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId);
     });
 
   }, [activeTab, notifications, currentWarehouseId]);

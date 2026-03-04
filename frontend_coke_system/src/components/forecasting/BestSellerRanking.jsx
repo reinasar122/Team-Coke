@@ -64,7 +64,7 @@ export function BestSellerRanking({ data = [] }) {
           </div>
         ) : (
           <div style={{ width: "100%", height: chartHeight }}>
-            <ResponsiveContainer width="100%" height="100%">
+            <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={180} debounce={80}>
               <BarChart
                 data={chartData}
                 layout="vertical"

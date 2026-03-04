@@ -6,6 +6,20 @@ import { FaEye, FaEyeSlash } from "react-icons/fa";
 const isStrongPassword = (password) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
 
+// Spinner component
+const Spinner = ({ size = 5 }) => (
+  <svg
+    className="animate-spin"
+    style={{ height: `${size * 4}px`, width: `${size * 4}px` }}
+    viewBox="0 0 24 24"
+    fill="none"
+    aria-hidden="true"
+  >
+    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" opacity="0.15" />
+    <path d="M22 12a10 10 0 00-10-10" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+  </svg>
+);
+
 const ChangePassword = () => {
   const navigate = useNavigate();
   const { id, uid, token } = useParams(); // ✅ Added id param
@@ -151,121 +165,147 @@ const ChangePassword = () => {
     condition ? "text-green-500 font-semibold" : "text-gray-400";
 
   return (
-    <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
-      {/* Background Design */}
-      <div className="absolute inset-0 bg-black">
-        <div className="absolute inset-0 bg-gradient-to-br from-black via-neutral-900 to-red-900 opacity-90"></div>
-        <div className="absolute top-0 left-0 w-[500px] h-[500px] bg-red-600 rounded-full blur-[150px] opacity-30 animate-pulse"></div>
-        <div className="absolute bottom-0 right-0 w-[400px] h-[400px] bg-white rounded-full blur-[200px] opacity-10"></div>
-      </div>
+    <div className="min-h-screen flex items-center justify-center relative overflow-hidden bg-gradient-to-br from-black via-gray-900 to-black">
+      {/* Background decorative elements */}
+      <div className="absolute -top-40 -left-40 w-96 h-96 bg-red-700 rounded-full blur-3xl opacity-15 animate-pulse" />
+      <div className="absolute -bottom-32 -right-24 w-80 h-80 bg-red-800 rounded-full blur-3xl opacity-10 animate-pulse" />
 
-      {/* Card */}
-      <div className="relative bg-white/10 backdrop-blur-lg p-8 rounded-2xl shadow-2xl w-full max-w-md border border-white-600">
-        <h3 className="text-2xl font-bold mb-6 text-center text-white uppercase tracking-wide">
-          {isMandatoryChange ? "Set New Password" : "Change Password"}
-        </h3>
-       
-        {isMandatoryChange && (
-          <p className="text-center text-gray-300 text-sm mb-4">
-            Please set a new password to continue using your account.
-          </p>
-        )}
+      <div className="relative z-10 w-full max-w-md mx-4">
+        {/* ✅ Entrance animation + error shake */}
+        <div
+          className={`relative rounded-3xl bg-white/10 backdrop-blur-md shadow-2xl border border-white/20
+          animate-[fadeInUp_.55s_ease-out] ${error ? "animate-[shake_.35s_ease-in-out]" : ""} p-10`}
+        >
+          {/* ✅ Loading overlay */}
+          {loading && (
+            <div className="absolute inset-0 rounded-3xl bg-black/30 backdrop-blur-sm flex items-center justify-center z-20">
+              <div className="flex items-center gap-3 text-white">
+                <Spinner size={5} />
+                <span className="text-sm">Please wait...</span>
+              </div>
+            </div>
+          )}
 
-        {error && (
-          <div className="bg-red-600 text-white text-sm p-2 rounded mb-3">
-            {error}
+          {/* Header */}
+          <div className="flex flex-col items-center mb-6">
+            <h1 className="text-3xl font-bold text-white mb-2">
+              {isMandatoryChange ? "Set New Password" : "Change Password"}
+            </h1>
+            <p className="text-sm text-gray-200 text-center">
+              {isMandatoryChange
+                ? "Please set a new password to continue using your account."
+                : "Enter your new password below."}
+            </p>
           </div>
-        )}
-        {success && (
-          <div className="bg-green-600 text-white text-sm p-2 rounded mb-3">
-            {success}
-          </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* New Password */}
-          <div>
-            <label className="block text-sm font-medium mb-1 text-white">
-              New Password
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 px-4 py-3 rounded-lg bg-red-500/20 border border-red-700 text-red-200 text-sm">
+              {error}
+            </div>
+          )}
+
+          {/* Success Message */}
+          {success && (
+            <div className="mb-4 px-4 py-3 rounded-lg bg-green-500/20 border border-green-700 text-green-200 text-sm">
+              {success}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="space-y-5">
+            {/* New Password */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-200">
+                New Password
               </label>
-             
               <div className="relative">
                 <input
-                type={showPassword ? "text" : "password"}
-                className="w-full p-3 pr-10 bg-black/70 text-white border border-gray-600 rounded focus:outline-none focus:border-red-500"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                  type={showPassword ? "text" : "password"}
+                  className="w-full rounded-xl border border-gray-400/50 px-4 py-3 pr-12 text-base text-white placeholder-gray-300 bg-white/10
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                  focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
                 />
-               
                 <button
-                type="button"
-                onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500"
-                aria-label={showPassword ? "Hide password" : "Show password"}
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-gray-200 hover:text-blue-400 transition"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {!showPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
-                  </button>
-                  </div>
+                </button>
+              </div>
+            </div>
 
-                  </div>
-                  {/* Confirm Password */}
-                  <div>
-                    <label className="block text-sm font-medium mb-1 text-white">
-                      Confirm Password
-                      </label>
-                      <div className="relative">
-                        <input
-                        type={showConfirmPassword ? "text" : "password"}
-                        className="w-full p-3 pr-10 bg-black/70 text-white border border-gray-600 rounded focus:outline-none focus:border-red-500"
-                        value={confirmPassword}
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                        />
-                        <button
-                        type="button"
-                        onClick={() => setShowConfirmPassword((v) => !v)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-300 hover:text-red-500"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
-                        >
-                          {!showConfirmPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
-                          </button>
-                          </div>
-                          </div>
+            {/* Confirm Password */}
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-200">
+                Confirm Password
+              </label>
+              <div className="relative">
+                <input
+                  type={showConfirmPassword ? "text" : "password"}
+                  className="w-full rounded-xl border border-gray-400/50 px-4 py-3 pr-12 text-base text-white placeholder-gray-300 bg-white/10
+                  focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                  focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm password"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 w-12 flex items-center justify-center text-gray-200 hover:text-blue-400 transition"
+                  aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                >
+                  {!showConfirmPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                </button>
+              </div>
+            </div>
                          
-          {/* Password requirements */}
-          <ul className="space-y-1 text-xs">
-            <li className={getValidationColor(newPassword.length >= 8)}>
-              • Minimum 8 characters
-            </li>
-            <li className={getValidationColor(/[A-Z]/.test(newPassword))}>
-              • At least one uppercase letter
-            </li>
-            <li className={getValidationColor(/[a-z]/.test(newPassword))}>
-              • At least one lowercase letter
-            </li>
-            <li className={getValidationColor(/\d/.test(newPassword))}>
-              • At least one number
-            </li>
-            <li className={getValidationColor(/[^A-Za-z0-9]/.test(newPassword))}>
-              • At least one special character
-            </li>
-          </ul>
+            {/* Password requirements */}
+            <ul className="space-y-1 text-xs text-gray-300 mt-4">
+              <li className={getValidationColor(newPassword.length >= 8)}>
+                • Minimum 8 characters
+              </li>
+              <li className={getValidationColor(/[A-Z]/.test(newPassword))}>
+                • At least one uppercase letter
+              </li>
+              <li className={getValidationColor(/[a-z]/.test(newPassword))}>
+                • At least one lowercase letter
+              </li>
+              <li className={getValidationColor(/\d/.test(newPassword))}>
+                • At least one number
+              </li>
+              <li className={getValidationColor(/[^A-Za-z0-9]/.test(newPassword))}>
+                • At least one special character
+              </li>
+            </ul>
 
-          {/* Submit */}
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full py-3 rounded text-white font-bold uppercase tracking-wide ${
-              loading
-                ? "bg-red-400 cursor-not-allowed"
-                : "bg-red-600 hover:bg-red-700 transition"
-            }`}
-          >
-            {loading ? "Updating..." : "Update Password"}
-          </button>
-        </form>
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className={`w-full flex items-center justify-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all mt-6
+              ${loading ? "bg-blue-600/80 text-white cursor-wait" : "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-lg"}`}
+            >
+              {loading ? (
+                <>
+                  <Spinner size={4} />
+                  <span>Updating...</span>
+                </>
+              ) : (
+                "Update Password"
+              )}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   );
 };
 
 export default ChangePassword;
+

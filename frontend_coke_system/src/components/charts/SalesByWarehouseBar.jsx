@@ -71,7 +71,7 @@ export default function SalesByWarehouseBar({ data = [], warehouses = [], focus 
   }
 
   return (
-    <ResponsiveContainer width="100%" height={280}>
+    <ResponsiveContainer width="100%" height={280} minWidth={240} minHeight={180} debounce={80}>
       <BarChart
         data={rows}
         margin={{ top: 10, right: 12, bottom: 10, left: 4 }}
