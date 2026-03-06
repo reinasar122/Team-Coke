@@ -864,9 +864,9 @@ const validateSoldBeforeRemit = () => {
       console.log('🚛 Dispatching vanLoadCompleted event:', eventDetail);
       window.dispatchEvent(new CustomEvent('vanLoadUpdated', { detail: eventDetail }));
 
-      // ✅ Show success message but don't navigate immediately - let PaymentModal show invoice first
-      showAlert('Van Load completed successfully with payment!');
-      
+      // ✅ No alert needed here - InvoiceModal opening provides clear visual confirmation
+      // The payment was successful, so let PaymentModal show invoice modal instead
+
     } catch (err) {
       console.error('Failed to save Van Load payment:', err);
       showAlert('Saving payment failed. Please try again.');
