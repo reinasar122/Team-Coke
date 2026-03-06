@@ -93,9 +93,9 @@ DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
          'NAME': 'cokedb6',
-         'USER': 'root',
-         'PASSWORD': 'Ctugmarc@2003',
-         'HOST': 'localhost',
+         'USER': 'cokeuser',
+         'PASSWORD': '@-@CokE123',
+         'HOST': '192.168.0.167',
          'PORT': '3306',
      }
  } 
