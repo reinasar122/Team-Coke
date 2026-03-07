@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_BASE || "/coke/api",
+  seURL: process.env.REACT_APP_API_BASE || "/coke/api",
   //baseURL: process.env.REACT_APP_API_BASE || "http://localhost:8080/api",
 });
 

@@ -247,7 +247,7 @@ const VanList = () => {
                         className={canEdit("Van") ? "icon-btn-edit" : "icon-btn-disabled"}
                         title="Edit Van"
                       >
-                        <FaEdit size={20} />
+                        <FaEdit size={16} />
                       </button>
 
                       <button
@@ -256,7 +256,7 @@ const VanList = () => {
                         className={canDelete("Van") ? "icon-btn-danger" : "icon-btn-disabled"}
                         title="Delete Van"
                       >
-                        <FaTrash size={20} />
+                        <FaTrash size={16} />
                       </button>
                     </div>
                   </td>

@@ -4,6 +4,8 @@ import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../api";
 import { getCurrentWarehouse, findWarehouseByName } from "../../utils/warehouseUtils";
 
+const sanitizePhoneNumber = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
+
 const CustomerRegistration = ({
   embedded = false,
   onClose = null,
@@ -197,7 +199,8 @@ const CustomerRegistration = ({
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setNewCustomer(prev => ({ ...prev, [name]: value }));
+    const nextValue = name === "phone_number" ? sanitizePhoneNumber(value) : value;
+    setNewCustomer(prev => ({ ...prev, [name]: nextValue }));
     
     if (customerErrors[name]) {
       setCustomerErrors(prev => ({ ...prev, [name]: null }));
@@ -215,10 +218,14 @@ const CustomerRegistration = ({
       errors.address = "Address is required";
     }
     
-    if (!newCustomer.phone_number.trim()) {
+    const normalizedPhone = sanitizePhoneNumber(newCustomer.phone_number);
+
+    if (!normalizedPhone) {
       errors.phone_number = "Phone number is required";
-    } else if (!/^[0-9+\-\s()]+$/.test(newCustomer.phone_number)) {
-      errors.phone_number = "Please enter a valid phone number";
+    } else if (!/^\d+$/.test(normalizedPhone)) {
+      errors.phone_number = "Phone number must contain digits only";
+    } else if (normalizedPhone.length !== 11) {
+      errors.phone_number = "Phone number must be 11 digits";
     }
     
     if (newCustomer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCustomer.email)) {
@@ -320,7 +327,7 @@ const CustomerRegistration = ({
       const customerData = {
         name: newCustomer.name.trim(),
         address: newCustomer.address.trim(),
-        phone: newCustomer.phone_number.trim(),
+        phone: sanitizePhoneNumber(newCustomer.phone_number),
         email: newCustomer.email.trim() || null,
         warehouse: currentWarehouse.id,
       };
@@ -398,7 +405,7 @@ const CustomerRegistration = ({
     setNewCustomer({
       name: customer.name || "",
       address: customer.address || "",
-      phone_number: customer.phone || "",
+      phone_number: sanitizePhoneNumber(customer.phone || ""),
       email: customer.email || "",
     });
     setCustomerErrors({});
@@ -586,7 +593,7 @@ const CustomerRegistration = ({
                       id="phone_number"
                       name="phone_number"
                       inputMode="numeric"
-                      pattern="[0-9]*"
+                      pattern="[0-9]{11}"
                       autoCorrect="off"
                       autoCapitalize="off"
                       spellCheck={false}
@@ -594,7 +601,7 @@ const CustomerRegistration = ({
                       value={newCustomer.phone_number}
                       onChange={handleInputChange}
                       className={fieldClass(customerErrors.phone_number)}
-                      placeholder="09XXXXXXXXX"
+                      placeholder="Enter phone number"
                     />
                     {customerErrors.phone_number && <p className="text-red-500 text-xs mt-1">{customerErrors.phone_number}</p>}
                   </div>
@@ -741,6 +748,11 @@ const CustomerRegistration = ({
             ? "opacity-100 bg-black/70 backdrop-blur-sm"
             : "opacity-0 bg-black/0 backdrop-blur-none"
         }`}
+        onMouseDown={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose?.();
+          }
+        }}
       >
         <div className="ml-auto h-full w-full max-w-6xl">
           <div

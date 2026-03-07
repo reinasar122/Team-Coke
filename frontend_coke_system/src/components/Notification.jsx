@@ -284,6 +284,31 @@ const Notification = ({ closeProfile }) => {
     return ['admin', 'administrator', 'super admin'].includes(role) || role.includes('admin');
   }, [getCurrentUser]);
 
+  const clearPersistedNotificationsForWarehouse = useCallback((warehouseId) => {
+    const targetWarehouseId = normalizeWarehouseId(warehouseId);
+    if (!targetWarehouseId) return;
+
+    try {
+      const role = String(getCurrentUser()?.role || '').trim().toLowerCase();
+      const isAdminRole = ['admin', 'administrator', 'super admin'].includes(role) || role.includes('admin');
+
+      if (isAdminRole) {
+        const warehouseKey = `persistedNotifications_warehouse_${targetWarehouseId}`;
+        localStorage.setItem(warehouseKey, JSON.stringify([]));
+
+        const globalAdminNotifications = JSON.parse(localStorage.getItem('persistedNotifications_admin_all') || '[]');
+        const filtered = Array.isArray(globalAdminNotifications)
+          ? globalAdminNotifications.filter((notif) => !isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId))
+          : [];
+        localStorage.setItem('persistedNotifications_admin_all', JSON.stringify(filtered));
+      } else {
+        localStorage.setItem('persistedNotifications', JSON.stringify([]));
+      }
+    } catch (error) {
+      console.warn('Failed to clear stale notification cache for warehouse:', targetWarehouseId, error);
+    }
+  }, [getCurrentUser]);
+
   // ✅ ENHANCED: Initialize warehouse using warehouse utils consistently
   const initializeWarehouse = useCallback(async () => {
     try {
@@ -405,7 +430,7 @@ const Notification = ({ closeProfile }) => {
   const loadNotificationsFromAPI = useCallback(async () => {
     const targetWarehouseId = normalizeWarehouseId(currentWarehouseId);
     if (!userDataReady || !targetWarehouseId) {
-      return;
+      return false;
     }
 
     try {
@@ -446,7 +471,7 @@ const Notification = ({ closeProfile }) => {
 
       if (!isSameWarehouseId(currentWarehouseIdRef.current, targetWarehouseId)) {
         console.log(`⏭️ Skipping stale notification sync for warehouse ${targetWarehouseId}`);
-        return;
+        return false;
       }
 
       const existingNotifications = (notificationsRef.current || []).filter(
@@ -460,9 +485,11 @@ const Notification = ({ closeProfile }) => {
       );
       
       const backendIds = new Set(formattedNotifications.map((n) => String(n.id)));
-      const recentLocalNotifications = currentWarehouseNotifications.filter((localNotif) => {
-        return !backendIds.has(String(localNotif.id));
-      });
+      // Treat backend as source-of-truth for the current warehouse.
+      // If backend is empty (e.g., fresh database), do not keep old local cache.
+      const recentLocalNotifications = formattedNotifications.length > 0
+        ? currentWarehouseNotifications.filter((localNotif) => !backendIds.has(String(localNotif.id)))
+        : [];
       
       const mergedNotifications = [
         ...otherWarehouseNotifications,
@@ -472,10 +499,16 @@ const Notification = ({ closeProfile }) => {
       
       dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
       console.log(`📥 Synced ${formattedNotifications.length} backend + ${recentLocalNotifications.length} local notifications for warehouse ${targetWarehouseId}`);
+
+      if (formattedNotifications.length === 0) {
+        clearPersistedNotificationsForWarehouse(targetWarehouseId);
+      }
+      return true;
     } catch (error) {
       console.warn('❌ Failed to load notifications from backend:', error.message);
+      return false;
     }
-  }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch]);
+  }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch, clearPersistedNotificationsForWarehouse]);
 
     const syncVanLoadEditRequestsForAdmin = useCallback(async () => {
     if (!userDataReady || !isAdminUser()) {
@@ -1334,18 +1367,21 @@ const Notification = ({ closeProfile }) => {
       const loadToken = ++loadCycleRef.current;
       console.log('📱 Loading all notifications with priority system...');
       
-      // 1. First load persisted local notifications
-      loadPersistedNotifications();
-      
-      // 2. Wait a bit, then load from backend and merge
+      // 1. Try backend first. Use local cache only if backend load fails.
       setTimeout(async () => {
         if (loadCycleRef.current !== loadToken || !isSameWarehouseId(currentWarehouseIdRef.current, targetWarehouseId)) {
           return;
         }
-        await loadNotificationsFromAPI();
-      }, 500);
+        const backendLoaded = await loadNotificationsFromAPI();
+        if (!backendLoaded) {
+          loadPersistedNotifications();
+        }
+        if (loadCycleRef.current === loadToken && isSameWarehouseId(currentWarehouseIdRef.current, targetWarehouseId)) {
+          setIsLoaded(true);
+        }
+      }, 300);
       
-      // 3. Mark as loaded
+      // 2. Safety net: mark as loaded even if async sequence is delayed
       setTimeout(() => {
         if (loadCycleRef.current !== loadToken || !isSameWarehouseId(currentWarehouseIdRef.current, targetWarehouseId)) {
           return;
@@ -1389,18 +1425,13 @@ const Notification = ({ closeProfile }) => {
           const warehouseNotifications = notifications.filter(notif => 
             isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId)
           );
-          
-          if (warehouseNotifications.length > 0) {
-            localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
-          }
+          localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
           
           // Also maintain global admin notifications for migration purposes
           localStorage.setItem('persistedNotifications_admin_all', JSON.stringify(notifications));
         } else {
           // Regular storage for non-admin users
-          if (notifications.length > 0) {
-            localStorage.setItem('persistedNotifications', JSON.stringify(notifications));
-          }
+          localStorage.setItem('persistedNotifications', JSON.stringify(notifications));
         }
       } catch (error) {
         console.warn('Error persisting notifications - storage may be full');
