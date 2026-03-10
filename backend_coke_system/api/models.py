@@ -349,7 +349,7 @@ class Product(models.Model):
     price = models.ForeignKey(Pricing, on_delete=models.SET_NULL, null=True)
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, blank=True)
     warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE,  null=True, blank=True)  # NEW: Add warehouse field
-    image = models.ImageField(upload_to='product_images/', null=True, blank=True)  # NEW: Image field
+    image = models.ImageField(upload_to='product_images/', blank=True, null=True)  # NEW: Image field
 
     def save(self, *args, **kwargs):
         if not self.system_code:

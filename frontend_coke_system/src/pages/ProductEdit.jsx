@@ -364,7 +364,7 @@ const ProductEdit = () => {
         timeout: 30000,
       };
 
-      await api.put(`/products/${id}/`, updateData, config);
+      await api.patch(`/products/${id}/`, updateData, config);
 
       // ✅ FIXED: Detect changes and send notification WITH warehouse info
       const changes = detectChanges();

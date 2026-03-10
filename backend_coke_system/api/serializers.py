@@ -597,12 +597,28 @@ class PricingSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    product_category = serializers.PrimaryKeyRelatedField(queryset=ProductCategory.objects.all())
-    unit_type = serializers.PrimaryKeyRelatedField(queryset=UnitType.objects.all())
-    price = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all())
+    product_category = serializers.PrimaryKeyRelatedField(
+        queryset=ProductCategory.objects.all(),
+        required=False
+    )
+
+    unit_type = serializers.PrimaryKeyRelatedField(
+        queryset=UnitType.objects.all(),
+        required=False
+    )
+
+    price = serializers.PrimaryKeyRelatedField(
+        queryset=Pricing.objects.all(),
+        required=False
+    )
+
     image = serializers.ImageField(required=False, allow_null=True)
-    remove_image = serializers.CharField(required=False, allow_blank=True, write_only=True)  # Add this
-    
+
+    remove_image = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        write_only=True
+    )
     class Meta:
         model = Product
         fields = '__all__'

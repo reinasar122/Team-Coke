@@ -805,6 +805,10 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
         if self.request.method == 'GET':
             return ProductDetailSerializer
         return ProductSerializer
+
+    def update(self, request, *args, **kwargs):
+        kwargs['partial'] = True
+        return super().update(request, *args, **kwargs)
     
     def perform_destroy(self, instance):
         unit = instance.unit_type
