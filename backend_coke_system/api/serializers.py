@@ -27,7 +27,8 @@ from django.utils.timezone import localtime
 from .models import Notification, NotificationPreference, ProcessedNotification
 from django.core.exceptions import ValidationError
 from random import randint
-
+from datetime import timedelta
+from django.utils import timezone
 
 # Path to your service account key JSON file
 
@@ -597,28 +598,12 @@ class PricingSerializer(serializers.ModelSerializer):
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    product_category = serializers.PrimaryKeyRelatedField(
-        queryset=ProductCategory.objects.all(),
-        required=False
-    )
-
-    unit_type = serializers.PrimaryKeyRelatedField(
-        queryset=UnitType.objects.all(),
-        required=False
-    )
-
-    price = serializers.PrimaryKeyRelatedField(
-        queryset=Pricing.objects.all(),
-        required=False
-    )
-
+    product_category = serializers.PrimaryKeyRelatedField(queryset=ProductCategory.objects.all(), required=False)
+    unit_type = serializers.PrimaryKeyRelatedField(queryset=UnitType.objects.all(), required=False)
+    price = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all(), required=False)
     image = serializers.ImageField(required=False, allow_null=True)
+    remove_image = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
-    remove_image = serializers.CharField(
-        required=False,
-        allow_blank=True,
-        write_only=True
-    )
     class Meta:
         model = Product
         fields = '__all__'

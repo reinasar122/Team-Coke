@@ -774,6 +774,7 @@ class PricingDetailView(generics.RetrieveUpdateDestroyAPIView):
 
 class ProductListCreateView(generics.ListCreateAPIView):
     serializer_class = ProductSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
         # ✅ FIXED: Apply consistent warehouse filtering
@@ -791,6 +792,7 @@ class ProductListCreateView(generics.ListCreateAPIView):
 
 class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProductSerializer
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     
     def get_queryset(self):
         # ✅ FIXED: Apply consistent warehouse filtering
