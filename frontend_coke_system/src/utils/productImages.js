@@ -1,8 +1,34 @@
 // utils/productImages.js
+const getMediaOrigin = () => {
+  const envApiBase = process.env.REACT_APP_API_BASE;
+  if (envApiBase) {
+    try {
+      return new URL(envApiBase).origin;
+    } catch (error) {
+      // Fall through to runtime-based defaults.
+    }
+  }
+
+  if (typeof window !== "undefined") {
+    const { protocol, hostname, port, origin } = window.location;
+
+    if (port === "3000" || port === "3001") {
+      return `${protocol}//${hostname}:8080`;
+    }
+
+    return origin;
+  }
+
+  return "http://localhost:8080";
+};
+
 export const getProductImage = (product) => {
   // If there's an actual uploaded image, use it
   if (product.image_url) {
-    return `http://localhost:8080${product.image_url}`;
+    if (/^https?:\/\//i.test(product.image_url)) {
+      return product.image_url;
+    }
+    return `${getMediaOrigin()}${product.image_url}`;
   }
 
   const categoryName = product.product_category?.name?.toLowerCase() || 'general';

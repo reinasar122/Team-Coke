@@ -358,9 +358,7 @@ const ProductEdit = () => {
       }
 
       const config = {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
+        headers: {},
         timeout: 30000,
       };
 
@@ -418,7 +416,12 @@ const ProductEdit = () => {
      
       if (err.response?.data) {
         if (typeof err.response.data === 'string') {
-          errorMessage += `: ${err.response.data}`;
+          const html500 =
+           err.response.data.trim().startsWith("<!DOCTYPE") ||
+           err.response.data.trim().startsWith('<html');
+          errorMessage += html500 
+            ? ": Server error while uploading image. Please checks backend logs"
+            : `: ${err.response.data}`;
         } else if (err.response.data.message) {
           errorMessage += `: ${err.response.data.message}`;
         } else if (err.response.data.detail) {

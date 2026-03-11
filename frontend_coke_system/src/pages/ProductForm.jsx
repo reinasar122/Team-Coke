@@ -452,7 +452,6 @@ const getSupplierInfo = (supplierId) => {
         const warehouseConfig = getWarehouseAxiosConfig(currentWarehouse);
         const productResponse = await api.post("/products/", productData, {
           headers: {
-            'Content-Type': 'multipart/form-data',
             ...warehouseConfig.headers
           },
         });
@@ -577,7 +576,14 @@ const getSupplierInfo = (supplierId) => {
     } catch (err) {
       console.log("Form values when saving:", rows);
       console.error("Save Error:", err.response?.data || err.message);
-      showNotice("Error saving products: " + (err.response?.data?.message || err.message), "error");
+      const rawErrorData = err.response?.data;
+      const backendMessage =
+        typeof rawErrorData === "string"
+          ? (rawErrorData.trim().startsWith("<!DOCTYPE") || rawErrorData.trim().startsWith("<html")
+              ? "Server error while uploading image. Please check backend logs."
+              : rawErrorData)
+          : rawErrorData?.message || rawErrorData?.detail;
+      showNotice("Error saving products: " + (backendMessage || err.message), "error");
     }
   };
 
