@@ -445,6 +445,11 @@ const PaymentModal = ({
     ? n(totalAmount)
     : computedTotalDue;
 
+  const trimmedCustomerInput = customerInput.trim();
+  const isCreditSectionVisible = n(cashReceived || 0) < amountDueFinal;
+  const isMissingCreditCustomerName =
+    isVanLoad && isCreditSectionVisible && trimmedCustomerInput === "";
+
 
   const showChange = String(cashReceived).trim() !== "";
   const change = Math.max(n(cashReceived) - amountDueFinal, 0);
@@ -1280,9 +1285,18 @@ const PaymentModal = ({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting || (!isVanLoad && n(cashReceived) <= 0)}
+            disabled={
+              submitting ||
+              (!isVanLoad && n(cashReceived) <= 0) ||
+              isMissingCreditCustomerName
+            }
            onClick={async () => {
               console.log("🏪 Button clicked - warehouse:", warehouse);
+
+              if (isMissingCreditCustomerName) {
+                showAlert("Customer name is required for credit remittance.");
+                return;
+              }
 
               let warehouseId = null;
               let warehouseName = null;
@@ -1382,7 +1396,9 @@ const PaymentModal = ({
                 // rows + headers
                 rows,
                 mspNo,
-                customerName: isVanLoad ? (customerInput || "Walk-in") : (customerName || "Walk-in"),
+                customerName: isVanLoad
+                  ? (isCreditSectionVisible ? trimmedCustomerInput : trimmedCustomerInput || "Walk-in")
+                  : (customerName || "Walk-in"),
                 handledBy,
                 transactionDate,
 
