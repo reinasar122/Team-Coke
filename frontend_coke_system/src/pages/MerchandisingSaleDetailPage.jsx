@@ -581,7 +581,7 @@ const loadMerchandisingDetail = useCallback(
     handled_by: selectedUser ? Number(selectedUser) : null,
     date_time: new Date(transactionDate).toISOString(),
     items,
-    expected_sale: Number(totalExpectedSale) || 0,
+    expected_sale: 0,
     status: "Pending",
   };
 

@@ -26,9 +26,11 @@ from .models import User
 from django.utils.timezone import localtime
 from .models import Notification, NotificationPreference, ProcessedNotification
 from django.core.exceptions import ValidationError
+from django.conf import settings
 from random import randint
 from datetime import timedelta
 from django.utils import timezone
+import os
 
 # Path to your service account key JSON file
 
@@ -607,18 +609,45 @@ class ProductSerializer(serializers.ModelSerializer):
     class Meta:
         model = Product
         fields = '__all__'
+
+    def _ensure_product_image_dir(self):
+        upload_dir = os.path.join(settings.MEDIA_ROOT, 'product_images')
+        try:
+            os.makedirs(upload_dir, exist_ok=True)
+        except OSError as exc:
+            raise serializers.ValidationError({
+                'image': f'Unable to access upload directory: {upload_dir}'
+            }) from exc
+
+    def create(self, validated_data):
+        if validated_data.get('image') is not None:
+            self._ensure_product_image_dir()
+
+        try:
+            return super().create(validated_data)
+        except OSError as exc:
+            raise serializers.ValidationError({
+                'image': f'Unable to save product image. Check write access to {settings.MEDIA_ROOT}.'
+            }) from exc
     
     def update(self, instance, validated_data):
         # Handle image removal
         remove_image = validated_data.pop('remove_image', None)
+        if validated_data.get('image') is not None:
+            self._ensure_product_image_dir()
         
-        if remove_image == 'true':
+        if str(remove_image).lower() == 'true':
             # Delete the old image file if it exists
             if instance.image:
                 instance.image.delete(save=False)
             validated_data['image'] = None
-        
-        return super().update(instance, validated_data)
+
+        try:
+            return super().update(instance, validated_data)
+        except OSError as exc:
+            raise serializers.ValidationError({
+                'image': f'Unable to save product image. Check write access to {settings.MEDIA_ROOT}.'
+            }) from exc
     
 
 class ProductDetailSerializer(serializers.ModelSerializer):
@@ -982,12 +1011,19 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     def get_total_expenses_amount(self, obj):
         return sum([(item.amount or 0) for item in obj.misc_items.all()])
 
+    def _is_pending_van_load(self, transaction_type, status_value):
+        tt_name = (getattr(transaction_type, "name", transaction_type) or "").strip().lower()
+        status_name = str(status_value or "").strip().lower()
+        return tt_name == "van load" and status_name not in {"complete", "completed"}
+
     @transaction.atomic  # ← ensure all-or-nothing
     def create(self, validated_data):
         # ⬇️ UNCHANGED: this is exactly your original create()
         items_data = validated_data.pop('items', [])
         misc_items_data = validated_data.pop('misc_items', [])
         payments_data = validated_data.pop('payments', [])
+        transaction_type = validated_data.get("transaction_type")
+        status_value = validated_data.get("status")
 
         print(">>> DEBUG misc_items_data received:", misc_items_data) 
         print(">>> SERIALIZER.create misc_items_data len:", len(misc_items_data))
@@ -995,6 +1031,11 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
         # Safety: client must NOT override msp_no
         validated_data.pop('msp_no', None)
+
+        if self._is_pending_van_load(transaction_type, status_value):
+            validated_data["expected_sale"] = Decimal("0.00")
+            for item_data in items_data:
+                item_data["expected_sale"] = Decimal("0.00")
 
         merchandising = Merchandising.objects.create(**validated_data)
         # At this point, Merchandising.save() has generated msp_no
@@ -1159,11 +1200,23 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         items_data = validated_data.pop('items', None)          # may be omitted in PATCH
         misc_items_data = validated_data.pop('misc_items', None)
         validated_data.pop('payments', None)                    # ignore on update
+        transaction_type = validated_data.get("transaction_type", instance.transaction_type)
+        status_value = validated_data.get("status", instance.status)
+        zero_expected_sale = self._is_pending_van_load(transaction_type, status_value)
+
+        if zero_expected_sale:
+            validated_data["expected_sale"] = Decimal("0.00")
+            if items_data is not None:
+                for line in items_data:
+                    line["expected_sale"] = Decimal("0.00")
 
         # --- update parent fields ---
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+
+        if zero_expected_sale and items_data is None:
+            instance.items.update(expected_sale=Decimal("0.00"))
 
         # --- sync nested ITEMS if provided ---
         if items_data is not None:

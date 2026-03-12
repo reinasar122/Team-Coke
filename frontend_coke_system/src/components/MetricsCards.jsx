@@ -2,10 +2,10 @@
 import React from "react";
 
 /* simple currency helper for most money fields */
-const peso = (x) =>
-  `₱${Number(x || 0).toLocaleString("en-PH", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+const peso = (x, fractionDigits = 0) =>
+  `\u20B1${Number(x || 0).toLocaleString("en-PH", {
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
   })}`;
 
 /* tiny inline icons, no external deps */
@@ -102,7 +102,7 @@ export default function MetricsCards({ data = {} }) {
   const metrics = [
     {
       title: "Total Revenue",
-      value: peso(data.totalRevenue),
+      value: peso(data.totalRevenue, 2),
       IconComp: Icon.Dollar,
       gradient: "from-cyan-500 to-blue-600",
       bgGradient: "from-cyan-50 to-blue-50",
@@ -134,10 +134,7 @@ export default function MetricsCards({ data = {} }) {
     },
     {
       title: "Actual Profit",
-      value: `₱${Number(data.actualProfit || 0).toLocaleString("en-PH", {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`, // 👈 force 2 decimals
+      value: peso(data.actualProfit, 2),
       IconComp: Icon.Trend,
       gradient: "from-green-500 to-emerald-600",
       bgGradient: "from-green-50 to-emerald-50",

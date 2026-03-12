@@ -1280,7 +1280,7 @@ const PaymentModal = ({
           </button>
           <button
             className="btn btn-primary"
-            disabled={submitting || n(cashReceived) <= 0}
+            disabled={submitting || (!isVanLoad && n(cashReceived) <= 0)}
            onClick={async () => {
               console.log("🏪 Button clicked - warehouse:", warehouse);
 
@@ -1333,7 +1333,7 @@ const PaymentModal = ({
               console.log("🏪 Final warehouse ID:", warehouseId);
               console.log("🏪 Final warehouse name:", warehouseName);
 
-              if (!warehouseId && paymentMethod === "credit") {
+              if (!warehouseId && n(cashReceived) < amountDueFinal) {
                 showAlert("Warehouse is required for credit transactions. Please refresh the page and try again.");
                 return;
               }
@@ -1457,13 +1457,14 @@ const PaymentModal = ({
                   creditAmount = 0;
                 }
 
-                data.paymentMethod = paymentType;
-                data.creditAmount = creditAmount;
-
                 const isFullCash = paymentType === "cash";
                 const isPartialCash = paymentType === "cash+credit";
                 const isFullCredit = paymentType === "credit";
                 const isCredit = isPartialCash || isFullCredit;
+
+                data.amount = isFullCredit ? due : received;
+                data.paymentMethod = paymentType;
+                data.creditAmount = creditAmount;
 
 
 
@@ -1477,13 +1478,6 @@ const PaymentModal = ({
                 // 1) If credit, create the ledger first
                 let createdLedger = null;
                   if (isCredit) {
-                    // ✅ Van Load transactions are NOT applicable for credit
-                    if (isVanLoad) {
-                      showAlert("Van Load transactions are not applicable for credit. Please provide full cash payment.");
-                      setSubmitting(false);
-                      return;
-                    }
-
                     // 🔹 ADD THIS BLOCK
                     // Always map Van Load rows
                       if (isVanLoad) {
@@ -1529,7 +1523,7 @@ const PaymentModal = ({
 
 
                 // 2) Existing save logic
-                if (n(cashReceived) <= 0) {
+                if (!isVanLoad && n(cashReceived) <= 0) {
                   showAlert("Please enter a valid amount for Cash Received.");
                   return; // Stop further execution if validation fails
                 }
@@ -1553,7 +1547,7 @@ const PaymentModal = ({
                     } else if (isCredit) {
                       // Pure credit (no cash)
                       data.payments = [
-                        { amount: n(cashReceived || 0), method: "credit" },
+                        { amount: amountDueFinal, method: "credit" },
                       ];
                     } else if (isFullCash) {
                       // ✅ Full cash payment

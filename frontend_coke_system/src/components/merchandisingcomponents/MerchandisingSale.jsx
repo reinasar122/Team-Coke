@@ -857,7 +857,7 @@ const MerchandisingSale = () => {
       customer: selectedCustomerId ? Number(selectedCustomerId) : null,
       handled_by: String(selectedUser) || null,
       date_time: utcIso,
-      expected_sale: Number(totalExpectedSale) || 0,
+      expected_sale: isVanLoad ? 0 : Number(totalExpectedSale) || 0,
       actual_sale: Number(totalActualSale) || 0,
       discrepancy_empty:
         selectedTransactionTypeName === "Warehouse"
@@ -889,7 +889,7 @@ const MerchandisingSale = () => {
           discrepancy_full_pcs: nz(row.discrepancyPcsNonempty),
           discrepancy_full_shell: nz(row.discrepancyShellNonempty),
           discount_percent: Number(row.discount) || 0,
-          expected_sale: Number(row.expectedSale) || 0,
+          expected_sale: isVanLoad ? 0 : Number(row.expectedSale) || 0,
           actual_sale: Number(row.actualSale) || 0,
         };
         if (!isVanLoad) {
@@ -1136,7 +1136,7 @@ const MerchandisingSale = () => {
       handled_by,
       ...(handled_by_user ? { handled_by_user } : {}),
       items,
-      expected_sale: Number(totalExpectedSale) || 0,
+      expected_sale: 0,
       status: "Pending",
     };
 

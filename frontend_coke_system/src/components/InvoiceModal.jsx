@@ -1138,7 +1138,7 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                             <span>₱{fmt(n(amountDue) || n(totalAmount))}</span>
                           </div>
 
-                          <div className="flex justify-between text-red-600 font-medium">
+                          <div className="flex justify-between text-black-600 font-medium">
                             <span>Cash Received:</span>
                             <span>- ₱{fmt(cashReceived)}</span>
                           </div>
