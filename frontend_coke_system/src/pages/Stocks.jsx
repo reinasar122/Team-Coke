@@ -6,16 +6,9 @@ import {
   FaBell, // eslint-disable-line no-unused-vars
 } from "react-icons/fa";
 import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils';
-import { getStockThresholds, calculateStockStatus } from '../utils/stockThresholds';
+import { applyStockThresholds, groupStocksForDisplay } from '../utils/stockThresholds';
 
 import "../styles/pages/stocks.scss";
-
-const statusOrder = {
-  "Out of Stock": 0,
-  Low: 1,
-  Moderate: 2,
-  High: 3,
-};
 
 // Map status -> Trading-style status pill classes
 const getBadgeClass = (s) => {
@@ -33,14 +26,6 @@ const getBadgeClass = (s) => {
   }
 };
 
-// Function to process stocks with dynamic threshold calculation
-const processStocksWithThresholds = (stocksData) => {
-  return stocksData.map(item => ({
-    ...item,
-    stock_status: calculateStockStatus(item.quantity_available)
-  }));
-};
-
 // Utility function to check and store low stock notifications with dynamic thresholds
 const checkAndStoreNotifications = async (warehouseId) => {
   try {
@@ -48,7 +33,7 @@ const checkAndStoreNotifications = async (warehouseId) => {
     const rawStocks = response.data;
     
     // Process stocks with current thresholds
-    const stocks = processStocksWithThresholds(rawStocks);
+    const stocks = applyStockThresholds(rawStocks);
     
     const criticalStocks = stocks.filter(item => 
       item.stock_status === "Low" || item.stock_status === "Out of Stock"
@@ -151,7 +136,7 @@ const Stocks = () => {
       const rawStockData = response.data;
       
       // Process stocks with current thresholds
-      const processedStocks = processStocksWithThresholds(rawStockData);
+      const processedStocks = applyStockThresholds(rawStockData);
       
       console.log(`✅ Loaded ${processedStocks.length} stock items for warehouse ${currentWarehouse.name}`);
       setStocks(processedStocks);
@@ -170,11 +155,7 @@ const Stocks = () => {
   const refreshStockStatuses = useCallback(() => {
     if (stocks.length > 0) {
       console.log('🔄 Refreshing stock statuses with new thresholds');
-      
-      const updatedStocks = stocks.map(item => ({
-        ...item,
-        stock_status: calculateStockStatus(item.quantity_available)
-      }));
+      const updatedStocks = applyStockThresholds(stocks);
       
       setStocks(updatedStocks);
       
@@ -218,32 +199,8 @@ const Stocks = () => {
     return () => window.removeEventListener("stockThresholdsChanged", handleThresholdChange);
   }, [refreshStockStatuses]);
 
-  const sortedStocks = [...stocks].sort(
-    (a, b) => statusOrder[a.stock_status] - statusOrder[b.stock_status]
-  );
-
   // Group stocks by product NAME to combine quantities with the same product name // en
-  const groupedStocks = Object.values(
-    stocks.reduce((acc, stock) => {
-      const key = stock.product_name; // Group by product name
-      if (!acc[key]) {
-        acc[key] = {
-          ...stock,
-          quantity_available: 0,
-          grouped_count: 0, // Track how many stocks were combined
-          system_codes: [] // Collect all system product codes
-        };
-      }
-      acc[key].quantity_available += stock.quantity_available;
-      acc[key].grouped_count += 1;
-      if (stock.system_product_code && !acc[key].system_codes.includes(stock.system_product_code)) {
-        acc[key].system_codes.push(stock.system_product_code);
-      }
-      // Update status based on combined quantity
-      acc[key].stock_status = calculateStockStatus(acc[key].quantity_available);
-      return acc;
-    }, {})
-  ).sort((a, b) => statusOrder[a.stock_status] - statusOrder[b.stock_status]);
+  const groupedStocks = groupStocksForDisplay(stocks);
 
   // Show loading state while setting up warehouse
   if (loading && !currentWarehouse) {

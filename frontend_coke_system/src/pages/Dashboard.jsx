@@ -16,6 +16,7 @@ import WidgetPickerModal, { SECTIONS, CATALOG_MAP } from "../components/WidgetPi
 import MetricsCards from "../components/MetricsCards";
 import ProductPerformance from "../components/ProductPerformance";
 import TopSellingProductsWidget from "../components/TopSellingProductsWidget";
+import { applyStockThresholds, groupStocksForDisplay } from "../utils/stockThresholds";
 import { 
   getCurrentWarehouse, 
   getWarehouseAxiosConfig, 
@@ -434,7 +435,7 @@ const TableShell = ({ headers, rows, emptyText }) => {
 }
 
 /* -------------------- widgets -------------------- */
-const LowStockWidget = memo(function LowStockWidget({ items }) {
+const StocksWidget = memo(function StocksWidget({ items }) {
   return (
     <TableShell
       headers={[
@@ -443,7 +444,7 @@ const LowStockWidget = memo(function LowStockWidget({ items }) {
         { key: "status", label: "Status", right: true },
       ]}
       rows={items}
-      emptyText="No low/out-of-stock items"
+      emptyText="No stock items"
     />
   );
 });
@@ -721,7 +722,7 @@ const getDataAvailability = (lists) => {
   };
 
   return {
-    stocks: hasData(lists.lowStockList),
+    stocks: hasData(lists.stocksList),
     products: hasData(lists.productsList),
     receiving: hasData(lists.receivingsList),
     trading: hasData(lists.recentTransactions),
@@ -776,7 +777,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
         todaysReturnsCount: 0,
       },
       lists: {
-        lowStockList: [],
+        stocksList: [],
         productsList: [],
         receivingsList: [],
         recentSales: [],
@@ -994,7 +995,9 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
     return filtered;
   };
   
-  const stocks = strictFilterByWarehouse(combinedData.stocks, warehouseIds, 'stocks');
+  const stocks = applyStockThresholds(
+    strictFilterByWarehouse(combinedData.stocks, warehouseIds, 'stocks')
+  );
   const products = strictFilterByWarehouse(combinedData.products, warehouseIds, 'products');
   const receivings = strictFilterByWarehouse(combinedData.receivings, warehouseIds, 'receivings');
   const transactions = strictFilterByWarehouse(combinedData.transactions, warehouseIds, 'transactions');
@@ -1074,12 +1077,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
   }, 0);
 
   /* -------- lists with DATE FILTERING -------- */
-  const lowStockList = stocks
-    .filter((s) => {
-      const st = (s.stock_status || "").toLowerCase();
-      return st.includes("low") || st.includes("out");
-    })
-    .slice(0, 5)
+  const stocksList = groupStocksForDisplay(stocks)
     .map((s) => ({
       id: s.id,
       name: s.product_name || "Unknown Product",
@@ -1462,7 +1460,7 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
       productsSold, 
     },
     lists: {
-      lowStockList,
+      stocksList,
       productsList,
       receivingsList,
       recentSales: [],
@@ -1506,7 +1504,7 @@ const Dashboard = () => {
   const [isPending, startTransition] = useTransition();
   const [metrics, setMetrics] = useState(null);
   const [lists, setLists] = useState({
-    lowStockList: null,
+    stocksList: null,
     productsList: null,
     receivingsList: null,
     recentSales: [],
@@ -1591,7 +1589,7 @@ const Dashboard = () => {
             todaysReturnsCount: 0,
           });
           setLists({
-            lowStockList: [],
+            stocksList: [],
             productsList: [],
             receivingsList: [],
             recentSales: [],
@@ -1711,6 +1709,17 @@ const Dashboard = () => {
     window.addEventListener("warehouseChanged", handleWarehouseChange);
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, [loadData, period, customStartDate, customEndDate]);
+
+  useEffect(() => {
+    const handleStockThresholdChange = () => {
+      if (selectedWarehouseIds.length > 0) {
+        loadData(selectedWarehouseIds, period, customStartDate, customEndDate);
+      }
+    };
+
+    window.addEventListener("stockThresholdsChanged", handleStockThresholdChange);
+    return () => window.removeEventListener("stockThresholdsChanged", handleStockThresholdChange);
+  }, [selectedWarehouseIds, loadData, period, customStartDate, customEndDate]);
 
   const removeWidget = useCallback((id) => setSelectedIds((prev) => prev.filter((x) => x !== id)), []);
 
@@ -1936,7 +1945,7 @@ const Dashboard = () => {
               if (id === "stocks") {
                 return (
                   <GenericSidebarWidget key={uniqueKey} id={id} title={item.name} route={route} onRemove={removeWidget}>
-                    <LowStockWidget items={lists.lowStockList} />
+                    <StocksWidget items={lists.stocksList} />
                   </GenericSidebarWidget>
                 );
               }
