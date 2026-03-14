@@ -1033,7 +1033,10 @@ const SupplierReturnForm = () => {
                     <span style={{ position: 'absolute', left: 'var(--sp-3)', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', zIndex: '10' }}>₱</span>
                     <input 
                       type="text" 
-                      value={formatDecimal(form.total_amount).toFixed(2)}
+                      value={formatDecimal(form.total_amount).toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                       readOnly
                       className="input"
                       style={{ paddingLeft: '24px', background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'not-allowed', padding: 'var(--sp-3)', borderRadius: 'var(--r-sm)' }}
@@ -1115,7 +1118,10 @@ const SupplierReturnForm = () => {
                       <td>
                         <input
                           type="text"
-                          value={`₱${formatDecimal(item.line_total).toFixed(2)}`}
+                          value={`₱${formatDecimal(item.line_total).toLocaleString("en-PH", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}`}
                           readOnly
                           className="input"
                           style={{ background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'not-allowed', padding: 'var(--sp-2)', borderRadius: 'var(--r-sm)' }}

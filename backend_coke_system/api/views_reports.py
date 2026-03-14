@@ -6,7 +6,7 @@ from decimal import Decimal
 
 from django.db.models import (
     Sum, F, Q, Value, ExpressionWrapper,
-    DecimalField, IntegerField, OuterRef, Subquery, Case, When, Avg
+    DecimalField, IntegerField, OuterRef, Subquery, Case, When, Avg, CharField
 )
 
 from django.db.models.functions import Cast, Coalesce, NullIf
@@ -125,16 +125,38 @@ class SalesReportAPIView(APIView):
         credit_sales = (
             CreditLedger.objects
             .filter(credit_q)
-            .values("customer_name", "total_amount", "due_date", "status", "msp_no")
+            .annotate(
+                credit_amount=ExpressionWrapper(
+                    Coalesce(F("total_amount"), DEC0) - Coalesce(F("amount_paid"), DEC0),
+                    output_field=DECIMAL,
+                ),
+                computed_status=Case(
+                    When(amount_paid__gte=F("total_amount"), then=Value(CreditLedger.STATUS_PAID)),
+                    When(amount_paid__gt=0, then=Value(CreditLedger.STATUS_PARTIAL)),
+                    default=Value(CreditLedger.STATUS_PENDING),
+                    output_field=CharField(),
+                ),
+            )
+            .values(
+                "customer_name",
+                "total_amount",
+                "amount_paid",
+                "credit_amount",
+                "due_date",
+                "computed_status",
+                "msp_no",
+            )
             .order_by("-created_at")
         )
 
         credit_sales_data = [
             {
                 "customerName": sale["customer_name"],
-                "amount": sale["total_amount"],
+                "creditAmount": float(sale["credit_amount"] or 0),
+                "totalAmount": float(sale["total_amount"] or 0),
+                "amountPaid": float(sale["amount_paid"] or 0),
                 "dueDate": sale["due_date"].strftime("%m-%d-%Y") if sale["due_date"] else None,
-                "status": sale["status"],
+                "status": sale["computed_status"],
                 "mspNo": sale["msp_no"],
             }
             for sale in credit_sales

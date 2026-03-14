@@ -20,7 +20,11 @@ export default function CreditDetail() {
   const [merch, setMerch] = useState(null); // ✅ add here
 
   // -------------------- Helpers --------------------
-  const fmt = (v) => Number(v || 0).toFixed(2);
+  const fmt = (v) =>
+    Number(v || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   const formatLocalToManila = (localStr) => {
     if (!localStr) return "--";

@@ -147,7 +147,11 @@ const PaymentModal = ({
 
   // ------------ helpers ------------
   const n = (v) => Number(v || 0);
-  const fmt = (v) => n(v).toFixed(2);
+  const fmt = (v) =>
+    n(v).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
 
   const peso = (v) =>

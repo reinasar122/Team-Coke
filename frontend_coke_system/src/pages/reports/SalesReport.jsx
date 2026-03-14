@@ -38,13 +38,11 @@ export default function SalesReport() {
     discrepancies_empty: [],
   });
 
-  const [discrepancies, setDiscrepancies] = useState([]); // Add state for discrepancies
-  const [creditSales, setCreditSales] = useState([]); // Add state for credit sales
-
   const printRef = useRef(null);
   const [unitsSold, setUnitsSold] = useState(0);
   const [showAllExpenses, setShowAllExpenses] = useState(false);
   const [discrepancyType, setDiscrepancyType] = useState("full");
+  const [creditRefreshKey, setCreditRefreshKey] = useState(0);
 
   // Load dropdown options
   useEffect(() => {
@@ -199,7 +197,21 @@ export default function SalesReport() {
     return () => {
       alive = false;
     };
-  }, [filters]);
+  }, [filters, creditRefreshKey]);
+
+  useEffect(() => {
+    const refreshCreditSales = () => {
+      setCreditRefreshKey((value) => value + 1);
+    };
+
+    window.addEventListener("creditPaymentReceived", refreshCreditSales);
+    window.addEventListener("creditPaid", refreshCreditSales);
+
+    return () => {
+      window.removeEventListener("creditPaymentReceived", refreshCreditSales);
+      window.removeEventListener("creditPaid", refreshCreditSales);
+    };
+  }, []);
 
   const exportPDF = () => window.print();
 
@@ -392,6 +404,14 @@ export default function SalesReport() {
                 ) : (
                   data.credit_sales.map((sale, index) => {
                     const status = String(sale.status || "").toUpperCase();
+                    const statusLabel =
+                      status === "PAID"
+                        ? "Paid"
+                        : status === "PARTIAL"
+                        ? "Partially Paid"
+                        : status === "PENDING"
+                        ? "Pending"
+                        : "—";
 
                     const statusClass =
                       status === "PAID"
@@ -409,7 +429,7 @@ export default function SalesReport() {
                         </td>
 
                         <td className="px-3 py-2 text-center font-medium">
-                          {peso(sale.amount || 0)}
+                          {peso(sale.creditAmount ?? sale.amount ?? 0)}
                         </td>
 
                         <td className="px-3 py-2 text-center whitespace-nowrap">
@@ -418,7 +438,7 @@ export default function SalesReport() {
 
                         <td className="px-3 py-2 text-center">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${statusClass}`}>
-                            {status || "—"}
+                            {statusLabel}
                           </span>
                         </td>
                       </tr>

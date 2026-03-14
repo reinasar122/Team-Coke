@@ -214,7 +214,11 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
   // ---------- helpers ----------
   const n = (v) => Number(v || 0);
-  const fmt = (v) => n(v).toFixed(2);
+  const fmt = (v) =>
+    n(v).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   // ---- VAN LOAD totals (same math as PaymentModal)
   const vl_actual = n(actualSales);

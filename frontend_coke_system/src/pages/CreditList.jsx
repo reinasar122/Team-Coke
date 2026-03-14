@@ -137,7 +137,11 @@ export default function CreditList() {
     }
   }, [rows, currentWarehouse]);
 
-  const fmt = (v) => Number(v || 0).toFixed(2);
+  const fmt = (v) =>
+    Number(v || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
   const dt = (v) => (v ? new Date(v).toLocaleString() : "--");
 
   // --- helpers for status normalization ---

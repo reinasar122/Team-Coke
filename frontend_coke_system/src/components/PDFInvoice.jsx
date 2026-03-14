@@ -58,7 +58,11 @@ async function ensurePesoFont(doc) {
 // ---------------- small utils ----------------
 const n = (v) => Number(v || 0);
 const fmt = (v) => n(v).toFixed(2);
-const peso = (v) => `₱${fmt(v)}`;
+const peso = (v) =>
+  `₱${n(v).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 const formatLocalToManila = (localStr) => {
   if (!localStr) return "--";

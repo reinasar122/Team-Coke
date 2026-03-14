@@ -134,6 +134,12 @@ const SupplierReturnList = () => {
     }
   };
 
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
   // Function to get status badge
   const getStatusBadge = (status) => {
     const normalizedStatus = String(status || "").trim().toLowerCase();
@@ -360,7 +366,7 @@ const SupplierReturnList = () => {
                     {item.warehouse_name || "N/A"}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    ₱{Number(item.total_amount || 0).toFixed(2)}
+                    ₱{formatMoney(item.total_amount)}
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     {getStatusBadge(item.status)}
@@ -435,7 +441,7 @@ const SupplierReturnList = () => {
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>Total Amount</p>
-                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>₱{Number(selectedReturn.total_amount || 0).toFixed(2)}</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>₱{formatMoney(selectedReturn.total_amount)}</p>
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>Status</p>
@@ -461,11 +467,11 @@ const SupplierReturnList = () => {
                     returnItems.map((item, index) => (
                       <tr key={index}>
                         <td className="text-left">{item.product_name}</td>
-                        <td className="text-right">₱{Number(item.display_bottle_price || 0).toFixed(2)}</td>
-                        <td className="text-right">₱{Number(item.display_shell_price || 0).toFixed(2)}</td>
+                        <td className="text-right">₱{formatMoney(item.display_bottle_price)}</td>
+                        <td className="text-right">₱{formatMoney(item.display_shell_price)}</td>
                         <td className="text-right">{item.qty_shell}</td>
                         <td className="text-right">{item.qty_pcs}</td>
-                        <td className="text-right">₱{Number(item.line_total || 0).toFixed(2)}</td>
+                        <td className="text-right">₱{formatMoney(item.line_total)}</td>
                       </tr>
                     ))
                   ) : (
@@ -482,7 +488,7 @@ const SupplierReturnList = () => {
                       Total:
                     </td>
                     <td className="text-right" style={{ fontWeight: 600 }}>
-                      ₱{Number(selectedReturn.total_amount || 0).toFixed(2)}
+                      ₱{formatMoney(selectedReturn.total_amount)}
                     </td>
                   </tr>
                 </tfoot>

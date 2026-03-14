@@ -966,7 +966,10 @@ const validateSoldBeforeRemit = () => {
                   {/* PRICE */}
                   <td className="border border-gray-200 py-1 px-1">
                     <div className="p-2 border rounded text-sm text-center">
-                      {Number(z(row.selling_price)).toFixed(2)}
+                      {Number(z(row.selling_price)).toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </div>
                   </td>
 
@@ -1052,7 +1055,10 @@ const validateSoldBeforeRemit = () => {
                   {/* EXPECTED (gross) */}
                   <td className="border border-gray-200 py-1 px-1">
                     <div className="p-2 border rounded">
-                      {Number(z(row.expected_sale)).toFixed(2)}
+                      {Number(z(row.expected_sale)).toLocaleString("en-PH", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
                     </div>
                   </td>
 

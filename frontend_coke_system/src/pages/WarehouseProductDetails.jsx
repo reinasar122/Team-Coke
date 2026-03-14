@@ -3,7 +3,11 @@ import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import api from "../api"; // adjust path if needed
 
 // Access API base URL using process.env for compatibility
-const Peso = (n) => `₱${Number(n || 0).toFixed(2)}`;
+const Peso = (n) =>
+  `₱${Number(n || 0).toLocaleString("en-PH", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 
 export default function WarehouseProductDetails() {
   const navigate = useNavigate();  

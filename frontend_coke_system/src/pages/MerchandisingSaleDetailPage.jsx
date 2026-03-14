@@ -814,7 +814,7 @@ const loadMerchandisingDetail = useCallback(
                         readOnly
                         className="w-full p-1 text-sm text-center bg-gray-100 border rounded"
                         value={it.sellingPricePc !== "" && it.sellingPricePc != null
-                          ? `₱${Number(it.sellingPricePc).toFixed(2)}`
+                          ? peso(it.sellingPricePc)
                           : ""}
                       />
                     </td>
@@ -825,7 +825,7 @@ const loadMerchandisingDetail = useCallback(
                         readOnly
                         className="w-full p-1 text-sm text-center bg-gray-100 border rounded"
                         value={it.shellPrice !== "" && it.shellPrice != null
-                          ? `₱${Number(it.shellPrice).toFixed(2)}`
+                          ? peso(it.shellPrice)
                           : ""}
                       />
                     </td>
@@ -836,7 +836,7 @@ const loadMerchandisingDetail = useCallback(
                         readOnly
                         className="w-full p-1 text-sm text-center bg-gray-100 border rounded"
                         value={it.bottlePrice !== "" && it.bottlePrice != null
-                          ? `₱${Number(it.bottlePrice).toFixed(2)}`
+                          ? peso(it.bottlePrice)
                           : ""}
                       />
                     </td>

@@ -10,6 +10,12 @@ import "../styles/pages/receivinglist.scss"; // page-specific extras only
 const ReceiptModal = ({ isOpen, onClose, receipt }) => {
   if (!isOpen || !receipt) return null;
 
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+
   const formatReceivedBy = () => {
     if (!receipt.received_by) return "N/A";
     if (receipt.received_by_name) return receipt.received_by_name;
@@ -47,7 +53,7 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
               <p><strong>Received By:</strong> {formatReceivedBy()}</p>
               <p>
                 <strong>Return Total Amount:</strong>{" "}
-                ₱{parseFloat(receipt.return_total_amount || 0).toFixed(2)}
+                ₱{formatMoney(receipt.return_total_amount)}
               </p>
             </div>
           </div>
@@ -75,11 +81,11 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
                     <td>{item.shell_qty}</td>
                     <td>{item.pcs_qty}</td>
                     <td>{item.bad_order_pcs}</td>
-                    <td>₱{parseFloat(item.unit_price).toFixed(2)}</td>
-                    <td>₱{parseFloat(item.shell_price).toFixed(2)}</td>
-                    <td>₱{parseFloat(item.bottle_price).toFixed(2)}</td>
-                    <td>₱{parseFloat(item.unit_cost).toFixed(2)}</td>
-                    <td><strong>₱{parseFloat(item.total).toFixed(2)}</strong></td>
+                    <td>₱{formatMoney(item.unit_price)}</td>
+                    <td>₱{formatMoney(item.shell_price)}</td>
+                    <td>₱{formatMoney(item.bottle_price)}</td>
+                    <td>₱{formatMoney(item.unit_cost)}</td>
+                    <td><strong>₱{formatMoney(item.total)}</strong></td>
                   </tr>
                 ))}
               </tbody>
@@ -98,7 +104,7 @@ const ReceiptModal = ({ isOpen, onClose, receipt }) => {
             <div className="spacer" />
             <div className="net">
               <strong>Net Amount:</strong>{" "}
-              ₱{parseFloat(receipt.net_amount || 0).toFixed(2)}
+              ₱{formatMoney(receipt.net_amount)}
             </div>
           </div>
 
@@ -146,6 +152,12 @@ const ReceivingList = () => {
   const [currentUserId, setCurrentUserId] = useState(null);
 
   const [deleteModal, setDeleteModal] = useState({ open: false, id: null });
+
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString("en-PH", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
 
   // Detect user/warehouse switch via localStorage
   useEffect(() => {
@@ -323,7 +335,7 @@ const ReceivingList = () => {
                   <td>{new Date(item.date_time).toLocaleString()}</td>
                   <td>{item.supplier_name}</td>
                   <td>{item.invoice_no}</td>
-                  <td>₱{parseFloat(item.net_amount).toFixed(2)}</td>
+                  <td>₱{formatMoney(item.net_amount)}</td>
                   <td>
                     <div className="actions">
                      <Link
