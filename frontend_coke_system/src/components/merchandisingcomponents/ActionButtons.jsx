@@ -1,12 +1,26 @@
 // src/components/merchandisingcomponents/ActionButtons.jsx
 import React from "react";
 
-const ActionButtons = ({ transactionType, onBack, onFinalize, onPay, finalizeDisabled }) => {
+const ActionButtons = ({
+  transactionType,
+  onBack,
+  onFinalize,
+  onPay,
+  onCancel,
+  finalizeDisabled,
+  warehouseActionLabel = "Pay",
+  warehouseActionDisabled = false,
+  showWarehouseAction = true,
+  showCancel = false,
+  hideBack = false,
+}) => {
   return (
     <div className="flex justify-end gap-4 mt-6">
-      <button onClick={onBack} className="bg-gray-500 text-white px-4 py-2 rounded">
-        Back
-      </button>
+      {!hideBack && (
+        <button onClick={onBack} className="bg-gray-500 text-white px-4 py-2 rounded">
+          Back
+        </button>
+      )}
 
       {transactionType === "Van Load" && (
         <button
@@ -21,9 +35,29 @@ const ActionButtons = ({ transactionType, onBack, onFinalize, onPay, finalizeDis
         </button>
       )}
 
-      {transactionType === "Warehouse" && (
-        <button onClick={onPay} className="bg-green-600 text-white px-4 py-2 rounded">
-          Pay
+      {transactionType === "Warehouse" && showCancel && (
+        <button
+          type="button"
+          onClick={onCancel}
+          className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
+        >
+          Cancel
+        </button>
+      )}
+
+      {transactionType === "Warehouse" && showWarehouseAction && (
+        <button
+          onClick={onPay}
+          disabled={warehouseActionDisabled}
+          className={`px-4 py-2 rounded text-white ${
+            warehouseActionDisabled
+              ? "bg-gray-400 cursor-not-allowed"
+              : warehouseActionLabel === "Reserved"
+                ? "bg-amber-600 hover:bg-amber-700"
+                : "bg-green-600 hover:bg-green-700"
+          }`}
+        >
+          {warehouseActionLabel}
         </button>
       )}
     </div>

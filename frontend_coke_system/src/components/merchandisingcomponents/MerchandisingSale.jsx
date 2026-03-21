@@ -4,13 +4,16 @@ import ProductTable from "./ProductTable";
 import ActionButtons from "./ActionButtons";
 import VanLoadTable from "./VanLoadTable";
 import PaymentModal from "../PaymentModal";
+import ReservedDateModal from "../ReservedDateModal";
 import "../../styles/components/merchandisingSale.scss";
 import api from "../../api"; // centralized API instance
 import CustomerRegistration from './CustomerRegistration';
+import { FaRegCalendarAlt } from "react-icons/fa";
+import { showAppConfirmDialog } from '../common/modalDialogs';
 
 // Van Load notification helper
 const notifyVanLoadCreated = (vanLoadData) => {
-  console.log("🚛 Notifying van load creation:", vanLoadData);
+  console.log("Notifying van load creation:", vanLoadData);
 
   const event = new CustomEvent("vanLoadCreated", {
     detail: {
@@ -33,7 +36,7 @@ const notifyVanLoadCreated = (vanLoadData) => {
 
 // Warehouse MSP notification helper
 const notifyWarehouseMspCreated = (mspData) => {
-  console.log("🏭 Notifying warehouse MSP creation:", mspData);
+  console.log("Notifying warehouse MSP creation:", mspData);
 
   const event = new CustomEvent("warehouseMspCreated", {
     detail: {
@@ -87,7 +90,7 @@ const MerchandisingSale = () => {
     localStorage.removeItem("merchForm");
     localStorage.removeItem("rows");
     sessionStorage.clear();
-    console.log("🧹 Cleared localStorage/sessionStorage before component hydration");
+    console.log("Cleared localStorage/sessionStorage before component hydration");
   }
 
   const [selectedTransactionTypeName, setSelectedTransactionTypeName] = useState("");
@@ -102,6 +105,8 @@ const MerchandisingSale = () => {
   const [isCustomerDrawerClosing, setIsCustomerDrawerClosing] = useState(false);
   const [vans, setVans] = useState([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
+  const [isReservedModalOpen, setIsReservedModalOpen] = useState(false);
+  const [selectedReservedDate, setSelectedReservedDate] = useState("");
 
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]);
   const [vanLoadDiscount, setVanLoadDiscount] = useState("");
@@ -141,7 +146,7 @@ const MerchandisingSale = () => {
 
   useEffect(() => {
     if (location.state?.reset === true) {
-      console.log("🔄 Resetting form to initial state...");
+      const userData = JSON.parse(localStorage.getItem("user") || "{}");
 
       setRows([
         {
@@ -155,7 +160,10 @@ const MerchandisingSale = () => {
           discrepancy: 0,
         },
       ]);
-      setSelectedUser(null);
+      setMspNo("");
+      setTransactionType(String(location.state?.transactionTypeId || ""));
+      setSelectedTransactionTypeName("");
+      setSelectedUser(userData?.id || null);
       setSelectedCustomerId("");
       setRoute("");
       setSelectedVan("");
@@ -166,23 +174,25 @@ const MerchandisingSale = () => {
       setRefundablesTotal(0);
       setDiscrepancy(0);
       setTotalAmount(0);
+      setDiscrepancyEmptyTotal(0);
+      setDispatchAdjustments([]);
       setIsAddingRoute(false);
       setIsAddingCustomer(false);
+      setIsCustomerDrawerClosing(false);
+      setIsPaymentModalOpen(false);
+      setIsReservedModalOpen(false);
       setEditMode(false);
       setTransactionDate(toDatetimeLocalValue());
+      editingExistingRef.current = false;
+      initTxTypeOnce.current = false;
 
       localStorage.removeItem("merchForm");
       localStorage.removeItem("rows");
       sessionStorage.clear();
 
-      delete location.state.sale;
-      delete location.state.editMode;
-
-      window.history.replaceState({}, document.title);
-
-      console.log("✅ Form reset completed — everything cleared");
+      navigate(location.pathname, { replace: true, state: null });
     }
-  }, [location.state]);
+  }, [location.pathname, location.state, navigate]);
 
   const getCurrentWarehouse = () => {
     const userData = JSON.parse(localStorage.getItem("user") || "{}");
@@ -209,7 +219,7 @@ const MerchandisingSale = () => {
       // Use full warehouse object if available
       const warehouseObj = selectedWarehouse || user?.warehouse;
       if (warehouseObj && typeof warehouseObj === 'object') {
-        // ✅ Normalize warehouse object to use consistent field names
+        // Normalize warehouse object to use consistent field names
         const normalizedWarehouse = {
           id: warehouseObj.id,
           name: warehouseObj.name,
@@ -327,23 +337,59 @@ const MerchandisingSale = () => {
 
   const fetchUsers = useCallback(() => {
     if (!currentWarehouse?.id) {
-      console.log("❌ Skipping users fetch - no warehouse ID");
+      console.log("Skipping users fetch - no warehouse ID");
       return;
     }
-
-    console.log(
-      `🔄 Fetching users for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`
-    );
 
     api
       .get("users/")
       .then((res) => {
-        console.log(`✅ Loaded ${res.data.length} users`);
         setUsers(res.data);
       })
-      .catch((err) => console.error("❌ Error fetching users:", err));
+      .catch((err) => console.error("Error fetching users:", err));
   }, [currentWarehouse]);
 
+  const fetchMspNo = useCallback(async (transactionTypeId) => {
+    if (!transactionTypeId || !currentWarehouse?.id) return;
+
+    try {
+      const response = await api.get("merchandisings/msp-next/", {
+        params: {
+          transaction_type: transactionTypeId,
+          warehouse: currentWarehouse.id,
+        },
+      });
+      setMspNo(response.data?.msp_no || "");
+    } catch (err) {
+      console.error("Failed to fetch MSP number:", err);
+    }
+  }, [currentWarehouse]);
+
+  useEffect(() => {
+    api
+      .get("transaction-types/")
+      .then((res) => setTransactionTypes(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => console.error("Failed to fetch transaction types:", err));
+  }, []);
+
+  useEffect(() => {
+    if (!currentWarehouse?.id) return;
+
+    api
+      .get(`routes/?warehouse=${currentWarehouse.id}`)
+      .then((res) => setRoutes(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => console.error("Failed to fetch routes:", err));
+
+    api
+      .get(`customers/?warehouse=${currentWarehouse.id}`)
+      .then((res) => setCustomers(Array.isArray(res.data) ? res.data : []))
+      .catch((err) => console.error("Failed to fetch customers:", err));
+  }, [currentWarehouse]);
+
+  useEffect(() => {
+    if (!transactionType || !currentWarehouse?.id || location.state?.editMode) return;
+    fetchMspNo(transactionType);
+  }, [transactionType, currentWarehouse, location.state?.editMode, fetchMspNo]);
   useEffect(() => {
     if (selectedTransactionTypeName === "Van Load") {
       api
@@ -373,21 +419,26 @@ const MerchandisingSale = () => {
 
     if (location.state?.editMode) {
       const incomingSale = location.state.sale;
+      const incomingTypeName = String(
+        incomingSale?.transaction_type_name ?? incomingSale?.transaction_type?.name ?? ""
+      ).toLowerCase();
 
       const chosen =
         (incomingSale?.transaction_type &&
           transactionTypes.find(
             (tt) => tt.id === Number(incomingSale.transaction_type)
           )) ||
-        transactionTypes.find(
-          (tt) => tt.name.toLowerCase() === "van load"
-        );
+        (incomingTypeName &&
+          transactionTypes.find(
+            (tt) => tt.name.toLowerCase() === incomingTypeName
+          )) ||
+        transactionTypes[0];
 
       if (chosen) {
         setTransactionType(String(chosen.id));
         setSelectedTransactionTypeName(chosen.name);
         initTxTypeOnce.current = true;
-        console.log("🟡 Preserved Van Load because editMode is true:", chosen);
+        console.log("?? Preserved transaction type because editMode is true:", chosen);
       }
       return;
     }
@@ -422,7 +473,7 @@ const MerchandisingSale = () => {
       setTransactionType(String(chosen.id));
       setSelectedTransactionTypeName(chosen.name);
       initTxTypeOnce.current = true;
-      console.log("🔧 Initialized transaction type (create):", chosen);
+      console.log("?? Initialized transaction type (create):", chosen);
     }
   }, [transactionTypes, location.state]);
 
@@ -441,7 +492,7 @@ const MerchandisingSale = () => {
       );
       if (exists) {
         setSelectedUser(userData.id);
-        console.log("✅ Handled By auto-filled:", userData.id);
+        console.log("Handled By auto-filled:", userData.id);
       }
     }
   }, [users, selectedUser]);
@@ -459,152 +510,108 @@ const MerchandisingSale = () => {
     },
   ]);
 
-  useEffect(() => {
-    const sale = location.state?.sale;
-    const isEdit = location.state?.editMode === true;
-    if (!isEdit || !sale) return;
-
-    if (sale.handled_by_user) {
-      setSelectedUser(String(sale.handled_by_user));
-      return;
-    }
-
-    if (sale.handled_by && Array.isArray(users) && users.length) {
-      const wanted = String(sale.handled_by).trim().toLowerCase();
-      const match = users.find(
-        (u) =>
-          `${u.first_name} ${u.last_name}`
-            .trim()
-            .toLowerCase() === wanted
-      );
-      if (match) setSelectedUser(String(match.id));
-    }
-  }, [location.state?.sale, location.state?.editMode, users]);
-
-  useEffect(() => {
-    if (!currentWarehouse?.id) return;
-
-    const warehouseId = currentWarehouse.id;
-
-    api
-      .get("routes/", { params: { warehouse: warehouseId } })
-      .then((res) => setRoutes(res.data))
-      .catch((err) => console.error("Failed to fetch routes:", err));
-
-    api
-      .get("customers/", { params: { warehouse: warehouseId } })
-      .then((res) => {
-        console.log("✅ Customers loaded:", res.data);
-        setCustomers(res.data);
-      })
-      .catch((err) => console.error("Failed to fetch customers:", err));
-  }, [currentWarehouse]);
-
-  useEffect(() => {
-  // Check if we're returning from customer registration
-  if (location.state?.autoSelectCustomer && location.state?.newlyCreatedCustomer) {
-    const newCustomer = location.state.newlyCreatedCustomer;
-    console.log("🎯 Auto-selecting newly created customer:", newCustomer);
-    
-    // Add to customers list if not already there
-    setCustomers(prev => {
-      const exists = prev.some(c => c.id === newCustomer.id);
-      if (!exists) {
-        return [...prev, newCustomer];
-      }
-      return prev;
-    });
-    
-    // Auto-select the customer
-    setSelectedCustomerId(String(newCustomer.id));
-    
-    // Clean up the state to prevent re-triggering
-    window.history.replaceState(
-      { ...location.state, autoSelectCustomer: false, newlyCreatedCustomer: null },
-      document.title
-    );
-  }
-}, [location.state?.autoSelectCustomer, location.state?.newlyCreatedCustomer]);
-
-  useEffect(() => {
-    api
-      .get("transaction-types/")
-      .then((res) => {
-        console.log("Transaction Types:", res.data);
-        setTransactionTypes(res.data);
-      })
-      .catch((err) => console.error("Failed to fetch transaction types:", err));
-  }, []);
-
-  useEffect(() => {
-    const warehouseId = getCurrentWarehouse();
-    if (!transactionType || !selectedTransactionTypeName || !warehouseId)
-      return;
-
-    if (editMode || editingExistingRef.current) return;
-
-    api
-      .get("merchandisings/msp-next/", {
-        params: { transaction_type: transactionType, warehouse: warehouseId },
-      })
-      .then((res) => setMspNo(res.data.msp_no || ""))
-      .catch((err) => console.error("MSP preview error:", err));
-  }, [
-    transactionType,
-    selectedTransactionTypeName,
-    currentWarehouse?.id,
-    editMode,
-  ]);
-
-  useEffect(() => {
-    setTransactionDate(toDatetimeLocalValue(new Date()));
-  }, []);
-
   const customerInfo = useMemo(() => {
+    const incomingCustomer = location.state?.sale?.customer;
+    const fallbackCustomer =
+      incomingCustomer && typeof incomingCustomer === "object"
+        ? incomingCustomer
+        : null;
+
     if (!selectedCustomerId) {
-      return { id: null, name: "Walk-in" };
+      return fallbackCustomer;
     }
 
-    const customer = customers.find(
-      (c) => String(c.id) === String(selectedCustomerId)
+    return (
+      customers.find((customer) => String(customer.id) === String(selectedCustomerId)) ||
+      (String(fallbackCustomer?.id || "") === String(selectedCustomerId)
+        ? fallbackCustomer
+        : null)
     );
+  }, [customers, location.state?.sale?.customer, selectedCustomerId]);
 
-    return {
-      id: customer?.id || null,
-      name: customer?.name || "Walk-in",
-    };
-  }, [selectedCustomerId, customers]);
+  const customerName = customerInfo?.name || "Walk-in Customer";
 
-  const customerName = customerInfo.name;
-
-  useEffect(() => {
-    if (selectedCustomerId) {
-      console.log(
-        "👤 Customer selected:",
-        selectedCustomerId,
-        "->",
-        customerName
-      );
-    }
-  }, [selectedCustomerId, customerName]);
-
-  const calculateTotalExpenses = () =>
-    miscItems.reduce(
-      (total, item) => total + parseFloat(item.amount || 0),
-      0
-    );
-
-  const handledByUser = users.find(
-    (u) => String(u.id) === String(selectedUser)
+  const handledByUser = useMemo(
+    () => users.find((user) => String(user.id) === String(selectedUser)) || null,
+    [selectedUser, users]
   );
-  const handledBy = handledByUser
-    ? `${handledByUser.first_name} ${handledByUser.last_name}`.trim()
-    : "";
+
+  const handledBy =
+    handledByUser
+      ? `${handledByUser.first_name || ""} ${handledByUser.last_name || ""}`.trim() ||
+        handledByUser.username ||
+        `User #${handledByUser.id}`
+      : location.state?.sale?.handled_by || "";
+
+  const reservedWarehouseStateSale = location.state?.sale || null;
+  const reservedWarehouseStateTypeName = String(
+    reservedWarehouseStateSale?.transaction_type_name ??
+      reservedWarehouseStateSale?.transaction_type?.name ??
+      ""
+  )
+    .trim()
+    .toLowerCase();
+  const isReservedWarehouseEdit =
+    location.state?.editMode === true &&
+    reservedWarehouseStateTypeName === "warehouse" &&
+    String(reservedWarehouseStateSale?.status || "").trim().toLowerCase() === "reserved";
 
   useEffect(() => {
-    console.log("🧮 miscItems state changed:", miscItems);
-  }, [miscItems]);
+    setSelectedReservedDate(reservedWarehouseStateSale?.reserved_date || "");
+  }, [reservedWarehouseStateSale?.id, reservedWarehouseStateSale?.reserved_date]);
 
+  const displayedPickupDate =
+    selectedReservedDate || reservedWarehouseStateSale?.reserved_date || "";
+
+  const isWarehouseTransaction =
+    String(selectedTransactionTypeName || "").trim().toLowerCase() === "warehouse";
+
+  const hasWarehouseDispatchedInput = useMemo(
+    () =>
+      rows.some(
+        (row) =>
+          Number(row.dispatchedPcs || 0) > 0 || Number(row.dispatchedShell || 0) > 0
+      ),
+    [rows]
+  );
+
+  const hasWarehouseSoldInput = useMemo(
+    () =>
+      rows.some(
+        (row) => Number(row.soldPcs || 0) > 0 || Number(row.soldShell || 0) > 0
+      ),
+    [rows]
+  );
+
+  const isWarehouseReserveAction =
+    isWarehouseTransaction && !isReservedWarehouseEdit && !hasWarehouseSoldInput;
+
+  const warehousePrimaryActionLabel =
+    isWarehouseReserveAction ? "Reserved" : "Pay";
+
+  const pageTitle = isReservedWarehouseEdit
+    ? "Preordered"
+    : selectedTransactionTypeName === "Warehouse"
+      ? "New Sale"
+      : editMode
+        ? "View/Edit Merchandising Sale"
+        : "New Sale";
+
+  const reservedModalItems = useMemo(
+    () =>
+      rows
+        .filter((row) => Number(row.productId || 0))
+        .map((row) => ({
+          id: row.id,
+          productName:
+            row.productName ||
+            products.find((product) => Number(product.id) === Number(row.productId))?.product_name ||
+            "Product",
+          soldShell: Number(row.dispatchedShell || 0),
+          soldPcs: Number(row.dispatchedPcs || 0),
+        })),
+    [products, rows]
+  );
   useEffect(() => {
     const sale = location.state?.sale;
     const isEdit = location.state?.editMode === true;
@@ -613,37 +620,54 @@ const MerchandisingSale = () => {
     editingExistingRef.current = true;
     setEditMode(true);
 
-    setSelectedTransactionTypeName("Van Load");
-    const vanTypeId =
-      sale.transaction_type ??
-      transactionTypes.find(
-        (tt) => tt.name?.toLowerCase() === "van load"
-      )?.id;
-    if (vanTypeId) setTransactionType(String(vanTypeId));
+    const saleTypeName = String(
+      sale.transaction_type_name ?? sale.transaction_type?.name ?? ""
+    ).trim().toLowerCase();
+    const fallbackTypeName = saleTypeName === "van load" ? "Van Load" : "Warehouse";
+    const chosenType =
+      transactionTypes.find((tt) => tt.id === Number(sale.transaction_type)) ||
+      transactionTypes.find((tt) => tt.name.toLowerCase() === saleTypeName);
+
+    if (chosenType) {
+      setSelectedTransactionTypeName(chosenType.name);
+      setTransactionType(String(chosenType.id));
+    } else {
+      setSelectedTransactionTypeName(fallbackTypeName);
+    }
 
     if (sale.msp_no) setMspNo(sale.msp_no);
 
-    if (sale.van) {
-      const id =
-        typeof sale.van === "object" ? sale.van.id : sale.van;
-      setSelectedVan(id);
+    if (sale.customer) {
+      const customerId = typeof sale.customer === "object" ? sale.customer.id : sale.customer;
+      setSelectedCustomerId(String(customerId));
+    } else {
+      setSelectedCustomerId("");
     }
+
+    if (sale.van) {
+      const id = typeof sale.van === "object" ? sale.van.id : sale.van;
+      setSelectedVan(id);
+    } else {
+      setSelectedVan("");
+    }
+
     if (sale.route) {
-      const id =
-        typeof sale.route === "object" ? sale.route.id : sale.route;
+      const id = typeof sale.route === "object" ? sale.route.id : sale.route;
       setRoute(id);
+    } else {
+      setRoute("");
     }
 
     if (sale.date_time) {
       setTransactionDate(toDatetimeLocalValue(new Date(sale.date_time)));
     }
 
-    if (!products?.length) return;
+    if (!allProductsRaw?.length && !products?.length) return;
 
     (async () => {
       const urls = [
-        `merchandisings/${sale.id}/`,
-        `merchandising/${sale.id}/`,
+        "merchandisings/" + sale.id + "/",
+        "merchandising/" + sale.id + "/",
       ];
 
       let data = null;
@@ -655,51 +679,112 @@ const MerchandisingSale = () => {
         } catch {}
       }
       if (!data) {
-        console.error("❌ Could not load merchandising detail (both URLs failed).");
+        console.error("? Could not load merchandising detail (both URLs failed).");
         return;
       }
 
+      const detailTypeName = String(
+        data.transaction_type_name ?? chosenType?.name ?? fallbackTypeName
+      ).trim().toLowerCase();
+      const isVanLoadDetail = detailTypeName === "van load";
       const items = Array.isArray(data.items) ? data.items : [];
+      const itemProductIds = items
+        .map((it) => Number(typeof it.product === "object" ? it.product?.id : it.product))
+        .filter(Boolean);
+
+      const missingProducts = (allProductsRaw || []).filter(
+        (product) =>
+          itemProductIds.includes(Number(product.id)) &&
+          !(products || []).some((existingProduct) => Number(existingProduct.id) === Number(product.id))
+      );
+      const dedupedMissingProducts = missingProducts.filter(
+        (product, index, arr) =>
+          arr.findIndex((candidate) => Number(candidate.id) === Number(product.id)) === index
+      );
+      const productPool = [
+        ...(products || []),
+        ...dedupedMissingProducts,
+      ];
+
+      if (dedupedMissingProducts.length) {
+        setProducts((prev) => [
+          ...prev,
+          ...dedupedMissingProducts.filter(
+            (product) => !prev.some((existingProduct) => Number(existingProduct.id) === Number(product.id))
+          ),
+        ]);
+      }
 
       const mapped = items.map((it, idx) => {
-        const prodId =
-          typeof it.product === "object" ? it.product?.id : it.product;
-        const prod = products.find(
-          (p) => Number(p.id) === Number(prodId)
-        );
-        const contentNo = prod?.unit_type?.content_no || 1;
-        const pcs = Math.max(
-          0,
-          Math.round(
-            Number(it.dispatched_pcs ?? it.dispatchedPcs ?? 0)
-          )
-        );
-        const price = prod?.price;
+        const prodId = typeof it.product === "object" ? it.product?.id : it.product;
+        const prod = productPool.find((p) => Number(p.id) === Number(prodId));
+        const price = prod?.price || {};
+        const contentNo = Number(prod?.unit_type?.content_no || 1);
+        const dispatchedPcs = Math.max(0, Math.round(Number(it.dispatched_pcs ?? it.dispatchedPcs ?? 0)));
+        const soldPcs = Math.max(0, Math.round(Number(it.sold_pcs ?? it.soldPcs ?? 0)));
+        const dispatchedShellRaw = Number(it.dispatched_shell ?? it.dispatchedShell);
+        const soldShellRaw = Number(it.sold_shell ?? it.soldShell);
+        const dispatchedShell = Number.isFinite(dispatchedShellRaw)
+          ? dispatchedShellRaw
+          : (contentNo ? +(dispatchedPcs / contentNo).toFixed(2) : 0);
+        const soldShell = Number.isFinite(soldShellRaw)
+          ? soldShellRaw
+          : (contentNo ? +(soldPcs / contentNo).toFixed(2) : 0);
+        const unitPrice = Number(price?.selling_price || 0);
+        const expectedSale = isVanLoadDetail
+          ? 0
+          : Number((it.expected_sale ?? unitPrice * dispatchedPcs) || 0);
+        const actualSale = Number((it.actual_sale ?? unitPrice * soldPcs) || 0);
 
         return {
-          id: `${sale.id}-${idx}`,
+          id: String(sale.id) + "-" + idx,
           dbItemId: it.id,
           productId: prodId,
+          productName: prod?.product_name || it.product_name || "",
           priceId: price?.id ?? null,
           contentNo,
-          dispatchedPcs: pcs,
-          dispatchedShell: (pcs / contentNo).toFixed(2),
+          dispatchedPcs,
+          dispatchedShell,
+          soldPcs,
+          soldShell,
+          unitPrice,
           sellingPrice: price?.selling_price ?? "",
           shellPrice: price?.shell_price ?? "",
           bottlePrice: price?.bottle_price ?? "",
-          expectedSale: Number(
-            ((price?.selling_price || 0) * pcs).toFixed(2)
-          ),
+          discount: Number(it.discount_percent ?? it.discount ?? 0),
+          expectedSale,
+          actualSale,
+          expectedReturnShellEmpty: Number(it.empty_return_shell ?? it.expectedReturnShellEmpty ?? 0),
+          expectedReturnPcsEmpty: Number(it.empty_return_pcs ?? it.expectedReturnPcsEmpty ?? 0),
+          expectedReturnShellNonempty: Number(it.actual_return_shell ?? it.expectedReturnShellNonempty ?? 0),
+          expectedReturnPcsNonempty: Number(it.actual_return_pcs ?? it.expectedReturnPcsNonempty ?? 0),
+          discrepancyShellEmpty: Number(it.discrepancy_empties_shell ?? it.discrepancyShellEmpty ?? 0),
+          discrepancyPcsEmpty: Number(it.discrepancy_empties_pc ?? it.discrepancyPcsEmpty ?? 0),
+          discrepancyShellNonempty: Number(it.discrepancy_full_shell ?? it.discrepancyShellNonempty ?? 0),
+          discrepancyPcsNonempty: Number(it.discrepancy_full_pcs ?? it.discrepancyPcsNonempty ?? 0),
         };
       });
 
       mapped.push({
         id: Date.now(),
         productId: "",
+        productName: "",
         priceId: null,
         dispatchedShell: "",
         dispatchedPcs: "",
+        soldShell: "",
+        soldPcs: "",
+        expectedReturnShellEmpty: "",
+        expectedReturnPcsEmpty: "",
+        expectedReturnShellNonempty: "",
+        expectedReturnPcsNonempty: "",
+        discrepancyShellEmpty: "",
+        discrepancyPcsEmpty: "",
+        discrepancyShellNonempty: "",
+        discrepancyPcsNonempty: "",
+        discount: "",
         expectedSale: "",
+        actualSale: "",
         contentNo: "",
         sellingPrice: "",
         shellPrice: "",
@@ -708,17 +793,18 @@ const MerchandisingSale = () => {
 
       setRows(mapped);
       setTotalExpectedSale(
-        mapped.reduce(
-          (s, r) => s + (Number(r.expectedSale) || 0),
-          0
-        )
+        mapped.reduce((sum, row) => sum + (Number(row.expectedSale) || 0), 0)
+      );
+      setTotalActualSale(
+        mapped.reduce((sum, row) => sum + (Number(row.actualSale) || 0), 0)
       );
     })();
   }, [
     location.state?.sale?.id,
     location.state?.editMode,
-    products?.length,
-    transactionTypes?.length,
+    allProductsRaw,
+    products,
+    transactionTypes,
   ]);
 
   // Navigate to Customer Registration component
@@ -771,7 +857,7 @@ const MerchandisingSale = () => {
   useEffect(() => {
     const handleCustomerCreated = (event) => {
       const newCustomer = event.detail;
-      console.log("✅ New customer received from registration:", newCustomer);
+      console.log("New customer received from registration:", newCustomer);
       
       // Add to customers list and select it
       setCustomers((prev) => [...prev, newCustomer]);
@@ -791,12 +877,18 @@ const MerchandisingSale = () => {
     };
   }, []);
 
-  const handleSubmit = async (paymentData = null) => {
+  const handleSubmit = async (paymentData = null, submitOptions = {}) => {
     const warehouseId = currentWarehouse?.id;
     const isVanLoad =
       (selectedTransactionTypeName || "")
         .trim()
         .toLowerCase() === "van load";
+    const activeSale = location.state?.sale || null;
+    const isWarehouseEdit = !isVanLoad && editMode && !!activeSale?.id;
+    const statusOverride = submitOptions.status || null;
+    const reservedDate = submitOptions.reservedDate || null;
+    const successMessage =
+      submitOptions.successMessage || "Transaction saved successfully!";
 
     if (!warehouseId) {
       showAlert("Warehouse is required.");
@@ -817,14 +909,6 @@ const MerchandisingSale = () => {
     const utcIso = toUtcValue(transactionDate);
     const nz = (v) => Math.max(0, parseInt(v) || 0);
 
-    const handledByUser = users.find(
-      (u) => String(u.id) === String(selectedUser)
-    );
-
-    const handledBy = handledByUser
-      ? `${handledByUser.first_name} ${handledByUser.last_name}`.trim()
-      : "";
-
     if (!transactionType) {
       showAlert("Please select a transaction type.");
       return false;
@@ -835,9 +919,16 @@ const MerchandisingSale = () => {
       return false;
     }
 
-    const validItems = rows.filter(
-      (r) => r.productId && r.productId !== ""
-    );
+    if (
+      !isVanLoad &&
+      String(statusOverride || "").trim().toLowerCase() === "reserved" &&
+      !selectedCustomerId
+    ) {
+      showAlert("Please select a customer before saving a reserved transaction.");
+      return false;
+    }
+
+    const validItems = rows.filter((row) => row.productId && row.productId !== "");
     if (validItems.length === 0) {
       showAlert("Please add at least one product to the transaction.");
       return false;
@@ -847,6 +938,20 @@ const MerchandisingSale = () => {
       paymentData && Array.isArray(paymentData.miscItems)
         ? paymentData.miscItems
         : miscItems;
+
+    const hasAnySold = validItems.some(
+      (row) => Number(row.soldPcs || 0) > 0 || Number(row.soldShell || 0) > 0
+    );
+
+    const nextReservedDate =
+      !isVanLoad &&
+      (
+        String(statusOverride || "").trim().toLowerCase() === "reserved" ||
+        isReservedWarehouseEdit ||
+        Boolean(activeSale?.reserved_date)
+      )
+        ? reservedDate || selectedReservedDate || activeSale?.reserved_date || null
+        : null;
 
     const payload = {
       msp_no: mspNo || "",
@@ -873,12 +978,17 @@ const MerchandisingSale = () => {
           : 0,
       invoice_no: "",
       status:
-        selectedTransactionTypeName === "Van Load"
+        statusOverride ||
+        (selectedTransactionTypeName === "Van Load"
           ? "Pending"
-          : "Complete",
-      remarks: "",
+          : hasAnySold
+            ? "Complete"
+            : "Reserved"),
+      reserved_date: nextReservedDate,
+      remarks: submitOptions.remarks || "",
       items: validItems.map((row) => {
         const base = {
+          ...(isWarehouseEdit && row.dbItemId ? { id: row.dbItemId } : {}),
           product: Number(row.productId),
           dispatched_pcs: nz(row.dispatchedPcs),
           dispatched_shell: nz(row.dispatchedShell),
@@ -906,14 +1016,18 @@ const MerchandisingSale = () => {
       })),
       miscellaneous: Number(
         (sourceMiscItems || []).reduce(
-          (s, i) => s + Number(i.amount || 0),
+          (sum, item) => sum + Number(item.amount || 0),
           0
         )
       ),
     };
 
-    console.log("🚀 Step 1: Creating merchandising transaction:");
-    console.log("📋 Payload summary:", {
+    console.log(
+      isWarehouseEdit
+        ? "?? Step 1: Updating merchandising transaction:"
+        : "?? Step 1: Creating merchandising transaction:"
+    );
+    console.log("?? Payload summary:", {
       msp_no: payload.msp_no,
       warehouse: payload.warehouse,
       transaction_type: payload.transaction_type,
@@ -926,27 +1040,31 @@ const MerchandisingSale = () => {
       misc_items_count: payload.misc_items.length,
       status: payload.status,
     });
-    console.log("📦 Full payload:", payload);
-    console.log("🧾 misc_items about to POST:", payload.misc_items);
+    console.log("?? Full payload:", payload);
+    console.log("?? misc_items about to submit:", payload.misc_items);
 
     try {
-      const response = await api.post("merchandisings/", payload);
+      const response = isWarehouseEdit
+        ? await api.patch("merchandisings/" + activeSale.id + "/", payload)
+        : await api.post("merchandisings/", payload);
       const merchandising = response.data;
       console.log(
-        "✅ Step 1: Transaction created successfully:",
+        isWarehouseEdit
+          ? "? Step 1: Transaction updated successfully:"
+          : "? Step 1: Transaction created successfully:",
         merchandising
       );
 
       if (isVanLoad) {
         notifyVanLoadCreated(merchandising);
-        console.log(
-          `🚛 Van Load creation notification sent for: ${merchandising.msp_no}`
-        );
-      } else if (selectedTransactionTypeName === "Warehouse") {
+        console.log("?? Van Load creation notification sent for: " + merchandising.msp_no);
+      } else if (selectedTransactionTypeName === "Warehouse" && !isWarehouseEdit) {
         notifyWarehouseMspCreated(merchandising);
-        console.log(
-          `🏭 Warehouse MSP creation notification sent for: ${merchandising.msp_no}`
-        );
+        console.log("?? Warehouse MSP creation notification sent for: " + merchandising.msp_no);
+      }
+
+      if (selectedTransactionTypeName === "Warehouse") {
+        window.dispatchEvent(new Event("stocksChanged"));
       }
 
       if (paymentData && paymentData.paymentMethod !== "credit") {
@@ -962,7 +1080,7 @@ const MerchandisingSale = () => {
           payment_status: "completed",
         };
 
-        console.log("🚀 Step 2: Creating payment:", paymentPayload);
+        console.log("?? Step 2: Creating payment:", paymentPayload);
 
         try {
           const paymentResponse = await api.post(
@@ -970,62 +1088,62 @@ const MerchandisingSale = () => {
             paymentPayload
           );
           console.log(
-            "✅ Step 2: Payment created successfully:",
+            "? Step 2: Payment created successfully:",
             paymentResponse.data
           );
         } catch (paymentError) {
           console.error(
-            "❌ Payment creation failed:",
+            "? Payment creation failed:",
             paymentError.response?.data || paymentError.message
           );
           console.warn(
-            "🔶 Transaction saved successfully, but payment recording failed. Payment can be added manually later."
+            "?? Transaction saved successfully, but payment recording failed. Payment can be added manually later."
           );
         }
       } else if (paymentData && paymentData.paymentMethod === "credit") {
-        console.log("💳 Credit payment - no immediate payment record needed");
+        console.log("?? Credit payment - no immediate payment record needed");
       }
 
-      showAlert("Transaction saved successfully!");
+      showAlert(successMessage);
       return merchandising;
     } catch (error) {
-      console.error("❌ Transaction creation failed:", error);
+      console.error("? Transaction save failed:", error);
 
       if (error.response?.status === 400) {
         const errorData = error.response.data;
-        console.error("🔍 Detailed 400 error:", errorData);
+        console.error("?? Detailed 400 error:", errorData);
 
         const errorMessages = [];
 
         if (errorData.payments) {
           errorMessages.push(
-            `Payment errors: ${JSON.stringify(errorData.payments)}`
+            "Payment errors: " + JSON.stringify(errorData.payments)
           );
         }
         if (errorData.items) {
           errorMessages.push(
-            `Item errors: ${JSON.stringify(errorData.items)}`
+            "Item errors: " + JSON.stringify(errorData.items)
           );
         }
         if (errorData.customer) {
           errorMessages.push(
-            `Customer errors: ${JSON.stringify(errorData.customer)}`
+            "Customer errors: " + JSON.stringify(errorData.customer)
           );
         }
         if (errorData.warehouse) {
           errorMessages.push(
-            `Warehouse errors: ${JSON.stringify(errorData.warehouse)}`
+            "Warehouse errors: " + JSON.stringify(errorData.warehouse)
           );
         }
         if (errorData.non_field_errors) {
           errorMessages.push(
-            `General errors: ${errorData.non_field_errors.join(", ")}`
+            "General errors: " + errorData.non_field_errors.join(", ")
           );
         }
 
         if (errorMessages.length === 0) {
           errorMessages.push(
-            `Validation error: ${JSON.stringify(errorData)}`
+            "Validation error: " + JSON.stringify(errorData)
           );
         }
 
@@ -1037,14 +1155,14 @@ const MerchandisingSale = () => {
         showAlert("You don't have permission to perform this action.");
       } else if (error.response?.status === 500) {
         console.error(
-          "🔥 500 Server Error Details:",
+          "?? 500 Server Error Details:",
           error.response?.data
         );
         showAlert(
           "Server error occurred. Please check the console for details and contact support."
         );
       } else {
-        showAlert(`Failed to save transaction: ${error.message}`);
+        showAlert("Failed to save transaction: " + error.message);
       }
       return false;
     }
@@ -1088,7 +1206,83 @@ const MerchandisingSale = () => {
   };
 
   const handlePay = () => {
+    if (isWarehouseReserveAction) {
+      if (!selectedCustomerId) {
+        showAlert("Please select a customer before saving a reserved transaction.");
+        return;
+      }
+
+      if (!selectedReservedDate) {
+        setIsReservedModalOpen(true);
+        return;
+      }
+
+      handleReserveTransaction(selectedReservedDate);
+      return;
+    }
+
     setIsPaymentModalOpen(true);
+  };
+
+  const handleReservedDateSelected = (reservedDate) => {
+    if (!reservedDate) return;
+    setSelectedReservedDate(reservedDate);
+    setIsReservedModalOpen(false);
+  };
+
+  const handleReserveTransaction = async (reservedDate = selectedReservedDate) => {
+    if (!reservedDate) {
+      showAlert("Please choose a pickup date first.");
+      return;
+    }
+
+    const merchandising = await handleSubmit(null, {
+      status: "Reserved",
+      reservedDate,
+      successMessage: "Reserved transaction saved successfully!",
+    });
+
+    if (!merchandising) return;
+
+    setSelectedReservedDate(reservedDate);
+    setIsReservedModalOpen(false);
+    navigate("/trading");
+  };
+
+  const handleCancelReservedTransaction = async () => {
+    const activeSale = location.state?.sale;
+    if (!activeSale?.id) {
+      showAlert("Reserved transaction not found.");
+      return;
+    }
+
+    const confirmed = await showAppConfirmDialog({
+      title: "Cancel Reservation?",
+      message: "This will cancel the reservation and return the stock.",
+      confirmLabel: "Cancel Reservation",
+      cancelLabel: "Keep Reservation",
+      danger: true,
+      size: "sm",
+    });
+
+    if (!confirmed) return;
+
+    try {
+      await api.patch(`merchandisings/${activeSale.id}/`, {
+        status: "Cancelled",
+        reserved_date: null,
+      });
+
+      window.dispatchEvent(new Event("stocksChanged"));
+      showAlert("Reserved transaction cancelled successfully!");
+      navigate("/trading");
+    } catch (error) {
+      console.error("Failed to cancel reserved transaction:", error);
+      showAlert(
+        error.response?.data?.detail ||
+          "Failed to cancel the reserved transaction."
+      );
+    }
   };
 
   const handleClosePayment = () => {
@@ -1096,7 +1290,7 @@ const MerchandisingSale = () => {
   };
 
   const handleConfirmPayment = (paymentData) => {
-    console.log("💳 Payment confirmed (parent):", paymentData);
+    console.log("Payment confirmed (parent):", paymentData);
   };
 
   const handleSaveVanLoadEdit = async () => {
@@ -1165,9 +1359,20 @@ const MerchandisingSale = () => {
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold mb-4">
-        {editMode ? "View/Edit Merchandising Sale" : "New Sale"}
-      </h1>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-xl font-bold m-0">
+          {pageTitle}
+        </h1>
+        {isReservedWarehouseEdit && (
+          <button
+            type="button"
+            onClick={() => navigate("/trading")}
+            className="bg-gray-500 text-white px-4 py-2 rounded"
+          >
+            Back
+          </button>
+        )}
+      </div>
 
       <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
         {/* LEFT */}
@@ -1184,25 +1389,34 @@ const MerchandisingSale = () => {
 
           <div>
             <label className="text-sm">Transaction Type</label>
-            <select
-              value={transactionType}
-              onChange={(e) => {
-                const selectedId = e.target.value;
-                const selected = transactionTypes.find(
-                  (tt) => String(tt.id) === selectedId
-                );
-                setTransactionType(selectedId);
-                setSelectedTransactionTypeName(selected?.name || "");
-              }}
-              className="border w-full rounded-md px-2 py-1 text-sm"
-            >
-              <option value="">-- Select Transaction Type --</option>
-              {transactionTypes.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+            {isReservedWarehouseEdit ? (
+              <input
+                type="text"
+                value="Warehouse"
+                readOnly
+                className="border w-full rounded-md px-2 py-1 text-sm bg-white cursor-default"
+              />
+            ) : (
+              <select
+                value={transactionType}
+                onChange={(e) => {
+                  const selectedId = e.target.value;
+                  const selected = transactionTypes.find(
+                    (tt) => String(tt.id) === selectedId
+                  );
+                  setTransactionType(selectedId);
+                  setSelectedTransactionTypeName(selected?.name || "");
+                }}
+                className="border w-full rounded-md px-2 py-1 text-sm"
+              >
+                <option value="">-- Select Transaction Type --</option>
+                {transactionTypes.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           <div>
@@ -1242,34 +1456,69 @@ const MerchandisingSale = () => {
 
           {/* Warehouse: CUSTOMER FIELD WITH ADD OPTION */}
           {selectedTransactionTypeName === "Warehouse" && (
+            <>
             <div>
-              <label className="text-sm block mb-1">Customer</label>
-              <select
-                value={selectedCustomerId}
-                onChange={(e) => {
-                  if (e.target.value === "add_new") {
-                    navigateToCustomerRegistration();
-                  } else {
-                    console.log("👤 Customer selected:", e.target.value);
-                    setSelectedCustomerId(e.target.value);
-                  }
-                }}
-                className="border w-full rounded-md px-2 py-1 text-black text-base"
-              >
-                <option value="">Walk-in Customer</option>
-                {customers.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-                <option value="add_new">+ New Customer</option>
-              </select>
-              {selectedCustomerId && (
-                <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
-                  Selected: {customers.find((c) => String(c.id) === String(selectedCustomerId))?.name || "Customer"}
+              <label className="text-sm block mb-1">
+                Customer{isWarehouseReserveAction ? " *" : ""}
+              </label>
+              {isReservedWarehouseEdit ? (
+                <input
+                  type="text"
+                  value={customerName}
+                  readOnly
+                  className="border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
+                />
+              ) : (
+                <>
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => {
+                      if (e.target.value === "add_new") {
+                        navigateToCustomerRegistration();
+                      } else {
+                        console.log("Customer selected:", e.target.value);
+                        setSelectedCustomerId(e.target.value);
+                      }
+                    }}
+                    className="border w-full rounded-md px-2 py-1 text-black text-base"
+                  >
+                    <option value="" disabled={isWarehouseReserveAction}>
+                      {isWarehouseReserveAction ? "Select Customer" : "Walk-in Customer"}
+                    </option>
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                    <option value="add_new">+ New Customer</option>
+                  </select>
+                </>
+              )}
+
+            </div>
+              {(isReservedWarehouseEdit || (isWarehouseReserveAction && displayedPickupDate)) && (
+                <div>
+                  <label className="text-sm block mb-1">Pick Up Date</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={displayedPickupDate}
+                      readOnly
+                      className="border w-full rounded-md px-2 pr-10 py-1 text-black text-base bg-white cursor-default"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsReservedModalOpen(true)}
+                      className="absolute inset-y-0 right-0 flex items-center justify-center px-3 text-gray-500 transition hover:text-gray-700"
+                      aria-label="Edit pick up date"
+                      title="Edit pick up date"
+                    >
+                      <FaRegCalendarAlt className="text-base" />
+                    </button>
+                  </div>
                 </div>
               )}
-            </div>
+            </>
           )}
 
           {selectedTransactionTypeName === "Van Load" && (
@@ -1328,14 +1577,14 @@ const MerchandisingSale = () => {
                           const newRoute = res.data;
                           setRoutes((prev) => [...prev, newRoute]);
                           setRoute(newRoute.id);
-                          console.log("✅ New route created:", newRoute);
+                          console.log("New route created:", newRoute);
                         } catch (error) {
                           console.error(
-                            "❌ Error saving new route:",
+                            "Error saving new route:",
                             error
                           );
                           console.error(
-                            "❌ Error details:",
+                            "Error details:",
                             error.response?.data
                           );
 
@@ -1405,6 +1654,7 @@ const MerchandisingSale = () => {
           setRows={setRows}
           products={products}
           selectedTransactionTypeName={selectedTransactionTypeName}
+          isReservedTransaction={isWarehouseReserveAction}
           miscItems={miscItems}
           warehouseId={currentWarehouse?.id}
           setTotalExpectedSale={setTotalExpectedSale}
@@ -1444,6 +1694,15 @@ const MerchandisingSale = () => {
           onBack={() => navigate(-1)}
           onFinalize={handleFinalizeSale}
           onPay={handlePay}
+          onCancel={handleCancelReservedTransaction}
+          warehouseActionLabel={warehousePrimaryActionLabel}
+          warehouseActionDisabled={false}
+          showWarehouseAction={
+            selectedTransactionTypeName !== "Warehouse" ||
+            hasWarehouseDispatchedInput
+          }
+          showCancel={isReservedWarehouseEdit}
+          hideBack={isReservedWarehouseEdit}
           finalizeDisabled={
             selectedTransactionTypeName === "Van Load" &&
             !dispatchAdjustments.length
@@ -1465,6 +1724,17 @@ const MerchandisingSale = () => {
           }}
         />
       )}
+
+      <ReservedDateModal
+        open={isReservedModalOpen}
+        onClose={() => setIsReservedModalOpen(false)}
+        onConfirm={handleReservedDateSelected}
+        title="Reserve Warehouse Transaction"
+        description="Choose when the customer will pick up the reserved warehouse products."
+        confirmLabel="Save Reserved Transaction"
+        initialDate={selectedReservedDate}
+        items={reservedModalItems}
+      />
 
       <PaymentModal
         open={isPaymentModalOpen}
@@ -1503,3 +1773,4 @@ const MerchandisingSale = () => {
 };
 
 export default MerchandisingSale;
+

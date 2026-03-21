@@ -5,7 +5,7 @@ from .views import (
     WarehouseListCreateView, WarehouseDetailView,
     SupplierListCreateView, SupplierRetrieveUpdateDestroyView,
     UserListCreateView, UserDetailView,
-    RoleListCreateView, RoleDetailView,  # âœ… Added Role views
+    RoleListCreateView, RoleDetailView,  # Added Role views
     ShellTypeListCreateView,
     ContentTypeListCreateView,
     UnitTypeListCreateView,
@@ -88,7 +88,7 @@ urlpatterns = [
     path("credits/<int:pk>/payments/", CreditPaymentCreateAPIView.as_view(), name="credit-add-payment"),  # POST payment
 
 
-    # âœ… New Role URLs
+    # New Role URLs
     path('role-access/', RoleAccessibilityListView.as_view(), name='role-access-list'),
     path('role-access/<int:pk>/', RoleAccessibilityDetailView.as_view(), name='role-access-detail'),
     path('role-access/bulk-create/', BulkRoleAccessibilityCreateView.as_view(), name='bulk-role-access-create'),

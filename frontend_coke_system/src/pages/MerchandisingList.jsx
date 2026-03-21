@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
-import { FaChartLine } from "react-icons/fa";
+import { FaChartLine, FaWarehouse } from "react-icons/fa";
 import {
   getCurrentWarehouse,
   findWarehouseByName,
@@ -34,16 +34,30 @@ const toYMD_PH = (d) =>
     day: "2-digit",
   }).format(d);
 
-const StatusPill = ({ status }) => {
+const normalizeReservedDate = (value) => {
+  if (!value) return "";
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return toYMD_PH(parsed);
+};
+
+const StatusPill = ({ status, dueToday = false }) => {
   const st = (status || "").toLowerCase().trim();
   const base = "merch-status-pill";
   if (st === "pending" || st === "draft")
     return <span className={`${base} merch-status-pill--pending`}>Pending</span>;
+  if (st === "reserved")
+    return <span className={`${base} merch-status-pill--reserved${dueToday ? " merch-status-pill--due" : ""}`} title={dueToday ? "Pickup date is today" : undefined}>Reserved</span>;
+  if (st === "cancelled" || st === "canceled")
+    return <span className={`${base} merch-status-pill--cancelled`}>Cancelled</span>;
   if (st.startsWith("complete"))
     return <span className={`${base} merch-status-pill--completed`}>Completed</span>;
   if (st === "in progress" || st === "in-progress" || st === "ongoing" || st === "on going")
     return <span className={`${base} merch-status-pill--progress`}>In Progress</span>;
-  return <span className={`${base} merch-status-pill--default`}>{status || "—"}</span>;
+  return <span className={`${base} merch-status-pill--default`}>{status || "\u2014"}</span>;
 };
 
 const MerchandisingList = () => {
@@ -55,12 +69,12 @@ const MerchandisingList = () => {
 
   // Setup warehouse (same pattern as ProductList)
   const setupWarehouse = useCallback(async () => {
-    console.log("🏭 Setting up warehouse for MerchandisingList...");
+    console.log("Setting up warehouse for MerchandisingList...");
 
     const warehouse = getCurrentWarehouse();
 
     if (!warehouse) {
-      console.warn("⚠️ No warehouse found for user");
+      console.warn("No warehouse found for user");
       setCurrentWarehouse(null);
       setLoading(false);
       return;
@@ -78,7 +92,7 @@ const MerchandisingList = () => {
 
   const fetchTransactions = useCallback(async () => {
     if (!currentWarehouse?.id) {
-      console.warn("❌ No warehouse ID available for fetching transactions");
+      console.warn("No warehouse ID available for fetching transactions");
       setSales([]);
       return;
     }
@@ -86,7 +100,7 @@ const MerchandisingList = () => {
     try {
       setLoading(true);
       console.log(
-        `🏪 Fetching transactions for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`
+        `Fetching transactions for warehouse: ${currentWarehouse.name} (ID: ${currentWarehouse.id})`
       );
 
       const config = {
@@ -97,7 +111,7 @@ const MerchandisingList = () => {
       const response = await api.get("merchandisings/", config);
       const transactions = response.data || [];
       console.log(
-        `✅ Loaded ${transactions.length} transactions for warehouse ${currentWarehouse.name}`
+        `Loaded ${transactions.length} transactions for warehouse ${currentWarehouse.name}`
       );
 
       // Extra client-side filtering for safety
@@ -109,18 +123,18 @@ const MerchandisingList = () => {
 
         if (!warehouseMatch) {
           console.warn(
-            `⚠️ Transaction ${transaction.msp_no} doesn't belong to current warehouse, filtering out`
+            `Transaction ${transaction.msp_no} doesn't belong to current warehouse, filtering out`
           );
         }
         return warehouseMatch;
       });
 
       console.log(
-        `📋 After filtering: ${filteredTransactions.length} transactions for warehouse ${currentWarehouse.name}`
+        `After filtering: ${filteredTransactions.length} transactions for warehouse ${currentWarehouse.name}`
       );
       setSales(filteredTransactions);
     } catch (err) {
-      console.error("❌ Error fetching sales:", err);
+      console.error("Error fetching sales:", err);
       setSales([]);
     } finally {
       setLoading(false);
@@ -142,7 +156,7 @@ const MerchandisingList = () => {
   // React to warehouse change events
   useEffect(() => {
     const handleWarehouseChange = (event) => {
-      console.log("🏭 Warehouse change detected in MerchandisingList:", event.detail);
+      console.log("Warehouse change detected in MerchandisingList:", event.detail);
       setupWarehouse();
     };
 
@@ -162,8 +176,11 @@ const MerchandisingList = () => {
   const groupedWarehouseRows = useMemo(() => {
     const groups = new Map();
     for (const r of timeSorted) {
-      const tname = (r.transaction_type_name || "").toLowerCase();
+      const tname = String(r.transaction_type_name ?? r.transaction_type?.name ?? "").toLowerCase();
       if (tname !== "warehouse") continue;
+
+      const status = String(r.status || "").trim().toLowerCase();
+      if (status === "reserved") continue;
 
       const day = asYmd(r.date_time);
       const key = `${r.msp_no}__${day}`;
@@ -178,32 +195,67 @@ const MerchandisingList = () => {
           txn_count: 0,
           total_actual_sale: 0,
           sortTime: ts,
+          latestRecord: r,
         });
       }
 
       const g = groups.get(key);
       g.txn_count += 1;
       g.total_actual_sale += actualSale;
-      if (ts > g.sortTime) g.sortTime = ts;
+      if (ts >= g.sortTime) {
+        g.sortTime = ts;
+        g.latestRecord = r;
+      }
     }
 
-    return Array.from(groups.values()).map((g) => ({
-      ...g,
-      date_display: new Intl.DateTimeFormat("en-PH", {
-        timeZone: "Asia/Manila",
-        year: "numeric",
-        month: "short",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).format(new Date(g.sortTime)),
-    }));
+    return Array.from(groups.values()).map((g) => {
+      const latestStatus = String(g.latestRecord?.status || "").trim().toLowerCase();
+      let groupStatus = null;
+
+      if (latestStatus === "cancelled" || latestStatus === "canceled") {
+        groupStatus = "Cancelled";
+      }
+
+      return {
+        ...g,
+        openRecord: g.latestRecord,
+        groupStatus,
+        date_display: new Intl.DateTimeFormat("en-PH", {
+          timeZone: "Asia/Manila",
+          year: "numeric",
+          month: "short",
+          day: "2-digit",
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        }).format(new Date(g.sortTime)),
+      };
+    });
+  }, [timeSorted]);
+
+  const reservedWarehouseRows = useMemo(() => {
+    return timeSorted
+      .filter((r) => {
+        const tname = String(
+          r.transaction_type_name ?? r.transaction_type?.name ?? ""
+        )
+          .trim()
+          .toLowerCase();
+        const status = String(r.status || "").trim().toLowerCase();
+        return tname === "warehouse" && status === "reserved";
+      })
+      .map((r) => ({
+        _kind: "warehouse-reserved",
+        record: r,
+        sortTime: r?.date_time ? new Date(r.date_time).getTime() : 0,
+        reservedDateYmd: normalizeReservedDate(r.reserved_date),
+        isDueToday: normalizeReservedDate(r.reserved_date) === toYMD_PH(new Date()),
+      }));
   }, [timeSorted]);
 
   const nonWarehouseRows = useMemo(() => {
     return timeSorted
-      .filter((r) => (r.transaction_type_name || "").toLowerCase() !== "warehouse")
+      .filter((r) => String(r.transaction_type_name ?? r.transaction_type?.name ?? "").toLowerCase() !== "warehouse")
       .map((r) => ({
         _kind: "normal",
         record: r,
@@ -212,16 +264,30 @@ const MerchandisingList = () => {
   }, [timeSorted]);
 
   const displayRows = useMemo(() => {
-    const merged = [...groupedWarehouseRows, ...nonWarehouseRows];
+    const merged = [
+      ...groupedWarehouseRows,
+      ...reservedWarehouseRows,
+      ...nonWarehouseRows,
+    ];
     return merged.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
-  }, [groupedWarehouseRows, nonWarehouseRows]);
+  }, [groupedWarehouseRows, reservedWarehouseRows, nonWarehouseRows]);
 
-  const handleCreateNew = () => navigate("/merchandising-sale");
+  const handleCreateNew = () => navigate("/merchandising-sale", { state: { reset: true } });
 
   const handleAnyRowClick = (row) => {
     if (row._kind === "warehouse-group") {
       navigate(`/warehouse-details/${encodeURIComponent(row.msp_no)}`, {
         state: { warehouse: currentWarehouse },
+      });
+      return;
+    }
+
+    if (row._kind === "warehouse-reserved") {
+      navigate("/merchandising-sale", {
+        state: {
+          sale: row.record,
+          editMode: true,
+        },
       });
       return;
     }
@@ -248,7 +314,11 @@ const MerchandisingList = () => {
     const s = collapse(sale.status);
     const isCompleted = s.startsWith("complete");
     const isPending =
-      s === "pending" || s === "draft" || s === "in progress" || s === "in-progress";
+      s === "pending" ||
+      s === "draft" ||
+      s === "reserved" ||
+      s === "in progress" ||
+      s === "in-progress";
 
     if (isVanLoad && isCompleted) {
       navigate(`/van-load-product-details/${sale.id}`, { state: { sale } });
@@ -286,7 +356,7 @@ const MerchandisingList = () => {
 
           {currentWarehouse && (
             <span className="page-warehouse-chip page-warehouse-chip--inline">
-              <span className="page-warehouse-chip__icon" aria-hidden="true">🏪</span>
+              <span className="page-warehouse-chip__icon" aria-hidden="true"><FaWarehouse /></span>
               <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
             </span>
           )}
@@ -339,7 +409,7 @@ const MerchandisingList = () => {
                 if (row._kind === "warehouse-group") {
                   const dayPH = toYMD_PH(new Date(row.sortTime));
                   const todayPH = toYMD_PH(new Date());
-                  const status = dayPH === todayPH ? "In Progress" : "Completed";
+                  const status = row.groupStatus || (dayPH === todayPH ? "In Progress" : "Completed");
 
                   return (
                     <tr
@@ -350,7 +420,7 @@ const MerchandisingList = () => {
                       <td className="p-2 font-semibold">{row.msp_no}</td>
                       <td className="p-2">{row.date_display}</td>
                       <td className="p-2">Warehouse</td>
-                      <td className="p-2">—</td>
+                      <td className="p-2">{"\u2014"}</td>
                       <td className="p-2">
                         <StatusPill status={status} />
                       </td>
@@ -367,15 +437,15 @@ const MerchandisingList = () => {
                   >
                     <td className="p-2">{sale.msp_no}</td>
                     <td className="p-2">{formatToManila(sale.date_time)}</td>
-                    <td className="p-2">{sale.transaction_type_name}</td>
+                    <td className="p-2">{sale.transaction_type_name || sale.transaction_type?.name || sale.transaction_type || "—"}</td>
                     <td className="p-2">
                       {sale.handled_by_name ||
                         sale.handled_by_username ||
                         sale.handled_by ||
-                        "--"}
+                        "\u2014"}
                     </td>
                     <td className="p-2">
-                      <StatusPill status={sale.status} />
+                      <StatusPill status={sale.status} dueToday={Boolean(row.isDueToday)} />
                     </td>
                   </tr>
                 );
@@ -388,4 +458,3 @@ const MerchandisingList = () => {
 };
 
 export default MerchandisingList;
-

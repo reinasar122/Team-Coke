@@ -1556,6 +1556,8 @@ def warehouse_details_view(request):
     agg = (item_qs
         .values("product", "product__product_name")
         .annotate(
+            dispatched_shell_sum=Sum("dispatched_shell"),
+            dispatched_pcs_sum=Sum("dispatched_pcs"),
             sold_shell_sum=Sum("sold_shell"),
             sold_pcs_sum=Sum("sold_pcs"),
             ret_shell_sum=Sum("empty_return_shell"),
@@ -1564,24 +1566,33 @@ def warehouse_details_view(request):
         )
         .order_by("product__product_name"))
 
+    latest_header = header_qs.order_by("-date_time", "-id").first()
+    latest_status = str(latest_header.status or "").strip().lower() if latest_header else ""
+    is_reserved = latest_status == "reserved"
+
     items = [{
         "product": r["product"],
         "product_name": r["product__product_name"],
+        "reserved_shell": int(r["dispatched_shell_sum"] or 0),
+        "reserved_pcs": int(r["dispatched_pcs_sum"] or 0),
         "sold_shell": int(r["sold_shell_sum"] or 0),
         "sold_pcs": int(r["sold_pcs_sum"] or 0),
         "returned_empty_shell": int(r["ret_shell_sum"] or 0),
         "returned_empty_pcs": int(r["ret_pcs_sum"] or 0),
+        "display_shell": int((r["dispatched_shell_sum"] if is_reserved else r["sold_shell_sum"]) or 0),
+        "display_pcs": int((r["dispatched_pcs_sum"] if is_reserved else r["sold_pcs_sum"]) or 0),
         "actual_sale": float(r["actual_sale_sum"] or 0),
     } for r in agg]
 
     overall_total = sum(i["actual_sale"] for i in items)
 
-    # Use the most recent header's timestamp for display
-    latest_dt = header_qs.aggregate(dt=Max("date_time"))["dt"]
+    latest_dt = latest_header.date_time if latest_header else None
 
     return Response({
         "msp_no": msp_no,
         "date": latest_dt.date().isoformat() if latest_dt else day,
+        "status": latest_header.status if latest_header else None,
+        "reserved_date": latest_header.reserved_date.isoformat() if getattr(latest_header, "reserved_date", None) else None,
         "items": items,
         "overall_total": overall_total,
     })
@@ -3006,6 +3017,7 @@ class CreateNotificationAPIView(APIView):
             'out_of_stock': 'inventory',
             'stock_adjustment': 'inventory',
             'new_receiving': 'inventory',
+            'reserved_pickup_due': 'inventory',
             'expense_created': 'expenses',
             'expense_updated': 'expenses',
             'expense_deleted': 'expenses',
@@ -3062,6 +3074,14 @@ class CreateNotificationAPIView(APIView):
                 'details': self.format_stock_adjustment_details(data),
                 'priority': 'high' if data.get('new_quantity') == 0 else 'medium',
                 'source_type': 'stock'
+            },
+            'reserved_pickup_due': {
+                'category': 'inventory',
+                'title': 'Reserved Pickup Due Today',
+                'message': f"{data.get('customer_name', 'Reserved customer')} has a pickup scheduled today",
+                'details': f"MSP: {data.get('msp_no', data.get('sale_id', 'Unknown'))} - Pick Up Date: {data.get('reserved_date', 'Today')}",
+                'priority': 'high',
+                'source_type': 'merchandising'
             },
             'credit_created': {
                 'category': 'payments',

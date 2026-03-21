@@ -332,6 +332,22 @@ export const NotificationProvider = ({ children }) => {
         };
         break;
 
+      case 'reserved_pickup_due':
+        notification = {
+          id: baseId,
+          type: 'reserved_pickup_due',
+          category: 'inventory',
+          title: 'Reserved Pickup Due Today',
+          message: `${data.customer_name || 'Reserved customer'} has a pickup scheduled today`,
+          details: `MSP: ${data.msp_no || `Sale #${data.sale_id || data.id}`} - Pick Up Date: ${data.reserved_date || 'Today'}${data.handled_by ? ` - Handler: ${data.handled_by}` : ''}`,
+          timestamp: data.date_time || data.updated_at || data.created_at || timestamp,
+          is_read: false,
+          priority: 'high',
+          data,
+          allowedRoles: ['admin', 'supervisor', 'cashier']
+        };
+        break;
+
       case 'warehouse_msp_created':
         // ✅ ENHANCED: Better expected sale calculation for warehouse transactions
         const warehouseExpectedSale = Number(data.expected_sale || data.total_amount || data.actual_sale || 0);
@@ -744,6 +760,7 @@ export const NotificationProvider = ({ children }) => {
       'supplier_updated': 'suppliers',
       'supplier_return': 'suppliers',
       'supplier_return_processed': 'suppliers',
+      'reserved_pickup_due': 'inventory',
       'warehouse_msp': 'warehouse',
       'warehouse_msp_created': 'warehouse',
       'warehouse_msp_updated': 'warehouse',

@@ -8,7 +8,7 @@ export const n = (v, d = 0) =>
 
 // peso currency formatter
 export const peso = (x) =>
-  `₱${n(x).toLocaleString("en-PH", {
+  `\u20B1${n(x).toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;

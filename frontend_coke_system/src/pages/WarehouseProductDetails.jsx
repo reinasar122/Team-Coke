@@ -4,7 +4,7 @@ import api from "../api"; // adjust path if needed
 
 // Access API base URL using process.env for compatibility
 const Peso = (n) =>
-  `₱${Number(n || 0).toLocaleString("en-PH", {
+  `${Number(n || 0).toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -72,18 +72,26 @@ export default function WarehouseProductDetails() {
   })
   .finally(() => setLoading(false));
   
-  }, [mspNo, currentWarehouse?.id]); // ← remove "date" for now
+  }, [mspNo, currentWarehouse?.id]); // <- remove "date" for now
 
-  // ——— Button handlers ———
+  // --- Button handlers ---
   const handleBack = () => navigate("/trading");
-  const handleNewSale = () => navigate("/merchandising-sale");
+  const handleNewSale = () => navigate("/merchandising-sale", { state: { reset: true } });
+  const isReserved = String(data?.status || "").toLowerCase() === "reserved";
 
   return (
     <div className="warehousedetails-container">
       <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-semibold">
-          Warehouse Product Details — {mspNo}{data?.date ? ` (${data.date})` : ""}
-        </h2>
+        <div>
+          <h2 className="text-lg font-semibold">
+            Warehouse Product Details - {mspNo}{data?.date ? ` (${data.date})` : ""}
+          </h2>
+          {isReserved && data?.reserved_date && (
+            <p className="mt-1 text-sm font-medium text-amber-700">
+              Reserved pickup date: {data.reserved_date}
+            </p>
+          )}
+        </div>
 
          {/* Button group */}
         <div className="flex gap-2">
@@ -123,8 +131,8 @@ export default function WarehouseProductDetails() {
             <thead>
               <tr className="bg-gray-200 text-center">
                 <th className="p-2 text-left">Product</th>
-                <th className="p-2">Sold (Shell)</th>
-                <th className="p-2">Sold (PCS)</th>
+                <th className="p-2">{isReserved ? "Reserved (Shell)" : "Sold (Shell)"}</th>
+                <th className="p-2">{isReserved ? "Reserved (PCS)" : "Sold (PCS)"}</th>
                 <th className="p-2">Empty Returned (Shell)</th>
                 <th className="p-2">Empty Returned (PCS)</th>
                 <th className="p-2">Actual Sale</th>
@@ -134,8 +142,8 @@ export default function WarehouseProductDetails() {
               {data.items?.map((it) => (
                 <tr key={it.product} className="text-center border-b">
                   <td className="p-2 text-left">{it.product_name}</td>
-                  <td className="p-2">{it.sold_shell}</td>
-                  <td className="p-2">{it.sold_pcs}</td>
+                  <td className="p-2">{isReserved ? it.display_shell : it.sold_shell}</td>
+                  <td className="p-2">{isReserved ? it.display_pcs : it.sold_pcs}</td>
                   <td className="p-2">{it.returned_empty_shell}</td>
                   <td className="p-2">{it.returned_empty_pcs}</td>
                   <td className="p-2">{Peso(it.actual_sale)}</td>

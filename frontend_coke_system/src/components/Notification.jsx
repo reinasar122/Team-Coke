@@ -30,12 +30,12 @@ import {
   faSync,
   faBellSlash
 } from "@fortawesome/free-solid-svg-icons";
-import api from '../api'; // ✅ Using centralized API instance
+import api from '../api'; // Using centralized API instance
 import { useNotifications } from '../contexts/NotificationContext';
 import { getCurrentWarehouse, getWarehouseAxiosConfig, getWarehouseQueryParam, findWarehouseByName } from '../utils/warehouseUtils';
 import { getStockThresholds, calculateStockStatus } from '../utils/stockThresholds';
 
-// ✅ NEW: Backend notification API helper functions
+// NEW: Backend notification API helper functions
 const NotificationAPI = {
   async createNotification(notificationType, data, userRole, warehouseId, config) {
     try {
@@ -168,6 +168,27 @@ const resolveNotificationWarehouseId = (notification) => {
   );
 };
 
+const toManilaYmd = (value) => {
+  if (!value) return '';
+
+  const dateValue = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(dateValue.getTime())) return '';
+
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Manila',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(dateValue);
+};
+
+const normalizeReservedDate = (value) => {
+  if (!value) return '';
+  const raw = String(value).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  return toManilaYmd(raw);
+};
+
 const Notification = ({ closeProfile }) => {
   const { state, dispatch, addNotification, hasNotificationPermission } = useNotifications();
   const { notifications } = state;
@@ -263,7 +284,7 @@ const Notification = ({ closeProfile }) => {
     return () => window.removeEventListener('profileOpened', handleProfileOpen);
   }, []);
 
-  // ✅ ENHANCED: Better user data getter with validation using warehouse utils
+  // ENHANCED: Better user data getter with validation using warehouse utils
   const getCurrentUser = useCallback(() => {
     try {
       const userData = JSON.parse(localStorage.getItem("user") || "{}");
@@ -309,41 +330,41 @@ const Notification = ({ closeProfile }) => {
     }
   }, [getCurrentUser]);
 
-  // ✅ ENHANCED: Initialize warehouse using warehouse utils consistently
+  // ENHANCED: Initialize warehouse using warehouse utils consistently
   const initializeWarehouse = useCallback(async () => {
     try {
       let warehouse = getCurrentWarehouse();
       
-      console.log('🏭 Initializing warehouse in notification component:', warehouse);
+      console.log('Initializing warehouse in notification component:', warehouse);
       
       // If warehouse needs ID lookup, find it by name
       if (warehouse?.needsIdLookup && warehouse.name) {
-        console.log('🔍 Finding warehouse by name for notifications:', warehouse.name);
+        console.log('Finding warehouse by name for notifications:', warehouse.name);
         warehouse = await findWarehouseByName(warehouse.name);
         if (!warehouse) {
-          console.warn('❌ Could not find warehouse by name for notifications');
+          console.warn('Could not find warehouse by name for notifications');
           return null;
         }
       }
       
       if (warehouse?.id) {
         const warehouseId = parseInt(warehouse.id);
-        console.log('✅ Warehouse initialized for notifications:', { id: warehouseId, name: warehouse.name });
+        console.log('Warehouse initialized for notifications:', { id: warehouseId, name: warehouse.name });
         setCurrentWarehouse(warehouse);
         setCurrentWarehouseId(warehouseId);
         setUserDataReady(true);
         return { warehouse, warehouseId };
       }
       
-      console.warn('⚠️ No valid warehouse found for notifications');
+      console.warn('No valid warehouse found for notifications');
       return null;
     } catch (error) {
-      console.error('❌ Error initializing warehouse for notifications:', error);
+      console.error('Error initializing warehouse for notifications:', error);
       return null;
     }
   }, []);
 
-  // ✅ ENHANCED: Better user data validation with immediate availability check using warehouse utils
+  // ENHANCED: Better user data validation with immediate availability check using warehouse utils
   const waitForUserData = useCallback(async (maxRetries = 20, delay = 300) => {
     for (let i = 0; i < maxRetries; i++) {
       const user = getCurrentUser();
@@ -361,7 +382,7 @@ const Notification = ({ closeProfile }) => {
         try {
           const token = localStorage.getItem("token");
           if (token) {
-            console.log('🔄 Fetching user data from API for warehouse info in notifications...');
+            console.log('Fetching user data from API for warehouse info in notifications...');
             const response = await api.get(`/users/${user.id}/`);
             if (response.data) {
               const userData = response.data;
@@ -381,7 +402,7 @@ const Notification = ({ closeProfile }) => {
             }
           }
         } catch (apiError) {
-          console.warn('⚠️ API call failed in notifications, continuing with fallback logic');
+          console.warn('API call failed in notifications, continuing with fallback logic');
         }
       }
       
@@ -400,16 +421,16 @@ const Notification = ({ closeProfile }) => {
     return null;
   }, [getCurrentUser, initializeWarehouse]);
 
-  // ✅ ENHANCED: Initialize warehouse ID early and track changes
+  // ENHANCED: Initialize warehouse ID early and track changes
   useEffect(() => {
     const initializeComponent = async () => {
       if (!initializationRef.current) {
         initializationRef.current = true;
         
-        console.log('🚀 Initializing notification component with warehouse utils...');
+        console.log('Initializing notification component with warehouse utils...');
         const userData = await waitForUserData();
         if (userData) {
-          console.log('✅ Notification component initialized with warehouse data:', userData);
+          console.log('Notification component initialized with warehouse data:', userData);
           
           // Trigger initial notification check after warehouse is set
           setTimeout(() => {
@@ -418,7 +439,7 @@ const Notification = ({ closeProfile }) => {
             }
           }, 500);
         } else {
-          console.warn('⚠️ Failed to initialize notification component with valid warehouse data');
+          console.warn('Failed to initialize notification component with valid warehouse data');
         }
       }
     };
@@ -426,7 +447,7 @@ const Notification = ({ closeProfile }) => {
     initializeComponent();
   }, [waitForUserData, isLoaded]);
 
-  // ✅ FIXED: Load notifications from backend API without overwriting local notifications
+  // FIXED: Load notifications from backend API without overwriting local notifications
   const loadNotificationsFromAPI = useCallback(async () => {
     const targetWarehouseId = normalizeWarehouseId(currentWarehouseId);
     if (!userDataReady || !targetWarehouseId) {
@@ -498,14 +519,14 @@ const Notification = ({ closeProfile }) => {
       ];
       
       dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
-      console.log(`📥 Synced ${formattedNotifications.length} backend + ${recentLocalNotifications.length} local notifications for warehouse ${targetWarehouseId}`);
+      console.log(`Synced ${formattedNotifications.length} backend + ${recentLocalNotifications.length} local notifications for warehouse ${targetWarehouseId}`);
 
       if (formattedNotifications.length === 0) {
         clearPersistedNotificationsForWarehouse(targetWarehouseId);
       }
       return true;
     } catch (error) {
-      console.warn('❌ Failed to load notifications from backend:', error.message);
+      console.warn('Failed to load notifications from backend:', error.message);
       return false;
     }
   }, [userDataReady, currentWarehouseId, currentWarehouse, dispatch, clearPersistedNotificationsForWarehouse]);
@@ -559,7 +580,7 @@ const Notification = ({ closeProfile }) => {
     }
   }, [userDataReady, currentWarehouseId, isAdminUser, getCurrentUser, currentWarehouse, dispatch]);
 
-  // ✅ ENHANCED: Create notification with backend sync
+  // ENHANCED: Create notification with backend sync
   const createNotificationWithBackend = useCallback(async (notificationType, data, userRole) => {
     if (!userDataReady || !currentWarehouseId) return;
 
@@ -574,7 +595,7 @@ const Notification = ({ closeProfile }) => {
 
     if (payloadWarehouseId && !isSameWarehouseId(payloadWarehouseId, currentWarehouseInt)) {
       console.log(
-        `🚫 BLOCKED: Notification ${notificationType} for warehouse ${payloadWarehouseId} while viewing ${currentWarehouseInt}`
+        `BLOCKED: Notification ${notificationType} for warehouse ${payloadWarehouseId} while viewing ${currentWarehouseInt}`
       );
       return;
     }
@@ -600,7 +621,7 @@ const Notification = ({ closeProfile }) => {
     }
   }, [userDataReady, currentWarehouseId, currentWarehouse, addNotification]);
 
-  // ✅ ENHANCED: Credit-specific notification helper
+  // ENHANCED: Credit-specific notification helper
   const triggerCreditNotification = useCallback((creditData, action = 'created') => {
     if (!userDataReady || !currentWarehouseId) return;
 
@@ -643,7 +664,7 @@ const Notification = ({ closeProfile }) => {
     setTimeout(() => setForceUpdate(prev => prev + 1), 100);
   }, [userDataReady, currentWarehouseId, getCurrentUser, createNotificationWithBackend]);
 
-  // ✅ ENHANCED: Batch notification processor for multiple credits
+  // ENHANCED: Batch notification processor for multiple credits
   const processBatchCreditNotifications = useCallback(async (credits, action) => {
     if (!Array.isArray(credits) || credits.length === 0) return;
 
@@ -670,11 +691,11 @@ const Notification = ({ closeProfile }) => {
 
     if (notificationsCreated > 0) {
       setTimeout(() => setForceUpdate(prev => prev + 1), 200);
-      console.log(`✅ Created ${notificationsCreated} batch credit notifications`);
+      console.log(`Created ${notificationsCreated} batch credit notifications`);
     }
   }, [getCurrentUser, currentWarehouseId, createNotificationWithBackend]);
 
-  // ✅ NEW: Credit due date checker with API integration
+  // NEW: Credit due date checker with API integration
   const checkCreditDueDates = useCallback(async () => {
     if (!userDataReady || !currentWarehouseId) return;
 
@@ -723,11 +744,11 @@ const Notification = ({ closeProfile }) => {
       });
 
     } catch (error) {
-      console.warn('❌ Credit due date check failed:', error.message);
+      console.warn('Credit due date check failed:', error.message);
     }
   }, [userDataReady, currentWarehouseId, currentWarehouse, triggerCreditNotification]);
 
-  // ✅ ENHANCED: Notification cleanup for old notifications (disabled to keep all messages)
+  // ENHANCED: Notification cleanup for old notifications (disabled to keep all messages)
   const cleanupOldNotifications = useCallback(() => {
     // Keep all notifications - don't auto-remove old ones
     // const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
@@ -739,11 +760,11 @@ const Notification = ({ closeProfile }) => {
     // if (validNotifications.length !== notifications.length) {
     //   dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
 
-    //   console.log(`🧹 Cleaned up ${notifications.length - validNotifications.length} old notifications`);
+    //   console.log(`Cleaned up ${notifications.length - validNotifications.length} old notifications`);
     // }
   }, [notifications, dispatch]);
 
-  // ✅ NEW: Notification summary generator
+  // NEW: Notification summary generator
   const generateNotificationSummary = useCallback(() => {
     const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
@@ -805,7 +826,7 @@ const Notification = ({ closeProfile }) => {
     return summary;
   }, [notifications, currentWarehouseId, getCurrentUser]);
 
-  // ✅ ENHANCED: Export notifications data
+  // ENHANCED: Export notifications data
   const exportNotifications = useCallback((format = 'json') => {
     const user = getCurrentUser();
     const warehouseNotifications = notifications.filter(notif => 
@@ -858,7 +879,7 @@ const Notification = ({ closeProfile }) => {
     }
   }, [notifications, currentWarehouseId, getCurrentUser]);
 
-  // ✅ ENHANCED: Handle notification click with backend sync
+  // ENHANCED: Handle notification click with backend sync
   const handleNotificationClick = (notification) => {
     // Mark as read if not already read
     if (!notification.is_read) {
@@ -1062,11 +1083,11 @@ const Notification = ({ closeProfile }) => {
       case 'large_expense':
         details.push(
           { label: 'Description', value: safeToString(data.description || 'No description') },
-          { label: 'Amount', value: `₱${(data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Amount', value: `\u20B1${(data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
           { label: 'Category', value: safeToString(data.category || 'Miscellaneous') }
         );
         if (notification.type === 'large_expense' && data.threshold) {
-          details.push({ label: 'Threshold', value: `₱${data.threshold.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+          details.push({ label: 'Threshold', value: `\u20B1${data.threshold.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
         }
         if (data.created_by) {
           details.push({ label: 'Created By', value: safeToString(data.created_by) });
@@ -1076,12 +1097,12 @@ const Notification = ({ closeProfile }) => {
       case 'expense_updated':
         details.push(
           { label: 'Description', value: safeToString(data.description || 'No description') },
-          { label: 'Previous Amount', value: `₱${(data.old_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
-          { label: 'New Amount', value: `₱${(data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Previous Amount', value: `\u20B1${(data.old_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'New Amount', value: `\u20B1${(data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
           { label: 'Change Type', value: safeToString(data.change_type || 'Unknown') }
         );
         if (data.amount_difference) {
-          details.push({ label: 'Amount Difference', value: `₱${data.amount_difference.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+          details.push({ label: 'Amount Difference', value: `\u20B1${data.amount_difference.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
         }
         break;
 
@@ -1102,10 +1123,10 @@ const Notification = ({ closeProfile }) => {
         details.push(
           { label: 'MSP Number', value: safeToString(data.msp_no || data.msp_number || 'Unknown') },
           { label: 'Status', value: safeToString(data.status || 'Unknown') },
-          { label: 'Expected Sale', value: `₱${(data.expected_sale || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
+          { label: 'Expected Sale', value: `\u20B1${(data.expected_sale || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
         );
         if (data.actual_sale) {
-          details.push({ label: 'Actual Sale', value: `₱${data.actual_sale.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+          details.push({ label: 'Actual Sale', value: `\u20B1${data.actual_sale.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
         }
         if (data.handled_by) {
           details.push({ label: 'Handled By', value: safeToString(data.handled_by) });
@@ -1128,7 +1149,7 @@ const Notification = ({ closeProfile }) => {
       case 'sale_voided':
         details.push(
           { label: 'Sale ID', value: safeToString(data.id || 'Unknown') },
-          { label: 'Total Amount', value: `₱${(data.total_amount || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Total Amount', value: `\u20B1${(data.total_amount || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
           { label: 'Customer', value: safeToString(data.customer_name || 'Walk-in Customer') }
         );
         if (data.cashier_name) {
@@ -1136,13 +1157,13 @@ const Notification = ({ closeProfile }) => {
         }
         break;
 
-      // ✅ NEW: Enhanced credit notification details
+      // NEW: Enhanced credit notification details
       case 'credit_created':
         details.push(
           { label: 'Credit ID', value: safeToString(data.id || 'Unknown') },
           { label: 'MSP Number', value: safeToString(data.msp_no || 'N/A') },
           { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
-          { label: 'Credit Amount', value: `₱${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Credit Amount', value: `\u20B1${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
           { label: 'Due Date', value: safeToString(data.due_date ? new Date(data.due_date).toLocaleDateString() : 'Not set') },
           { label: 'Created Date', value: safeToString(data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Today') }
         );
@@ -1159,12 +1180,12 @@ const Notification = ({ closeProfile }) => {
           { label: 'Credit ID', value: safeToString(data.id || 'Unknown') },
           { label: 'MSP Number', value: safeToString(data.msp_no || 'N/A') },
           { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
-          { label: 'Outstanding Amount', value: `₱${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Outstanding Amount', value: `\u20B1${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
           { label: 'Due Date', value: safeToString(data.due_date ? new Date(data.due_date).toLocaleDateString() : 'Not set') },
           { label: 'Days Overdue', value: `${data.days_overdue || 0} days` }
         );
         if (data.original_amount && data.original_amount !== data.balance) {
-          details.push({ label: 'Original Amount', value: `₱${data.original_amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
+          details.push({ label: 'Original Amount', value: `\u20B1${data.original_amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}` });
         }
         break;
 
@@ -1173,7 +1194,7 @@ const Notification = ({ closeProfile }) => {
           { label: 'Credit ID', value: safeToString(data.id || 'Unknown') },
           { label: 'MSP Number', value: safeToString(data.msp_no || 'N/A') },
           { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
-          { label: 'Payment Amount', value: `₱${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Payment Amount', value: `\u20B1${(data.balance || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
           { label: 'Payment Date', value: safeToString(data.updated_at ? new Date(data.updated_at).toLocaleDateString() : 'Today') }
         );
         // Show days since sale for credit payments
@@ -1209,7 +1230,7 @@ const Notification = ({ closeProfile }) => {
         details.push(
           { label: 'Product Name', value: safeToString(data.product_name || 'Unknown Product') },
           { label: 'Category', value: safeToString(data.category || 'Uncategorized') },
-          { label: 'Price', value: `₱${(data.selling_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
+          { label: 'Price', value: `\u20B1${(data.selling_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
         );
         if (data.product_code) {
           details.push({ label: 'Product Code', value: safeToString(data.product_code) });
@@ -1221,7 +1242,7 @@ const Notification = ({ closeProfile }) => {
         details.push(
           { label: 'Return Number', value: safeToString(data.return_no || data.transaction_no || 'Unknown') },
           { label: 'Customer', value: safeToString(data.customer_name || 'Unknown Customer') },
-          { label: 'Refund Amount', value: `₱${(data.refund_amount || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
+          { label: 'Refund Amount', value: `\u20B1${(data.refund_amount || data.amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` }
         );
         if (data.return_reason) {
           details.push({ label: 'Reason', value: safeToString(data.return_reason) });
@@ -1232,7 +1253,7 @@ const Notification = ({ closeProfile }) => {
         details.push(
           { label: 'Receiving No', value: safeToString(data.receiving_no || 'Unknown') },
           { label: 'Supplier', value: safeToString(data.supplier_name || 'Unknown Supplier') },
-          { label: 'Total Amount', value: `₱${(data.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
+          { label: 'Total Amount', value: `\u20B1${(data.total_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}` },
           { label: 'Items Count', value: safeToString(data.items_count || 0) },
           { label: 'Status', value: safeToString(data.status || 'Completed') }
         );
@@ -1267,14 +1288,14 @@ const Notification = ({ closeProfile }) => {
     }
   };
 
-  // ✅ FIXED: Load persisted notifications with better deletion tracking
+  // FIXED: Load persisted notifications with better deletion tracking
   const loadPersistedNotifications = useCallback(() => {
     try {
       const user = getCurrentUser();
       const userRole = user.role?.toLowerCase();
       const targetWarehouseId = normalizeWarehouseId(currentWarehouseId);
       
-      // ✅ FIXED: More lenient deleted notification filtering
+      // FIXED: More lenient deleted notification filtering
       const deletedNotificationIds = new Set(JSON.parse(localStorage.getItem('deletedNotificationIds') || '[]'));
       
       if (userRole === 'admin' && targetWarehouseId) {
@@ -1289,7 +1310,7 @@ const Notification = ({ closeProfile }) => {
         if (savedWarehouseNotifications) {
           const parsedNotifications = JSON.parse(savedWarehouseNotifications);
           
-          // ✅ FIXED: Only filter out explicitly deleted notifications, keep all messages
+          // FIXED: Only filter out explicitly deleted notifications, keep all messages
           const validNotifications = parsedNotifications.filter(notif => {
             const notDeleted = !deletedNotificationIds.has(notif.id);
             const isCurrentWarehouse = isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId);
@@ -1299,7 +1320,7 @@ const Notification = ({ closeProfile }) => {
           
           const mergedNotifications = [...existingOtherWarehouseNotifications, ...validNotifications];
           dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
-          console.log(`📥 Admin loaded ${validNotifications.length} persisted notifications for warehouse ${targetWarehouseId}`);
+          console.log(`Admin loaded ${validNotifications.length} persisted notifications for warehouse ${targetWarehouseId}`);
           
           // Update localStorage with only valid notifications
           localStorage.setItem(warehouseKey, JSON.stringify(validNotifications));
@@ -1318,7 +1339,7 @@ const Notification = ({ closeProfile }) => {
               
               dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
               localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
-              console.log(`📥 Admin migrated ${warehouseNotifications.length} notifications to warehouse ${targetWarehouseId}`);
+              console.log(`Admin migrated ${warehouseNotifications.length} notifications to warehouse ${targetWarehouseId}`);
             } else {
               dispatch({ type: 'SET_NOTIFICATIONS', payload: existingOtherWarehouseNotifications });
             }
@@ -1332,7 +1353,7 @@ const Notification = ({ closeProfile }) => {
         if (savedNotifications) {
           const parsedNotifications = JSON.parse(savedNotifications);
           
-          // ✅ FIXED: Less aggressive filtering - keep all messages
+          // FIXED: Less aggressive filtering - keep all messages
           const validNotifications = parsedNotifications.filter(notif => {
             const notDeleted = !deletedNotificationIds.has(notif.id);
             const isCurrentWarehouse = isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId);
@@ -1348,7 +1369,7 @@ const Notification = ({ closeProfile }) => {
       }
     } catch (error) {
       console.warn('Error loading persisted notifications - corrupted data, resetting...');
-      // ✅ FIXED: Don't clear all data, just reset for current warehouse
+      // FIXED: Don't clear all data, just reset for current warehouse
       const user = getCurrentUser();
       const userRole = user.role?.toLowerCase();
       
@@ -1360,12 +1381,12 @@ const Notification = ({ closeProfile }) => {
     }
   }, [dispatch, currentWarehouseId, getCurrentUser]);
 
-  // ✅ NEW: Unified notification loading with priority
+  // NEW: Unified notification loading with priority
   const loadAllNotifications = useCallback(async () => {
     const targetWarehouseId = normalizeWarehouseId(currentWarehouseId);
     if (!isLoaded && userDataReady && targetWarehouseId) {
       const loadToken = ++loadCycleRef.current;
-      console.log('📱 Loading all notifications with priority system...');
+      console.log('Loading all notifications with priority system...');
       
       // 1. Try backend first. Use local cache only if backend load fails.
       setTimeout(async () => {
@@ -1391,7 +1412,7 @@ const Notification = ({ closeProfile }) => {
     }
   }, [isLoaded, userDataReady, currentWarehouseId, loadNotificationsFromAPI, loadPersistedNotifications]);
 
-  // ✅ FIXED: Better loading sequence with priority
+  // FIXED: Better loading sequence with priority
   useEffect(() => {
     loadAllNotifications();
   }, [loadAllNotifications]);
@@ -1412,7 +1433,7 @@ const Notification = ({ closeProfile }) => {
     }
   }, [activeTab, isAdminUser]);
 
-  // ✅ ENHANCED: Persist notifications with warehouse awareness for admin
+  // ENHANCED: Persist notifications with warehouse awareness for admin
   useEffect(() => {
     const persistNotifications = (notifications) => {
       try {
@@ -1464,7 +1485,7 @@ const Notification = ({ closeProfile }) => {
               type: 'expense_created',
               title: 'Expense Added',
               priority: 'medium',
-              message: `${notification.data.description} - ₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+              message: `${notification.data.description} - \u20B1${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
               details: undefined
             }
           }
@@ -1477,10 +1498,10 @@ const Notification = ({ closeProfile }) => {
             id: notification.id,
             updates: {
               type: 'large_expense',
-              title: '🚨 Large Expense Alert',
+              title: 'Large Expense Alert',
               priority: 'high',
-              message: `High-value expense: ${notification.data.description} - ₱${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
-              details: `Exceeds threshold of ₱${newThreshold.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
+              message: `High-value expense: ${notification.data.description} - \u20B1${amount.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`,
+              details: `Exceeds threshold of \u20B1${newThreshold.toLocaleString('en-PH', { minimumFractionDigits: 2 })}`
             }
           }
         });
@@ -1521,7 +1542,7 @@ const Notification = ({ closeProfile }) => {
     };
   }, [largeExpenseThreshold, reevaluateExpenseNotifications]);
 
-  // ✅ ENHANCED: Stock notifications with API integration
+  // ENHANCED: Stock notifications with API integration
   const checkStockNotifications = useCallback(async () => {
     // Only proceed if user data is ready and warehouse is set
     if (!userDataReady || !currentWarehouseId) {
@@ -1536,12 +1557,12 @@ const Notification = ({ closeProfile }) => {
     let processedIdsUpdated = false;
 
     try {
-      // ✅ Using warehouse utils for consistent configuration
+      // Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 10000;
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
-      console.log('📦 Checking stock notifications for warehouse:', warehouseQueryParam);
+      console.log('Checking stock notifications for warehouse:', warehouseQueryParam);
       
       const stockResponse = await api.get(`/stocks/?warehouse=${warehouseQueryParam}`, config);
       const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
@@ -1606,13 +1627,13 @@ const Notification = ({ closeProfile }) => {
             let adjustmentMessage, adjustmentTitle;
             
             if (currentQuantity === 0) {
-              adjustmentTitle = '📝 Stock Depleted';
+              adjustmentTitle = 'Stock Depleted';
               adjustmentMessage = `${stock.product_name} stock reduced to 0 (was ${previousQuantity})`;
             } else if (changeType === 'increased') {
-              adjustmentTitle = '📝 Stock Increased';
+              adjustmentTitle = 'Stock Increased';
               adjustmentMessage = `${stock.product_name} stock increased by ${changeDiff}. Current: ${currentQuantity} units`;
             } else {
-              adjustmentTitle = '📝 Stock Reduced';
+              adjustmentTitle = 'Stock Reduced';
               adjustmentMessage = `${stock.product_name} stock reduced by ${changeDiff}. Remaining: ${currentQuantity} units`;
             }
             
@@ -1626,7 +1647,7 @@ const Notification = ({ closeProfile }) => {
               remaining_quantity: currentQuantity,
               quantity_changed: changeDiff,
               change_type: changeType,
-              reason: `Stock adjustment: ${previousQuantity} → ${currentQuantity}`,
+              reason: `Stock adjustment: ${previousQuantity} -> ${currentQuantity}`,
               adjustment_summary: `${changeType === 'increased' ? '+' : '-'}${changeDiff} units`,
               created_at: now,
               stock_id: stock.id,
@@ -1656,15 +1677,15 @@ const Notification = ({ closeProfile }) => {
         
         // FORCE UPDATE after creating notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
-        console.log(`✅ Created ${newNotifications} stock notifications`);
+        console.log(`Created ${newNotifications} stock notifications`);
       }
 
     } catch (error) {
-      console.warn('❌ Stock notifications check failed:', error.message);
+      console.warn('Stock notifications check failed:', error.message);
     }
   }, [currentWarehouseId, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouse]);
 
-  // ✅ ENHANCED: Login stock check with API integration
+  // ENHANCED: Login stock check with API integration
   const checkLowStockOnLogin = useCallback(async () => {
     // Only proceed if user data is ready and warehouse is set
     if (!userDataReady || !currentWarehouseId) {
@@ -1676,12 +1697,12 @@ const Notification = ({ closeProfile }) => {
     const warehouseId = currentWarehouseId;
 
     try {
-      // ✅ Using warehouse utils for consistent configuration
+      // Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 10000;
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
-      console.log('🔔 Login stock check for warehouse:', warehouseQueryParam);
+      console.log('Login stock check for warehouse:', warehouseQueryParam);
       
       const stockResponse = await api.get(`/stocks/?warehouse=${warehouseQueryParam}`, config);
       const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
@@ -1750,25 +1771,25 @@ const Notification = ({ closeProfile }) => {
           }
         }
         
-        console.log(`✅ Created ${loginNotifications} login stock notifications`);
+        console.log(`Created ${loginNotifications} login stock notifications`);
       }
 
     } catch (error) {
-      console.warn('❌ Login stock check failed:', error.message);
+      console.warn('Login stock check failed:', error.message);
     }
   }, [currentWarehouseId, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouse]);
   
-  // ✅ ENHANCED: Expense notification checking with API integration
+  // ENHANCED: Expense notification checking with API integration
   const checkExpenseNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
     try {
-      // ✅ Using warehouse utils for consistent configuration
+      // Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
-      console.log('💰 Checking expense notifications for warehouse:', warehouseQueryParam);
+      console.log('Checking expense notifications for warehouse:', warehouseQueryParam);
       
       const expenseResponse = await api.get(`/miscellaneous-items/?warehouse=${warehouseQueryParam}`, config);
       
@@ -1783,13 +1804,13 @@ const Notification = ({ closeProfile }) => {
       const previousExpenses = JSON.parse(localStorage.getItem(previousExpensesKey) || '{}');
       const now = new Date().toISOString();
       
-      // ✅ Check if this is the first time checking expenses
+      // Check if this is the first time checking expenses
       const isFirstTimeCheck = Object.keys(previousExpenses).length === 0;
       
-      // ✅ Reduced time window to 5 minutes to avoid old expenses
+      // Reduced time window to 5 minutes to avoid old expenses
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       
-      // ✅ Get current user to avoid notifying about other users' expenses
+      // Get current user to avoid notifying about other users' expenses
       const currentUser = getCurrentUser();
       const currentUserId = currentUser.id;
       
@@ -1799,7 +1820,7 @@ const Notification = ({ closeProfile }) => {
         const expenseAmount = Number(expense.amount || 0);
         const previousExpense = previousExpenses[expense.id];
         
-        // ✅ Skip if this is first time check and expense is older than 5 minutes
+        // Skip if this is first time check and expense is older than 5 minutes
         if (isFirstTimeCheck && expenseDate <= fiveMinutesAgo) {
           // Store the expense but don't notify about old expenses on first load
           previousExpenses[expense.id] = {
@@ -1813,10 +1834,10 @@ const Notification = ({ closeProfile }) => {
           return; // Skip notification for old expenses on first load
         }
 
-        // ✅ Only notify about recent expenses AND check if already processed
+        // Only notify about recent expenses AND check if already processed
         if (expenseDate > fiveMinutesAgo && !processedIds.has(expenseId)) {
           
-          // ✅ Only notify if this user created the expense OR if it's a supervisor/admin monitoring all expenses
+          // Only notify if this user created the expense OR if it's a supervisor/admin monitoring all expenses
           const shouldNotify = (
             // If the expense was created by current user
             (expense.created_by === currentUserId || expense.user_id === currentUserId) ||
@@ -1925,7 +1946,7 @@ const Notification = ({ closeProfile }) => {
         };
       });
 
-      // ✅ Only check for deleted expenses if not first time check
+      // Only check for deleted expenses if not first time check
       if (!isFirstTimeCheck) {
         Object.keys(previousExpenses).forEach(expenseId => {
           const currentExpense = expenses.find(e => e.id.toString() === expenseId.toString());
@@ -1936,7 +1957,7 @@ const Notification = ({ closeProfile }) => {
               const expenseData = previousExpenses[expenseId];
               const wasLarge = expenseData.amount >= largeExpenseThreshold;
               
-              // ✅ Only notify about deleted expenses if user created them or is admin/supervisor
+              // Only notify about deleted expenses if user created them or is admin/supervisor
               const shouldNotifyDelete = (
                 (expenseData.created_by === currentUserId) ||
                 (userRole === 'admin' || userRole === 'supervisor')
@@ -1972,29 +1993,29 @@ const Notification = ({ closeProfile }) => {
       if (newNotifications > 0) {
         // FORCE UPDATE after creating expense notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
-        console.log(`✅ Created ${newNotifications} expense notifications`);
+        console.log(`Created ${newNotifications} expense notifications`);
       } else if (isFirstTimeCheck) {
-        console.log('📋 First time expense check - stored existing expenses without notifications');
+        console.log('First time expense check - stored existing expenses without notifications');
       }
 
     } catch (error) {
-      console.warn('❌ Expense notifications check failed:', error.message);
+      console.warn('Expense notifications check failed:', error.message);
     }
 
     return newNotifications;
   }, [createNotificationWithBackend, largeExpenseThreshold, currentWarehouse, getCurrentUser]);
 
-  // ✅ NEW: Comprehensive credit notification checking with API integration
+  // NEW: Comprehensive credit notification checking with API integration
   const checkCreditNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
     try {
-      // ✅ Using warehouse utils for consistent configuration
+      // Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
-      console.log('💳 Checking credit notifications for warehouse:', warehouseQueryParam);
+      console.log('Checking credit notifications for warehouse:', warehouseQueryParam);
       
       const creditResponse = await api.get(`/credits/?warehouse=${warehouseQueryParam}`, config);
       
@@ -2010,10 +2031,10 @@ const Notification = ({ closeProfile }) => {
       const now = new Date().toISOString();
       const today = new Date();
       
-      // ✅ Check if this is the first time checking credits
+      // Check if this is the first time checking credits
       const isFirstTimeCheck = Object.keys(previousCredits).length === 0;
       
-      // ✅ Time windows for different notifications
+      // Time windows for different notifications
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       const currentUser = getCurrentUser();
       const currentUserId = currentUser.id;
@@ -2026,7 +2047,7 @@ const Notification = ({ closeProfile }) => {
         const creditStatus = (credit.status || '').toUpperCase();
         const dueDate = credit.due_date ? new Date(credit.due_date) : null;
         
-        // ✅ Skip old credits on first load for creation notifications
+        // Skip old credits on first load for creation notifications
         if (isFirstTimeCheck && creditDate <= fiveMinutesAgo) {
           // Store the credit but don't notify about old credits on first load
           previousCredits[credit.id] = {
@@ -2041,13 +2062,13 @@ const Notification = ({ closeProfile }) => {
           };
           processedIds.add(creditId);
           
-          // ✅ Check for overdue credits even on first load (but not new creation)
+          // Check for overdue credits even on first load (but not new creation)
           if (dueDate && today > dueDate && creditStatus !== 'PAID') {
             const overdueId = `credit-overdue-${credit.id}-${warehouseId}`;
             const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
             
             if (!processedIds.has(overdueId)) {
-              // ✅ Only notify about overdue credits if user should see them
+              // Only notify about overdue credits if user should see them
               const shouldNotifyOverdue = (
                 (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
                 (userRole === 'admin' || userRole === 'supervisor')
@@ -2071,10 +2092,10 @@ const Notification = ({ closeProfile }) => {
           return; // Skip new creation notification for old credits
         }
 
-        // ✅ Check for NEW CREDIT CREATED (recent credits only)
+        // Check for NEW CREDIT CREATED (recent credits only)
         if (creditDate > fiveMinutesAgo && !processedIds.has(creditId)) {
           
-          // ✅ Only notify if this user created the credit OR if it's a supervisor/admin
+          // Only notify if this user created the credit OR if it's a supervisor/admin
           const shouldNotifyCreation = (
             (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
             (userRole === 'admin' || userRole === 'supervisor')
@@ -2093,13 +2114,13 @@ const Notification = ({ closeProfile }) => {
           processedIds.add(creditId);
         }
 
-        // ✅ Check for CREDIT STATUS CHANGES (PAID)
+        // Check for CREDIT STATUS CHANGES (PAID)
         if (previousCredit && previousCredit.status !== creditStatus) {
           const statusChangeId = `credit-status-${credit.id}-${warehouseId}-${creditStatus}`;
           
           if (!processedIds.has(statusChangeId)) {
             if (creditStatus === 'PAID' && previousCredit.status !== 'PAID') {
-              // ✅ Credit was paid
+              // Credit was paid
               const shouldNotifyPayment = (
                 (credit.created_by === currentUserId || credit.user_id === currentUserId) ||
                 (userRole === 'admin' || userRole === 'supervisor')
@@ -2121,12 +2142,12 @@ const Notification = ({ closeProfile }) => {
           }
         }
 
-        // ✅ Check for OVERDUE CREDITS (check all credits, not just recent ones)
+        // Check for OVERDUE CREDITS (check all credits, not just recent ones)
         if (dueDate && today > dueDate && creditStatus !== 'PAID') {
           const overdueId = `credit-overdue-${credit.id}-${warehouseId}`;
           const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
           
-          // ✅ Only notify once per day about overdue credits
+          // Only notify once per day about overdue credits
           const lastOverdueCheck = localStorage.getItem(`lastOverdueCheck_${credit.id}_${warehouseId}`);
           const shouldCheckOverdue = !lastOverdueCheck || 
             (new Date(lastOverdueCheck).toDateString() !== today.toDateString());
@@ -2174,13 +2195,13 @@ const Notification = ({ closeProfile }) => {
       if (newNotifications > 0) {
         // FORCE UPDATE after creating credit notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
-        console.log(`✅ Created ${newNotifications} credit notifications`);
+        console.log(`Created ${newNotifications} credit notifications`);
       } else if (isFirstTimeCheck) {
-        console.log('💳 First time credit check - stored existing credits and checked for overdue');
+        console.log('First time credit check - stored existing credits and checked for overdue');
       }
 
     } catch (error) {
-      console.warn('❌ Credit notifications check failed:', error.message);
+      console.warn('Credit notifications check failed:', error.message);
     }
 
     return newNotifications;
@@ -2198,7 +2219,7 @@ const Notification = ({ closeProfile }) => {
     try {
       const now = new Date().toISOString();
 
-      console.log('🔧 Checking system notifications for admin');
+      console.log('Checking system notifications for admin');
 
       // 1. CHECK USER ROLE CHANGES with API integration
       try {
@@ -2268,45 +2289,45 @@ const Notification = ({ closeProfile }) => {
       if (newNotifications > 0) {
         // FORCE UPDATE after creating system notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
-        console.log(`✅ Created ${newNotifications} system notifications`);
+        console.log(`Created ${newNotifications} system notifications`);
       }
 
     } catch (error) {
-      console.warn('❌ System notifications check failed:', error.message);
+      console.warn('System notifications check failed:', error.message);
     }
 
     return newNotifications;
   }, [createNotificationWithBackend]);
 
-  // ✅ ENHANCED: Supplier notifications with warehouse filtering and API integration - FIXED 500 ERROR HANDLING
+  // ENHANCED: Supplier notifications with warehouse filtering and API integration - FIXED 500 ERROR HANDLING
   const checkSupplierNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
     try {
-      // ✅ Rate limiting: Only check suppliers every 5 minutes to avoid API spam
+      // Rate limiting: Only check suppliers every 5 minutes to avoid API spam
       const lastSupplierCheck = localStorage.getItem(`lastSupplierCheck_${warehouseId}`);
       const now = Date.now();
       const fiveMinutesAgo = now - (5 * 60 * 1000);
       
       if (lastSupplierCheck && parseInt(lastSupplierCheck) > fiveMinutesAgo) {
-        console.log('🏪 Skipping supplier check - rate limited');
+        console.log('Skipping supplier check - rate limited');
         return newNotifications;
       }
 
-      // ✅ Using warehouse utils for consistent configuration
+      // Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
 
-      console.log('🏪 Checking supplier and warehouse notifications for warehouse:', warehouseQueryParam);
+      console.log('Checking supplier and warehouse notifications for warehouse:', warehouseQueryParam);
 
-      // ✅ CHECK SUPPLIERS WITH WAREHOUSE FILTERING and API integration - FIXED 500 ERROR HANDLING
+      // CHECK SUPPLIERS WITH WAREHOUSE FILTERING and API integration - FIXED 500 ERROR HANDLING
       try {
         const supplierResponse = await api.get(`/suppliers/?warehouse=${warehouseQueryParam}`, config);
         const suppliers = Array.isArray(supplierResponse.data) ? supplierResponse.data : supplierResponse.data?.results || [];
 
-        // ✅ Store successful check timestamp
+        // Store successful check timestamp
         localStorage.setItem(`lastSupplierCheck_${warehouseId}`, now.toString());
 
         // Get previous suppliers for comparison
@@ -2368,11 +2389,11 @@ const Notification = ({ closeProfile }) => {
         localStorage.setItem(previousSuppliersKey, JSON.stringify(previousSuppliers));
         
       } catch (supplierError) {
-        // ✅ Enhanced error handling with rate limiting
+        // Enhanced error handling with rate limiting
         if (supplierError.response?.status === 500) {
-          console.warn('⚠️ Supplier API temporarily unavailable (500 error) - will retry in 5 minutes');
+          console.warn('Supplier API temporarily unavailable (500 error) - will retry in 5 minutes');
           
-          // ✅ Set rate limit to prevent immediate retries
+          // Set rate limit to prevent immediate retries
           localStorage.setItem(`lastSupplierCheck_${warehouseId}`, now.toString());
           return newNotifications;
         } else {
@@ -2380,7 +2401,7 @@ const Notification = ({ closeProfile }) => {
         }
       }
 
-      // ✅ CHECK SUPPLIER RETURNS WITH WAREHOUSE FILTERING and API integration
+      // CHECK SUPPLIER RETURNS WITH WAREHOUSE FILTERING and API integration
       try {
         const returnResponse = await api.get(`/supplier-returns/?warehouse=${warehouseQueryParam}`, config);
         const returns = Array.isArray(returnResponse.data) ? returnResponse.data : returnResponse.data?.results || [];
@@ -2412,11 +2433,11 @@ const Notification = ({ closeProfile }) => {
 
       // 3. CHECK WAREHOUSE MSP (MERCHANDISING) OPERATIONS WITH VAN LOAD SUPPORT and API integration
       try {
-        // ✅ Using warehouse utils for consistent MSP configuration
+        // Using warehouse utils for consistent MSP configuration
         const mspConfig = getWarehouseAxiosConfig(currentWarehouse);
         mspConfig.timeout = 5000;
 
-        console.log('🚛 Checking MSP/Van Load notifications for warehouse:', warehouseQueryParam);
+        console.log('Checking MSP/Van Load notifications for warehouse:', warehouseQueryParam);
         
         const mspResponse = await api.get(`/merchandisings/?warehouse=${warehouseQueryParam}`, mspConfig);
         const msps = Array.isArray(mspResponse.data) ? mspResponse.data : mspResponse.data?.results || [];
@@ -2455,16 +2476,16 @@ const Notification = ({ closeProfile }) => {
               // Determine what changed for better notification details
               const changes = [];
               if (previousMSP.status !== msp.status) {
-                changes.push(`Status: ${previousMSP.status} → ${msp.status}`);
+                changes.push(`Status: ${previousMSP.status} -> ${msp.status}`);
               }
               if (previousMSP.expected_sale !== msp.expected_sale) {
-                changes.push(`Expected Sale: ₱${Number(previousMSP.expected_sale || 0).toLocaleString()} → ₱${Number(msp.expected_sale || 0).toLocaleString()}`);
+                changes.push(`Expected Sale: \u20B1${Number(previousMSP.expected_sale || 0).toLocaleString()} -> \u20B1${Number(msp.expected_sale || 0).toLocaleString()}`);
               }
               if (previousMSP.actual_sale !== msp.actual_sale) {
-                changes.push(`Actual Sale: ₱${Number(previousMSP.actual_sale || 0).toLocaleString()} → ₱${Number(msp.actual_sale || 0).toLocaleString()}`);
+                changes.push(`Actual Sale: \u20B1${Number(previousMSP.actual_sale || 0).toLocaleString()} -> \u20B1${Number(msp.actual_sale || 0).toLocaleString()}`);
               }
               if (previousMSP.handled_by !== msp.handled_by) {
-                changes.push(`Handler: ${previousMSP.handled_by || 'N/A'} → ${msp.handled_by || 'N/A'}`);
+                changes.push(`Handler: ${previousMSP.handled_by || 'N/A'} -> ${msp.handled_by || 'N/A'}`);
               }
               if (isVanLoad) {
                 if (previousMSP.route !== msp.route) {
@@ -2531,28 +2552,28 @@ const Notification = ({ closeProfile }) => {
         localStorage.setItem(previousMSPsKey, JSON.stringify(previousMSPs));
         
       } catch (mspError) {
-        console.warn('❌ MSP/Merchandising API not available:', mspError.message);
+        console.warn('MSP/Merchandising API not available:', mspError.message);
       }
 
       if (newNotifications > 0) {
         // FORCE UPDATE after creating supplier/warehouse notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
-        console.log(`✅ Created ${newNotifications} supplier/warehouse notifications`);
+        console.log(`Created ${newNotifications} supplier/warehouse notifications`);
       }
 
     } catch (error) {
-      // ✅ FIXED: Better error handling for supplier API failures
+      // FIXED: Better error handling for supplier API failures
       if (error.response?.status === 500) {
-        console.warn('⚠️ Supplier API temporarily unavailable - will retry later');
+        console.warn('Supplier API temporarily unavailable - will retry later');
       } else {
-        console.warn('❌ Supplier notifications check failed:', error.message);
+        console.warn('Supplier notifications check failed:', error.message);
       }
     }
 
     return newNotifications;
   }, [createNotificationWithBackend, currentWarehouse]);
 
-  // ✅ Check products and returns/refunds notifications with warehouse filtering and API integration
+  // Check products and returns/refunds notifications with warehouse filtering and API integration
   const checkProductsAndReturnsNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
     let newNotifications = 0;
 
@@ -2562,16 +2583,16 @@ const Notification = ({ closeProfile }) => {
     }
 
     try {
-      // ✅ Using warehouse utils for consistent configuration
+      // Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 5000;
 
       const now = new Date().toISOString();
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
 
-      console.log('📦 Checking product and returns notifications for admin in warehouse:', warehouseQueryParam);
+      console.log('Checking product and returns notifications for admin in warehouse:', warehouseQueryParam);
 
-      // ✅ CHECK PRODUCTS WITH WAREHOUSE FILTERING and API integration
+      // CHECK PRODUCTS WITH WAREHOUSE FILTERING and API integration
       try {
         const productsResponse = await api.get(`/products/?warehouse=${warehouseQueryParam}`, config);
         const products = Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.results || [];
@@ -2645,24 +2666,96 @@ const Notification = ({ closeProfile }) => {
       if (newNotifications > 0) {
         // FORCE UPDATE after creating products/returns notifications
         setTimeout(() => setForceUpdate(prev => prev + 1), 200);
-        console.log(`✅ Created ${newNotifications} product/returns notifications`);
+        console.log(`Created ${newNotifications} product/returns notifications`);
       }
 
     } catch (error) {
-      console.warn('❌ Products/returns notifications check failed:', error.message);
+      console.warn('Products/returns notifications check failed:', error.message);
     }
 
     return newNotifications;
   }, [createNotificationWithBackend, currentWarehouse]);
 
-  // ✅ ENHANCED: Check ALL notification types when user performs actions with warehouse utils and API integration
+  const checkReservedPickupDueNotifications = useCallback(async (warehouseIdArg = null, userRoleArg = null, processedIdsArg = null) => {
+    const warehouseId = normalizeWarehouseId(warehouseIdArg ?? currentWarehouseId);
+    const userRole = String(userRoleArg || getCurrentUser()?.role || '').trim().toLowerCase();
+    const processedIds = processedIdsArg || processedIdsRef.current;
+
+    if (!userDataReady || !warehouseId || !userRole) {
+      return 0;
+    }
+
+    try {
+      const config = {
+        ...getWarehouseAxiosConfig(currentWarehouse),
+        params: { warehouse: warehouseId },
+        timeout: 5000,
+      };
+      const response = await api.get('/merchandisings/', config);
+      const sales = Array.isArray(response.data) ? response.data : response.data?.results || [];
+      const todayPH = toManilaYmd(new Date());
+      let newNotifications = 0;
+
+      for (const sale of sales) {
+        const transactionTypeName = String(
+          sale.transaction_type_name || sale.transaction_type?.name || sale.transaction_type || ''
+        ).trim().toLowerCase();
+        const statusName = String(sale.status || '').trim().toLowerCase();
+        const reservedDate = normalizeReservedDate(sale.reserved_date);
+
+        if (transactionTypeName !== 'warehouse' || statusName !== 'reserved' || reservedDate !== todayPH) {
+          continue;
+        }
+
+        const notificationSourceId = `pickup-due-${sale.id || sale.msp_no}-${reservedDate}-${warehouseId}`;
+        if (processedIds.has(notificationSourceId)) {
+          continue;
+        }
+
+        await createNotificationWithBackend('reserved_pickup_due', {
+          id: notificationSourceId,
+          sale_id: sale.id,
+          msp_no: sale.msp_no,
+          customer_name:
+            sale.customer_name ||
+            sale.customer?.name ||
+            sale.customer_display_name ||
+            'Reserved customer',
+          handled_by:
+            sale.handled_by_name ||
+            sale.handled_by_username ||
+            sale.handled_by ||
+            'Unknown',
+          reserved_date: reservedDate,
+          warehouse_id: warehouseId,
+          date_time: sale.date_time,
+        }, userRole);
+
+        processedIds.add(notificationSourceId);
+        newNotifications += 1;
+      }
+
+      if (newNotifications > 0) {
+        localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIds]));
+        processedIdsRef.current = processedIds;
+        setTimeout(() => setForceUpdate(prev => prev + 1), 300);
+      }
+
+      return newNotifications;
+    } catch (error) {
+      console.warn('Reserved pickup due notification check failed:', error.message);
+      return 0;
+    }
+  }, [userDataReady, currentWarehouseId, currentWarehouse, getCurrentUser, createNotificationWithBackend]);
+
+  // ENHANCED: Check ALL notification types when user performs actions with warehouse utils and API integration
   const checkNotificationsOnAction = useCallback(async () => {
     // Only proceed if user data is ready and we have a warehouse
     if (!userDataReady || !currentWarehouseId) {
       return;
     }
 
-    console.log('🔄 Checking all notifications for warehouse:', currentWarehouseId);
+    console.log('Checking all notifications for warehouse:', currentWarehouseId);
 
     // First try to load from backend
     await loadNotificationsFromAPI();
@@ -2677,7 +2770,7 @@ const Notification = ({ closeProfile }) => {
     
     if (!userRole || !warehouseId) return;
 
-    // ✅ Using warehouse utils for consistent configuration for all API calls
+    // Using warehouse utils for consistent configuration for all API calls
     const config = getWarehouseAxiosConfig(currentWarehouse);
     config.timeout = 5000;
 
@@ -2691,7 +2784,10 @@ const Notification = ({ closeProfile }) => {
         api.get(`/receiving/`, config).then(res => ({ type: 'receiving', data: res })).catch(() => null)
       );
 
-      // ✅ NEW: CREDITS (All users can see their own credits, admin/supervisor see all)
+      const reservedPickupNotifications = await checkReservedPickupDueNotifications(warehouseId, userRole, processedIds);
+      newNotifications += reservedPickupNotifications;
+
+      // NEW: CREDITS (All users can see their own credits, admin/supervisor see all)
       const creditNotifications = await checkCreditNotifications(warehouseId, userRole, processedIds);
       newNotifications += creditNotifications;
 
@@ -2753,15 +2849,15 @@ const Notification = ({ closeProfile }) => {
         
         // FORCE UPDATE after all notifications are processed
         setTimeout(() => setForceUpdate(prev => prev + 1), 300);
-        console.log(`✅ Total new notifications created: ${newNotifications}`);
+        console.log(`Total new notifications created: ${newNotifications}`);
       }
 
     } catch (error) {
-      console.warn('❌ General notifications check failed:', error.message);
+      console.warn('General notifications check failed:', error.message);
     }
-  }, [userDataReady, currentWarehouseId, getCurrentUser, createNotificationWithBackend, checkStockNotifications, checkCreditNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications, currentWarehouse, loadNotificationsFromAPI]);
+  }, [userDataReady, currentWarehouseId, getCurrentUser, createNotificationWithBackend, checkStockNotifications, checkReservedPickupDueNotifications, checkCreditNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications, currentWarehouse, loadNotificationsFromAPI]);
 
-  // ✅ ENHANCED: Action handlers with backend sync
+  // ENHANCED: Action handlers with backend sync
   const markAllAsRead = async () => {
     const currentWarehouseNotifications = notifications.filter(notif => {
       if (isVanLoadEditApprovalNotification(notif)) {
@@ -2789,7 +2885,7 @@ const Notification = ({ closeProfile }) => {
     setShowOptionsMenu(false);
   };
 
-  // ✅ ENHANCED: Clear all notifications with backend sync
+  // ENHANCED: Clear all notifications with backend sync
   const clearAllNotifications = async () => {
     const currentWarehouseNotifications = notifications.filter(notif => {
       if (isVanLoadEditApprovalNotification(notif)) {
@@ -2798,7 +2894,7 @@ const Notification = ({ closeProfile }) => {
       return isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId);
     });
 
-    // ✅ FIXED: Track deleted notification IDs permanently
+    // FIXED: Track deleted notification IDs permanently
     const deletedNotificationIds = new Set(JSON.parse(localStorage.getItem('deletedNotificationIds') || '[]'));
 
     currentWarehouseNotifications.forEach(notification => {
@@ -2820,11 +2916,11 @@ const Notification = ({ closeProfile }) => {
       console.warn('Failed to clear all in backend:', error.message);
     }
 
-    // ✅ FIXED: Save deleted notification IDs
+    // FIXED: Save deleted notification IDs
     localStorage.setItem('deletedNotificationIds', JSON.stringify([...deletedNotificationIds]));
     localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIdsRef.current]));
     
-    // ✅ FIXED: Also remove from warehouse-specific storage for admin
+    // FIXED: Also remove from warehouse-specific storage for admin
     const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
     
@@ -2841,7 +2937,7 @@ const Notification = ({ closeProfile }) => {
     setShowOptionsMenu(false);
   };
 
-  // ✅ ENHANCED: Update the getNotificationIcon function to include credit icons
+  // ENHANCED: Update the getNotificationIcon function to include credit icons
   const getNotificationIcon = (type, priority) => {
     const iconProps = { 
       className: `text-lg ${
@@ -2856,7 +2952,7 @@ const Notification = ({ closeProfile }) => {
       'out_of_stock': faExclamationTriangle,
       'stock_adjustment': faEdit,
       'new_receiving': faWarehouse,
-      // ✅ ENHANCED: Credit notification icons
+      // ENHANCED: Credit notification icons
       'credit_created': faCreditCard,
       'credit_overdue': faExclamationCircle,
       'paid_credit': faCheck,
@@ -2864,6 +2960,7 @@ const Notification = ({ closeProfile }) => {
       'supplier_updated': faEdit,
       'supplier_return_processed': faUndo,  
       'supplier_return': faUndo,
+      'reserved_pickup_due': faCalendarAlt,
       'warehouse_msp_created': faClipboardList,
       'warehouse_msp_updated': faEdit,
       'van_load_edit_request': faClipboardList,
@@ -2926,7 +3023,7 @@ const Notification = ({ closeProfile }) => {
     );
   };
 
-  // ✅ FIXED: Better warehouse change handling
+  // FIXED: Better warehouse change handling
   useEffect(() => {
     const handleWarehouseChange = async () => {
       const user = getCurrentUser();
@@ -2935,14 +3032,14 @@ const Notification = ({ closeProfile }) => {
       const newWarehouseId = normalizeWarehouseId(newWarehouse?.id);
       
       if (newWarehouseId && !isSameWarehouseId(newWarehouseId, currentWarehouseId)) {
-        console.log('🔄 Admin warehouse changed:', { 
+        console.log('Admin warehouse changed:', { 
           old: currentWarehouseId, 
           new: newWarehouseId
         });
         
         setIsTransitioning(true);
         
-        // ✅ FIXED: Save current notifications before switching
+        // FIXED: Save current notifications before switching
         if (userRole === 'admin' && currentWarehouseId) {
           const currentWarehouseNotifications = notifications.filter(notif => 
             isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId)
@@ -2951,14 +3048,14 @@ const Notification = ({ closeProfile }) => {
           if (currentWarehouseNotifications.length > 0) {
             try {
               const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
-              // ✅ FIXED: Merge with existing saved notifications instead of overwriting
+              // FIXED: Merge with existing saved notifications instead of overwriting
               const existingSaved = JSON.parse(localStorage.getItem(warehouseKey) || '[]');
               const existingIds = new Set(existingSaved.map(n => n.id));
               const newNotifications = currentWarehouseNotifications.filter(n => !existingIds.has(n.id));
               const mergedSaved = [...existingSaved, ...newNotifications];
               
               localStorage.setItem(warehouseKey, JSON.stringify(mergedSaved));
-              console.log(`💾 Saved ${mergedSaved.length} total notifications for warehouse ${currentWarehouseId}`);
+              console.log(`Saved ${mergedSaved.length} total notifications for warehouse ${currentWarehouseId}`);
             } catch (error) {
               console.warn('Failed to save warehouse notifications');
             }
@@ -2986,14 +3083,14 @@ const Notification = ({ closeProfile }) => {
     return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
   }, [currentWarehouseId, notifications, getCurrentUser, getCurrentWarehouse]);
 
-  // ✅ NEW: Load notifications from backend on mount and warehouse change
+  // NEW: Load notifications from backend on mount and warehouse change
   useEffect(() => {
     if (isLoaded && userDataReady && currentWarehouseId) {
       loadNotificationsFromAPI();
     }
   }, [isLoaded, userDataReady, currentWarehouseId, loadNotificationsFromAPI]);
 
-  // ✅ NEW: Periodic cleanup and credit due date checking
+  // NEW: Periodic cleanup, credit due date checking, and reserved pickup due alerts
   useEffect(() => {
     if (!isLoaded || !userDataReady || !currentWarehouseId) return;
 
@@ -3002,22 +3099,25 @@ const Notification = ({ closeProfile }) => {
     
     // Check credit due dates every 30 minutes
     const creditCheckInterval = setInterval(checkCreditDueDates, 30 * 60 * 1000);
+    const reservedPickupInterval = setInterval(checkReservedPickupDueNotifications, 30 * 60 * 1000);
     
     // Initial checks
     cleanupOldNotifications();
     checkCreditDueDates();
+    checkReservedPickupDueNotifications();
 
     return () => {
       clearInterval(cleanupInterval);
       clearInterval(creditCheckInterval);
+      clearInterval(reservedPickupInterval);
     };
-  }, [isLoaded, userDataReady, currentWarehouseId, cleanupOldNotifications, checkCreditDueDates]);
+  }, [isLoaded, userDataReady, currentWarehouseId, cleanupOldNotifications, checkCreditDueDates, checkReservedPickupDueNotifications]);
 
   // ================================
-  // 🔧 CRITICAL MODIFICATION SECTION - PRODUCT EVENT LISTENER WITH WAREHOUSE ISOLATION
+  // CRITICAL MODIFICATION SECTION - PRODUCT EVENT LISTENER WITH WAREHOUSE ISOLATION
   // ================================
   
-  // ✅ FIXED: Listen for product management events with WAREHOUSE ISOLATION
+  // FIXED: Listen for product management events with WAREHOUSE ISOLATION
   useEffect(() => {
     const handleProductUpdate = (event) => {
       if (isLoaded && userDataReady && currentWarehouseId) {
@@ -3027,30 +3127,30 @@ const Notification = ({ closeProfile }) => {
         if (userRole === 'admin') {
           const detail = event.detail;
           
-          // ✅ CRITICAL: Only process if event is for CURRENT warehouse
+          // CRITICAL: Only process if event is for CURRENT warehouse
           const productWarehouseId = parseInt(detail.warehouseId || detail.warehouse_id);
           const currentWarehouseInt = parseInt(currentWarehouseId);
           
-          console.log(`📦 PRODUCT EVENT:`, {
+          console.log(`PRODUCT EVENT:`, {
             productWarehouse: productWarehouseId,
             adminCurrentWarehouse: currentWarehouseInt,
             productName: detail.productName,
             shouldShow: productWarehouseId === currentWarehouseInt
           });
           
-          // ✅ ABSOLUTE FILTER: Only show if warehouses match exactly
+          // ABSOLUTE FILTER: Only show if warehouses match exactly
           if (!productWarehouseId || productWarehouseId !== currentWarehouseInt) {
-            console.log(`🚫 BLOCKED: Product from warehouse ${productWarehouseId}, admin viewing ${currentWarehouseInt}`);
+            console.log(`BLOCKED: Product from warehouse ${productWarehouseId}, admin viewing ${currentWarehouseInt}`);
             return; // Don't create notification for other warehouses
           }
           
-          // ✅ Additional check: Ignore if restrictToWarehouse is true but doesn't match
+          // Additional check: Ignore if restrictToWarehouse is true but doesn't match
           if (detail.restrictToWarehouse && detail.targetWarehouse !== currentWarehouseInt) {
-            console.log(`🚫 RESTRICTED: Event only for warehouse ${detail.targetWarehouse}`);
+            console.log(`RESTRICTED: Event only for warehouse ${detail.targetWarehouse}`);
             return;
           }
           
-          // ✅ Time-based filter: Ignore old events (prevent stale notifications)
+          // Time-based filter: Ignore old events (prevent stale notifications)
           if (detail.metadata?.event_timestamp) {
             const eventAge = Date.now() - detail.metadata.event_timestamp;
             if (eventAge > 30000) { // 30 seconds max
@@ -3059,7 +3159,7 @@ const Notification = ({ closeProfile }) => {
             }
           }
           
-          console.log(`✅ ALLOWED: Creating notification for warehouse ${currentWarehouseInt}`);
+          console.log(`ALLOWED: Creating notification for warehouse ${currentWarehouseInt}`);
           
           const notificationData = {
             id: detail.productId,
@@ -3087,16 +3187,16 @@ const Notification = ({ closeProfile }) => {
         if (['admin', 'supervisor'].includes(userRole)) {
           const detail = event.detail;
           
-          // ✅ SUPER STRICT: Only create notification if warehouse IDs match exactly
+          // SUPER STRICT: Only create notification if warehouse IDs match exactly
           const supplierWarehouseId = parseInt(detail.warehouseId || detail.warehouse_id);
           const currentWarehouse = parseInt(currentWarehouseId);
           
           if (!supplierWarehouseId || supplierWarehouseId !== currentWarehouse) {
-            console.log(`🏪 ADMIN NOTIFICATION BLOCKED - Supplier warehouse: ${supplierWarehouseId}, Admin current warehouse: ${currentWarehouse}`);
+            console.log(`ADMIN NOTIFICATION BLOCKED - Supplier warehouse: ${supplierWarehouseId}, Admin current warehouse: ${currentWarehouse}`);
             return; // Block notification for other warehouses
           }
           
-          console.log(`✅ ADMIN NOTIFICATION ALLOWED - Creating notification for warehouse: ${currentWarehouse}`);
+          console.log(`ADMIN NOTIFICATION ALLOWED - Creating notification for warehouse: ${currentWarehouse}`);
           
           const notificationData = {
             id: detail.supplierId,
@@ -3105,7 +3205,7 @@ const Notification = ({ closeProfile }) => {
             contact_number: detail.contactNumber,
             address: detail.address,
             email: detail.email,
-            warehouse_id: currentWarehouse, // ✅ Use current warehouse for filtering
+            warehouse_id: currentWarehouse, // Use current warehouse for filtering
             updated_at: new Date().toISOString(),
             changes: detail.changes,
             updated_by: detail.createdBy || user.username || user.name || 'Admin'
@@ -3117,7 +3217,7 @@ const Notification = ({ closeProfile }) => {
       }
     };
 
-    // ✅ Listen to multiple event types for better coverage
+    // Listen to multiple event types for better coverage
     window.addEventListener('productUpdated', handleProductUpdate);
     window.addEventListener('productCreated', handleProductUpdate);
     window.addEventListener('productAdded', handleProductUpdate);
@@ -3185,7 +3285,7 @@ const Notification = ({ closeProfile }) => {
     };
   }, [checkNotificationsOnAction, isLoaded, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouseId]);
 
-  // ✅ Listen for Van Load and Warehouse MSP creation events
+  // Listen for Van Load and Warehouse MSP creation events
   useEffect(() => {
     const handleVanLoadCreated = (event) => {
       if (isLoaded && userDataReady) {
@@ -3262,7 +3362,7 @@ const Notification = ({ closeProfile }) => {
     };
   }, [isLoaded, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouseId]);
 
-  // ✅ NEW: Listen for credit-related events
+  // NEW: Listen for credit-related events
   useEffect(() => {
     const handleCreditCreated = (event) => {
       if (isLoaded && userDataReady) {
@@ -3318,7 +3418,7 @@ const Notification = ({ closeProfile }) => {
       }
     };
 
-    // ✅ ENHANCED: Listen for credit payment notifications from external events
+    // ENHANCED: Listen for credit payment notifications from external events
     const handleCreditPaymentReceived = (event) => {
       if (isLoaded && userDataReady) {
         const detail = event.detail;
@@ -3347,7 +3447,7 @@ const Notification = ({ closeProfile }) => {
     };
   }, [isLoaded, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouseId, triggerCreditNotification]);
 
-// ✅ ENHANCED: Listen for receiving save events with immediate notification creation AND persistence
+// ENHANCED: Listen for receiving save events with immediate notification creation AND persistence
 useEffect(() => {
   const handleReceivingSaved = (event) => {
     if (isLoaded && userDataReady && currentWarehouseId) {
@@ -3355,18 +3455,18 @@ useEffect(() => {
       const userRole = user.role?.toLowerCase();
       const detail = event.detail;
       
-      console.log('📦 RECEIVING SAVED EVENT:', detail);
+      console.log('RECEIVING SAVED EVENT:', detail);
       
-      // ✅ CRITICAL: Only process if event is for CURRENT warehouse
+      // CRITICAL: Only process if event is for CURRENT warehouse
       const receivingWarehouseId = parseInt(detail.warehouse_id || detail.warehouseId);
       const currentWarehouseInt = parseInt(currentWarehouseId);
       
       if (!receivingWarehouseId || receivingWarehouseId !== currentWarehouseInt) {
-        console.log(`🚫 BLOCKED: Receiving from warehouse ${receivingWarehouseId}, user viewing ${currentWarehouseInt}`);
+        console.log(`BLOCKED: Receiving from warehouse ${receivingWarehouseId}, user viewing ${currentWarehouseInt}`);
         return;
       }
       
-      console.log(`✅ ALLOWED: Creating receiving notification for warehouse ${currentWarehouseInt}`);
+      console.log(`ALLOWED: Creating receiving notification for warehouse ${currentWarehouseInt}`);
       
       // Create immediate notification for receiving
       const notificationData = {
@@ -3385,7 +3485,7 @@ useEffect(() => {
       // Create notification with backend sync
       createNotificationWithBackend('new_receiving', notificationData, userRole);
       
-      // ✅ FORCE PERSISTENCE: Also mark as processed to avoid duplicates
+      // FORCE PERSISTENCE: Also mark as processed to avoid duplicates
       setTimeout(() => {
         try {
           const processedIds = processedIdsRef.current;
@@ -3394,7 +3494,7 @@ useEffect(() => {
           localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIds]));
           
         } catch (error) {
-          console.warn('⚠️ Failed to persist receiving notification:', error);
+          console.warn('Failed to persist receiving notification:', error);
         }
         
         setForceUpdate(prev => prev + 1);
@@ -3559,7 +3659,7 @@ useEffect(() => {
     };
   }, [isLoaded, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouseId]);
 
-  // ✅ ENHANCED: Listen for user login events with warehouse utils integration
+  // ENHANCED: Listen for user login events with warehouse utils integration
   useEffect(() => {
     const handleUserLogin = () => {
       // Set login time for tracking
@@ -3596,7 +3696,7 @@ useEffect(() => {
     };
   }, [isLoaded, userDataReady, currentWarehouseId, checkLowStockOnLogin]);
 
-  // ✅ ENHANCED: Check for login stock notifications when all dependencies are ready
+  // ENHANCED: Check for login stock notifications when all dependencies are ready
   useEffect(() => {
     if (isLoaded && userDataReady && currentWarehouseId) {
       // Check if this is a fresh login session (within last 2 minutes) OR if there's a pending check
@@ -3654,7 +3754,7 @@ useEffect(() => {
     };
   }, [checkNotificationsOnAction, isOpen, isLoaded, userDataReady, currentWarehouseId]);
 
-  // ✅ NEW: Listen for credit page visits to check overdue credits
+  // NEW: Listen for credit page visits to check overdue credits
   useEffect(() => {
     const handleCreditsPageVisit = () => {
       if (isLoaded && userDataReady && currentWarehouseId) {
@@ -3749,7 +3849,7 @@ useEffect(() => {
     };
   }, [checkStockNotifications, checkExpenseNotifications, checkSupplierNotifications, checkSystemNotifications, checkProductsAndReturnsNotifications, isLoaded, userDataReady, currentWarehouseId, getCurrentUser]);
 
-  // Keep inventory alerts in sync with Stocks.jsx and Settings.jsx threshold updates
+  // Keep inventory alerts in sync with Stocks.jsx and transaction stock updates
   useEffect(() => {
     const handleNewStockNotification = () => {
       if (isLoaded && userDataReady && currentWarehouseId) {
@@ -3767,12 +3867,22 @@ useEffect(() => {
       }
     };
 
+    const handleStocksChanged = () => {
+      if (isLoaded && userDataReady && currentWarehouseId) {
+        setTimeout(() => {
+          checkStockNotifications();
+        }, 150);
+      }
+    };
+
     window.addEventListener('newStockNotification', handleNewStockNotification);
     window.addEventListener('stockThresholdsChanged', handleStockThresholdsChanged);
+    window.addEventListener('stocksChanged', handleStocksChanged);
 
     return () => {
       window.removeEventListener('newStockNotification', handleNewStockNotification);
       window.removeEventListener('stockThresholdsChanged', handleStockThresholdsChanged);
+      window.removeEventListener('stocksChanged', handleStocksChanged);
     };
   }, [checkStockNotifications, isLoaded, userDataReady, currentWarehouseId]);
 
@@ -3796,7 +3906,7 @@ useEffect(() => {
     };
   }, [checkNotificationsOnAction, isLoaded, userDataReady, currentWarehouseId]);
 
-  // ✅ NEW: Daily overdue credit check
+  // NEW: Daily overdue credit check
   useEffect(() => {
     const checkOverdueCreditsDaily = () => {
       if (isLoaded && userDataReady && currentWarehouseId) {
@@ -3866,7 +3976,7 @@ useEffect(() => {
     }
   }, []);
 
-  // ✅ ENHANCED: Better warehouse name display with transition and admin handling
+  // ENHANCED: Better warehouse name display with transition and admin handling
   const getCurrentWarehouseName = () => {
     if (currentWarehouse?.name) {
       return currentWarehouse.name;
@@ -3886,7 +3996,7 @@ useEffect(() => {
     return user.warehouse || "Unknown Warehouse";
   };
 
-  // ✅ ENHANCED: Better notification count calculation for admin with warehouse context
+  // ENHANCED: Better notification count calculation for admin with warehouse context
   const currentWarehouseUnreadCount = React.useMemo(() => {
     const user = getCurrentUser();
     const userRole = String(user.role || '').toLowerCase();
@@ -3910,12 +4020,12 @@ useEffect(() => {
         currentWarehouseId
       );
       
-      // ✅ ADMIN: Show notifications for current warehouse
+      // ADMIN: Show notifications for current warehouse
       if (isAdminRole) {
         return isCurrentWarehouse;
       }
       
-      // ✅ NON-ADMIN: Show only notifications for their assigned warehouse with permission check
+      // NON-ADMIN: Show only notifications for their assigned warehouse with permission check
       if (['supervisor', 'cashier', 'staff'].includes(userRole) && isCurrentWarehouse) {
         // Check if user has permission for this notification type
         const hasPermission = hasNotificationPermission?.(notif.type, userRole);
@@ -4439,3 +4549,5 @@ useEffect(() => {
 };
 
 export default Notification;
+
+

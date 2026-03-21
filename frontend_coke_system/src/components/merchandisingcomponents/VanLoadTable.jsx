@@ -480,7 +480,7 @@ const VanLoadTable = ({
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
                     value={row.sellingPrice !== "" && row.sellingPrice != null
-                      ? `₱${Number(row.sellingPrice).toFixed(2)}`
+                      ? `\u20B1${Number(row.sellingPrice).toFixed(2)}`
                       : ""}
                   />
                 </td>
@@ -492,7 +492,7 @@ const VanLoadTable = ({
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
                     value={row.shellPrice !== "" && row.shellPrice != null
-                      ? `₱${Number(row.shellPrice).toFixed(2)}`
+                      ? `\u20B1${Number(row.shellPrice).toFixed(2)}`
                       : ""}
                   />
                 </td>
@@ -504,7 +504,7 @@ const VanLoadTable = ({
                     disabled
                     className="w-full p-1 text-sm text-center bg-gray-100"
                     value={row.bottlePrice !== "" && row.bottlePrice != null
-                      ? `₱${Number(row.bottlePrice).toFixed(2)}`
+                      ? `\u20B1${Number(row.bottlePrice).toFixed(2)}`
                       : ""}
                   />
                 </td>
@@ -530,7 +530,7 @@ const VanLoadTable = ({
                     className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
                     disabled
                     value={Number.isFinite(parseFloat(row.expectedSale))
-                      ? `₱${parseFloat(row.expectedSale).toLocaleString("en-PH", {
+                      ? `\u20B1${parseFloat(row.expectedSale).toLocaleString("en-PH", {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}`

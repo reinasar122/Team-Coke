@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import VanLoadTable from "../components/merchandisingcomponents/VanLoadTable";
-import api from "../api"; // ✅ correct
+import api from "../api"; // âœ… correct
 
 
 //const API = "http://localhost:8080/api";
@@ -29,7 +29,7 @@ const formatToManila = (isoString) => {
 
 
 const peso = (x) =>
-  `₱${Number(x || 0).toLocaleString("en-PH", {
+  `\u20B1${Number(x || 0).toLocaleString("en-PH", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
@@ -39,7 +39,7 @@ export default function MerchandisingSaleDetailPage() {
   const { state } = useLocation();
   const sale = state?.sale;
 
-  // ⬅️ ADDED: normalize handled_by to a string id
+  // â¬…ï¸ ADDED: normalize handled_by to a string id
   const toUserIdString = (hb, usersList = []) => {
     if (hb === null || hb === undefined) return "";
 
@@ -89,7 +89,7 @@ export default function MerchandisingSaleDetailPage() {
 
   const [users, setUsers] = useState([]);
 
-  // ⬅️ CHANGED: initialize from sale?.handled_by using the helper
+  // â¬…ï¸ CHANGED: initialize from sale?.handled_by using the helper
   const [selectedUser, setSelectedUser] = useState(() =>
     toUserIdString(sale?.handled_by)
   );
@@ -141,7 +141,7 @@ export default function MerchandisingSaleDetailPage() {
 
 
 
-  // Only show: (in-stock in this warehouse) ∪ (already used in current rows)
+  // Only show: (in-stock in this warehouse) âˆª (already used in current rows)
   const filteredProducts = useMemo(() => {
     if (!Array.isArray(products) || products.length === 0) return [];
 
@@ -166,8 +166,9 @@ export default function MerchandisingSaleDetailPage() {
 
 
 
-  const isVanLoad = (sale?.transaction_type_name || "").toLowerCase() === "van load";
-  const isComplete = (sale?.status || "").toLowerCase() === "complete";
+  const activeSale = saleDetail || sale;
+  const isVanLoad = (activeSale?.transaction_type_name || "").toLowerCase() === "van load";
+  const isComplete = (activeSale?.status || "").toLowerCase() === "complete";
 
   const showAlert = (message) => {
     const alertDiv = document.createElement("div");
@@ -425,7 +426,7 @@ const loadMerchandisingDetail = useCallback(
       .catch(err => console.error("Error fetching users:", err));
   }, []);
 
-  // ⬅️ ADDED: keep selectedUser in sync when users and data are available
+  // â¬…ï¸ ADDED: keep selectedUser in sync when users and data are available
   useEffect(() => {
     const source = saleDetail?.handled_by ?? sale?.handled_by;
     const idStr = toUserIdString(source, users);
@@ -710,7 +711,7 @@ const loadMerchandisingDetail = useCallback(
   // ---------- READ-ONLY Van-Load-style table for the detail page ----------
   function ReadOnlyVanLoadTable({ items, availableStock }) {
     const pesoLocal = (x) =>
-      `₱${Number(x || 0).toLocaleString("en-PH", {
+      `\u20B1${Number(x || 0).toLocaleString("en-PH", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`;
@@ -743,7 +744,7 @@ const loadMerchandisingDetail = useCallback(
               <td className="border px-2 py-1"></td>
               <td className="border px-2 py-1 text-center">Shell</td>
               <td className="border px-2 py-1 text-center">PCS</td>
-              <td className="border px-2 py-1 text-center">%</td> {/* ✅ clearer indicator */}
+              <td className="border px-2 py-1 text-center">%</td> {/* âœ… clearer indicator */}
               <td className="border px-2 py-1 text-center">PCS</td>
               <td className="border px-2 py-1 text-center">PCS</td>
               
@@ -910,7 +911,7 @@ const loadMerchandisingDetail = useCallback(
           <button
             className="btn btn-primary"
             onClick={() =>
-              navigate("/van-load-update", {
+              navigate("/van-load-return-remittance", {
                 state: { id: sale.id, warehouse: currentWarehouse, mode: "receive" },
               })
             }
@@ -985,15 +986,18 @@ const loadMerchandisingDetail = useCallback(
       {/* view mode header grid */}
       {!editMode && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          <InfoField label="MSP No" value={sale.msp_no} />
-          <InfoField label="Date Time" value={formatToManila(sale.date_time)} />
+          <InfoField label="MSP No" value={activeSale?.msp_no || sale?.msp_no} />
+          <InfoField label="Date Time" value={formatToManila(activeSale?.date_time || sale?.date_time)} />
           {/*<InfoField
             label="Warehouse"
             value={sale.warehouse_name || currentWarehouse?.name || "N/A"}
           />*/}
-          <InfoField label="Transaction Type" value={sale.transaction_type_name} />
+          <InfoField label="Transaction Type" value={activeSale?.transaction_type_name || sale?.transaction_type_name} />
           <InfoField label="Route" value={routeDisplay} />
           <InfoField label="Van"   value={vanDisplay} />
+          {activeSale?.reserved_date && (
+            <InfoField label="Reserved Date" value={activeSale.reserved_date} />
+          )}
 
           <div className="flex flex-col gap-1">
             <label className="text-sm text">Handled By</label>
@@ -1116,7 +1120,7 @@ const loadMerchandisingDetail = useCallback(
               onClick={() => setShowHandlerDetails(false)}
               className="text-blue-600 hover:text-blue-800 text-xl"
             >
-              ×
+              {"\u00D7"}
             </button>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

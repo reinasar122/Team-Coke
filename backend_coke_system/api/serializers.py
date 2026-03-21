@@ -167,7 +167,7 @@ class WarehouseSerializer(serializers.ModelSerializer):
 
 
 class CreditLedgerCreateSerializer(serializers.ModelSerializer):
-    # Map camelCase (frontend) → snake_case (model)
+    # Map camelCase (frontend) -> snake_case (model)
     customerName = serializers.CharField(source="customer_name", required=False, allow_blank=True, default="Walk-in")
     handledBy = serializers.CharField(source="handled_by", required=False, allow_blank=True, default="")
     transactionTypeName = serializers.CharField(source="transaction_type", required=False, allow_blank=True, default="")
@@ -178,10 +178,10 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
     totalAmount = serializers.DecimalField(source="total_amount", max_digits=12, decimal_places=2)
     rows = serializers.ListField(child=serializers.DictField(), source="rows_json", required=False, default=list)
     creditNotes = serializers.CharField(source="remarks", required=False, allow_blank=True, default="")
-    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all())  # ✅ keep only this
+    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all())  # keep only this
 
     amountPaid = serializers.DecimalField(
-        source="amount_paid",  # ✅ maps correctly
+        source="amount_paid",  # maps correctly
         max_digits=12,
         decimal_places=2,
         required=False,
@@ -204,18 +204,18 @@ class CreditLedgerCreateSerializer(serializers.ModelSerializer):
             "rows",
             "transactionDate",
             "creditNotes",
-            "warehouse",   # ✅ only warehouse, not warehouse_id
+            "warehouse",   # only warehouse, not warehouse_id
         ]
 
     def create(self, validated_data):
-        # ✅ Remove non-model fields
+        # Remove non-model fields
         validated_data.pop('amountDue', None)
         return super().create(validated_data)
 
     
 class CreditLedgerListSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
-    status = serializers.SerializerMethodField()  # ✅ add computed status
+    status = serializers.SerializerMethodField()  # add computed status
     warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
 
     class Meta:
@@ -240,7 +240,7 @@ class CreditLedgerListSerializer(serializers.ModelSerializer):
 
 class CreditLedgerDetailSerializer(serializers.ModelSerializer):
     balance = serializers.SerializerMethodField()
-    status = serializers.SerializerMethodField()  # ✅ add this
+    status = serializers.SerializerMethodField()  # add this
     payments = serializers.SerializerMethodField()
     warehouse_name = serializers.CharField(source="warehouse.name", read_only=True)
 
@@ -859,7 +859,7 @@ class MerchandisingItemSerializer(serializers.ModelSerializer):
 
 
 class MerchandisingSaleSerializer(serializers.ModelSerializer):
-    # ✅ these must be class attributes, NOT inside Meta
+    # these must be class attributes, NOT inside Meta
     warehouse_name   = serializers.CharField(source="warehouse.warehouse", read_only=True)
     warehouse_address= serializers.CharField(source="warehouse.address", read_only=True)
     warehouse_phone  = serializers.CharField(source="warehouse.phone", read_only=True)
@@ -879,8 +879,8 @@ class MiscellaneousItemSerializer(serializers.ModelSerializer):
         fields = "__all__"
         extra_kwargs = {
             "merchandising": {"required": False},   # still optional
-            "created_at": {"read_only": True},      # 🔒 prevent client override
-            "updated_at": {"read_only": True},      # 🔒 prevent client override
+            "created_at": {"read_only": True},      # prevent client override
+            "updated_at": {"read_only": True},      # prevent client override
         }
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
@@ -949,7 +949,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
             'transaction_type_name',
             'total_trading_amount',
             'total_expenses_amount',
-            # 'discrepancy_non_empty',  # ← remove these two
+            # 'discrepancy_non_empty',  # remove these two
             # 'discrepancy_empty',
         ]
 
@@ -962,7 +962,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         try:
             uid = int(value)
         except (TypeError, ValueError):
-            # Not numeric → assume it's already a name/username
+            # Not numeric -> assume it's already a name/username
             return str(value)
 
         user = User.objects.filter(pk=uid).first()
@@ -991,7 +991,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         """
-        🔁 CHANGED: on PATCH, fall back to instance values so Van Load
+        CHANGED: on PATCH, fall back to instance values so Van Load
         validation still applies even if the field is omitted.
         """
         transaction_type = data.get("transaction_type") or getattr(self.instance, "transaction_type", None)
@@ -1016,9 +1016,94 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         status_name = str(status_value or "").strip().lower()
         return tt_name == "van load" and status_name not in {"complete", "completed"}
 
-    @transaction.atomic  # ← ensure all-or-nothing
+    def _is_warehouse_transaction(self, transaction_type):
+        tt_name = (getattr(transaction_type, "name", transaction_type) or "").strip().lower()
+        return tt_name == "warehouse"
+
+    def _warehouse_holds_stock(self, transaction_type, status_value):
+        status_name = str(status_value or "").strip().lower()
+        return self._is_warehouse_transaction(transaction_type) and status_name not in {"cancelled", "canceled"}
+
+    def _warehouse_committed_pcs(self, item, status_value):
+        if item is None:
+            return 0
+
+        status_name = str(status_value or "").strip().lower()
+        if status_name == "reserved":
+            return int(getattr(item, "dispatched_pcs", 0) or 0)
+
+        return int(getattr(item, "sold_pcs", 0) or 0)
+
+
+
+    def _adjust_stock_quantity(self, product, warehouse, delta_pcs):
+        if not product or not warehouse or int(delta_pcs or 0) == 0:
+            return
+
+        stock = (
+            Stock.objects
+            .select_for_update()
+            .filter(product=product, warehouse=warehouse)
+            .first()
+        )
+        if stock is None:
+            stock = Stock(product=product, warehouse=warehouse, quantity_available=0)
+
+        old_qty = int(stock.quantity_available or 0)
+        new_qty = old_qty + int(delta_pcs)
+        if new_qty < 0:
+            raise serializers.ValidationError({
+                "items": [
+                    f"Insufficient stock for {product.product_name}. Available: {old_qty}, required: {abs(int(delta_pcs))}."
+                ]
+            })
+
+        stock.quantity_available = new_qty
+        stock.save(update_fields=['quantity_available']) if stock.pk else stock.save()
+
+    def _adjust_returnable_stock(self, product, warehouse, bottle_delta=0, shell_delta=0):
+        bottle_delta = int(bottle_delta or 0)
+        shell_delta = int(shell_delta or 0)
+        if not product or not warehouse or (bottle_delta == 0 and shell_delta == 0):
+            return
+
+        rs = (
+            ReturnableStock.objects
+            .select_for_update()
+            .filter(
+                product=product,
+                warehouse=warehouse,
+                source='customer',
+                supplier=getattr(product, 'supplier', None),
+            )
+            .first()
+        )
+        if rs is None:
+            rs = ReturnableStock(
+                product=product,
+                warehouse=warehouse,
+                source='customer',
+                supplier=getattr(product, 'supplier', None),
+                empty_bottle_qty=0,
+                empty_shell_qty=0,
+            )
+
+        next_bottle = int(rs.empty_bottle_qty or 0) + bottle_delta
+        next_shell = int(rs.empty_shell_qty or 0) + shell_delta
+        if next_bottle < 0 or next_shell < 0:
+            raise serializers.ValidationError({
+                "items": [
+                    f"Returnable stock adjustment for {product.product_name} would become negative."
+                ]
+            })
+
+        rs.empty_bottle_qty = next_bottle
+        rs.empty_shell_qty = next_shell
+        rs.save(update_fields=['empty_bottle_qty', 'empty_shell_qty']) if rs.pk else rs.save()
+
+    @transaction.atomic  # ensure all-or-nothing
     def create(self, validated_data):
-        # ⬇️ UNCHANGED: this is exactly your original create()
+        # UNCHANGED: this is exactly your original create()
         items_data = validated_data.pop('items', [])
         misc_items_data = validated_data.pop('misc_items', [])
         payments_data = validated_data.pop('payments', [])
@@ -1065,52 +1150,36 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 actual_sale=item_data.get("actual_sale", 0),
             )
 
-            # Returnables (empties) → ReturnableStock (UPSERT)
+            # Returnables (empties) -> ReturnableStock (UPSERT)
             if merchandising_item.empty_return_pcs > 0 or merchandising_item.empty_return_shell > 0:
-                add_bottle = max(0, int(merchandising_item.empty_return_pcs or 0))
-                add_shell  = max(0, int(merchandising_item.empty_return_shell or 0))
-
-                rs, created = (
-                    ReturnableStock.objects
-                    .select_for_update()
-                    .get_or_create(
-                        product=product,
-                        warehouse=merchandising.warehouse,
-                        source='customer',
-                        supplier=getattr(product, 'supplier', None),
-                        defaults={'empty_bottle_qty': 0, 'empty_shell_qty': 0},
-                    )
-                )
-
-                ReturnableStock.objects.filter(pk=rs.pk).update(
-                    empty_bottle_qty=F('empty_bottle_qty') + add_bottle,
-                    empty_shell_qty=F('empty_shell_qty') + add_shell,
+                self._adjust_returnable_stock(
+                    product,
+                    merchandising.warehouse,
+                    bottle_delta=merchandising_item.empty_return_pcs,
+                    shell_delta=merchandising_item.empty_return_shell,
                 )
 
             # Restock non-empty returns
             if merchandising_item.actual_return_pcs > 0:
-                stock, _ = Stock.objects.get_or_create(
-                    product=product,
-                    warehouse=merchandising.warehouse
+                self._adjust_stock_quantity(
+                    product,
+                    merchandising.warehouse,
+                    merchandising_item.actual_return_pcs,
                 )
-                stock.quantity_available = (stock.quantity_available or 0) + merchandising_item.actual_return_pcs
-                stock.save(update_fields=['quantity_available'])
 
-            # Deduct sold pcs ONLY if transaction_type is "Warehouse"
-            if merchandising.transaction_type.name.lower() == "warehouse":
-                if merchandising_item.sold_pcs > 0:
-                    stock, _ = Stock.objects.get_or_create(
-                        product=product,
-                        warehouse=merchandising.warehouse
+            # Reserved warehouse rows hold dispatched stock; completed rows hold only what was sold.
+            if self._warehouse_holds_stock(merchandising.transaction_type, merchandising.status):
+                committed_pcs = self._warehouse_committed_pcs(merchandising_item, merchandising.status)
+                if committed_pcs > 0:
+                    self._adjust_stock_quantity(
+                        product,
+                        merchandising.warehouse,
+                        -committed_pcs,
                     )
-                    old_qty = stock.quantity_available or 0
-                    stock.quantity_available = (stock.quantity_available or 0) - merchandising_item.sold_pcs
-                    stock.save(update_fields=['quantity_available'])
                     print(
-                        f"[STOCK DEBUG] Deduction applied | MSP: {merchandising.msp_no} "
+                        f"[STOCK DEBUG] Reservation applied | MSP: {merchandising.msp_no} "
                         f"| Product: {product.product_name} "
-                        f"| Sold: {merchandising_item.sold_pcs} "
-                        f"| Before: {old_qty} | After: {stock.quantity_available}"
+                        f"| Committed: {committed_pcs}"
                     )
 
         # -- MISCELLANEOUS --
@@ -1133,10 +1202,10 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         for payment_data in payments_data:
             Payment.objects.create(merchandising=merchandising, **payment_data)
 
-        # ✅ Refresh instance so reverse relations (payments) are loaded
+        # Refresh instance so reverse relations (payments) are loaded
         merchandising.refresh_from_db()
 
-        # ✅ Compute method accurately based on paid amounts
+        # Compute method accurately based on paid amounts
         if merchandising.payments.exists():
             total_paid = Decimal("0.00")
             total_cash = Decimal("0.00")
@@ -1163,8 +1232,8 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
             merchandising.save(update_fields=["payment_method"])
 
-        # ✅ Van Load fallback
-        # ✅ Van Load fallback (only if truly no payment data)
+        # Van Load fallback
+        # Van Load fallback (only if truly no payment data)
         if merchandising.transaction_type and merchandising.transaction_type.name.lower() == "van load":
             if not merchandising.payment_method:
                 if merchandising.payments.exists():
@@ -1189,7 +1258,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     @transaction.atomic
     def update(self, instance, validated_data):
         """
-        🔁 NEW: writable nested update for items & misc_items.
+        NEW: writable nested update for items & misc_items.
         - Upserts rows by `id`
         - Deletes rows missing from the payload
         - Leaves payments read-only in updates
@@ -1200,9 +1269,12 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         items_data = validated_data.pop('items', None)          # may be omitted in PATCH
         misc_items_data = validated_data.pop('misc_items', None)
         validated_data.pop('payments', None)                    # ignore on update
+        before_transaction_type = instance.transaction_type
+        before_status = instance.status
         transaction_type = validated_data.get("transaction_type", instance.transaction_type)
         status_value = validated_data.get("status", instance.status)
         zero_expected_sale = self._is_pending_van_load(transaction_type, status_value)
+        before_items = list(instance.items.select_related("product"))
 
         if zero_expected_sale:
             validated_data["expected_sale"] = Decimal("0.00")
@@ -1247,6 +1319,55 @@ class MerchandisingSerializer(serializers.ModelSerializer):
             for obj_id, obj in existing.items():
                 if obj_id not in seen:
                     obj.delete()
+
+        after_items = list(instance.items.select_related("product"))
+        product_map = {
+            obj.product_id: obj.product
+            for obj in before_items + after_items
+            if getattr(obj, "product_id", None)
+        }
+
+        from collections import defaultdict
+
+        if items_data is not None:
+            bottle_deltas = defaultdict(int)
+            shell_deltas = defaultdict(int)
+            for obj in before_items:
+                bottle_deltas[obj.product_id] -= int(obj.empty_return_pcs or 0)
+                shell_deltas[obj.product_id] -= int(obj.empty_return_shell or 0)
+            for obj in after_items:
+                bottle_deltas[obj.product_id] += int(obj.empty_return_pcs or 0)
+                shell_deltas[obj.product_id] += int(obj.empty_return_shell or 0)
+
+            for product_id in set(list(bottle_deltas.keys()) + list(shell_deltas.keys())):
+                self._adjust_returnable_stock(
+                    product_map.get(product_id),
+                    instance.warehouse,
+                    bottle_delta=bottle_deltas.get(product_id, 0),
+                    shell_delta=shell_deltas.get(product_id, 0),
+                )
+
+        if self._is_warehouse_transaction(before_transaction_type) or self._is_warehouse_transaction(transaction_type):
+            stock_deltas = defaultdict(int)
+            before_holds_stock = self._warehouse_holds_stock(before_transaction_type, before_status)
+            after_holds_stock = self._warehouse_holds_stock(transaction_type, status_value)
+
+            for obj in before_items:
+                if before_holds_stock:
+                    stock_deltas[obj.product_id] += self._warehouse_committed_pcs(obj, before_status)
+                stock_deltas[obj.product_id] -= int(obj.actual_return_pcs or 0)
+
+            for obj in after_items:
+                if after_holds_stock:
+                    stock_deltas[obj.product_id] -= self._warehouse_committed_pcs(obj, status_value)
+                stock_deltas[obj.product_id] += int(obj.actual_return_pcs or 0)
+
+            for product_id, delta in stock_deltas.items():
+                self._adjust_stock_quantity(
+                    product_map.get(product_id),
+                    instance.warehouse,
+                    delta,
+                )
 
         # --- sync nested MISC ITEMS if provided ---
         if misc_items_data is not None:

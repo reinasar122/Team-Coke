@@ -14,8 +14,11 @@ from .models import (
     ShellType,
     Supplier,
     UnitType,
+    Stock,
+    TransactionType,
     Warehouse,
 )
+from .serializers import MerchandisingSerializer
 
 
 class ProductImageUpdateTests(TestCase):
@@ -93,3 +96,92 @@ class ProductImageUpdateTests(TestCase):
         self.assertEqual(response.status_code, 200, response.content)
         self.product.refresh_from_db()
         self.assertTrue(self.product.image.name.startswith("product_images/"))
+
+
+class ReservedWarehouseStockTests(TestCase):
+    def setUp(self):
+        self.warehouse = Warehouse.objects.create(
+            name="Main Warehouse",
+            email="warehouse-stock@example.com",
+        )
+        self.supplier = Supplier.objects.create(
+            company_name="Reserved Stock Supplier",
+            contact_person="Tester",
+            email="reserved-stock-supplier@example.com",
+        )
+        self.category = ProductCategory.objects.create(name="Reserved Softdrinks")
+        self.shell_type = ShellType.objects.create(description="Reserved PET")
+        self.content_type = ContentType.objects.create(description="Reserved Plastic")
+        self.unit_type = UnitType.objects.create(
+            content_no=12,
+            returnable=False,
+            shell_type=self.shell_type,
+            content_type=self.content_type,
+            content_returnable=False,
+        )
+        self.price = Pricing.objects.create(
+            purchase_price=10,
+            selling_price=15,
+            shell_price=0,
+            bottle_price=0,
+        )
+        self.product = Product.objects.create(
+            system_code="TEST-RESERVED-0001",
+            supplier_code="RS-001",
+            supplier=self.supplier,
+            product_name="Reserved Coke",
+            product_category=self.category,
+            unit_type=self.unit_type,
+            price=self.price,
+            warehouse=self.warehouse,
+        )
+        self.transaction_type, _ = TransactionType.objects.get_or_create(
+            name=TransactionType.WAREHOUSE
+        )
+        self.stock = Stock.objects.create(
+            product=self.product,
+            warehouse=self.warehouse,
+            quantity_available=100,
+        )
+
+    def _payload(self, *, status, sold_pcs, item_id=None, dispatched_pcs=50):
+        item = {
+            "product": self.product.id,
+            "dispatched_pcs": dispatched_pcs,
+            "sold_pcs": sold_pcs,
+        }
+        if item_id is not None:
+            item["id"] = item_id
+
+        return {
+            "transaction_type": self.transaction_type.id,
+            "warehouse": self.warehouse.id,
+            "handled_by": "Stock Tester",
+            "status": status,
+            "items": [item],
+        }
+
+    def test_reserved_partial_completion_returns_unsold_stock(self):
+        create_serializer = MerchandisingSerializer(
+            data=self._payload(status="Reserved", sold_pcs=0)
+        )
+        self.assertTrue(create_serializer.is_valid(), create_serializer.errors)
+        sale = create_serializer.save()
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity_available, 50)
+
+        update_serializer = MerchandisingSerializer(
+            sale,
+            data=self._payload(
+                status="Complete",
+                sold_pcs=25,
+                item_id=sale.items.get().id,
+            ),
+            partial=True,
+        )
+        self.assertTrue(update_serializer.is_valid(), update_serializer.errors)
+        update_serializer.save()
+
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity_available, 75)

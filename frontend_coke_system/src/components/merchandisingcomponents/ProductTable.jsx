@@ -13,11 +13,12 @@ const ProductTable = ({
   setRows,
   products,
   selectedTransactionTypeName,
+  isReservedTransaction = false,
   miscItems = [],
   warehouseId,
 
   // setters to parent
-  setTotalExpectedSale,         // (you currently don’t use expected, but keeping for compatibility)
+  setTotalExpectedSale,         // (you currently donÃ¢â‚¬â„¢t use expected, but keeping for compatibility)
   setTotalActualSale,
   setEmptiesPriceTotal,
   setRefundablesTotal,
@@ -36,15 +37,26 @@ const ProductTable = ({
 }) => {
   // at top of ProductTable.jsx
   const dbg = (...args) => console.log("%c[MerchSale]", "color:#0aa;font-weight:700", ...args);
-
+  const saleAmountLabel = isReservedTransaction ? "Expected Sale" : "Actual Sale";
   const [pricingMap, setPricingMap] = useState({});
   const [availableStock, setAvailableStock] = useState({});
   const [unitTypes, setUnitTypes] = useState([]);
   const [pricingData, setPricingData] = useState([]);
 
   const n = (v) => parseFloat(v) || 0;
+  const formatPeso = (value) => `\u20B1${Number(value || 0).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const recalculateRowTotals = (row, price) => {
+    const dispatchedNow = n(row.dispatchedPcs);
+    const soldNow = n(row.soldPcs);
+    const discountNow = n(row.discount);
+    const discountAmtNow = (price * soldNow * discountNow) / 100;
 
-  // ⭐ helper: a blank row matching your schema everywhere else
+    row.expectedSale = Number((price * dispatchedNow).toFixed(2));
+    row.actualSale = Number((price * soldNow - discountAmtNow).toFixed(2));
+    row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
+  };
+
+  // Ã¢Â­Â helper: a blank row matching your schema everywhere else
   const makeBlankRow = () => ({
     id: Date.now(),
     productId: "",
@@ -70,7 +82,7 @@ const ProductTable = ({
     bottlePrice: "",
   });
 
-  // ⭐ NEW: clear table on true browser refresh (won’t affect normal SPA navigations)
+  // Ã¢Â­Â NEW: clear table on true browser refresh (wonÃ¢â‚¬â„¢t affect normal SPA navigations)
   useEffect(() => {
     try {
       const navEntry = performance.getEntriesByType?.("navigation")?.[0];
@@ -129,9 +141,9 @@ useEffect(() => {
       const response = await api.get(`/stocks/${productId}/availability/`); // Use api instance
       const quantity = response.data.quantity_available ?? 0;
       setAvailableStock((prev) => ({ ...prev, [productId]: quantity }));
-      console.log(`✅ Stock for product ${productId}:`, quantity);
+      console.log(`Ã¢Å“â€¦ Stock for product ${productId}:`, quantity);
     } catch (err) {
-      console.error("❌ Error fetching stock:", err);
+      console.error("Ã¢ÂÅ’ Error fetching stock:", err);
       setAvailableStock((prev) => ({ ...prev, [productId]: null }));
     }
   };
@@ -284,7 +296,7 @@ useEffect(() => {
     row[field] = null;
     updated[index] = row;
     setRows(updated);
-    return;   // ⬅️ stops before doing any math
+    return;   // Ã¢Â¬â€¦Ã¯Â¸Â stops before doing any math
   }
 
   const n = (v) => parseFloat(v) || 0;
@@ -314,20 +326,20 @@ useEffect(() => {
   // --- DISPATCHED / SOLD FIELDS ---
   if (["dispatchedPcs", "dispatchedShell"].includes(field)) {
     if (field === "dispatchedShell") {
-      // ✅ When user changes Shell, auto-fill PCS (for convenience)
+      // Ã¢Å“â€¦ When user changes Shell, auto-fill PCS (for convenience)
       const shellQty = Math.floor(n(value));
       row.dispatchedShell = shellQty;
       row.dispatchedPcs = shellQty * conversion;
     } 
     else if (field === "dispatchedPcs") {
-      // ✅ When user changes PCS, do NOT auto-change Shell anymore
+      // Ã¢Å“â€¦ When user changes PCS, do NOT auto-change Shell anymore
       row.dispatchedPcs = n(value);
       // Keep whatever Shell was manually entered earlier
     }
 
       
 
-    // ✅ Stock availability check (only if stock is loaded)
+    // Ã¢Å“â€¦ Stock availability check (only if stock is loaded)
     const stockQty = availableStock[productId];
     if (stockQty !== undefined && stockQty !== null) {
       if (row.dispatchedPcs > stockQty) {
@@ -345,36 +357,66 @@ useEffect(() => {
     } else {
       console.warn(`Stock not yet loaded for product ${productId}`);
     }
+    if (n(row.soldPcs) > n(row.dispatchedPcs)) {
+      row.soldPcs = n(row.dispatchedPcs);
+    }
+    if (n(row.soldShell) > n(row.dispatchedShell)) {
+      row.soldShell = Math.floor(n(row.dispatchedShell));
+    }
 
+    if (n(row.expectedReturnPcsEmpty) > n(row.soldPcs)) {
+      row.expectedReturnPcsEmpty = n(row.soldPcs);
+    }
+    if (n(row.expectedReturnShellEmpty) > n(row.soldShell)) {
+      row.expectedReturnShellEmpty = Math.floor(n(row.soldShell));
+    }
 
-    // Sync sold fields with dispatched
-    row.soldPcs = row.dispatchedPcs;
-    row.soldShell = row.dispatchedShell;
-
-  const dispatchedNow = n(row.dispatchedPcs);
-  const soldNow = n(row.soldPcs);
-  const discountNow = n(row.discount);
-
-  const discountAmtNow = (price * soldNow * discountNow) / 100;
-
-  row.expectedSale = Number((price * dispatchedNow).toFixed(2));
-  row.actualSale = Number((price * soldNow - discountAmtNow).toFixed(2));
-  row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
+    recalculateRowTotals(row, price);
 }
+
+  if (["soldPcs", "soldShell"].includes(field)) {
+    const maxSoldShell = Math.floor(n(row.dispatchedShell));
+    const maxSoldPcs = n(row.dispatchedPcs);
+
+    if (field === "soldShell") {
+      const shellQty = Math.floor(n(value));
+      row.soldShell = Math.min(shellQty, maxSoldShell);
+      row.soldPcs = Math.min(row.soldShell * conversion, maxSoldPcs);
+    } else if (field === "soldPcs") {
+      row.soldPcs = Math.min(n(value), maxSoldPcs);
+      if (n(row.soldShell) > maxSoldShell) {
+        row.soldShell = maxSoldShell;
+      }
+      if (n(row.soldPcs) === 0) {
+        row.soldShell = 0;
+      }
+    }
+
+    if (n(row.expectedReturnPcsEmpty) > n(row.soldPcs)) {
+      row.expectedReturnPcsEmpty = n(row.soldPcs);
+    }
+    if (n(row.expectedReturnShellEmpty) > n(row.soldShell)) {
+      row.expectedReturnShellEmpty = Math.floor(n(row.soldShell));
+    }
+
+    row.discrepancyPcsEmpty = n(row.soldPcs) - n(row.expectedReturnPcsEmpty);
+    row.discrepancyShellEmpty = n(row.soldShell) - n(row.expectedReturnShellEmpty);
+
+    recalculateRowTotals(row, price);
+  }
 
   
 // New changes Karen
-    if (isReturnable) {
-    const dispatchedShell = n(row.dispatchedShell);
-    const dispatchedPcs   = n(row.dispatchedPcs);
-    const returnedShell   = n(row.expectedReturnShellEmpty);
-    const returnedPcs     = n(row.expectedReturnPcsEmpty);
+  if (isReturnable) {
+    const soldShell = n(row.soldShell);
+    const soldPcs   = n(row.soldPcs);
+    const returnedShell = n(row.expectedReturnShellEmpty);
+    const returnedPcs = n(row.expectedReturnPcsEmpty);
 
-    // Compute discrepancy Empty even when user just entered Dispatched
-    row.discrepancyPcsEmpty   = dispatchedPcs   - returnedPcs;
-    row.discrepancyShellEmpty = dispatchedShell - returnedShell;
+    row.discrepancyPcsEmpty = soldPcs - returnedPcs;
+    row.discrepancyShellEmpty = soldShell - returnedShell;
   } else {
-    row.discrepancyPcsEmpty   = 0;
+    row.discrepancyPcsEmpty = 0;
     row.discrepancyShellEmpty = 0;
   }
 //.......
@@ -421,20 +463,17 @@ if (field === "discount") {
   // --- RETURNED EMPTY FIELDS (dependent on DISPATCHED) ---
 if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
   if (isReturnable) {
-    const dispatchedShell = n(row.dispatchedShell);
-    const dispatchedPcs   = n(row.dispatchedPcs);
+    const soldShell = n(row.soldShell);
+    const soldPcs   = n(row.soldPcs);
 
     if (field === "expectedReturnShellEmpty") {
       const shellQty = Math.floor(n(value));
 
-      // ✅ Clamp to dispatched Shell (can't exceed what was dispatched)
-      row.expectedReturnShellEmpty = Math.min(shellQty, dispatchedShell);
+      // Clamp to sold Shell so reserve rows can stay unsold.
+      row.expectedReturnShellEmpty = Math.min(shellQty, soldShell);
 
-      // ✅ Returned PCS follows the actual dispatched PCS, not contentNo
-      // e.g. if 1 Shell but only 3 PCS dispatched, then Returned PCS = 3
-      if (dispatchedShell > 0) {
-        // find the proportion of PCS per Shell that was dispatched
-        const pcsPerShell = dispatchedPcs / dispatchedShell;
+      if (soldShell > 0) {
+        const pcsPerShell = soldPcs / soldShell;
         row.expectedReturnPcsEmpty = Math.round(row.expectedReturnShellEmpty * pcsPerShell);
       } else {
         row.expectedReturnPcsEmpty = 0;
@@ -443,29 +482,18 @@ if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
 
     else if (field === "expectedReturnPcsEmpty") {
       const pcsQty = n(value);
-
-      // ✅ Clamp to dispatched PCS
-      row.expectedReturnPcsEmpty = Math.min(pcsQty, dispatchedPcs);
-
-      // 🚫 Stop auto-changing Shell when PCS changes
-      // Keep whatever Shell the user previously typed
+      row.expectedReturnPcsEmpty = Math.min(pcsQty, soldPcs);
     }
 
-
-    // ✅ Always recalc discrepancy for Empty
-    row.discrepancyPcsEmpty   = n(row.soldPcs)   - n(row.expectedReturnPcsEmpty);
+    row.discrepancyPcsEmpty = n(row.soldPcs) - n(row.expectedReturnPcsEmpty);
     row.discrepancyShellEmpty = n(row.soldShell) - n(row.expectedReturnShellEmpty);
-  } 
-
-  else {
-    // Non-returnable → reset
-    row.expectedReturnPcsEmpty   = 0;
+  } else {
+    row.expectedReturnPcsEmpty = 0;
     row.expectedReturnShellEmpty = 0;
-    row.discrepancyPcsEmpty      = 0;
-    row.discrepancyShellEmpty    = 0;
+    row.discrepancyPcsEmpty = 0;
+    row.discrepancyShellEmpty = 0;
   }
 }
-
 
 
   // --- RETURNED NON-EMPTY FIELDS ---
@@ -562,32 +590,56 @@ if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
     setDiscrepancyEmptyTotal?.(Number(totalDiscrepancyEmpty.toFixed(2)));
   }, [totalDiscrepancyEmpty, setDiscrepancyEmptyTotal]);
 
-  // Total actual sale (rows) + misc (your current behavior)
-  const totalActualSale = useMemo(
+  const miscItemsTotal = useMemo(
+    () => (miscItems || []).reduce((sum, item) => sum + n(item.amount), 0),
+    [miscItems]
+  );
+
+  const totalExpectedSaleCalc = useMemo(
+    () => rows.reduce((sum, r) => sum + n(r.expectedSale), 0),
+    [rows]
+  );
+
+  const totalActualSaleCalc = useMemo(
     () => rows.reduce((sum, r) => sum + n(r.actualSale), 0),
     [rows]
   );
 
+  const displayedSaleTotal = isReservedTransaction
+    ? totalExpectedSaleCalc + miscItemsTotal
+    : totalActualSaleCalc + miscItemsTotal;
+
   useEffect(() => {
-    const _misc = (miscItems || []).reduce((s, i) => s + n(i.amount), 0);
-    setTotalExpectedSale?.(0); // keep API surface; not used here
-    setTotalActualSale(totalActualSale + _misc);
-  }, [rows, miscItems, totalActualSale, setTotalActualSale, setTotalExpectedSale]);
+    setTotalExpectedSale?.(totalExpectedSaleCalc + miscItemsTotal);
+    setTotalActualSale(totalActualSaleCalc + miscItemsTotal);
+  }, [
+    miscItemsTotal,
+    totalActualSaleCalc,
+    totalExpectedSaleCalc,
+    setTotalActualSale,
+    setTotalExpectedSale,
+  ]);
 
   // Compute totalAmount for display (keeps your original rules)
   useEffect(() => {
     const misc = n(miscCharges);
     let totalAmountValue;
     if (selectedTransactionTypeName === "Van Load") {
-      totalAmountValue = totalActualSale - misc + overallDiscrepancy;
+      totalAmountValue = totalActualSaleCalc + miscItemsTotal - misc + overallDiscrepancy;
+    } else if (isReservedTransaction) {
+      totalAmountValue = totalExpectedSaleCalc + miscItemsTotal;
     } else {
       // Warehouse: (empties sold - empty returns) + product sales
-      totalAmountValue = emptiesPriceTotalCalc - refundablesTotalCalc + totalActualSale;
+      totalAmountValue =
+        emptiesPriceTotalCalc - refundablesTotalCalc + totalActualSaleCalc + miscItemsTotal;
     }
     setTotalAmount(totalAmountValue);
   }, [
     selectedTransactionTypeName,
-    totalActualSale,
+    isReservedTransaction,
+    totalActualSaleCalc,
+    totalExpectedSaleCalc,
+    miscItemsTotal,
     overallDiscrepancy,
     miscCharges,
     emptiesPriceTotalCalc,
@@ -681,7 +733,7 @@ if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
   // Kath: This facility is used to check console.logs in table area
 
 
-  // 🩵 FIX: Recalculate actualSale when pricing data becomes available
+  // Ã°Å¸Â©Âµ FIX: Recalculate actualSale when pricing data becomes available
 useEffect(() => {
   if (!pricingMap || !Object.keys(pricingMap).length) return;
 
@@ -728,7 +780,7 @@ useEffect(() => {
             <th className="border" colSpan={2}>Returned (Empty)</th>
             <th className="border" colSpan={2}>Discrepancy (Empty)</th>
             <th className="border">Discount (%)</th>
-            <th className="border">Actual Sale</th>
+            <th className="border">{saleAmountLabel}</th>
             <th className="border">Action</th>
           </tr>
 
@@ -781,7 +833,7 @@ useEffect(() => {
                     value={row.productName ?? ""}
                     onChange={(id) => handleProductChange(index, String(id))}
                     excludeIds={getSelectedProductIds(index)}
-                    placeholder="Search product…"
+                    placeholder="Search product..."
                   />
                 </td>
 
@@ -824,7 +876,7 @@ useEffect(() => {
                         "";
 
                       return sellingPrice !== "" && sellingPrice != null
-                        ? `₱${Number(sellingPrice).toFixed(2)}`
+                        ? formatPeso(sellingPrice)
                         : "";
                     })()}
                   />
@@ -834,17 +886,23 @@ useEffect(() => {
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
-                    disabled
-                    className="w-full p-1 text-sm text-center rounded "
+                    className={`input-always-spinner w-full p-1 text-sm text-center rounded ${hasProduct && n(row.dispatchedPcs) > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
                     value={row.soldShell ?? ""}
+                    onChange={(e) =>
+                      handleRowChange(index, "soldShell", e.target.value === "" ? null : e.target.value)
+                    }
+                    disabled={!hasProduct || n(row.dispatchedPcs) <= 0}
                   />
                 </td>
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
-                    disabled
-                    className="w-full p-1 text-sm text-center rounded "
+                    className={`input-always-spinner w-full p-1 text-sm text-center rounded ${hasProduct && n(row.dispatchedPcs) > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
                     value={row.soldPcs ?? ""}
+                    onChange={(e) =>
+                      handleRowChange(index, "soldPcs", e.target.value === "" ? null : e.target.value)
+                    }
+                    disabled={!hasProduct || n(row.dispatchedPcs) <= 0}
                   />
                 </td>
 
@@ -860,7 +918,7 @@ useEffect(() => {
                             const shellPrice = isMissing(row.shellPrice)
                               ? product?.price?.shell_price ?? 0
                               : row.shellPrice;
-                            return `₱${Number(shellPrice).toFixed(2)}`;
+                            return formatPeso(shellPrice);
                           })()
                     }
                     disabled
@@ -878,7 +936,7 @@ useEffect(() => {
                             const bottlePrice = isMissing(row.bottlePrice)
                               ? product?.price?.bottle_price ?? 0
                               : row.bottlePrice;
-                            return `₱${Number(bottlePrice).toFixed(2)}`;
+                            return formatPeso(bottlePrice);
                           })()
                     }
                     disabled
@@ -901,9 +959,9 @@ useEffect(() => {
                           // Style returned empty + discrepancy empty the same
                           ["expectedReturnShellEmpty","expectedReturnPcsEmpty","discrepancyShellEmpty","discrepancyPcsEmpty"].includes(field)
                             ? isReturnable
-                              ? // Returnable → show yellow input for returned fields but gray readonly for discrepancy
+                              ? // Returnable Ã¢â€ â€™ show yellow input for returned fields but gray readonly for discrepancy
                                 (field.includes("expectedReturn") ? "input-always-spinner bg-yellow-50" : "bg-gray-100")
-                              : // NON-returnable → ALL these fields disabled and gray
+                              : // NON-returnable Ã¢â€ â€™ ALL these fields disabled and gray
                                 "bg-gray-200 cursor-not-allowed"
                             : "bg-gray-100"
                         }
@@ -928,6 +986,7 @@ useEffect(() => {
                       readOnly={field.includes("discrepancy")}
                       disabled={
                         !hasProduct ||
+                        n(row.soldPcs) <= 0 ||
                         (
                           !isReturnable &&
                           (
@@ -961,8 +1020,14 @@ useEffect(() => {
                     className="w-full p-1 text-center bg-gray-50 text-gray-800 font-medium"
                     disabled
                     value={
-                      Number.isFinite(parseFloat(row.actualSale))
-                        ? `₱${parseFloat(row.actualSale).toLocaleString("en-PH", { minimumFractionDigits: 2 })}`
+                      Number.isFinite(
+                        parseFloat(isReservedTransaction ? row.expectedSale : row.actualSale)
+                      )
+                        ? formatPeso(
+                            parseFloat(
+                              isReservedTransaction ? row.expectedSale : row.actualSale
+                            )
+                          )
                         : ""
                     }
                   />
@@ -995,17 +1060,17 @@ useEffect(() => {
 
             {/* EMPTY PRICE (Shell + Bottle) */}
             <td colSpan={2} className="py-2 px-1 bg-slate-100 text-black text-center font-semibold">
-              ₱{parseFloat(emptiesPriceTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+              {formatPeso(parseFloat(emptiesPriceTotal || 0))}
             </td>
 
             {/* RETURNED (Empty) */}
             <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
-              ₱{parseFloat(-refundablesTotal || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+              {formatPeso(parseFloat(-refundablesTotal || 0))}
             </td>
 
             {/* DISCREPANCY (Empty) */}
             <td colSpan={2} className="py-2 px-1 bg-slate-100 text-gray-800 text-center font-semibold">
-              ₱{parseFloat(totalDiscrepancyEmpty || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+              {formatPeso(parseFloat(totalDiscrepancyEmpty || 0))}
             </td>
 
             {/* DISCOUNT spacer */}
@@ -1013,7 +1078,7 @@ useEffect(() => {
 
             {/* ACTUAL SALE total */}
             <td className="border border-gray-300 py-2 px-1 bg-slate-100 text-blue-700 font-bold text-center">
-              ₱{isNaN(totalActualSale) ? "0.00" : totalActualSale.toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+              {isNaN(displayedSaleTotal) ? formatPeso(0) : formatPeso(displayedSaleTotal)}
             </td>
 
             {/* Action spacer */}
@@ -1027,7 +1092,7 @@ useEffect(() => {
         <div className="flex items-center gap-2 bg-gray-200 px-4 py-2 rounded shadow text-right">
           <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>
           <span className="text-sm font-bold text-blue-800">
-            ₱{(parseFloat(totalAmount) || 0).toLocaleString("en-PH", { minimumFractionDigits: 2 })}
+            {formatPeso(parseFloat(totalAmount) || 0)}
           </span>
         </div>
       </div>

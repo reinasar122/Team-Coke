@@ -1,10 +1,7 @@
 // Stocks.jsx - UPDATED WITHOUT SUPPLIER PRODUCT CODE COLUMN
 import React, { useEffect, useState, useCallback } from "react";
 import api from "../api";
-import {
-  FaWarehouse, // eslint-disable-line no-unused-vars
-  FaBell, // eslint-disable-line no-unused-vars
-} from "react-icons/fa";
+import { FaWarehouse, FaClipboardList } from "react-icons/fa";
 import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils';
 import { applyStockThresholds, groupStocksForDisplay } from '../utils/stockThresholds';
 
@@ -99,12 +96,12 @@ const Stocks = () => {
 
   // Proper warehouse setup using utilities
   const setupWarehouse = useCallback(async () => {
-    console.log('🏭 Setting up warehouse for Stocks...');
+    console.log("Setting up warehouse for Stocks...");
     
     const warehouse = getCurrentWarehouse();
     
     if (!warehouse) {
-      console.warn('⚠️ No warehouse found for user');
+      console.warn("No warehouse found for user");
       setCurrentWarehouse(null);
       setLoading(false);
       return;
@@ -123,14 +120,14 @@ const Stocks = () => {
 
   const fetchStocks = useCallback(async () => {
     if (!currentWarehouse?.id) {
-      console.warn('❌ No warehouse ID available for fetching stocks');
+      console.warn("No warehouse ID available for fetching stocks");
       setStocks([]);
       return;
     }
 
     try {
       setLoading(true);
-      console.log('📦 Fetching stocks for warehouse:', currentWarehouse);
+      console.log("Fetching stocks for warehouse:", currentWarehouse);
 
       const response = await api.get(`/stocks/?warehouse=${currentWarehouse.id}`);
       const rawStockData = response.data;
@@ -138,13 +135,13 @@ const Stocks = () => {
       // Process stocks with current thresholds
       const processedStocks = applyStockThresholds(rawStockData);
       
-      console.log(`✅ Loaded ${processedStocks.length} stock items for warehouse ${currentWarehouse.name}`);
+      console.log(`Loaded ${processedStocks.length} stock items for warehouse ${currentWarehouse.name}`);
       setStocks(processedStocks);
 
       // Check for notifications when stocks are loaded
       await checkAndStoreNotifications(currentWarehouse.id);
     } catch (err) {
-      console.error("❌ Failed to load stocks:", err);
+      console.error("Failed to load stocks:", err);
       setStocks([]);
     } finally {
       setLoading(false);
@@ -154,7 +151,7 @@ const Stocks = () => {
   // Function to refresh stock statuses when thresholds change
   const refreshStockStatuses = useCallback(() => {
     if (stocks.length > 0) {
-      console.log('🔄 Refreshing stock statuses with new thresholds');
+      console.log("Refreshing stock statuses with new thresholds");
       const updatedStocks = applyStockThresholds(stocks);
       
       setStocks(updatedStocks);
@@ -180,7 +177,7 @@ const Stocks = () => {
   // Listen for warehouse changes
   useEffect(() => {
     const handleWarehouseChange = (event) => {
-      console.log('🏭 Warehouse change detected in Stocks:', event.detail);
+      console.log('Warehouse change detected in Stocks:', event.detail);
       setupWarehouse();
     };
     
@@ -188,10 +185,22 @@ const Stocks = () => {
     return () => window.removeEventListener("warehouseChanged", handleWarehouseChange);
   }, [setupWarehouse]);
 
+  // Refresh stocks immediately after warehouse reserve/pay updates
+  useEffect(() => {
+    const handleStocksChanged = () => {
+      if (currentWarehouse?.id) {
+        fetchStocks();
+      }
+    };
+
+    window.addEventListener("stocksChanged", handleStocksChanged);
+    return () => window.removeEventListener("stocksChanged", handleStocksChanged);
+  }, [currentWarehouse, fetchStocks]);
+
   // Listen for threshold changes
   useEffect(() => {
     const handleThresholdChange = (event) => {
-      console.log('⚙️ Stock thresholds changed:', event.detail);
+      console.log('Stock thresholds changed:', event.detail);
       refreshStockStatuses();
     };
     
@@ -199,7 +208,6 @@ const Stocks = () => {
     return () => window.removeEventListener("stockThresholdsChanged", handleThresholdChange);
   }, [refreshStockStatuses]);
 
-  // Group stocks by product NAME to combine quantities with the same product name // en
   const groupedStocks = groupStocksForDisplay(stocks);
 
   // Show loading state while setting up warehouse
@@ -228,14 +236,17 @@ const Stocks = () => {
   return (
     <div className="stocks-container">
       <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-        <h2 className="page-title" style={{ margin: 0 }}>
-          🧾 Stocks Table
+        <h2 className="page-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <FaClipboardList aria-hidden="true" />
+          <span>Stocks Table</span>
         </h2>
         
         {/* Show current warehouse */}
         {currentWarehouse && (
           <span className="page-warehouse-chip page-warehouse-chip--inline">
-            <span className="page-warehouse-chip__icon" aria-hidden="true">📦</span>
+            <span className="page-warehouse-chip__icon" aria-hidden="true">
+              <FaWarehouse />
+            </span>
             <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
           </span>
         )}

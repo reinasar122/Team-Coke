@@ -614,6 +614,7 @@ class Merchandising(models.Model):
     payment_method = models.CharField(max_length=50, blank=True, null=True)
     invoice_no = models.CharField(max_length=20, blank=True, null=True)
     status = models.CharField(max_length=50, default="PENDING")
+    reserved_date = models.DateField(blank=True, null=True)
     remarks = models.TextField(blank=True, null=True)
 
     returned_with_content = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -930,6 +931,7 @@ class NotificationType(models.TextChoices):
     OUT_OF_STOCK = 'out_of_stock', 'Out of Stock'
     STOCK_ADJUSTMENT = 'stock_adjustment', 'Stock Adjustment'
     NEW_RECEIVING = 'new_receiving', 'New Receiving'
+    RESERVED_PICKUP_DUE = 'reserved_pickup_due', 'Reserved Pickup Due'
     
     # Expense notifications
     EXPENSE_CREATED = 'expense_created', 'Expense Created'

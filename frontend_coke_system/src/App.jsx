@@ -42,7 +42,7 @@ import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
 import Expenses from "./pages/Expenses";
-import VanLoadUpdate from "./pages/VanLoadUpdate";
+import VanLoadReturnRemittance from "./pages/VanLoadReturnRemittance";
 import SupplierReturnForm from "./pages/SupplierReturnForm";
 import SupplierReturnList from "./pages/SupplierReturnList";
 import ReturnEmpties from "./pages/ReturnEmpties";
@@ -50,7 +50,7 @@ import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 import ReceivingDetails from "./pages/ReceivingDetails";
 import VanLoadProductDetails from "./pages/VanLoadProductDetails";
 import Settings from "./pages/Settings";
-// ✅ NEW: Import ExpenseSettings component
+// Ã¢Å“â€¦ NEW: Import ExpenseSettings component
 import ExpenseSettings from "./components/Settings";
 
 // Dashboard Page
@@ -68,7 +68,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Invoice from "./pages/Invoice";
 
 import ForecastingDashboard from "./pages/ForecastingDashboard";
-// ✅ Customer Registration Component
+// Ã¢Å“â€¦ Customer Registration Component
 import CustomerRegistration from './components/merchandisingcomponents/CustomerRegistration';
 
 import {
@@ -84,10 +84,10 @@ import {
   FaUserShield,
   FaWarehouse,
   FaUndoAlt,
-  FaChartBar,   // ✅ for Sales Report title
+  FaChartBar,   // Ã¢Å“â€¦ for Sales Report title
   FaMoneyBillWave,
-  FaDollarSign, // ✅ NEW: for Expense Settings
-  FaUserFriends, // ✅ ADD: for Customers
+  FaDollarSign, // Ã¢Å“â€¦ NEW: for Expense Settings
+  FaUserFriends, // Ã¢Å“â€¦ ADD: for Customers
 } from "react-icons/fa";
 
 const getStoredUser = () => {
@@ -146,7 +146,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// ✅ Layout wrapper for protected pages
+// Ã¢Å“â€¦ Layout wrapper for protected pages
 const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
   const location = useLocation();
   const hiddenRoutes = [
@@ -168,7 +168,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
       <div className="flex flex-1">
         {!hideLayout && <Sidebar isSidebarOpen={isSidebarOpen} />}
 
-        {/* 👇 app-content + conditional lock */}
+        {/* Ã°Å¸â€˜â€¡ app-content + conditional lock */}
         <div
           className={`app-content app-shell-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${
             !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
@@ -195,7 +195,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   }
                 />
 
-                {/* ✅ Customer page titles */}
+                {/* Ã¢Å“â€¦ Customer page titles */}
                 <Route
                   path="/customers"
                   element={
@@ -236,7 +236,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                   }
                 />
 
-                {/* ✅ NEW: Expense Settings page title */}
+                {/* Ã¢Å“â€¦ NEW: Expense Settings page title */}
                 <Route
                   path="/expense-settings"
                   element={
@@ -275,7 +275,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
                 />
                 
                 {/*}
-                ✅ Sales Report page title
+                Ã¢Å“â€¦ Sales Report page title
                 <Route
                   path="/reports/sales"
                   element={
@@ -301,7 +301,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             {/* Forecasting */}
             <Route path="/forecasting" element={<ForecastingDashboard />} />
 
-            {/* ✅ Customer Routes */}
+            {/* Ã¢Å“â€¦ Customer Routes */}
             <Route path="/customer-registration" element={<CustomerRegistration />} />
             <Route path="/customers" element={<Navigate to="/customer-registration" replace />} />
 
@@ -370,7 +370,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/expences" element={<Navigate to="/expenses" replace />} />
 
-            {/* ✅ NEW: Expense Settings Route */}
+            {/* Ã¢Å“â€¦ NEW: Expense Settings Route */}
             <Route path="/expense-settings" element={<ExpenseSettings />} />
             <Route path="/settings/expenses" element={<Navigate to="/expense-settings" replace />} />
 
@@ -387,13 +387,14 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route path="/warehouse-details/:mspNo" element={<WarehouseProductDetails />} />
 
             {/* Van Load */}
-            <Route path="/van-load-update" element={<VanLoadUpdate />} />
+            <Route path="/van-load-return-remittance" element={<VanLoadReturnRemittance />} />
+            <Route path="/van-load-update" element={<Navigate to="/van-load-return-remittance" replace />} />
             <Route path="/van-load-product-details/:id" element={<VanLoadProductDetails />} />
 
             {/* Edit Role Access */}
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
 
-            {/* ✅ Fallback for unmatched routes - redirect to dashboard if authenticated */}
+            {/* Ã¢Å“â€¦ Fallback for unmatched routes - redirect to dashboard if authenticated */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
@@ -402,7 +403,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
   );
 };
 
-// ✅ Main App Component with NotificationProvider
+// Ã¢Å“â€¦ Main App Component with NotificationProvider
 function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
@@ -411,7 +412,7 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // ✅ FIXED: Don't clear user data on refresh - only set session flag
+    // Ã¢Å“â€¦ FIXED: Don't clear user data on refresh - only set session flag
     if (!sessionStorage.getItem("app_initialized")) {
       sessionStorage.setItem("app_initialized", "true");
       console.log("New browser session initialized");

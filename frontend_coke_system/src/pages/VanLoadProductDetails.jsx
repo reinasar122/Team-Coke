@@ -7,11 +7,11 @@ import api from "../api";
 /* ---------------- Helpers ---------------- */
 const formatPhp = (n) =>
   Number.isFinite(Number(n))
-    ? `₱${Number(n).toLocaleString("en-PH", {
+    ? `\u20B1${Number(n).toLocaleString("en-PH", {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`
-    : "₱0.00";
+    : "\u20B10.00";
 
 const safe = (v, d = 0) => (v === null || v === undefined || v === "" ? d : v);
 
