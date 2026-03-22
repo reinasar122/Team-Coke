@@ -1131,6 +1131,12 @@ const Notification = ({ closeProfile }) => {
         if (data.handled_by) {
           details.push({ label: 'Handled By', value: safeToString(data.handled_by) });
         }
+        if (data.customer_name) {
+          details.push({ label: 'Customer', value: safeToString(data.customer_name) });
+        }
+        if (data.reserved_date) {
+          details.push({ label: 'Pickup Date', value: safeToString(data.reserved_date) });
+        }
         if (data.is_van_load && data.route) {
           const routeValue = typeof data.route === 'object' 
             ? safeToString(data.route.name || data.route.route_name || `Route ${data.route.id || 'Unknown'}`) 
@@ -3335,13 +3341,15 @@ const Notification = ({ closeProfile }) => {
             transaction_type_name: detail.transaction_type_name,
             handled_by: detail.handled_by,
             customer: detail.customer,
+            customer_name: detail.customer_name,
             expected_sale: detail.expected_sale || 0,
             actual_sale: detail.actual_sale || 0,
             warehouse_id: detail.warehouse_id,
+            reserved_date: detail.reserved_date || null,
             created_at: new Date().toISOString(),
             is_van_load: false,
             creation_type: detail.transaction_type_name,
-            status: 'Complete'
+            status: detail.status || 'Complete'
           };
           
           // Add notification immediately with backend sync

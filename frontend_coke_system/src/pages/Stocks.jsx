@@ -235,8 +235,8 @@ const Stocks = () => {
 
   return (
     <div className="stocks-container">
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.5rem' }}>
-        <h2 className="page-title" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+      <div className="stocks-header">
+        <h2 className="page-title stocks-title">
           <FaClipboardList aria-hidden="true" />
           <span>Stocks Table</span>
         </h2>
@@ -253,7 +253,7 @@ const Stocks = () => {
       </div>
     
       <div className="table-wrapper">
-        <table className="table table-hover">
+        <table className="table table-hover stocks-table">
           <thead>
             <tr>
               <th>Product</th>

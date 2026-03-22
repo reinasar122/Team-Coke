@@ -1,0 +1,223 @@
+.warehouses-page {
+  width: 100%;
+
+  &__header,
+  &__content {
+    width: 100%;
+    max-width: var(--app-shell-content-max);
+  }
+
+  &__title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin: 0;
+    font-size: clamp(2rem, 2.5vw, 2.35rem);
+    letter-spacing: -0.03em;
+  }
+
+  &__title-icon {
+    color: var(--text);
+    opacity: 0.92;
+  }
+
+  &__new-btn {
+    align-self: flex-start;
+    min-height: 2.75rem;
+    padding-inline: 1rem !important;
+    white-space: nowrap;
+    box-shadow: 0 10px 24px rgba(22, 163, 74, 0.18);
+  }
+
+  &__state {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.8rem;
+    min-height: 12rem;
+    padding: 2rem;
+    border: 1px solid rgba(226, 232, 240, 0.9);
+    border-radius: 1.2rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    color: var(--text-muted);
+    text-align: center;
+    box-shadow: 0 18px 34px rgba(15, 23, 42, 0.08);
+  }
+
+  &__state--loading {
+    flex-direction: column;
+  }
+
+  &__state--error {
+    color: #dc2626;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(20rem, 1fr));
+    gap: 1.35rem;
+    align-items: start;
+  }
+
+  &__card {
+    display: flex;
+    flex-direction: column;
+    min-height: 100%;
+    padding: 1.3rem 1.3rem 1rem;
+    border: 1px solid rgba(226, 232, 240, 0.95);
+    border-radius: 1.25rem;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 16px 32px rgba(15, 23, 42, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  }
+
+  &__card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 20px 38px rgba(15, 23, 42, 0.11);
+    border-color: rgba(191, 219, 254, 0.95);
+  }
+
+  &__card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.85rem;
+    margin-bottom: 1rem;
+  }
+
+  &__card-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.6rem;
+    height: 2.6rem;
+    border-radius: 0.95rem;
+    background: rgba(37, 99, 235, 0.1);
+    color: #1e293b;
+    flex-shrink: 0;
+  }
+
+  &__card-title {
+    margin: 0;
+    font-size: 1.4rem;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: var(--text);
+  }
+
+  &__details {
+    display: grid;
+    gap: 0.65rem;
+  }
+
+  &__detail {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.7rem;
+    margin: 0;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+
+  &__detail--address {
+    min-height: 4.25rem;
+  }
+
+  &__detail-icon {
+    flex-shrink: 0;
+    margin-top: 0.18rem;
+  }
+
+  &__detail-icon--address {
+    color: #ef4444;
+  }
+
+  &__detail-icon--phone {
+    color: #16a34a;
+  }
+
+  &__detail-icon--email {
+    color: #3b82f6;
+  }
+
+  &__actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 0.55rem;
+    margin-top: 1rem;
+    padding-top: 0.95rem;
+    border-top: 1px solid rgba(226, 232, 240, 0.9);
+  }
+}
+
+.dark .warehouses-page {
+  &__state,
+  &__card {
+    border-color: rgba(148, 163, 184, 0.18);
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.94) 0%, rgba(15, 23, 42, 0.84) 100%);
+    box-shadow: 0 20px 38px rgba(2, 6, 23, 0.45);
+  }
+
+  &__card:hover {
+    border-color: rgba(56, 189, 248, 0.24);
+  }
+
+  &__card-icon {
+    background: rgba(56, 189, 248, 0.12);
+    color: #e2e8f0;
+  }
+
+  &__detail-icon--address {
+    color: #f87171;
+  }
+
+  &__detail-icon--phone {
+    color: #34d399;
+  }
+
+  &__detail-icon--email {
+    color: #60a5fa;
+  }
+
+  &__actions {
+    border-top-color: rgba(148, 163, 184, 0.18);
+  }
+}
+
+@media (max-width: 1024px) {
+  .warehouses-page {
+    &__grid {
+      grid-template-columns: repeat(auto-fit, minmax(18.5rem, 1fr));
+    }
+  }
+}
+
+@media (max-width: 640px) {
+  .warehouses-page {
+    &__title {
+      font-size: 1.75rem;
+    }
+
+    &__new-btn {
+      width: 100%;
+      justify-content: center;
+    }
+
+    &__grid {
+      grid-template-columns: 1fr;
+      gap: 1rem;
+    }
+
+    &__card {
+      padding: 1.05rem 1rem 0.95rem;
+    }
+
+    &__card-title {
+      font-size: 1.25rem;
+    }
+
+    &__detail--address {
+      min-height: auto;
+    }
+  }
+}

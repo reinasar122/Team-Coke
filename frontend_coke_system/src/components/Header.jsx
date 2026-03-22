@@ -2,8 +2,6 @@
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBars, faUser, faWarehouse, faExchangeAlt, faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
 import { useState, useEffect, useRef } from "react";
-import { Link } from "react-router-dom";
-import axios from "axios";
 import Notification from "./Notification";
 import Profile from "../pages/Profile";
 import api from "../api";
@@ -146,84 +144,92 @@ const Header = ({ toggleSidebar }) => {
 
   return (
     <>
-      <header className="app-shell-header bg-gray-900 dark:bg-gray-950 text-white px-6 py-3 flex justify-between items-center shadow-md fixed top-0 left-0 right-0 z-40 transition-all duration-300">
-        {/* Left: Sidebar toggle + title */}
-        <div className="flex items-center">
-          <button onClick={toggleSidebar} className="text-xl mr-4 focus:outline-none hover:text-gray-300 transition-colors">
-            <FontAwesomeIcon icon={faBars} />
-          </button>
-          <h1 className="text-xl font-bold hidden sm:block">Coke Sales and Inventory System</h1>
-          <h1 className="text-lg font-bold sm:hidden">Coke POS</h1>
-        </div>
-
-        {/* Center: Warehouse Display */}
-        <div className="hidden md:block">
-          <button
-            onClick={isAdmin ? handleOpenWarehouseModal : undefined}
-            className={`px-4 py-2 rounded-lg flex items-center space-x-2 border transition-all duration-200 ${
-              isAdmin
-                ? "bg-gray-700 dark:bg-gray-800 hover:bg-gray-600 dark:hover:bg-gray-700 border-gray-600 dark:border-gray-700 cursor-pointer"
-                : "bg-gray-800 dark:bg-gray-900 border-gray-700 dark:border-gray-800 cursor-default"
-            }`}
-            disabled={!isAdmin}
-          >
-            <FontAwesomeIcon icon={faWarehouse} />
-            <span className="font-medium truncate max-w-48">{getDisplayWarehouse()}</span>
-            {isAdmin && <FontAwesomeIcon icon={faExchangeAlt} className="text-sm" />}
-          </button>
-        </div>
-
-        {/* Right: Dark Mode Toggle + Notifications + Profile */}
-        <div className="flex items-center space-x-3 relative" ref={dropdownRef}>
-          {/* Dark Mode Toggle */}
-          <button
-            onClick={toggleDarkMode}
-            className="relative p-2 rounded-lg bg-gray-800 dark:bg-gray-700 hover:bg-gray-700 dark:hover:bg-gray-600 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-500 group"
-            title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-            style={{
-              background: isDarkMode ? '#374151' : '#1f2937'
-            }}
-          >
-            <FontAwesomeIcon 
-              icon={isDarkMode ? faSun : faMoon} 
-              className={`text-lg transition-all duration-300 transform ${
-                isDarkMode ? 'text-yellow-400 rotate-180' : 'text-blue-300 rotate-0'
-              } group-hover:scale-110`} 
-            />
-          </button>
-
-          <Notification closeProfile={() => setIsProfileOpen(false)} />
-          
-          <div className="relative">
-            <button 
-              onClick={() => {
-                setIsProfileOpen(!isProfileOpen);
-                if (!isProfileOpen) {
-                  window.dispatchEvent(new CustomEvent('profileOpened'));
-                }
-              }} 
-              className="focus:outline-none p-2 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-700 transition-colors duration-200"
+      <header className="app-shell-header fixed left-0 right-0 top-0 z-40 bg-gray-900 px-4 py-3 text-white shadow-md transition-all duration-300 dark:bg-gray-950 sm:px-5 lg:px-6">
+        <div className="app-shell-header__inner flex items-center gap-3">
+          <div className="app-shell-header__left flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
+            <button
+              onClick={toggleSidebar}
+              className="app-shell-icon-btn app-shell-icon-btn--menu focus:outline-none"
+              aria-label="Toggle sidebar"
             >
-              <FontAwesomeIcon icon={faUser} className="cursor-pointer text-xl" />
+            <FontAwesomeIcon icon={faBars} />
+            </button>
+            <div className="min-w-0">
+              <h1 className="app-shell-brand hidden truncate text-xl font-bold sm:block">
+                Coke Sales and Inventory System
+              </h1>
+              <h1 className="app-shell-brand app-shell-brand--compact truncate text-lg font-bold sm:hidden">
+                Coke POS
+              </h1>
+            </div>
+          </div>
+
+          <div className="app-shell-header__center hidden flex-1 justify-center md:flex">
+            <button
+              onClick={isAdmin ? handleOpenWarehouseModal : undefined}
+              className={`app-shell-warehouse-switch ${
+                isAdmin
+                  ? "cursor-pointer hover:bg-gray-600 dark:hover:bg-gray-700"
+                  : "cursor-default opacity-95"
+              }`}
+              disabled={!isAdmin}
+            >
+              <FontAwesomeIcon icon={faWarehouse} />
+              <span className="truncate font-medium">{getDisplayWarehouse()}</span>
+              {isAdmin && <FontAwesomeIcon icon={faExchangeAlt} className="text-sm" />}
+            </button>
+          </div>
+
+          <div className="app-shell-header__right relative flex flex-1 items-center justify-end gap-2 sm:gap-3" ref={dropdownRef}>
+            <button
+              onClick={toggleDarkMode}
+              className="app-shell-icon-btn group focus:outline-none focus:ring-2 focus:ring-blue-500"
+              title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              type="button"
+            >
+              <FontAwesomeIcon 
+                icon={isDarkMode ? faSun : faMoon} 
+                className={`text-lg transition-all duration-300 transform ${
+                  isDarkMode ? 'text-yellow-400 rotate-180' : 'text-blue-300 rotate-0'
+                } group-hover:scale-110`} 
+              />
             </button>
 
-            {isProfileOpen && (
-              <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] sm:max-w-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-lg shadow-xl z-50 max-h-[calc(100vh-6rem)] overflow-y-auto border border-gray-200 dark:border-gray-700 transition-all duration-200">
-                <Profile />
-              </div>
-            )}
+            <Notification closeProfile={() => setIsProfileOpen(false)} />
+          
+            <div className="relative">
+              <button 
+                onClick={() => {
+                  setIsProfileOpen(!isProfileOpen);
+                  if (!isProfileOpen) {
+                    window.dispatchEvent(new CustomEvent('profileOpened'));
+                  }
+                }} 
+                className="app-shell-icon-btn focus:outline-none"
+                type="button"
+                aria-label="Open profile"
+              >
+                <FontAwesomeIcon icon={faUser} className="cursor-pointer text-xl" />
+              </button>
+
+              {isProfileOpen && (
+                <div className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] sm:max-w-sm bg-white dark:bg-gray-800 text-gray-800 dark:text-white rounded-lg shadow-xl z-50 max-h-[calc(100vh-6rem)] overflow-y-auto border border-gray-200 dark:border-gray-700 transition-all duration-200">
+                  <Profile />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>
 
       {/* Mobile Warehouse Display */}
-      <div className="app-shell-header-mobile md:hidden bg-gray-800 dark:bg-gray-900 text-white px-6 py-2 fixed top-16 left-0 right-0 z-10 transition-all duration-300">
+      <div className="app-shell-header-mobile fixed left-0 right-0 top-16 z-10 bg-gray-800 px-4 py-2 text-white transition-all duration-300 dark:bg-gray-900 md:hidden">
         <button
           onClick={isAdmin ? handleOpenWarehouseModal : undefined}
-          className={`w-full px-4 py-2 rounded-lg flex items-center justify-center space-x-2 transition-all duration-200 focus:outline-none border ${
+          className={`app-shell-warehouse-switch app-shell-warehouse-switch--mobile mx-auto ${
             isAdmin
-              ? "bg-gray-700 dark:bg-gray-800 hover:bg-gray-600 dark:hover:bg-gray-700 border-gray-600 dark:border-gray-700 cursor-pointer"
-              : "bg-gray-800 dark:bg-gray-900 border-gray-700 dark:border-gray-800 cursor-default"
+              ? "cursor-pointer hover:bg-gray-600 dark:hover:bg-gray-700"
+              : "cursor-default opacity-95"
           }`}
           disabled={!isAdmin}
         >

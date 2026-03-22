@@ -768,8 +768,8 @@ useEffect(() => {
   
   // -------------------- Render --------------------
   return (
-    <div className="table-wrapper">
-      <table className="table">
+    <div className="table-wrapper merch-product-table-wrapper">
+      <table className="table merch-product-table">
         <thead >
           <tr>
             <th className="border">Product</th>
@@ -1088,7 +1088,7 @@ useEffect(() => {
       </table>
 
       {/* Overall total */}
-      <div className="flex justify-end mt-2 mb-2 pr-4">
+      <div className="merch-product-total flex justify-end mt-2 mb-2 pr-4">
         <div className="flex items-center gap-2 bg-gray-200 px-4 py-2 rounded shadow text-right">
           <span className="font-semibold text-gray-700 text-sm">Overall Total:</span>
           <span className="text-sm font-bold text-blue-800">

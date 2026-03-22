@@ -152,12 +152,46 @@
 }
 
 /* Receiving table */
+.receiving-table {
+  th,
+  td {
+    padding: 0.8rem 1rem;
+  }
 
-// .receiving-table {
-//   overflow-x: auto; // in case table is wide
-//   border-radius: var(--r-md);
+  th:nth-child(5),
+  td:nth-child(5) {
+    min-width: 8.5rem;
+  }
 
-// }
+  th:nth-child(6),
+  td:nth-child(6) {
+    min-width: 10.5rem;
+    border-left: 1px solid var(--border);
+  }
+
+  th.money-col,
+  td:nth-child(5),
+  td:nth-child(6) {
+    text-align: right !important;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  th.money-col-total,
+  td:nth-child(6) {
+    padding-left: 1.25rem;
+  }
+
+  td:nth-child(5) {
+    color: var(--text-muted);
+    font-weight: 500;
+  }
+
+  td:nth-child(6) {
+    color: var(--text);
+    font-weight: 700;
+  }
+}
 
 .form-actions {
   display: flex;

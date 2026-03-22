@@ -291,7 +291,16 @@ const ProductList = () => {
     <div className="page">
       {/* Header */}
       <div className="page-header" style={{ flexWrap: 'wrap', rowGap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginRight: 'auto' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 16,
+            marginRight: 'auto',
+            flexWrap: 'wrap',
+            minWidth: 0
+          }}
+        >
           <h2 className="page-title" style={{ margin: 0 }}>Product List</h2>
          
           {/* ✅ KEPT: Show current warehouse (from old version) */}
@@ -409,8 +418,8 @@ const ProductList = () => {
       </div>
 
       {/* Search Bar */}
-      <div style={{ marginBottom: '20px' }}>
-        <div style={{ position: 'relative', maxWidth: '500px' }}>
+      <div style={{ marginBottom: '20px', width: '100%' }}>
+        <div style={{ position: 'relative', width: 'min(100%, 500px)' }}>
           <div style={{ position: 'relative' }}>
             <FaSearch style={{
               position: 'absolute',
@@ -535,15 +544,8 @@ const ProductList = () => {
       ) : viewMode === 'table' ? (
         /* Table View */
         <>
-          <div style={{
-            background: '#fff',
-            borderRadius: '8px',
-            border: '1px solid #e5e7eb',
-            overflow: 'hidden',
-            maxHeight: '70vh',
-            overflowY: 'auto'
-          }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <div className="table-wrapper" style={{ maxHeight: '70vh' }}>
+            <table style={{ width: '100%', minWidth: '720px', borderCollapse: 'collapse' }}>
               <thead style={{
                 position: 'sticky',
                 top: 0,
@@ -652,7 +654,7 @@ const ProductList = () => {
             ref={gridRef}
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(400px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
               gap: 24
             }}
           >
@@ -661,15 +663,16 @@ const ProductList = () => {
                 <div style={{
                   display: 'flex',
                   gap: 24,
-                  alignItems: 'flex-start'
+                  alignItems: 'flex-start',
+                  flexWrap: 'wrap'
                 }}>
                   {prod.image ? (
                     <img
                       src={prod.image}
                       alt={prod.product_name}
                       style={{
-                        width: '180px',
-                        height: '180px',
+                        width: 'clamp(120px, 32vw, 180px)',
+                        height: 'clamp(120px, 32vw, 180px)',
                         objectFit: 'cover',
                         borderRadius: '10px',
                         border: '2px solid #e5e7eb',
@@ -678,8 +681,8 @@ const ProductList = () => {
                     />
                   ) : (
                     <div style={{
-                      width: '180px',
-                      height: '180px',
+                      width: 'clamp(120px, 32vw, 180px)',
+                      height: 'clamp(120px, 32vw, 180px)',
                       background: '#f3f4f6',
                       border: '2px solid #e5e7eb',
                       borderRadius: '10px',
@@ -694,7 +697,7 @@ const ProductList = () => {
                     </div>
                   )}
 
-                  <div style={{ flex: 1, display: 'grid', gap: 16 }}>
+                  <div style={{ flex: '1 1 220px', minWidth: 0, display: 'grid', gap: 16 }}>
                     <h3 style={{
                       fontSize: '20px',
                       fontWeight: '600',
@@ -731,7 +734,8 @@ const ProductList = () => {
                       display: 'flex',
                       justifyContent: 'flex-end',
                       gap: 10,
-                      marginTop: 12
+                      marginTop: 12,
+                      flexWrap: 'wrap'
                     }}>
                       {canEdit("Product") ? (
                         <Link to={`/products/${prod.id}/edit`} title="Edit" className="icon-btn icon-btn-edit" style={{ padding: '10px', fontSize: '16px' }}>
@@ -775,6 +779,7 @@ const ProductList = () => {
               justifyContent: 'center',
               alignItems: 'center',
               gap: 20,
+              flexWrap: 'wrap',
               marginTop: 40,
               padding: '20px 0',
               borderTop: '1px solid #e5e7eb'

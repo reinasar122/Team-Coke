@@ -1,12 +1,11 @@
-import { useState, useEffect } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faTachometerAlt,
   faShoppingCart,
   faBoxOpen,
   faCog,
-  faSignOutAlt,
   faChevronDown,
   faChevronUp,
   faChartBar,
@@ -16,27 +15,49 @@ import { hasAccess } from "../utils/accessUtils"; // Import the new permission c
 import { canView } from "../utils/accessControl";
 import { routeMap, routeOrder } from "../utils/routeMap"; // Import route map
 
-const Sidebar = ({ isSidebarOpen }) => {
+const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
   const [accessibleRoutes, setAccessibleRoutes] = useState([]); // Store accessible routes here
   const navigate = useNavigate();
+  const location = useLocation();
+  const hasMounted = useRef(false);
+  const previousPathname = useRef(location.pathname);
 
   // Fetch accessible routes from localStorage or state whenever it changes
   useEffect(() => {
-    const accessList = JSON.parse(localStorage.getItem("access") || "[]");
     const allowedRoutes = routeOrder.filter((submenu) => hasAccess(submenu)); // Get accessible submenus
     setAccessibleRoutes(allowedRoutes); // Update the accessible routes state
   }, []); // Empty dependency array to run only once when the component is mounted
 
   // Redirect user to the first available route they have access to when the sidebar loads
   useEffect(() => {
-    const accessibleRoute = getAccessibleRoute();
+    const accessibleRoute =
+      accessibleRoutes.length > 0 ? routeMap[accessibleRoutes[0]] : null;
+    const currentPath = location.pathname;
+
     if (accessibleRoute) {
-      navigate(accessibleRoute);
-    } else {
-      navigate("/no-access");
+      if (currentPath === "/" || currentPath === "") {
+        navigate(accessibleRoute, { replace: true });
+      }
+    } else if (currentPath !== "/no-access") {
+      navigate("/no-access", { replace: true });
     }
-  }, [accessibleRoutes]); // Re-run when accessibleRoutes change
+  }, [accessibleRoutes, location.pathname, navigate]); // Re-run when accessibleRoutes change
+
+  useEffect(() => {
+    if (!hasMounted.current) {
+      hasMounted.current = true;
+      previousPathname.current = location.pathname;
+      return;
+    }
+
+    const didRouteChange = previousPathname.current !== location.pathname;
+    previousPathname.current = location.pathname;
+
+    if (didRouteChange && isSidebarOpen && !isDesktopViewport) {
+      onClose?.();
+    }
+  }, [location.pathname, isSidebarOpen, isDesktopViewport, onClose]);
 
   // Function to toggle the dropdown menu
   const toggleDropdown = (menu) => {
@@ -50,15 +71,6 @@ const Sidebar = ({ isSidebarOpen }) => {
   //   localStorage.removeItem("resetEmail");
   //   navigate("/login");
   // };
-
-  // Determine the first accessible route based on user permissions
-  const getAccessibleRoute = () => {
-    if (accessibleRoutes.length > 0) {
-      // If there are accessible routes, return the first one
-      return routeMap[accessibleRoutes[0]];
-    }
-    return null; // If no accessible route is found, return null (no access)
-  };
 
   // Use canView as the primary permission check (or hasAccess if you prefer)
   const checkAccess = (permission) => {
@@ -91,8 +103,8 @@ const Sidebar = ({ isSidebarOpen }) => {
   const isAdmin = roleName.toLowerCase() === "admin";
 
   return (
-    <div className={`app-shell-sidebar app-sidebar bg-gray-900 text-white w-64 h-screen p-5 fixed top-12 left-0 transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-64"}`}>
-      <ul className="space-y-3">
+    <div className={`app-shell-sidebar app-sidebar fixed left-0 z-30 overflow-y-auto bg-gray-900 text-white shadow-xl transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
+      <ul className="space-y-2 pb-3">
         {/* Dashboard */}
         <li>
           {checkAccess("Dashboard") ? (

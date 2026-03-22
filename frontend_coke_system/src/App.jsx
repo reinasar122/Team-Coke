@@ -5,6 +5,7 @@ import {
   Route,
   Navigate,
   useLocation,
+  useNavigate,
 } from "react-router-dom";
 
 // Layout Components
@@ -90,6 +91,13 @@ import {
   FaUserFriends, // Ã¢Å“â€¦ ADD: for Customers
 } from "react-icons/fa";
 
+const DESKTOP_SIDEBAR_BREAKPOINT = 1024;
+
+const getIsDesktopViewport = () => {
+  if (typeof window === "undefined") return true;
+  return window.innerWidth >= DESKTOP_SIDEBAR_BREAKPOINT;
+};
+
 const getStoredUser = () => {
   try {
     const rawUser = localStorage.getItem("user");
@@ -147,7 +155,12 @@ const ProtectedRoute = ({ children }) => {
 };
 
 // Ã¢Å“â€¦ Layout wrapper for protected pages
-const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
+const ProtectedLayout = ({
+  isSidebarOpen,
+  toggleSidebar,
+  closeSidebar,
+  isDesktopViewport,
+}) => {
   const location = useLocation();
   const hiddenRoutes = [
     "/change-password",
@@ -166,12 +179,30 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
     <div className="app-shell flex flex-col h-screen">
       {!hideLayout && <Header toggleSidebar={toggleSidebar} />}
       <div className="flex flex-1">
-        {!hideLayout && <Sidebar isSidebarOpen={isSidebarOpen} />}
+        {!hideLayout && (
+          <>
+            {isSidebarOpen && !isDesktopViewport && (
+              <button
+                type="button"
+                aria-label="Close sidebar"
+                className="app-shell-sidebar-backdrop fixed inset-x-0 bottom-0 z-20 bg-slate-950/40 backdrop-blur-[1px] lg:hidden"
+                onClick={closeSidebar}
+              />
+            )}
+            <Sidebar
+              isSidebarOpen={isSidebarOpen}
+              onClose={closeSidebar}
+              isDesktopViewport={isDesktopViewport}
+            />
+          </>
+        )}
 
         {/* Ã°Å¸â€˜â€¡ app-content + conditional lock */}
         <div
-          className={`app-content app-shell-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-5 flex-1 transition-all duration-300 ${
-            !hideLayout && isSidebarOpen ? "ml-64 pt-16" : "ml-0"
+          className={`app-content app-shell-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-3 md:p-5 flex-1 min-w-0 transition-all duration-300 ${
+            !hideLayout && isSidebarOpen && isDesktopViewport
+              ? "app-shell-content--sidebar-open"
+              : "ml-0"
           }`}
         >
           {/* Page Titles */}
@@ -319,7 +350,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 
             {/* Suppliers */}
             <Route path="/suppliers" element={<Suppliers />} />
-            <Route path="/register-supplier" element={<SupplierRegistrationForm />} />
+            <Route path="/register-supplier" element={<SupplierRegistrationPage />} />
             <Route path="/edit-supplier/:id" element={<SupplierEditForm />} />
 
             {/* Stocks */}
@@ -358,7 +389,7 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
             <Route
               path="/merchandising-sale"
               element={
-                <MerchandisingSale key={window.location.key || Date.now()} />
+                <MerchandisingSale />
               }
             />
 
@@ -404,9 +435,21 @@ const ProtectedLayout = ({ isSidebarOpen, toggleSidebar }) => {
 };
 
 // Ã¢Å“â€¦ Main App Component with NotificationProvider
+function SupplierRegistrationPage() {
+  const navigate = useNavigate();
+
+  return (
+    <SupplierRegistrationForm
+      onClose={() => navigate("/suppliers", { replace: true })}
+    />
+  );
+}
+
 function App() {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopViewport);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(getIsDesktopViewport);
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
+  const closeSidebar = () => setIsSidebarOpen(false);
 
   // Loading state to prevent flickering before rendering the page
   const [loading, setLoading] = useState(true);
@@ -419,6 +462,37 @@ function App() {
       // Don't automatically clear localStorage here - it causes refresh issues
     }
     setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(
+      `(min-width: ${DESKTOP_SIDEBAR_BREAKPOINT}px)`
+    );
+
+    const syncSidebarMode = (matches) => {
+      setIsDesktopViewport(matches);
+      setIsSidebarOpen(matches);
+    };
+
+    syncSidebarMode(mediaQuery.matches);
+
+    const handleChange = (event) => {
+      syncSidebarMode(event.matches);
+    };
+
+    if (mediaQuery.addEventListener) {
+      mediaQuery.addEventListener("change", handleChange);
+    } else {
+      mediaQuery.addListener(handleChange);
+    }
+
+    return () => {
+      if (mediaQuery.removeEventListener) {
+        mediaQuery.removeEventListener("change", handleChange);
+      } else {
+        mediaQuery.removeListener(handleChange);
+      }
+    };
   }, []);
 
   if (loading) {
@@ -466,6 +540,8 @@ function App() {
                 <ProtectedLayout
                   isSidebarOpen={isSidebarOpen}
                   toggleSidebar={toggleSidebar}
+                  closeSidebar={closeSidebar}
+                  isDesktopViewport={isDesktopViewport}
                 />
               </ProtectedRoute>
             }

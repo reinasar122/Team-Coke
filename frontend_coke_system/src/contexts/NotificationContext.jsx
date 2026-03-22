@@ -348,7 +348,7 @@ export const NotificationProvider = ({ children }) => {
         };
         break;
 
-      case 'warehouse_msp_created':
+case 'warehouse_msp_created':
         // ✅ ENHANCED: Better expected sale calculation for warehouse transactions
         const warehouseExpectedSale = Number(data.expected_sale || data.total_amount || data.actual_sale || 0);
         const hasItems = Array.isArray(data.items) && data.items.length > 0;
@@ -359,15 +359,24 @@ export const NotificationProvider = ({ children }) => {
         // Use the higher of the two values (expected_sale from data or calculated from items)
         const finalExpectedSale = Math.max(warehouseExpectedSale, calculatedFromItems);
         const isVanLoadCreated = data.is_van_load || (data.transaction_type_name || '').toLowerCase().includes('van load');
-        const creationType = isVanLoadCreated ? 'Van Load' : 'Warehouse MSP';
+        const creationStatus = String(data.status || '').trim().toLowerCase();
+        const isReservedWarehouseMsp = !isVanLoadCreated && creationStatus === 'reserved';
+        const creationType = isVanLoadCreated
+          ? 'Van Load'
+          : isReservedWarehouseMsp
+            ? 'Reserved Warehouse MSP'
+            : 'Warehouse MSP';
+        const reservedDetails = isReservedWarehouseMsp
+          ? `${data.customer_name ? ` - Customer: ${data.customer_name}` : ''}${data.reserved_date ? ` - Pickup Date: ${data.reserved_date}` : ''}`
+          : '';
         
         notification = {
           id: baseId,
           type: 'warehouse_msp_created',
           category: 'warehouse',
-          title: `New ${creationType} Created`,
+          title: isReservedWarehouseMsp ? 'Reserved Warehouse MSP Created' : `New ${creationType} Created`,
           message: `${creationType} created: ${data.msp_no || data.msp_number || `MSP #${data.id}`}`,
-          details: `Type: ${data.transaction_type_name || data.transaction_type || 'Unknown'} - Handler: ${data.handled_by || 'Unknown'} - Expected Sale: ₱${finalExpectedSale.toLocaleString()}${isVanLoadCreated && data.route ? ` - Route: ${typeof data.route === 'object' ? data.route.name : data.route}` : ''}`,
+          details: `Type: ${data.transaction_type_name || data.transaction_type || 'Unknown'} - Status: ${data.status || 'Unknown'} - Handler: ${data.handled_by || 'Unknown'} - Expected Sale: ₱${finalExpectedSale.toLocaleString()}${isVanLoadCreated && data.route ? ` - Route: ${typeof data.route === 'object' ? data.route.name : data.route}` : ''}${reservedDetails}`,
           timestamp: data.created_at || data.date_time || timestamp,
           is_read: false,
           priority: finalExpectedSale > 1000 ? 'medium' : 'low',
@@ -377,7 +386,8 @@ export const NotificationProvider = ({ children }) => {
             original_expected_sale: warehouseExpectedSale,
             items_total: calculatedFromItems,
             is_van_load: isVanLoadCreated,
-            creation_type: creationType
+            creation_type: creationType,
+            status: data.status || 'Unknown'
           },
           allowedRoles: ['admin', 'supervisor']
         };

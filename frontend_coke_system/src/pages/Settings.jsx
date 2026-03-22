@@ -14,6 +14,24 @@ const DEFAULT_THRESHOLDS = {
   high_threshold: 100,
 };
 
+const THRESHOLD_CARD_THEMES = {
+  red: {
+    card: "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20",
+    text: "text-red-600 dark:text-red-400",
+    bar: "#ef4444",
+  },
+  yellow: {
+    card: "border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20",
+    text: "text-yellow-600 dark:text-yellow-400",
+    bar: "#eab308",
+  },
+  green: {
+    card: "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20",
+    text: "text-green-600 dark:text-green-400",
+    bar: "#22c55e",
+  },
+};
+
 function Settings() {
   const [stockThresholds, setStockThresholds] = useState(DEFAULT_THRESHOLDS);
   const [initialThresholds, setInitialThresholds] = useState(DEFAULT_THRESHOLDS);
@@ -123,18 +141,18 @@ function Settings() {
   }
 
   return (
-    <div className="w-full px-10 py-8 bg-gray-50 dark:bg-gray-900 min-h-screen">
+    <div className="min-h-full w-full bg-gray-50 px-4 py-6 dark:bg-gray-900 sm:px-6 sm:py-8 lg:px-10">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
+      <div className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center">
         <FaCog className="text-3xl text-gray-800 dark:text-white" />
         <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
           Stock Threshold Settings
         </h1>
       </div>
 
-      <div className="bg-white dark:bg-gray-800 p-10 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700">
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800 sm:p-6 lg:p-10">
         {/* Description */}
-        <div className="mb-10">
+        <div className="mb-8 lg:mb-10">
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
             Configure Stock Levels
           </h2>
@@ -144,9 +162,9 @@ function Settings() {
           </p>
         </div>
 
-        <div className="grid xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-4 xl:gap-8">
           {/* Threshold Cards */}
-          <div className="xl:col-span-3 grid lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3 xl:col-span-3">
             {/* LOW */}
             <ThresholdCard
               title="Low Stock"
@@ -182,7 +200,7 @@ function Settings() {
           </div>
 
           {/* Preview */}
-          <div className="p-6 rounded-2xl bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 border dark:border-gray-600">
+          <div className="rounded-2xl border p-5 dark:border-gray-600 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 sm:p-6">
             <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
               Preview
             </h3>
@@ -202,10 +220,10 @@ function Settings() {
         </div>
 
         {/* Actions */}
-        <div className="flex justify-between items-center mt-12">
+        <div className="mt-10 flex flex-col-reverse gap-3 sm:mt-12 sm:flex-row sm:items-center sm:justify-between">
           <button
             onClick={resetToDefaults}
-            className="px-6 py-2 rounded-xl border border-gray-400 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+            className="w-full rounded-xl border border-gray-400 px-6 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
           >
             Reset to Defaults
           </button>
@@ -213,7 +231,7 @@ function Settings() {
           <button
             onClick={saveStockThresholds}
             disabled={!isDirty || saving}
-            className={`px-4 py-2 rounded-xl font-bold text-lg text-white transition-all
+            className={`w-full rounded-xl px-4 py-2 text-lg font-bold text-white transition-all sm:w-auto
               ${
                 !isDirty || saving
                   ? "bg-gray-400 cursor-not-allowed"
@@ -253,13 +271,13 @@ function ThresholdCard({
 }) {
   const percentage =
     max && value !== "" ? Math.min((value / max) * 100, 100) : 0;
+  const theme = THRESHOLD_CARD_THEMES[color] || THRESHOLD_CARD_THEMES.red;
 
   return (
     <div
-      className={`p-6 rounded-2xl border-2 transition-all hover:scale-[1.02] hover:shadow-lg
-        border-${color}-200 dark:border-${color}-800 bg-${color}-50 dark:bg-${color}-900/20`}
+      className={`rounded-2xl border-2 p-5 transition-all hover:shadow-lg sm:p-6 ${theme.card}`}
     >
-      <div className={`flex items-center gap-2 text-${color}-600 mb-3`}>
+      <div className={`mb-3 flex items-center gap-2 ${theme.text}`}>
         {icon}
         <h3 className="text-lg font-semibold">{title}</h3>
       </div>
@@ -269,13 +287,13 @@ function ThresholdCard({
         name={name}
         value={value}
         onChange={onChange}
-        className="w-full p-4 text-lg font-semibold rounded-xl border bg-white dark:bg-gray-900 focus:outline-none focus:ring-2 focus:ring-offset-1"
+        className="w-full rounded-xl border bg-white p-4 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-offset-1 dark:bg-gray-900 sm:text-lg"
       />
 
       <div className="mt-4 h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full">
         <div
-          className={`h-2 rounded-full bg-${color}-500 transition-all`}
-          style={{ width: `${percentage}%` }}
+          className="h-2 rounded-full transition-all"
+          style={{ width: `${percentage}%`, backgroundColor: theme.bar }}
         />
       </div>
     </div>

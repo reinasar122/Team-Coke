@@ -1151,15 +1151,15 @@ const ReceivingForm = () => {
         {/* Receiving Table */}
         <div className="card">
           <div className="table-wrapper">
-            <table className="table table-hover">
+            <table className="table table-hover receiving-table">
               <thead>
                 <tr>
                   <th>Product</th>
                   <th>No. Shell/Crate/Box</th>
                   <th>PCS</th>
                   <th>Bad Orders (PCS)</th>
-                  <th>Unit Cost</th>
-                  <th>Total</th>
+                  <th className="money-col">Unit Cost</th>
+                  <th className="money-col money-col-total">Total</th>
                 </tr>
               </thead>
               <tbody>

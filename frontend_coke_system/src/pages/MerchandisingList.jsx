@@ -348,8 +348,19 @@ const MerchandisingList = () => {
 
   return (
     <div className="tradinglist-container">
-      <div className="flex items-center justify-between m-4">
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+      <div
+        className="page-header"
+        style={{ flexWrap: "wrap", rowGap: 12, marginBottom: "1rem" }}
+      >
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "1rem",
+            flexWrap: "wrap",
+            minWidth: 0,
+          }}
+        >
           <h1 className="text-2xl flex items-center gap-2">
             <FaChartLine /> Trading
           </h1>
@@ -366,6 +377,7 @@ const MerchandisingList = () => {
           onClick={handleCreateNew}
           className="btn btn-add"
           disabled={!currentWarehouse?.id}
+          style={{ alignSelf: "flex-start" }}
         >
           + NEW SALE
         </button>

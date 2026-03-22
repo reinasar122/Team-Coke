@@ -1,14 +1,37 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { toast } from "react-toastify";
-import { errorStyle } from "../utils/toastStyles"
-import { FaWarehouse, FaEdit, FaTrash, FaEnvelope, FaPhone, FaMapMarkerAlt } from "react-icons/fa";
-import { canCreate, canEdit, canDelete, canView } from "../utils/accessControl";
+import { errorStyle } from "../utils/toastStyles";
+import {
+  FaWarehouse,
+  FaEdit,
+  FaTrash,
+  FaEnvelope,
+  FaPhone,
+  FaMapMarkerAlt,
+} from "react-icons/fa";
+import {
+  canCreate,
+  canEdit,
+  canDelete,
+  canView,
+} from "../utils/accessControl";
 import WarehouseForm from "./WarehouseForm";
 import EditWarehouse from "./EditWarehouse";
-import api from "../api"; // adjust path if needed
+import api from "../api";
+import "../styles/pages/warehouses.scss";
 
-
-
+const formatWarehouseAddress = (warehouse) =>
+  [
+    warehouse.street_address,
+    warehouse.barangay,
+    warehouse.city,
+    warehouse.province,
+    warehouse.region,
+    warehouse.country,
+    warehouse.zip_code,
+  ]
+    .filter(Boolean)
+    .join(", ");
 
 const Warehouses = () => {
   const [warehouses, setWarehouses] = useState([]);
@@ -35,10 +58,12 @@ const Warehouses = () => {
         setWarehouseToDelete(null);
         return;
       }
+
       if (editWarehouseId) {
         setEditWarehouseId(null);
         return;
       }
+
       if (showCreateModal) {
         setShowCreateModal(false);
       }
@@ -51,14 +76,14 @@ const Warehouses = () => {
   const fetchWarehouses = async () => {
     setLoading(true);
     setError(null);
+
     try {
       const { data } = await api.get("/warehouses/");
-  setWarehouses(data);
-
-    } catch (error) {
-      setError(error.message);
+      setWarehouses(data);
+    } catch (err) {
+      console.error("Error fetching warehouses:", err);
+      setError(err.message || "Failed to load warehouses.");
     } finally {
-      console.error("Error fetching warehouses:", error);
       setLoading(false);
     }
   };
@@ -67,10 +92,11 @@ const Warehouses = () => {
     try {
       await api.delete(`/warehouses/${warehouseToDelete.id}/`);
       setWarehouses((prev) => prev.filter((w) => w.id !== warehouseToDelete.id));
-      toast.error(`Warehouse '${warehouseToDelete.name}' has been deleted.`, { style: errorStyle });
-
-    } catch (error) {
-      console.error("Error deleting warehouse:", error);
+      toast.error(`Warehouse '${warehouseToDelete.name}' has been deleted.`, {
+        style: errorStyle,
+      });
+    } catch (err) {
+      console.error("Error deleting warehouse:", err);
       toast.error("Failed to delete warehouse.", { style: errorStyle });
     } finally {
       setShowDeleteModal(false);
@@ -79,19 +105,23 @@ const Warehouses = () => {
   };
 
   if (!canView("Warehouse")) {
-    return <div className="p-6 text-red-500 font-semibold">🚫 You do not have permission to view warehouses.</div>;
+    return (
+      <div className="p-6 font-semibold text-red-500">
+        You do not have permission to view warehouses.
+      </div>
+    );
   }
 
   return (
-    <div className="page">
-      <div className="flex justify-between items-center mb-4">
-        <div>
-          <h2 className="text-2xl font-bold flex items-center gap-2">
-            <FaWarehouse className="color: var(--text)" /> Warehouses
-          </h2>
-        </div>
+    <div className="page warehouses-page">
+      <div className="page-header warehouses-page__header">
+        <h2 className="page-title warehouses-page__title">
+          <FaWarehouse className="warehouses-page__title-icon" aria-hidden="true" />
+          <span>Warehouses</span>
+        </h2>
+
         <button
-          className={`px-5 py-2 btn btn-add`}
+          className="btn btn-add warehouses-page__new-btn"
           onClick={() => canCreate("Warehouse") && setShowCreateModal(true)}
           disabled={!canCreate("Warehouse")}
         >
@@ -99,84 +129,111 @@ const Warehouses = () => {
         </button>
       </div>
 
-      {loading ? (
-      <div className="text-center py-10 text-gray-400">
-        <svg className="animate-spin h-8 w-8 mx-auto mb-2 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"></path>
-        </svg>
-        Loading warehouses...
-      </div>
-    ) : error ? (
-      <div className="text-center py-10 text-red-500 font-semibold">
-        {error}
-      </div>
-      //empty State
-   ) : warehouses.length === 0 ? (
-        <div className="text-center text-gray-500 py-10">
-          No warehouses found. Click <span className="font-bold">+ New Warehouse</span> to add one.
+      <div className="warehouses-page__content">
+        {loading ? (
+          <div className="warehouses-page__state warehouses-page__state--loading">
+            <svg
+              className="h-8 w-8 animate-spin text-blue-500"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8v8z"
+              ></path>
+            </svg>
+            <span>Loading warehouses...</span>
           </div>
-      ) : (
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {warehouses.map((warehouse) => (
-          <div key={warehouse.id} className="bg-white shadow-lg p-3 rounded-xl border-l-3 border-shadow-500 hover:shadow-xl transition"> 
-           
-              {/* Title */}
-            <div className="flex items-center gap-2 mb-3">
-                <FaWarehouse className="color: var(--text)" size={22} />
-                <h2 className="font-bold text-xl">{warehouse.name}</h2>
-              </div>
-
-            {/* Address */}
-            <p className="text-sm text-gray-600 mb-1">
-              <FaMapMarkerAlt className="inline mr-1 text-red-500" />
-              {warehouse.street_address}, {warehouse.barangay}, {warehouse.city}, {warehouse.province}, {warehouse.region}, {warehouse.country} {warehouse.zip_code}
-            </p>
-            {/* Contact */}
-            <p className="text-sm text-gray-700 mb-1">
-              <FaPhone className="inline mr-1 text-green-500" />
-              {warehouse.phone_number}
-            </p>
-            <p className="text-sm text-gray-700 mb-1">
-              <FaEnvelope className="inline mr-1 text-blue-500" />
-              {warehouse.email}
-            </p>
-
-            {/*Edit Warehouse*/}
-            <div className="flex justify-end gap-3 mt-4">
-              <button
-                onClick={() => canEdit("Warehouse") && setEditWarehouseId(warehouse.id)}
-                disabled={!canEdit("Warehouse")}
-                title="Edit Warehouse"
-                className="icon-btn" 
-              >
-                <FaEdit/> 
-              </button>
-
-            {/*Delete Warehouse*/}
-              <button
-                onClick={() => {  
-                  if (canDelete("Warehouse")) {
-                    setWarehouseToDelete(warehouse);
-                    setShowDeleteModal(true);
-                  }
-                }}
-                disabled={!canDelete("Warehouse")}
-                title="Delete Warehouse"
-                className={`icon-btn-danger`}
-              >
-                <FaTrash/>
-              </button>
-            </div>
+        ) : error ? (
+          <div className="warehouses-page__state warehouses-page__state--error">
+            {error}
           </div>
-        ))}
+        ) : warehouses.length === 0 ? (
+          <div className="warehouses-page__state">
+            No warehouses found. Click <span className="font-bold">+ New Warehouse</span> to add one.
+          </div>
+        ) : (
+          <div className="warehouses-page__grid">
+            {warehouses.map((warehouse) => (
+              <article key={warehouse.id} className="warehouses-page__card">
+                <div className="warehouses-page__card-header">
+                  <span className="warehouses-page__card-icon" aria-hidden="true">
+                    <FaWarehouse />
+                  </span>
+                  <h3 className="warehouses-page__card-title">{warehouse.name}</h3>
+                </div>
+
+                <div className="warehouses-page__details">
+                  <p className="warehouses-page__detail warehouses-page__detail--address">
+                    <FaMapMarkerAlt
+                      className="warehouses-page__detail-icon warehouses-page__detail-icon--address"
+                      aria-hidden="true"
+                    />
+                    <span>{formatWarehouseAddress(warehouse)}</span>
+                  </p>
+
+                  <p className="warehouses-page__detail">
+                    <FaPhone
+                      className="warehouses-page__detail-icon warehouses-page__detail-icon--phone"
+                      aria-hidden="true"
+                    />
+                    <span>{warehouse.phone_number || "No phone number listed"}</span>
+                  </p>
+
+                  <p className="warehouses-page__detail">
+                    <FaEnvelope
+                      className="warehouses-page__detail-icon warehouses-page__detail-icon--email"
+                      aria-hidden="true"
+                    />
+                    <span>{warehouse.email || "No email listed"}</span>
+                  </p>
+                </div>
+
+                <div className="warehouses-page__actions">
+                  <button
+                    onClick={() => canEdit("Warehouse") && setEditWarehouseId(warehouse.id)}
+                    disabled={!canEdit("Warehouse")}
+                    title="Edit Warehouse"
+                    aria-label={`Edit ${warehouse.name}`}
+                    className="icon-btn"
+                  >
+                    <FaEdit />
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      if (canDelete("Warehouse")) {
+                        setWarehouseToDelete(warehouse);
+                        setShowDeleteModal(true);
+                      }
+                    }}
+                    disabled={!canDelete("Warehouse")}
+                    title="Delete Warehouse"
+                    aria-label={`Delete ${warehouse.name}`}
+                    className="icon-btn-danger"
+                  >
+                    <FaTrash />
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </div>
-      )}
-        
-      {/* Create Modal */}
+
       {showCreateModal && (
         <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
-          <div className="app-modal-panel app-modal-panel-md bg-white p-6 rounded shadow-lg w-full max-w-lg">
+          <div className="app-modal-panel app-modal-panel-md w-full max-w-lg rounded bg-white p-6 shadow-lg">
             <WarehouseForm
               onClose={() => setShowCreateModal(false)}
               onSuccess={() => {
@@ -188,10 +245,9 @@ const Warehouses = () => {
         </div>
       )}
 
-      {/* Edit Modal */}
       {editWarehouseId && (
         <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
-          <div className="app-modal-panel app-modal-panel-md bg-white p-6 rounded shadow-lg w-full max-w-lg">
+          <div className="app-modal-panel app-modal-panel-md w-full max-w-lg rounded bg-white p-6 shadow-lg">
             <EditWarehouse
               id={editWarehouseId}
               onClose={() => setEditWarehouseId(null)}
@@ -204,17 +260,17 @@ const Warehouses = () => {
         </div>
       )}
 
-      {/* Delete Modal */}
       {showDeleteModal && (
         <div className="app-modal-overlay z-50" role="dialog" aria-modal="true">
-          <div className="app-modal-panel app-modal-panel-sm bg-white p-6 rounded shadow-lg max-w-full w-full max-w-xl mx-4">
-            <p className="text-lg font-semibold mb-6">
+          <div className="app-modal-panel app-modal-panel-sm mx-4 w-full max-w-xl rounded bg-white p-6 shadow-lg">
+            <p className="mb-6 text-lg font-semibold">
               Are you sure you want to delete <strong>{warehouseToDelete?.name}</strong>?
             </p>
-            <div className="md:col-span-2 flex justify-end gap-2 mt-4">
+
+            <div className="mt-4 flex justify-end gap-2 md:col-span-2">
               <div>
                 <button
-                  className="btn btn-cancel py-2 px-4"
+                  className="btn btn-cancel px-4 py-2"
                   onClick={() => setShowDeleteModal(false)}
                 >
                   Cancel
@@ -222,7 +278,7 @@ const Warehouses = () => {
               </div>
               <div>
                 <button
-                  className="px-4 py-2 btn btn-danger"
+                  className="btn btn-danger px-4 py-2"
                   onClick={handleDelete}
                 >
                   Delete

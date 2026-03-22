@@ -38,6 +38,22 @@ const notifyVanLoadCreated = (vanLoadData) => {
 const notifyWarehouseMspCreated = (mspData) => {
   console.log("Notifying warehouse MSP creation:", mspData);
 
+  const normalizedWarehouseId =
+    typeof mspData.warehouse === "object"
+      ? mspData.warehouse?.id
+      : mspData.warehouse;
+  const normalizedCustomer =
+    typeof mspData.customer === "object"
+      ? mspData.customer?.id
+      : mspData.customer;
+  const customerName =
+    mspData.customer_name ||
+    mspData.customer?.name ||
+    mspData.customer?.full_name ||
+    "";
+  const status = mspData.status || "Complete";
+  const isReserved = String(status).trim().toLowerCase() === "reserved";
+
   const event = new CustomEvent("warehouseMspCreated", {
     detail: {
       action: "created",
@@ -45,13 +61,18 @@ const notifyWarehouseMspCreated = (mspData) => {
       msp_no: mspData.msp_no,
       transaction_type_name: mspData.transaction_type_name || "Warehouse",
       handled_by: mspData.handled_by,
-      customer: mspData.customer,
+      customer: normalizedCustomer,
+      customer_name: customerName,
       expected_sale: mspData.expected_sale,
       actual_sale: mspData.actual_sale,
-      warehouse_id: mspData.warehouse,
+      status,
+      reserved_date: mspData.reserved_date || null,
+      warehouse_id: normalizedWarehouseId,
       createdBy: JSON.parse(localStorage.getItem("user") || "{}").username || "Unknown",
       timestamp: new Date().toISOString(),
-      summary: `Warehouse MSP ${mspData.msp_no} has been created`,
+      summary: isReserved
+        ? `Reserved warehouse MSP ${mspData.msp_no} has been created`
+        : `Warehouse MSP ${mspData.msp_no} has been created`,
     },
   });
 
@@ -1224,10 +1245,9 @@ const MerchandisingSale = () => {
     setIsPaymentModalOpen(true);
   };
 
-  const handleReservedDateSelected = (reservedDate) => {
+  const handleReservedDateSelected = async (reservedDate) => {
     if (!reservedDate) return;
-    setSelectedReservedDate(reservedDate);
-    setIsReservedModalOpen(false);
+    await handleReserveTransaction(reservedDate);
   };
 
   const handleReserveTransaction = async (reservedDate = selectedReservedDate) => {
@@ -1358,7 +1378,7 @@ const MerchandisingSale = () => {
   };
 
   return (
-    <div className="p-6">
+    <div className="merch-sale-page p-6">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-xl font-bold m-0">
           {pageTitle}
@@ -1374,7 +1394,7 @@ const MerchandisingSale = () => {
         )}
       </div>
 
-      <div className="flex flex-col md:flex-row justify-between gap-6 mb-6">
+      <div className="merch-sale-form-grid flex flex-col md:flex-row justify-between gap-6 mb-6">
         {/* LEFT */}
         <div className="flex flex-col space-y-4 w-full md:w-1/2">
           <div>

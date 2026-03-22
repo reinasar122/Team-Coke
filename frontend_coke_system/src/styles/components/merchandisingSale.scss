@@ -172,3 +172,48 @@ select {
   background: transparent;
   color: #cbd5e1;
 }
+
+.merch-sale-page {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding: clamp(1rem, 2vw, 1.5rem);
+}
+
+.merch-sale-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr));
+  align-items: start;
+  gap: 1.5rem;
+}
+
+.merch-sale-page .form-left,
+.merch-sale-page .form-right {
+  width: 100%;
+  min-width: 0;
+}
+
+.merch-product-table-wrapper {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  max-height: min(60vh, 600px);
+}
+
+.merch-product-table {
+  min-width: 1180px;
+}
+
+.merch-product-total {
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1279px) {
+  .merch-sale-page {
+    padding: 1rem;
+  }
+
+  .merch-product-table {
+    min-width: 1080px;
+  }
+}

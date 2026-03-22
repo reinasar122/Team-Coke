@@ -255,7 +255,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
       }
       
       toast.success("Supplier successfully added!", { style: successStyle });
-      onSuccess?.();
+      onSuccess?.(response.data);
       onClose?.();
     } catch (error) {
       const data = error.response?.data;

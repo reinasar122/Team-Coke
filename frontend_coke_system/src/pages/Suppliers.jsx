@@ -1,4 +1,9 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  findWarehouseByName,
+  getCurrentWarehouse,
+  getWarehouseAxiosConfig,
+} from "../utils/warehouseUtils";
 import {
   FaTrash,
   FaEdit,
@@ -28,6 +33,20 @@ function Detail({ label, value, className = "" }) {
   );
 }
 
+const normalizeSupplierList = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.data)) return payload.data;
+  return [];
+};
+
+const upsertSupplier = (items, supplier) => {
+  if (!supplier?.id) return items;
+  return [supplier, ...items.filter((item) => item.id !== supplier.id)];
+};
+
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
 const Suppliers = () => {
   const [suppliers, setSuppliers] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -54,10 +73,6 @@ const Suppliers = () => {
   const [editSupplierId, setEditSupplierId] = useState(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [supplierToDelete, setSupplierToDelete] = useState(null);
-
-  useEffect(() => {
-    fetchSuppliers();
-  }, []);
 
   useEffect(() => {
     localStorage.setItem("supplier_view_mode", viewMode);
@@ -92,18 +107,70 @@ const Suppliers = () => {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showRegisterModal, editSupplierId, showDeleteModal]);
 
-  const fetchSuppliers = async () => {
-    try {
+  const fetchSuppliers = useCallback(
+    async ({ showErrorToast = true, attempts = 1, delayMs = 0 } = {}) => {
       setLoading(true);
-      const { data } = await api.get("/suppliers/");
-      setSuppliers(data || []);
-    } catch (error) {
-      console.error("Error fetching suppliers:", error);
-      toast.error("Failed to load suppliers.", { style: errorStyle });
-    } finally {
-      setLoading(false);
-    }
-  };
+
+      try {
+        let lastError;
+
+        for (let attempt = 0; attempt < attempts; attempt += 1) {
+          try {
+            let warehouse = getCurrentWarehouse();
+            if (warehouse?.needsIdLookup && warehouse.name) {
+              warehouse = await findWarehouseByName(warehouse.name);
+            }
+
+            const warehouseConfig = getWarehouseAxiosConfig(warehouse);
+            const requests = warehouse?.id
+              ? [
+                  { url: `/suppliers/?warehouse=${warehouse.id}`, config: warehouseConfig },
+                  { url: `/suppliers/?warehouse_id=${warehouse.id}`, config: warehouseConfig },
+                  { url: "/suppliers/", config: warehouseConfig },
+                  { url: "/suppliers/" },
+                ]
+              : [{ url: "/suppliers/" }];
+
+            let response;
+            for (const request of requests) {
+              try {
+                response = await api.get(request.url, request.config);
+                break;
+              } catch (requestError) {
+                lastError = requestError;
+              }
+            }
+
+            if (!response) {
+              throw lastError || new Error("Failed to load suppliers.");
+            }
+
+            setSuppliers(normalizeSupplierList(response.data));
+            return;
+          } catch (attemptError) {
+            lastError = attemptError;
+            if (attempt < attempts - 1 && delayMs > 0) {
+              await wait(delayMs);
+            }
+          }
+        }
+
+        throw lastError || new Error("Failed to load suppliers.");
+      } catch (error) {
+        console.error("Error fetching suppliers:", error);
+        if (showErrorToast) {
+          toast.error("Failed to load suppliers.", { style: errorStyle });
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    void fetchSuppliers();
+  }, [fetchSuppliers]);
 
   const formatAddress = (s) => {
     const street = s.street ?? s.street_address;
@@ -481,7 +548,12 @@ const Suppliers = () => {
             <SupplierRegistrationForm
               onClose={() => {
                 setShowRegisterModal(false);
-                fetchSuppliers();
+              }}
+              onSuccess={(createdSupplier) => {
+                if (createdSupplier) {
+                  setSuppliers((prev) => upsertSupplier(prev, createdSupplier));
+                }
+                void fetchSuppliers({ showErrorToast: false, attempts: 3, delayMs: 300 });
               }}
             />
           </div>
@@ -496,7 +568,7 @@ const Suppliers = () => {
               supplierId={editSupplierId}
               onClose={() => {
                 setEditSupplierId(null);
-                fetchSuppliers();
+                void fetchSuppliers();
               }}
             />
           </div>
