@@ -290,15 +290,35 @@ useEffect(() => {
     return;
   }
 
-
+  if (["soldShell", "soldPcs"].includes(field)) {
+    return;
+  }
 
   if (value === null) {
     row[field] = null;
+
+    if (["dispatchedShell", "dispatchedPcs"].includes(field)) {
+      row.dispatchedShell = "";
+      row.dispatchedPcs = "";
+      row.soldShell = "";
+      row.soldPcs = "";
+      row.expectedReturnShellEmpty = "";
+      row.expectedReturnPcsEmpty = "";
+      row.expectedReturnShellNonempty = "";
+      row.expectedReturnPcsNonempty = "";
+      row.discrepancyShellEmpty = "";
+      row.discrepancyPcsEmpty = "";
+      row.discrepancyShellNonempty = "";
+      row.discrepancyPcsNonempty = "";
+      row.expectedSale = "";
+      row.actualSale = "";
+      row.discrepancy = "";
+    }
+
     updated[index] = row;
     setRows(updated);
-    return;   // Ã¢Â¬â€¦Ã¯Â¸Â stops before doing any math
+    return;
   }
-
   const n = (v) => parseFloat(v) || 0;
   row[field] = value;
 
@@ -326,20 +346,17 @@ useEffect(() => {
   // --- DISPATCHED / SOLD FIELDS ---
   if (["dispatchedPcs", "dispatchedShell"].includes(field)) {
     if (field === "dispatchedShell") {
-      // Ã¢Å“â€¦ When user changes Shell, auto-fill PCS (for convenience)
       const shellQty = Math.floor(n(value));
       row.dispatchedShell = shellQty;
       row.dispatchedPcs = shellQty * conversion;
-    } 
-    else if (field === "dispatchedPcs") {
-      // Ã¢Å“â€¦ When user changes PCS, do NOT auto-change Shell anymore
+    } else if (field === "dispatchedPcs") {
       row.dispatchedPcs = n(value);
-      // Keep whatever Shell was manually entered earlier
     }
 
-      
+    row.soldShell = Math.floor(n(row.dispatchedShell));
+    row.soldPcs = n(row.dispatchedPcs);
 
-    // Ã¢Å“â€¦ Stock availability check (only if stock is loaded)
+    // Stock availability check (only if stock is loaded)
     const stockQty = availableStock[productId];
     if (stockQty !== undefined && stockQty !== null) {
       if (row.dispatchedPcs > stockQty) {
@@ -886,23 +903,21 @@ useEffect(() => {
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
-                    className={`input-always-spinner w-full p-1 text-sm text-center rounded ${hasProduct && n(row.dispatchedPcs) > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
+                    className={`input-always-spinner w-full p-1 text-sm text-center rounded ${hasProduct && n(row.dispatchedPcs) > 0 ? "bg-white" : "bg-gray-200 cursor-not-allowed"}`}
                     value={row.soldShell ?? ""}
-                    onChange={(e) =>
-                      handleRowChange(index, "soldShell", e.target.value === "" ? null : e.target.value)
-                    }
-                    disabled={!hasProduct || n(row.dispatchedPcs) <= 0}
+                    readOnly
+                    tabIndex={-1}
+                    title="Auto-filled from dispatched"
                   />
                 </td>
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
-                    className={`input-always-spinner w-full p-1 text-sm text-center rounded ${hasProduct && n(row.dispatchedPcs) > 0 ? "bg-yellow-50" : "bg-gray-200 cursor-not-allowed"}`}
+                    className={`input-always-spinner w-full p-1 text-sm text-center rounded ${hasProduct && n(row.dispatchedPcs) > 0 ? "bg-white" : "bg-gray-200 cursor-not-allowed"}`}
                     value={row.soldPcs ?? ""}
-                    onChange={(e) =>
-                      handleRowChange(index, "soldPcs", e.target.value === "" ? null : e.target.value)
-                    }
-                    disabled={!hasProduct || n(row.dispatchedPcs) <= 0}
+                    readOnly
+                    tabIndex={-1}
+                    title="Auto-filled from dispatched"
                   />
                 </td>
 

@@ -156,11 +156,16 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
                 <li>
                   <NavLink
                     to="/trading"
-                    className={({ isActive }) =>
-                      `block p-2 text-sm rounded hover:bg-gray-600 ${
-                        isActive ? "bg-gray-700" : ""
-                      }`
-                    }
+                    className={({ isActive }) => {
+                      const isTradingSection =
+                        isActive ||
+                        location.pathname === "/reservationlist" ||
+                        location.pathname.startsWith("/reservationlist/");
+
+                      return `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isTradingSection ? "bg-gray-700" : ""
+                      }`;
+                    }}
                   >
                     Trading
                   </NavLink>

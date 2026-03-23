@@ -170,17 +170,14 @@
   }
 
   th.money-col,
+  th.money-col-total,
   td:nth-child(5),
   td:nth-child(6) {
-    text-align: right !important;
+    text-align: center !important;
     white-space: nowrap;
     font-variant-numeric: tabular-nums;
   }
 
-  th.money-col-total,
-  td:nth-child(6) {
-    padding-left: 1.25rem;
-  }
 
   td:nth-child(5) {
     color: var(--text-muted);

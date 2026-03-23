@@ -60,11 +60,13 @@ const StatusPill = ({ status, dueToday = false }) => {
   return <span className={`${base} merch-status-pill--default`}>{status || "\u2014"}</span>;
 };
 
-const MerchandisingList = () => {
+const MerchandisingList = ({ view = "trading" }) => {
   const [sales, setSales] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const isReservationView =
+    String(view || "").trim().toLowerCase() === "reservation";
   const asYmd = (iso) => (iso ? new Date(iso).toISOString().slice(0, 10) : "");
 
   // Setup warehouse (same pattern as ProductList)
@@ -180,7 +182,7 @@ const MerchandisingList = () => {
       if (tname !== "warehouse") continue;
 
       const status = String(r.status || "").trim().toLowerCase();
-      if (status === "reserved") continue;
+      if (["reserved", "cancelled", "canceled"].includes(status)) continue;
 
       const day = asYmd(r.date_time);
       const key = `${r.msp_no}__${day}`;
@@ -242,7 +244,7 @@ const MerchandisingList = () => {
           .trim()
           .toLowerCase();
         const status = String(r.status || "").trim().toLowerCase();
-        return tname === "warehouse" && status === "reserved";
+        return tname === "warehouse" && ["reserved", "cancelled", "canceled"].includes(status);
       })
       .map((r) => ({
         _kind: "warehouse-reserved",
@@ -264,15 +266,19 @@ const MerchandisingList = () => {
   }, [timeSorted]);
 
   const displayRows = useMemo(() => {
-    const merged = [
-      ...groupedWarehouseRows,
-      ...reservedWarehouseRows,
-      ...nonWarehouseRows,
-    ];
-    return merged.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
-  }, [groupedWarehouseRows, reservedWarehouseRows, nonWarehouseRows]);
+    const merged = isReservationView
+      ? [...reservedWarehouseRows]
+      : [...groupedWarehouseRows, ...nonWarehouseRows];
 
-  const handleCreateNew = () => navigate("/merchandising-sale", { state: { reset: true } });
+    return merged.sort((a, b) => (b.sortTime || 0) - (a.sortTime || 0));
+  }, [groupedWarehouseRows, reservedWarehouseRows, nonWarehouseRows, isReservationView]);
+
+  const handleCreateNew = () =>
+    navigate("/merchandising-sale", {
+      state: isReservationView ? { reset: true, reservationMode: true } : { reset: true },
+    });
+  const handleOpenTrading = () => navigate("/trading");
+  const handleOpenReservation = () => navigate("/reservationlist");
 
   const handleAnyRowClick = (row) => {
     if (row._kind === "warehouse-group") {
@@ -287,6 +293,7 @@ const MerchandisingList = () => {
         state: {
           sale: row.record,
           editMode: true,
+          reservationMode: true,
         },
       });
       return;
@@ -335,6 +342,12 @@ const MerchandisingList = () => {
     });
   };
 
+  const emptyStateMessage = currentWarehouse
+    ? isReservationView
+      ? `No reservations found for ${currentWarehouse.name}`
+      : `No transactions found for ${currentWarehouse.name}`
+    : "No warehouse selected. Please select a warehouse to view transactions.";
+
   if (loading && !currentWarehouse) {
     return (
       <div className="tradinglist-container">
@@ -372,6 +385,27 @@ const MerchandisingList = () => {
             </span>
           )}
         </div>
+      </div>
+
+      <div className="trading-view-toolbar">
+        <div className="trading-view-tabs" role="tablist" aria-label="Trading views">
+          <button
+            type="button"
+            className={`trading-view-tab${!isReservationView ? " trading-view-tab--active" : ""}`}
+            onClick={handleOpenTrading}
+            aria-pressed={!isReservationView}
+          >
+            TRADING
+          </button>
+          <button
+            type="button"
+            className={`trading-view-tab${isReservationView ? " trading-view-tab--active" : ""}`}
+            onClick={handleOpenReservation}
+            aria-pressed={isReservationView}
+          >
+            RESERVATION
+          </button>
+        </div>
 
         <button
           onClick={handleCreateNew}
@@ -379,7 +413,7 @@ const MerchandisingList = () => {
           disabled={!currentWarehouse?.id}
           style={{ alignSelf: "flex-start" }}
         >
-          + NEW SALE
+          {isReservationView ? "+ NEW RESERVATION" : "+ NEW SALE"}
         </button>
       </div>
 
@@ -409,9 +443,7 @@ const MerchandisingList = () => {
             {!loading && displayRows.length === 0 && (
               <tr>
                 <td colSpan="5" className="p-4 text-center text-gray-500">
-                  {currentWarehouse
-                    ? `No transactions found for ${currentWarehouse.name}`
-                    : "No warehouse selected. Please select a warehouse to view transactions."}
+                  {emptyStateMessage}
                 </td>
               </tr>
             )}

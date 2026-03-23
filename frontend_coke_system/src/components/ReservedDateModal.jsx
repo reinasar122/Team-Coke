@@ -84,6 +84,8 @@ const ReservedDateModal = ({
     }
   };
 
+  const isDateConfirmAction = /date/i.test(confirmLabel);
+
   return (
     <ModalShell
       open={open}
@@ -156,7 +158,11 @@ const ReservedDateModal = ({
               type="button"
               onClick={() => handleConfirm()}
               disabled={!reservedDate || isSubmitting}
-              className="rounded bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700 disabled:cursor-not-allowed disabled:bg-amber-300"
+              className={`rounded px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed ${
+                isDateConfirmAction
+                  ? "bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300"
+                  : "bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300"
+              }`}
             >
               {confirmLabel}
             </button>

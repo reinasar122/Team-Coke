@@ -52,9 +52,11 @@ const ActionButtons = ({
           className={`px-4 py-2 rounded text-white ${
             warehouseActionDisabled
               ? "bg-gray-400 cursor-not-allowed"
-              : warehouseActionLabel === "Reserved"
-                ? "bg-amber-600 hover:bg-amber-700"
-                : "bg-green-600 hover:bg-green-700"
+              : warehouseActionLabel === "Set Date"
+                ? "bg-blue-600 hover:bg-blue-700"
+                : warehouseActionLabel === "Reserve"
+                  ? "bg-amber-600 hover:bg-amber-700"
+                  : "bg-green-600 hover:bg-green-700"
           }`}
         >
           {warehouseActionLabel}

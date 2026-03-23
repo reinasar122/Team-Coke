@@ -3,6 +3,8 @@ import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import api from "../../api";
 import { getCurrentWarehouse, findWarehouseByName } from "../../utils/warehouseUtils";
+import { FaUserFriends } from "react-icons/fa";
+import "../../styles/pages/customer-registration.scss";
 
 const sanitizePhoneNumber = (value) => String(value || "").replace(/\D/g, "").slice(0, 11);
 
@@ -36,7 +38,7 @@ const CustomerRegistration = ({
   const [successMessage, setSuccessMessage] = useState("");
   const [isDrawerVisible, setIsDrawerVisible] = useState(false);
   const cameFromMerchandisingSale = embedded || location.state?.from === "merchandising-sale";
-  const panelModeTitle = embedded ? "Add or Select Customer" : "Customer Management";
+  const panelModeTitle = embedded ? "Add or Select Customer" : "Customer Registration";
   const panelModeSubtitle = embedded
     ? "Stay on the sale page. Register or choose an existing customer."
     : editingCustomer
@@ -82,27 +84,27 @@ const CustomerRegistration = ({
       setWarehouseLoading(true);
       try {
         const warehouse = getCurrentWarehouse();
-        console.log('🏭 Current warehouse from utility:', warehouse);
+        console.log('Ã°Å¸ÂÂ­ Current warehouse from utility:', warehouse);
         
         if (warehouse) {
           if (warehouse.needsIdLookup && warehouse.name) {
-            console.log('🔍 Looking up warehouse ID for:', warehouse.name);
+            console.log('Ã°Å¸â€Â Looking up warehouse ID for:', warehouse.name);
             const foundWarehouse = await findWarehouseByName(warehouse.name);
             if (foundWarehouse) {
               setCurrentWarehouse(foundWarehouse);
             } else {
-              console.error('❌ Could not find warehouse by name:', warehouse.name);
+              console.error('Ã¢ÂÅ’ Could not find warehouse by name:', warehouse.name);
               showAlert("Warehouse not found. Please contact administrator.");
             }
           } else {
             setCurrentWarehouse(warehouse);
           }
         } else {
-          console.error('❌ No warehouse available');
+          console.error('Ã¢ÂÅ’ No warehouse available');
           showAlert("No warehouse assigned. Please contact administrator.");
         }
       } catch (error) {
-        console.error('❌ Error initializing warehouse:', error);
+        console.error('Ã¢ÂÅ’ Error initializing warehouse:', error);
         showAlert("Error loading warehouse information.");
       } finally {
         setWarehouseLoading(false);
@@ -112,7 +114,7 @@ const CustomerRegistration = ({
     initializeWarehouse();
 
     const handleWarehouseChange = async (event) => {
-      console.log('🔄 Warehouse changed:', event.detail);
+      console.log('Ã°Å¸â€â€ž Warehouse changed:', event.detail);
       const { warehouse } = event.detail;
       
       if (warehouse) {
@@ -138,14 +140,14 @@ const CustomerRegistration = ({
 
     const loadCustomers = async () => {
       try {
-        console.log('📡 Loading customers for warehouse:', currentWarehouse.id);
+        console.log('Ã°Å¸â€œÂ¡ Loading customers for warehouse:', currentWarehouse.id);
         const response = await api.get("customers/", {
           params: { warehouse: currentWarehouse.id }
         });
         updateCustomersList(response.data);
-        console.log('✅ Customers loaded:', response.data.length, 'customers');
+        console.log('Ã¢Å“â€¦ Customers loaded:', response.data.length, 'customers');
       } catch (error) {
-        console.error("❌ Failed to load customers:", error);
+        console.error("Ã¢ÂÅ’ Failed to load customers:", error);
         showAlert("Failed to load customers. Please try again.");
       }
     };
@@ -332,12 +334,12 @@ const CustomerRegistration = ({
         warehouse: currentWarehouse.id,
       };
 
-      console.log('💾 Saving customer to warehouse:', currentWarehouse.id, customerData);
+      console.log('Ã°Å¸â€™Â¾ Saving customer to warehouse:', currentWarehouse.id, customerData);
 
       let response;
       if (isEdit) {
         response = await api.patch(`customers/${editingCustomer.id}/`, customerData);
-        console.log("✅ Customer updated:", response.data);
+        console.log("Ã¢Å“â€¦ Customer updated:", response.data);
         
         updateCustomersList(prev => prev.map(customer => 
           customer.id === editingCustomer.id ? response.data : customer
@@ -346,7 +348,7 @@ const CustomerRegistration = ({
         showAlert("Customer updated successfully!", "success");
       } else {
         response = await api.post("customers/", customerData);
-        console.log("✅ New customer created:", response.data);
+        console.log("Ã¢Å“â€¦ New customer created:", response.data);
         
         updateCustomersList(prev => {
           const exists = prev.some(customer => customer.id === response.data.id);
@@ -361,7 +363,7 @@ const CustomerRegistration = ({
         }
         
         if (cameFromMerchandisingSale) {
-          console.log("🔄 Returning to MerchandisingSale with new customer:", response.data);
+          console.log("Ã°Å¸â€â€ž Returning to MerchandisingSale with new customer:", response.data);
           
           // Navigate back to merchandising sale with the new customer data
           navigate(location.state.returnPath || '/merchandising-sale', {
@@ -380,7 +382,7 @@ const CustomerRegistration = ({
       resetForm();
       
     } catch (error) {
-      console.error("❌ Error saving customer:", error);
+      console.error("Ã¢ÂÅ’ Error saving customer:", error);
       
       if (error.response?.data) {
         const backendErrors = {};
@@ -424,13 +426,13 @@ const CustomerRegistration = ({
         setIsDeleting(customer.id);
         try {
           await api.delete(`customers/${customer.id}/`);
-          console.log("✅ Customer deleted:", customer.name);
+          console.log("Ã¢Å“â€¦ Customer deleted:", customer.name);
           
           updateCustomersList(prev => prev.filter(c => c.id !== customer.id));
           
           showAlert("Customer deleted successfully!", "success");
         } catch (error) {
-          console.error("❌ Error deleting customer:", error);
+          console.error("Ã¢ÂÅ’ Error deleting customer:", error);
           showAlert("Failed to delete customer. Please try again.");
         } finally {
           setIsDeleting(null);
@@ -490,15 +492,24 @@ const CustomerRegistration = ({
   ) : null;
 
   const content = (
-    <div className={embedded ? "h-full flex flex-col" : ""}>
-      <div className={`mb-6 ${embedded ? "pb-4 border-b border-gray-200 dark:border-slate-700" : ""}`}>
-        <div className="flex items-start justify-between gap-4">
+    <div className={embedded ? "h-full flex flex-col" : "customer-registration-page__body"}>
+      <div className={embedded ? "mb-6 border-b border-gray-200 pb-4 dark:border-slate-700" : "customer-registration-page__header"}>
+        <div className={embedded ? "flex items-start justify-between gap-4" : "customer-registration-page__header-row"}>
           <div>
-            <h1 className={`font-bold text-gray-900 dark:text-white ${embedded ? "text-2xl sm:text-3xl" : "text-3xl"}`}>
-              {panelModeTitle}
+            <h1
+              className={
+                embedded
+                  ? "text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl"
+                  : "customer-registration-page__title"
+              }
+            >
+              {!embedded && (
+                <FaUserFriends className="customer-registration-page__title-icon" aria-hidden="true" />
+              )}
+              <span>{panelModeTitle}</span>
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">{panelModeSubtitle}</p>
-            <div className="mt-3 flex flex-wrap gap-2">
+            <p className={embedded ? "mt-2 text-gray-600 dark:text-gray-400" : "customer-registration-page__subtitle"}>{panelModeSubtitle}</p>
+            <div className={embedded ? "mt-3 flex flex-wrap gap-2" : "customer-registration-page__chips"}>
               <span className="inline-flex items-center rounded-full border border-gray-200 dark:border-slate-600 bg-gray-50 dark:bg-slate-800 px-3 py-1 text-xs font-medium text-gray-700 dark:text-slate-200">
                 Warehouse: {currentWarehouse?.name || "Loading..."}
               </span>
@@ -516,7 +527,7 @@ const CustomerRegistration = ({
           </div>
           <button
             onClick={handleExit}
-            className={embedded ? "btn btn-back px-4 py-2 self-start" : "btn btn-back"}
+            className={embedded ? "btn btn-back px-4 py-2 self-start" : "btn btn-back customer-registration-page__back-btn"}
             type="button"
           >
             {cameFromMerchandisingSale ? "Back to Sale" : "Back"}
@@ -527,13 +538,13 @@ const CustomerRegistration = ({
       {loadingOrErrorContent || (
         <>
           {successMessage && (
-            <div className="mb-4 p-3 rounded-xl border border-emerald-300/60 dark:border-emerald-700/60 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-200 text-sm">
+            <div className={embedded ? "mb-4 rounded-xl border border-emerald-300/60 bg-emerald-50 p-3 text-sm text-emerald-800 dark:border-emerald-700/60 dark:bg-emerald-900/20 dark:text-emerald-200" : "customer-registration-page__notice"}>
               {successMessage}
             </div>
           )}
 
-          <div className={`grid gap-6 ${embedded ? "lg:grid-cols-[1.05fr_1.1fr] flex-1 min-h-0" : "lg:grid-cols-2"}`}>
-            <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg p-5 sm:p-6">
+          <div className={embedded ? "grid flex-1 min-h-0 gap-6 lg:grid-cols-[1.05fr_1.1fr]" : "customer-registration-page__grid"}>
+            <div className={embedded ? "rounded-2xl border border-gray-200 bg-white p-5 shadow-lg dark:border-slate-700 dark:bg-slate-900/90 sm:p-6" : "customer-registration-page__panel customer-registration-page__panel--form"}>
               <div className="flex items-center justify-between mb-5 gap-3">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -643,7 +654,7 @@ const CustomerRegistration = ({
               </form>
             </div>
 
-            <div className="bg-white dark:bg-slate-900/90 rounded-2xl border border-gray-200 dark:border-slate-700 shadow-lg p-5 sm:p-6 flex flex-col min-h-[320px]">
+            <div className={embedded ? "flex min-h-[320px] flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-lg dark:border-slate-700 dark:bg-slate-900/90 sm:p-6" : "customer-registration-page__panel customer-registration-page__panel--list"}>
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
@@ -670,11 +681,19 @@ const CustomerRegistration = ({
                   filteredCustomers.map((customer) => (
                     <div
                       key={customer.id}
-                      className={`rounded-xl border p-3 transition-colors ${
-                        editingCustomer?.id === customer.id
-                          ? "border-cyan-300 dark:border-cyan-700 bg-cyan-50 dark:bg-cyan-900/20"
-                          : "border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800/60"
-                      }`}
+                      className={
+                        embedded
+                          ? `rounded-xl border p-3 transition-colors ${
+                              editingCustomer?.id === customer.id
+                                ? "border-cyan-300 bg-cyan-50 dark:border-cyan-700 dark:bg-cyan-900/20"
+                                : "border-gray-200 dark:border-slate-700 hover:bg-gray-50 dark:hover:bg-slate-800/60"
+                            }`
+                          : `customer-registration-page__list-card ${
+                              editingCustomer?.id === customer.id
+                                ? "customer-registration-page__list-card--active"
+                                : ""
+                            }`
+                      }
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 flex-1">
@@ -771,8 +790,8 @@ const CustomerRegistration = ({
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-black p-4 sm:p-6 transition-colors duration-200">
-      <div className="max-w-6xl mx-auto">{content}</div>
+    <div className="page customer-registration-page">
+      <div className="customer-registration-page__content">{content}</div>
     </div>
   );
 };

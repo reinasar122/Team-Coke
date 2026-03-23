@@ -7,6 +7,7 @@ import {
   FaCheckCircle,
 } from "react-icons/fa";
 import { getStockThresholds } from "../utils/stockThresholds";
+import "../styles/pages/settings.scss";
 
 const DEFAULT_THRESHOLDS = {
   low_threshold: 10,
@@ -16,21 +17,53 @@ const DEFAULT_THRESHOLDS = {
 
 const THRESHOLD_CARD_THEMES = {
   red: {
-    card: "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-900/20",
-    text: "text-red-600 dark:text-red-400",
-    bar: "#ef4444",
+    cardClass: "settings-page__threshold-card--red",
+    titleClass: "settings-page__threshold-card-title--red",
+    fillClass: "settings-page__threshold-card-fill--red",
   },
   yellow: {
-    card: "border-yellow-200 bg-yellow-50 dark:border-yellow-800 dark:bg-yellow-900/20",
-    text: "text-yellow-600 dark:text-yellow-400",
-    bar: "#eab308",
+    cardClass: "settings-page__threshold-card--yellow",
+    titleClass: "settings-page__threshold-card-title--yellow",
+    fillClass: "settings-page__threshold-card-fill--yellow",
   },
   green: {
-    card: "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-900/20",
-    text: "text-green-600 dark:text-green-400",
-    bar: "#22c55e",
+    cardClass: "settings-page__threshold-card--green",
+    titleClass: "settings-page__threshold-card-title--green",
+    fillClass: "settings-page__threshold-card-fill--green",
   },
 };
+
+function ThresholdCard({ title, color, icon, name, value, onChange, max }) {
+  const theme = THRESHOLD_CARD_THEMES[color] || THRESHOLD_CARD_THEMES.red;
+  const safeMax = Number(max) > 0 ? Number(max) : 1;
+  const progress = Math.min((Number(value) || 0) / safeMax, 1) * 100;
+
+  return (
+    <div className={`settings-page__threshold-card ${theme.cardClass}`}>
+      <div className={`settings-page__threshold-card-title ${theme.titleClass}`}>
+        <span className="settings-page__threshold-card-title-icon">{icon}</span>
+        <span>{title}</span>
+      </div>
+
+      <input
+        type="number"
+        min="0"
+        max={max}
+        name={name}
+        value={value}
+        onChange={onChange}
+        className="settings-page__threshold-card-input"
+      />
+
+      <div className="settings-page__threshold-card-track">
+        <div
+          className={`settings-page__threshold-card-fill ${theme.fillClass}`}
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+    </div>
+  );
+}
 
 function Settings() {
   const [stockThresholds, setStockThresholds] = useState(DEFAULT_THRESHOLDS);
@@ -127,6 +160,29 @@ function Settings() {
     toast.info("Thresholds reset to default values");
   };
 
+  const previewItems = [
+    {
+      label: "Low",
+      range: `1 - ${stockThresholds.low_threshold}`,
+      tone: "red",
+    },
+    {
+      label: "Moderate",
+      range: `${stockThresholds.low_threshold + 1} - ${stockThresholds.moderate_threshold}`,
+      tone: "yellow",
+    },
+    {
+      label: "High",
+      range: `${stockThresholds.moderate_threshold + 1} - ${stockThresholds.high_threshold}`,
+      tone: "green",
+    },
+    {
+      label: "Very High",
+      range: `> ${stockThresholds.high_threshold}`,
+      tone: "violet",
+    },
+  ];
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -141,31 +197,27 @@ function Settings() {
   }
 
   return (
-    <div className="min-h-full w-full bg-gray-50 px-4 py-6 dark:bg-gray-900 sm:px-6 sm:py-8 lg:px-10">
-      {/* Header */}
-      <div className="mb-6 flex flex-col gap-3 sm:mb-8 sm:flex-row sm:items-center">
-        <FaCog className="text-3xl text-gray-800 dark:text-white" />
-        <h1 className="text-3xl font-bold text-gray-800 dark:text-white">
-          Stock Threshold Settings
+    <div className="page settings-page">
+      <div className="page-header settings-page__header">
+        <h1 className="page-title settings-page__title">
+          <FaCog className="settings-page__title-icon" />
+          <span>Settings</span>
         </h1>
       </div>
 
-      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-lg dark:border-gray-700 dark:bg-gray-800 sm:p-6 lg:p-10">
-        {/* Description */}
-        <div className="mb-8 lg:mb-10">
+      <div className="settings-page__content settings-page__shell">
+        <div className="settings-page__intro">
           <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-            Configure Stock Levels
+            Stock Threshold Settings
           </h2>
-          <p className="text-gray-600 dark:text-gray-300 mt-1">
+          <p className="mt-1 text-gray-600 dark:text-gray-300">
             These thresholds control how stock levels are classified in the
             inventory.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:gap-6 xl:grid-cols-4 xl:gap-8">
-          {/* Threshold Cards */}
-          <div className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-3 xl:col-span-3">
-            {/* LOW */}
+        <div className="settings-page__layout">
+          <div className="settings-page__thresholds">
             <ThresholdCard
               title="Low Stock"
               color="red"
@@ -176,7 +228,6 @@ function Settings() {
               max={stockThresholds.high_threshold}
             />
 
-            {/* MODERATE */}
             <ThresholdCard
               title="Moderate Stock"
               color="yellow"
@@ -187,7 +238,6 @@ function Settings() {
               onChange={handleThresholdChange}
             />
 
-            {/* HIGH */}
             <ThresholdCard
               title="High Stock"
               color="green"
@@ -199,31 +249,27 @@ function Settings() {
             />
           </div>
 
-          {/* Preview */}
-          <div className="rounded-2xl border p-5 dark:border-gray-600 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-800 sm:p-6">
-            <h3 className="text-lg font-semibold mb-4 text-gray-800 dark:text-white">
-              Preview
-            </h3>
-            <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-              <p>🔴 Low: 1 – {stockThresholds.low_threshold}</p>
-              <p>
-                🟡 Moderate: {stockThresholds.low_threshold + 1} –{" "}
-                {stockThresholds.moderate_threshold}
-              </p>
-              <p>
-                🟢 High: {stockThresholds.moderate_threshold + 1} –{" "}
-                {stockThresholds.high_threshold}
-              </p>
-              <p>🚀 Very High: &gt; {stockThresholds.high_threshold}</p>
+          <div className="settings-page__preview">
+            <h3 className="settings-page__preview-title">Preview</h3>
+            <div className="settings-page__preview-list">
+              {previewItems.map((item) => (
+                <div key={item.label} className="settings-page__preview-item">
+                  <span
+                    className={`settings-page__preview-dot settings-page__preview-dot--${item.tone}`}
+                  />
+                  <span>
+                    {item.label}: <span className="settings-page__preview-value">{item.range}</span>
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="mt-10 flex flex-col-reverse gap-3 sm:mt-12 sm:flex-row sm:items-center sm:justify-between">
+        <div className="settings-page__actions">
           <button
             onClick={resetToDefaults}
-            className="w-full rounded-xl border border-gray-400 px-6 py-2 text-gray-700 transition hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700 sm:w-auto"
+            className="settings-page__secondary-btn"
           >
             Reset to Defaults
           </button>
@@ -231,70 +277,26 @@ function Settings() {
           <button
             onClick={saveStockThresholds}
             disabled={!isDirty || saving}
-            className={`w-full rounded-xl px-4 py-2 text-lg font-bold text-white transition-all sm:w-auto
+            className={`settings-page__primary-btn
               ${
                 !isDirty || saving
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl"
+                  ? "cursor-not-allowed bg-gray-400"
+                  : "bg-gradient-to-r from-blue-600 to-blue-700 shadow-md hover:from-blue-700 hover:to-blue-800 hover:shadow-lg"
               }`}
           >
             {saving ? "Saving..." : "Save Settings"}
           </button>
         </div>
 
-        {/* Info */}
-        <div className="mt-10 p-4 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 rounded">
-          <h4 className="font-semibold mb-2">ℹ How it works</h4>
-          <ul className="text-sm space-y-1">
-            <li>• Controls inventory stock status colors</li>
-            <li>• Low stock triggers alerts</li>
-            <li>• Stored locally for now</li>
-            <li>• Applies instantly</li>
+        <div className="settings-page__info">
+          <h4 className="settings-page__info-title">How it works</h4>
+          <ul className="space-y-1 text-sm">
+            <li>Controls inventory stock status colors</li>
+            <li>Low stock triggers alerts</li>
+            <li>Stored locally for now</li>
+            <li>Applies instantly</li>
           </ul>
         </div>
-      </div>
-    </div>
-  );
-}
-
-/* ===================== */
-/* Reusable Card */
-/* ===================== */
-function ThresholdCard({
-  title,
-  icon,
-  color,
-  name,
-  value,
-  onChange,
-  max,
-}) {
-  const percentage =
-    max && value !== "" ? Math.min((value / max) * 100, 100) : 0;
-  const theme = THRESHOLD_CARD_THEMES[color] || THRESHOLD_CARD_THEMES.red;
-
-  return (
-    <div
-      className={`rounded-2xl border-2 p-5 transition-all hover:shadow-lg sm:p-6 ${theme.card}`}
-    >
-      <div className={`mb-3 flex items-center gap-2 ${theme.text}`}>
-        {icon}
-        <h3 className="text-lg font-semibold">{title}</h3>
-      </div>
-
-      <input
-        type="number"
-        name={name}
-        value={value}
-        onChange={onChange}
-        className="w-full rounded-xl border bg-white p-4 text-base font-semibold focus:outline-none focus:ring-2 focus:ring-offset-1 dark:bg-gray-900 sm:text-lg"
-      />
-
-      <div className="mt-4 h-2 w-full bg-gray-200 dark:bg-gray-700 rounded-full">
-        <div
-          className="h-2 rounded-full transition-all"
-          style={{ width: `${percentage}%`, backgroundColor: theme.bar }}
-        />
       </div>
     </div>
   );

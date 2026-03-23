@@ -38,6 +38,7 @@ import VanList from "./pages/VanList";
 import ReceivingList from "./pages/ReceivingList";
 import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
+import ReservationList from "./pages/ReservationList";
 import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -51,7 +52,7 @@ import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 import ReceivingDetails from "./pages/ReceivingDetails";
 import VanLoadProductDetails from "./pages/VanLoadProductDetails";
 import Settings from "./pages/Settings";
-// Ã¢Å“â€¦ NEW: Import ExpenseSettings component
+// ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ NEW: Import ExpenseSettings component
 import ExpenseSettings from "./components/Settings";
 
 // Dashboard Page
@@ -69,7 +70,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Invoice from "./pages/Invoice";
 
 import ForecastingDashboard from "./pages/ForecastingDashboard";
-// Ã¢Å“â€¦ Customer Registration Component
+// ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Customer Registration Component
 import CustomerRegistration from './components/merchandisingcomponents/CustomerRegistration';
 
 import {
@@ -80,15 +81,13 @@ import {
   FaBoxes,
   FaTruck,
   FaChartPie,
-  FaCogs,
   FaUsers,
   FaUserShield,
   FaWarehouse,
   FaUndoAlt,
-  FaChartBar,   // Ã¢Å“â€¦ for Sales Report title
+  FaChartBar,   // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ for Sales Report title
   FaMoneyBillWave,
-  FaDollarSign, // Ã¢Å“â€¦ NEW: for Expense Settings
-  FaUserFriends, // Ã¢Å“â€¦ ADD: for Customers
+  FaDollarSign, // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ NEW: for Expense Settings
 } from "react-icons/fa";
 
 const DESKTOP_SIDEBAR_BREAKPOINT = 1024;
@@ -154,7 +153,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// Ã¢Å“â€¦ Layout wrapper for protected pages
+// ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Layout wrapper for protected pages
 const ProtectedLayout = ({
   isSidebarOpen,
   toggleSidebar,
@@ -171,7 +170,7 @@ const ProtectedLayout = ({
   const hideLayout = hiddenRoutes.includes(location.pathname);
 
   // Pages where we want to HIDE the universal scrollbar
-  const lockPrefixes = ["/vans", "/suppliers", "/trading"];
+  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist"];
   const path = location.pathname.toLowerCase();
   const lockScroll = lockPrefixes.some(p => path === p || path.startsWith(p + "/"));
 
@@ -197,7 +196,7 @@ const ProtectedLayout = ({
           </>
         )}
 
-        {/* Ã°Å¸â€˜â€¡ app-content + conditional lock */}
+        {/* ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ app-content + conditional lock */}
         <div
           className={`app-content app-shell-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-3 md:p-5 flex-1 min-w-0 transition-all duration-300 ${
             !hideLayout && isSidebarOpen && isDesktopViewport
@@ -226,48 +225,20 @@ const ProtectedLayout = ({
                   }
                 />
 
-                {/* Ã¢Å“â€¦ Customer page titles */}
-                <Route
-                  path="/customers"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaUserFriends /> Customers
-                    </h1>
-                  }
-                />
-                <Route
-                  path="/customer-registration"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaUserFriends /> Customer Registration
-                    </h1>
-                  }
-                />
+                {/* Customer page titles */}
+                <Route path="/customers" element={null} />
+                <Route path="/customer-registration" element={null} />
 
                 <Route path="/receiving" />
                 <Route path="/stocks" />
                 <Route path="/products" />
                 <Route path="/suppliers" />
-                <Route
-                  path="/settings"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaCogs /> Settings
-                    </h1>
-                  }
-                />
+                <Route path="/settings" element={null} />
 
                 {/* Forecasting page title */}
-                <Route
-                  path="/forecasting"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaChartLine /> Forecasting
-                    </h1>
-                  }
-                />
+                <Route path="/forecasting" element={null} />
 
-                {/* Ã¢Å“â€¦ NEW: Expense Settings page title */}
+                {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ NEW: Expense Settings page title */}
                 <Route
                   path="/expense-settings"
                   element={
@@ -306,7 +277,7 @@ const ProtectedLayout = ({
                 />
                 
                 {/*}
-                Ã¢Å“â€¦ Sales Report page title
+                ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Sales Report page title
                 <Route
                   path="/reports/sales"
                   element={
@@ -332,7 +303,7 @@ const ProtectedLayout = ({
             {/* Forecasting */}
             <Route path="/forecasting" element={<ForecastingDashboard />} />
 
-            {/* Ã¢Å“â€¦ Customer Routes */}
+            {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Customer Routes */}
             <Route path="/customer-registration" element={<CustomerRegistration />} />
             <Route path="/customers" element={<Navigate to="/customer-registration" replace />} />
 
@@ -375,6 +346,7 @@ const ProtectedLayout = ({
 
             {/* Merchandising */}
             <Route path="/trading" element={<MerchandisingList />} />
+            <Route path="/reservationlist" element={<ReservationList />} />
             <Route
               path="/merchandising"
               element={
@@ -401,7 +373,7 @@ const ProtectedLayout = ({
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/expences" element={<Navigate to="/expenses" replace />} />
 
-            {/* Ã¢Å“â€¦ NEW: Expense Settings Route */}
+            {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ NEW: Expense Settings Route */}
             <Route path="/expense-settings" element={<ExpenseSettings />} />
             <Route path="/settings/expenses" element={<Navigate to="/expense-settings" replace />} />
 
@@ -425,7 +397,7 @@ const ProtectedLayout = ({
             {/* Edit Role Access */}
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
 
-            {/* Ã¢Å“â€¦ Fallback for unmatched routes - redirect to dashboard if authenticated */}
+            {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Fallback for unmatched routes - redirect to dashboard if authenticated */}
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </div>
@@ -434,7 +406,7 @@ const ProtectedLayout = ({
   );
 };
 
-// Ã¢Å“â€¦ Main App Component with NotificationProvider
+// ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Main App Component with NotificationProvider
 function SupplierRegistrationPage() {
   const navigate = useNavigate();
 
@@ -455,7 +427,7 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Ã¢Å“â€¦ FIXED: Don't clear user data on refresh - only set session flag
+    // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ FIXED: Don't clear user data on refresh - only set session flag
     if (!sessionStorage.getItem("app_initialized")) {
       sessionStorage.setItem("app_initialized", "true");
       console.log("New browser session initialized");

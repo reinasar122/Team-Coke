@@ -9,7 +9,9 @@ import { BestSellerRanking } from "../components/forecasting/BestSellerRanking";
 import { InventoryRecommendations } from "../components/forecasting/InventoryRecommendations";
 import { SeasonalInsights } from "../components/forecasting/SeasonalInsights";
 import { HolidayCalendar } from "../components/forecasting/HolidayCalendar";
-import api from "../api"; // ✅ use shared API instance
+import api from "../api"; // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ use shared API instance
+import { FaChartLine } from "react-icons/fa";
+import "../styles/pages/forecasting.scss";
 
 const extractList = (data) => {
   if (Array.isArray(data)) return data;
@@ -73,7 +75,7 @@ export default function ForecastingDashboard() {
           setSelectedProductName(firstName);
         }
       } catch (err) {
-        console.error("❌ Failed to load products:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load products:", err);
         const msg =
           err.response?.data?.detail ||
           err.message ||
@@ -92,7 +94,7 @@ export default function ForecastingDashboard() {
     const fetchStocks = async () => {
       try {
         const res = await api.get("stocks/");
-        console.log("👉 /api/stocks/ response:", res.data);
+        console.log("ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ¢â‚¬Â° /api/stocks/ response:", res.data);
 
         const data = res.data;
         const list = Array.isArray(data)
@@ -101,10 +103,10 @@ export default function ForecastingDashboard() {
           ? data.results
           : [];
 
-        console.log("👉 parsed stocks list:", list);
+        console.log("ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ¢â‚¬Â° parsed stocks list:", list);
         setStocks(list);
       } catch (err) {
-        console.error("❌ Failed to load stocks:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load stocks:", err);
       }
     };
 
@@ -146,7 +148,7 @@ export default function ForecastingDashboard() {
     );
 
     if (!candidates.length) {
-      console.log("❌ No stock rows for", productName, "stocks:", stocks);
+      console.log("ÃƒÂ¢Ã‚ÂÃ…â€™ No stock rows for", productName, "stocks:", stocks);
       return 0;
     }
 
@@ -179,7 +181,7 @@ export default function ForecastingDashboard() {
         const res = await api.get("holidays/");
         setHolidays(extractList(res.data));
       } catch (err) {
-        console.error("❌ Failed to load holidays:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load holidays:", err);
       }
     };
 
@@ -213,7 +215,7 @@ export default function ForecastingDashboard() {
         const normalized = normalizeForecastRows(raw); // Karen Changes
         setForecastData(normalized);
       } catch (err) {
-        console.error("❌ Failed to fetch forecasts:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to fetch forecasts:", err);
         const msg =
           err.response?.data?.detail ||
           err.message ||
@@ -263,7 +265,7 @@ export default function ForecastingDashboard() {
 
         setInventoryData(allInventoryData);
       } catch (err) {
-        console.error("❌ Failed to fetch forecasts:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to fetch forecasts:", err);
         const msg =
           err.response?.data?.detail ||
           err.message ||
@@ -355,7 +357,7 @@ export default function ForecastingDashboard() {
         ranking.sort((a, b) => b.projectedSales - a.projectedSales);
         setBestSellerData(ranking);
       } catch (err) {
-        console.log("❌ Global ranking failed:", err);
+        console.log("ÃƒÂ¢Ã‚ÂÃ…â€™ Global ranking failed:", err);
       }
     };
 
@@ -395,7 +397,7 @@ export default function ForecastingDashboard() {
       const normalized2 = normalizeForecastRows(raw2);
       setForecastData(normalized2);
     } catch (err) {
-      console.error("❌ Generate forecast failed:", err);
+      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Generate forecast failed:", err);
       const msg =
         err.response?.data?.detail ||
         err.message ||
@@ -417,7 +419,7 @@ export default function ForecastingDashboard() {
       });
       setHolidays((prev) => [...prev, res.data]);
     } catch (err) {
-      console.error("❌ Failed to create holiday:", err);
+      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to create holiday:", err);
     }
   };
 
@@ -426,7 +428,7 @@ export default function ForecastingDashboard() {
       await api.delete(`holidays/${id}/`);
       setHolidays((prev) => prev.filter((h) => h.id !== id));
     } catch (err) {
-      console.error("❌ Failed to remove holiday:", err);
+      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to remove holiday:", err);
     }
   };
 
@@ -441,8 +443,8 @@ export default function ForecastingDashboard() {
     if (!bestSellerData.length) {
       return {
         totalPredictedSales: 0,
-        topSellingProduct: "—",
-        highestGrowthProduct: "—",
+        topSellingProduct: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â",
+        highestGrowthProduct: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â",
       };
     }
 
@@ -451,8 +453,8 @@ export default function ForecastingDashboard() {
       0
     );
 
-    const topSellingProduct = bestSellerData[0]?.product || "—";
-    const highestGrowthProduct = bestSellerData[0]?.product || "—";
+    const topSellingProduct = bestSellerData[0]?.product || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
+    const highestGrowthProduct = bestSellerData[0]?.product || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
 
     return {
       totalPredictedSales,
@@ -464,8 +466,8 @@ export default function ForecastingDashboard() {
   const seasonalInsights = useMemo(() => {
     if (!forecastData.length) {
       return {
-        weeklyPeakDay: "–",
-        yearlyPeakMonth: "–",
+        weeklyPeakDay: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“",
+        yearlyPeakMonth: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“",
         trendDirection: "Stable",
         mape: 0,
       };
@@ -565,56 +567,78 @@ export default function ForecastingDashboard() {
   // 7) Render
   // -----------------------
   return (
-    <div className="space-y-6">
-      <ForecastOverviewCards {...overview} />
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-2">
-        <h2 className="text-xl font-semibold text-gray-900 mb-1">
-          Generate Forecast
-        </h2>
-        <p className="text-sm text-gray-500 mb-4">
-          Select a product to view its sales forecast and predictions
-        </p>
-
-        <ProductSelector
-          products={productNames.length ? productNames : ["No products"]}
-          selectedProduct={selectedProductName}
-          onChange={(name) => setSelectedProductName(name)}
-          onGenerate={() => handleGenerateForecast(30)}
-        />
+    <div className="page forecasting-page">
+      <div className="page-header forecasting-page__header">
+        <div>
+          <h1 className="page-title forecasting-page__title">
+            <FaChartLine className="forecasting-page__title-icon" />
+            <span>Forecasting</span>
+          </h1>
+          <p className="forecasting-page__subtitle">
+            View demand forecasts, sales trends, and restocking insights.
+          </p>
+        </div>
       </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        {loading ? (
-          <div>Loading forecasts…</div>
-        ) : (
-          <ForecastChart product={selectedProductName} data={forecastData} />
+      <div className="forecasting-page__content">
+        {error && (
+          <div className="forecasting-page__alert forecasting-page__alert--error">
+            {error}
+          </div>
         )}
-      </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <ForecastTable product={selectedProductName} data={forecastData} />
-      </div>
-
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <BestSellerRanking data={bestSellerData} />
-      </div>
-
-      <div className="grid lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <InventoryRecommendations data={inventoryData} />
+        <div className="forecasting-page__overview">
+          <ForecastOverviewCards {...overview} />
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-          <SeasonalInsights insights={seasonalInsights} />
-        </div>
-      </div>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-        <HolidayCalendar
-          holidays={holidays}
-          onAddHoliday={handleAddHoliday}
-          onRemoveHoliday={handleRemoveHoliday}
-        />
+        <div className="forecasting-page__panel forecasting-page__panel--hero">
+          <h2 className="forecasting-page__section-title">
+            Generate Forecast
+          </h2>
+          <p className="forecasting-page__section-copy">
+            Select a product to view its sales forecast and predictions.
+          </p>
+
+          <ProductSelector
+            products={productNames.length ? productNames : ["No products"]}
+            selectedProduct={selectedProductName}
+            onChange={(name) => setSelectedProductName(name)}
+            onGenerate={() => handleGenerateForecast(30)}
+          />
+        </div>
+
+        <div className="forecasting-page__panel">
+          {loading ? (
+            <div className="forecasting-page__loading">Loading forecasts...</div>
+          ) : (
+            <ForecastChart product={selectedProductName} data={forecastData} />
+          )}
+        </div>
+
+        <div className="forecasting-page__panel">
+          <ForecastTable product={selectedProductName} data={forecastData} />
+        </div>
+
+        <div className="forecasting-page__panel">
+          <BestSellerRanking data={bestSellerData} />
+        </div>
+
+        <div className="forecasting-page__grid">
+          <div className="forecasting-page__panel forecasting-page__panel--wide">
+            <InventoryRecommendations data={inventoryData} />
+          </div>
+          <div className="forecasting-page__panel">
+            <SeasonalInsights insights={seasonalInsights} />
+          </div>
+        </div>
+
+        <div className="forecasting-page__panel">
+          <HolidayCalendar
+            holidays={holidays}
+            onAddHoliday={handleAddHoliday}
+            onRemoveHoliday={handleRemoveHoliday}
+          />
+        </div>
       </div>
     </div>
   );
