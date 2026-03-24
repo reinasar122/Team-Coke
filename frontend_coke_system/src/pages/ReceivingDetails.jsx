@@ -110,7 +110,7 @@ export default function ReceivingDetails() {
             {warehouse?.id && <span className="chip-sub">ID: {warehouse.id}</span>}
           </div>
           <div className="actions">
-            <Link to="/receiving" className="btn btn-back">Back to List</Link>
+            <Link to="/receiving" className="btn btn-back">Back</Link>
           </div>
         </div>
         <div className="card" style={{ padding: 24 }}>Receipt not found.</div>
@@ -128,7 +128,7 @@ export default function ReceivingDetails() {
           {warehouse?.id && <span className="chip-sub">ID: {warehouse.id}</span>}
         </div>
         <div className="actions">
-          <Link to="/receiving" className="btn btn-back">Back to List</Link>
+          <Link to="/receiving" className="btn btn-back">Back</Link>
         </div>
       </div>
 

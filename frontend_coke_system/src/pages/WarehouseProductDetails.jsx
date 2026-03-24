@@ -81,7 +81,7 @@ export default function WarehouseProductDetails() {
 
   return (
     <div className="warehousedetails-container">
-      <div className="flex items-center justify-between mb-4">
+      <div className="page-header mb-4">
         <div>
           <h2 className="text-lg font-semibold">
             Warehouse Product Details - {mspNo}{data?.date ? ` (${data.date})` : ""}
@@ -93,34 +93,13 @@ export default function WarehouseProductDetails() {
           )}
         </div>
 
-         {/* Button group */}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleBack}
-            className="btn btn-back"
-          >
-            Back
-          </button>
-           {isTodayInPH ? (
-              <button
-                type="button"
-                onClick={handleNewSale}
-                className="btn btn-add"
-              >
-                New Sale
-              </button>
-            ) : (
-              <button
-                type="button"
-                disabled
-                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-600 cursor-not-allowed"
-                title={warehouseYMD ? `Completed (${warehouseYMD})` : "Completed"}
-              >
-                Completed
-              </button>
-            )}
-        </div>
+        <button
+          type="button"
+          onClick={handleBack}
+          className="btn btn-back"
+        >
+          Back
+        </button>
       </div>
 
       <div className="table-wrapper">
@@ -163,6 +142,27 @@ export default function WarehouseProductDetails() {
           </tfoot>
 
           </table>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-2 mt-6">
+        {isTodayInPH ? (
+          <button
+            type="button"
+            onClick={handleNewSale}
+            className="btn btn-add"
+          >
+            New Sale
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled
+            className="px-4 py-2 rounded-lg bg-gray-300 text-gray-600 cursor-not-allowed"
+            title={warehouseYMD ? `Completed (${warehouseYMD})` : "Completed"}
+          >
+            Completed
+          </button>
         )}
       </div>
     </div>

@@ -786,7 +786,16 @@ const validateSoldBeforeRemit = () => {
 
   return (
     <div className="w-100 mx-auto p-6 mt-5">
-      <h2 className="text-2xl font-bold mb-6 text-blue-600">{pageTitle}</h2>
+      <div className="page-header mb-6">
+        <h2 className="text-2xl font-bold m-0 text-blue-600">{pageTitle}</h2>
+        <button
+          type="button"
+          className="btn btn-back"
+          onClick={() => navigate(-1)}
+        >
+          Back
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
         <div>
@@ -1050,26 +1059,17 @@ const validateSoldBeforeRemit = () => {
 
       {/* Actions */}
       <div className="flex justify-end gap-4 mt-6 mx-auto">
-        <button 
-          className='btn btn-back'
-           onClick={() => navigate(-1)}
-          >
-          Back
-        </button>
-      
-
         <button
-  className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
-  onClick={() => {
-    // Hard block before opening confirmation
-    if (!validateSoldBeforeRemit()) return;
+          className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
+          onClick={() => {
+            // Hard block before opening confirmation
+            if (!validateSoldBeforeRemit()) return;
 
-    setShowPaymentModal(true);
-  }}
->
-  Remittance
-</button>
-   
+            setShowPaymentModal(true);
+          }}
+        >
+          Remittance
+        </button>
       </div>
 
 

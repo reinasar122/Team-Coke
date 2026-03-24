@@ -898,28 +898,24 @@ const loadMerchandisingDetail = useCallback(
 
   // ==== UI ====
   const topBar = (
-    <div className=" mb-6">
-       {!editMode && isVanLoad && !isComplete && (
-        <div className="flex gap-3 justify-end">
-          <button
-            className="btn btn-edit"
-            onClick={handleEditVanLoadClick}
-            disabled={isSendingApprovalRequest}
-          >
-            {isSendingApprovalRequest ? "Requesting..." : "Edit Van Load"}
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={() =>
-              navigate("/van-load-return-remittance", {
-                state: { id: sale.id, warehouse: currentWarehouse, mode: "receive" },
-              })
-            }
-          >
-            Receive Return
-          </button>
+    <div className="mb-6">
+      <div className="page-header">
+        <div>
+          <span className="text">Current Warehouse: </span>
+          <span className="font-bold text-lg">
+            {currentWarehouse?.name || "No Warehouse Selected"}
+          </span>
         </div>
-      )}
+        {!editMode && (
+          <button
+            type="button"
+            className="btn btn-back"
+            onClick={() => navigate("/trading")}
+          >
+            Back
+          </button>
+        )}
+      </div>
 
       {!editMode && isVanLoad && !isComplete && isCashierUser && (
         <div className="mt-2 text-sm">
@@ -939,33 +935,8 @@ const loadMerchandisingDetail = useCallback(
           )}
         </div>
       )}
-
-      {editMode && (
-        <div className="flex gap-3 justify-end">
-          <button
-            className="btn btn-cancel"
-            onClick={handleCancelEdit} // Ensure this resets rows to original data
-          >
-            Cancel
-          </button>
-          <button
-            className="btn btn-primary"
-            onClick={handleSaveVanLoadEdit} // Trigger save logic
-          >
-            Save Changes
-          </button>
-        </div>
-      )}
-
-      <div>
-        <span className="text">Current Warehouse: </span>
-        <span className="font-bold text-lg">
-          {currentWarehouse?.name || "No Warehouse Selected"}
-        </span>
-      </div>   
     </div>
   );
-
   const InfoField = ({ label, value }) => (
     <div className="flex flex-col gap-1">
       <label className="text">{label}</label>
@@ -1110,6 +1081,48 @@ const loadMerchandisingDetail = useCallback(
     <div className="p-6">
       {topBar}
       {headerCard}
+      {!editMode && isVanLoad && !isComplete && (
+        <div className="flex gap-3 justify-end mt-6">
+          <button
+            type="button"
+            className="btn btn-edit"
+            onClick={handleEditVanLoadClick}
+            disabled={isSendingApprovalRequest}
+          >
+            {isSendingApprovalRequest ? "Requesting..." : "Edit Van Load"}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() =>
+              navigate("/van-load-return-remittance", {
+                state: { id: sale.id, warehouse: currentWarehouse, mode: "receive" },
+              })
+            }
+          >
+            Receive Return
+          </button>
+        </div>
+      )}
+
+      {editMode && (
+        <div className="flex gap-3 justify-end mt-6">
+          <button
+            type="button"
+            className="btn btn-cancel"
+            onClick={handleCancelEdit}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleSaveVanLoadEdit}
+          >
+            Save
+          </button>
+        </div>
+      )}
 
       {/* Handler details (simple inline panel to keep page lightweight) */}
       {/* {showHandlerDetails && (
@@ -1148,15 +1161,6 @@ const loadMerchandisingDetail = useCallback(
         </div>
       )} */}
 
-      {/* Back */}
-      <div className="flex justify-end mt-6">
-        <button
-          className="btn btn-back"
-          onClick={() => navigate("/trading")}
-        >
-          BACK
-        </button>
-      </div>
     </div>
   );
 }

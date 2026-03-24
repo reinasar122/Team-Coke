@@ -512,13 +512,6 @@ const ProductEdit = () => {
           >
             Back
           </button>
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={saving}
-          >
-            {saving ? "Saving..." : "Save"}
-          </button>
         </div>
       </div>
 
@@ -870,7 +863,15 @@ const ProductEdit = () => {
         </table>
       </div>
 
-      <div style={{ height: '32px' }}></div>
+      <div className="pe-form-actions">
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={saving}
+        >
+          {saving ? "Saving..." : "Save"}
+        </button>
+      </div>
 
       {/* Add New modal */}
       {showModal.type && (

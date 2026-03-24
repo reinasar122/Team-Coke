@@ -9,6 +9,7 @@ import { FaRegCalendarAlt } from "react-icons/fa";
 import "../../styles/components/merchandisingSale.scss";
 import api from "../../api"; // centralized API instance
 import CustomerRegistration from './CustomerRegistration';
+import { showAppConfirmDialog } from "../common/modalDialogs";
 
 // Van Load notification helper
 const notifyVanLoadCreated = (vanLoadData) => {
@@ -609,6 +610,15 @@ const MerchandisingSale = () => {
   const showPickupDateCard =
     isReservationMode && selectedTransactionTypeName === "Warehouse";
   const pickupDateCardValue = selectedReservedDate || "Set pickup date";
+  const isReservedSaleDetail = editMode && incomingReservationStatus === "reserved";
+  const isCancelledReservationDetail =
+    editMode && ["cancelled", "canceled"].includes(incomingReservationStatus);
+  const usesReservationDraftTotals = isReservationMode && !isReservedSaleDetail;
+  const showReservationHeaderBack = isReservationMode && editMode;
+  const showFormHeaderBack = !editMode || showReservationHeaderBack;
+  const headerBackLabel = "Back";
+  const handleHeaderBack = () =>
+    navigate(showReservationHeaderBack ? "/reservationlist" : -1);
   const pageTitle = isReservationMode
     ? editMode
       ? "View/Edit Reservation"
@@ -693,6 +703,8 @@ const MerchandisingSale = () => {
       ).trim().toLowerCase();
       const isVanLoadDetail = detailTypeName === "van load";
       const items = Array.isArray(data.items) ? data.items : [];
+      const isReservedDetailRecord =
+        String(data.status ?? sale.status ?? incomingReservationStatus).trim().toLowerCase() === "reserved";
       const itemProductIds = items
         .map((it) => Number(typeof it.product === "object" ? it.product?.id : it.product))
         .filter(Boolean);
@@ -726,20 +738,24 @@ const MerchandisingSale = () => {
         const price = prod?.price || {};
         const contentNo = Number(prod?.unit_type?.content_no || 1);
         const dispatchedPcs = Math.max(0, Math.round(Number(it.dispatched_pcs ?? it.dispatchedPcs ?? 0)));
-        const soldPcs = Math.max(0, Math.round(Number(it.sold_pcs ?? it.soldPcs ?? 0)));
+        const loadedSoldPcs = Math.max(0, Math.round(Number(it.sold_pcs ?? it.soldPcs ?? 0)));
         const dispatchedShellRaw = Number(it.dispatched_shell ?? it.dispatchedShell);
         const soldShellRaw = Number(it.sold_shell ?? it.soldShell);
         const dispatchedShell = Number.isFinite(dispatchedShellRaw)
           ? dispatchedShellRaw
           : (contentNo ? +(dispatchedPcs / contentNo).toFixed(2) : 0);
-        const soldShell = Number.isFinite(soldShellRaw)
+        const loadedSoldShell = Number.isFinite(soldShellRaw)
           ? soldShellRaw
-          : (contentNo ? +(soldPcs / contentNo).toFixed(2) : 0);
+          : (contentNo ? +(loadedSoldPcs / contentNo).toFixed(2) : 0);
+        const soldPcs = isReservedDetailRecord ? "" : loadedSoldPcs;
+        const soldShell = isReservedDetailRecord ? "" : loadedSoldShell;
         const unitPrice = Number(price?.selling_price || 0);
         const expectedSale = isVanLoadDetail
           ? 0
           : Number((it.expected_sale ?? unitPrice * dispatchedPcs) || 0);
-        const actualSale = Number((it.actual_sale ?? unitPrice * soldPcs) || 0);
+        const actualSale = isReservedDetailRecord
+          ? 0
+          : Number((it.actual_sale ?? unitPrice * loadedSoldPcs) || 0);
 
         return {
           id: String(sale.id) + "-" + idx,
@@ -759,14 +775,14 @@ const MerchandisingSale = () => {
           discount: Number(it.discount_percent ?? it.discount ?? 0),
           expectedSale,
           actualSale,
-          expectedReturnShellEmpty: Number(it.empty_return_shell ?? it.expectedReturnShellEmpty ?? 0),
-          expectedReturnPcsEmpty: Number(it.empty_return_pcs ?? it.expectedReturnPcsEmpty ?? 0),
-          expectedReturnShellNonempty: Number(it.actual_return_shell ?? it.expectedReturnShellNonempty ?? 0),
-          expectedReturnPcsNonempty: Number(it.actual_return_pcs ?? it.expectedReturnPcsNonempty ?? 0),
-          discrepancyShellEmpty: Number(it.discrepancy_empties_shell ?? it.discrepancyShellEmpty ?? 0),
-          discrepancyPcsEmpty: Number(it.discrepancy_empties_pc ?? it.discrepancyPcsEmpty ?? 0),
-          discrepancyShellNonempty: Number(it.discrepancy_full_shell ?? it.discrepancyShellNonempty ?? 0),
-          discrepancyPcsNonempty: Number(it.discrepancy_full_pcs ?? it.discrepancyPcsNonempty ?? 0),
+          expectedReturnShellEmpty: isReservedDetailRecord ? "" : Number(it.empty_return_shell ?? it.expectedReturnShellEmpty ?? 0),
+          expectedReturnPcsEmpty: isReservedDetailRecord ? "" : Number(it.empty_return_pcs ?? it.expectedReturnPcsEmpty ?? 0),
+          expectedReturnShellNonempty: isReservedDetailRecord ? "" : Number(it.actual_return_shell ?? it.expectedReturnShellNonempty ?? 0),
+          expectedReturnPcsNonempty: isReservedDetailRecord ? "" : Number(it.actual_return_pcs ?? it.expectedReturnPcsNonempty ?? 0),
+          discrepancyShellEmpty: isReservedDetailRecord ? "" : Number(it.discrepancy_empties_shell ?? it.discrepancyShellEmpty ?? 0),
+          discrepancyPcsEmpty: isReservedDetailRecord ? "" : Number(it.discrepancy_empties_pc ?? it.discrepancyPcsEmpty ?? 0),
+          discrepancyShellNonempty: isReservedDetailRecord ? "" : Number(it.discrepancy_full_shell ?? it.discrepancyShellNonempty ?? 0),
+          discrepancyPcsNonempty: isReservedDetailRecord ? "" : Number(it.discrepancy_full_pcs ?? it.discrepancyPcsNonempty ?? 0),
         };
       });
 
@@ -1219,7 +1235,46 @@ const MerchandisingSale = () => {
     navigate("/reservationlist");
   };
 
+  const handleCompleteReservedSale = async (paymentData) => {
+    return handleSubmit(paymentData, {
+      status: "Complete",
+      successMessage: "Reservation paid successfully!",
+    });
+  };
+
+  const handleCancelReservation = async () => {
+    const confirmed = await showAppConfirmDialog({
+      title: "Cancel Reservation",
+      message: "Cancel this reservation?",
+      details: "The reserved stock will be returned to warehouse stocks.",
+      confirmLabel: "Cancel Reservation",
+      cancelLabel: "Keep Reservation",
+      danger: true,
+      size: "sm",
+    });
+
+    if (!confirmed) return;
+
+    const success = await handleSubmit(null, {
+      status: "Cancelled",
+      successMessage: "Reservation cancelled successfully!",
+    });
+    if (!success) return;
+
+    navigate("/reservationlist");
+  };
+
   const handlePay = () => {
+    if (isReservedSaleDetail) {
+      const hasSoldQuantity = rows.some(
+        (row) => Number(row.soldPcs || 0) > 0 || Number(row.soldShell || 0) > 0
+      );
+      if (!hasSoldQuantity) {
+        showAlert("Please enter the sold quantity before paying this reservation.");
+        return;
+      }
+    }
+
     setIsPaymentModalOpen(true);
   };
 
@@ -1297,10 +1352,19 @@ const MerchandisingSale = () => {
 
   return (
     <div className="merch-sale-page p-6">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-4">
+      <div className="page-header mb-4">
         <h1 className="text-xl font-bold m-0">
           {pageTitle}
         </h1>
+        {showFormHeaderBack && (
+          <button
+            type="button"
+            onClick={handleHeaderBack}
+            className="btn btn-back"
+          >
+            {headerBackLabel}
+          </button>
+        )}
       </div>
 
       <div className="merch-sale-form-grid flex flex-col md:flex-row justify-between gap-6 mb-6">
@@ -1364,7 +1428,7 @@ const MerchandisingSale = () => {
                   : ""
               }
               readOnly
-              className="border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
+              className="merch-sale-form-control border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
             />
             <input type="hidden" name="handled_by" value={selectedUser} />
           </div>
@@ -1423,7 +1487,7 @@ const MerchandisingSale = () => {
                   <label className="text-sm block mb-1">Pick Up Date</label>
                   <button
                     type="button"
-                    className="pickup-date-card"
+                    className="pickup-date-card merch-sale-form-control"
                     onClick={() => setIsReservedModalOpen(true)}
                   >
                     <span
@@ -1577,7 +1641,10 @@ const MerchandisingSale = () => {
           setRows={setRows}
           products={products}
           selectedTransactionTypeName={selectedTransactionTypeName}
-          isReservedTransaction={isReservationMode}
+          isReservedTransaction={usesReservationDraftTotals}
+          allowManualSoldEntry={isReservedSaleDetail}
+          autoFillSoldFromDispatched={!isReservationMode}
+          allowDiscountWithoutSold={usesReservationDraftTotals}
           miscItems={miscItems}
           warehouseId={currentWarehouse?.id}
           setTotalExpectedSale={setTotalExpectedSale}
@@ -1616,12 +1683,17 @@ const MerchandisingSale = () => {
           transactionType={selectedTransactionTypeName}
           onBack={() => navigate(isReservationMode ? "/reservationlist" : -1)}
           onFinalize={handleFinalizeSale}
-          onPay={isReservationMode ? handleReserveTransaction : handlePay}
-          warehouseActionLabel={isReservationMode ? "Reserve" : "Pay"}
+          onPay={isReservedSaleDetail ? handlePay : isReservationMode ? handleReserveTransaction : handlePay}
+          onCancel={handleCancelReservation}
+          warehouseActionLabel={isReservedSaleDetail ? "Pay" : isReservationMode ? "Reserve" : "Pay"}
           showWarehouseAction={
-            selectedTransactionTypeName !== "Warehouse" ||
-            hasWarehouseDispatchedInput
+            !isCancelledReservationDetail && (
+              selectedTransactionTypeName !== "Warehouse" ||
+              hasWarehouseDispatchedInput
+            )
           }
+          showCancel={isReservedSaleDetail}
+          hideBack={showFormHeaderBack}
           finalizeDisabled={
             selectedTransactionTypeName === "Van Load" &&
             !dispatchAdjustments.length
@@ -1650,10 +1722,9 @@ const MerchandisingSale = () => {
           onClose={() => setIsReservedModalOpen(false)}
           onConfirm={handleReservedDateSelected}
           title="Pickup Date"
-          description="Choose the pickup date for this reservation."
-          confirmLabel={selectedReservedDate ? "Update Pickup Date" : "Set Pickup Date"}
+          confirmLabel="Set Date"
           initialDate={selectedReservedDate}
-          items={rows}
+          calendarOnly
         />
       )}
 
@@ -1678,7 +1749,7 @@ const MerchandisingSale = () => {
         customer={customerInfo}
         handledBy={handledBy}
         totalAmount={totalAmount}
-        onSave={handleSubmit}
+        onSave={isReservedSaleDetail ? handleCompleteReservedSale : handleSubmit}
         transactionDate={transactionDate}
         transactionTypeName={selectedTransactionTypeName}
         transactionTypes={transactionTypes}

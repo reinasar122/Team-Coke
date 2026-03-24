@@ -3,6 +3,8 @@ import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import ModalShell from "./common/ModalShell";
 
+const CALENDAR_LOCALE = "en-US";
+
 const getLocalDateValue = (date = new Date()) => {
   const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
   return local.toISOString().slice(0, 10);
@@ -18,6 +20,17 @@ const toLocalCalendarDate = (value) => {
   if (!year || !month || !day) return null;
   return new Date(year, month - 1, day);
 };
+
+const formatMonthYearLabel = (_, date) =>
+  date.toLocaleDateString(CALENDAR_LOCALE, {
+    month: "long",
+    year: "numeric",
+  });
+
+const formatShortWeekdayLabel = (_, date) =>
+  date
+    .toLocaleDateString(CALENDAR_LOCALE, { weekday: "short" })
+    .slice(0, 2);
 
 const ReservedDateModal = ({
   open,
@@ -72,16 +85,11 @@ const ReservedDateModal = ({
     }
   };
 
-  const handleCalendarChange = async (nextValue) => {
+  const handleCalendarChange = (nextValue) => {
     const selectedDate = Array.isArray(nextValue) ? nextValue[0] : nextValue;
     if (!(selectedDate instanceof Date) || Number.isNaN(selectedDate.getTime())) return;
 
-    const normalizedDate = getLocalDateValue(selectedDate);
-    setReservedDate(normalizedDate);
-
-    if (calendarOnly) {
-      await handleConfirm(normalizedDate);
-    }
+    setReservedDate(getLocalDateValue(selectedDate));
   };
 
   const isDateConfirmAction = /date/i.test(confirmLabel);
@@ -90,22 +98,56 @@ const ReservedDateModal = ({
     <ModalShell
       open={open}
       onClose={onClose}
-      size={calendarOnly ? "sm" : "sm"}
+      size="sm"
       ariaLabel={title}
-      initialFocusSelector={calendarOnly ? ".react-calendar button" : "input[type='date']"}
+      initialFocusSelector={
+        calendarOnly
+          ? ".reserved-calendar-widget .react-calendar__navigation button, .reserved-calendar-widget .react-calendar__tile"
+          : "input[type='date']"
+      }
       panelClassName={calendarOnly ? "reserved-calendar-panel" : ""}
     >
       {calendarOnly ? (
-        <div className="reserved-calendar-only">
-          <Calendar
-            onChange={handleCalendarChange}
-            value={calendarValue}
-            minDate={minCalendarDate}
-            next2Label={null}
-            prev2Label={null}
-            showNeighboringMonth={false}
-            className="reserved-calendar-widget"
-          />
+        <div className="reserved-calendar-layout">
+          <div className="reserved-calendar-only">
+            <Calendar
+              onChange={handleCalendarChange}
+              value={calendarValue}
+              minDate={minCalendarDate}
+              locale={CALENDAR_LOCALE}
+              calendarType="gregory"
+              minDetail="month"
+              maxDetail="month"
+              prevLabel={<span aria-hidden="true">{"\u2190"}</span>}
+              nextLabel={<span aria-hidden="true">{"\u2192"}</span>}
+              prevAriaLabel="Go to previous month"
+              nextAriaLabel="Go to next month"
+              next2Label={null}
+              prev2Label={null}
+              showNeighboringMonth={false}
+              formatMonthYear={formatMonthYearLabel}
+              formatShortWeekday={formatShortWeekdayLabel}
+              className="reserved-calendar-widget"
+            />
+          </div>
+
+          <div className="reserved-calendar-actions">
+            <button
+              type="button"
+              onClick={onClose}
+              className="reserved-calendar-btn reserved-calendar-btn--ghost"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => handleConfirm()}
+              disabled={!reservedDate || isSubmitting}
+              className="reserved-calendar-btn reserved-calendar-btn--primary"
+            >
+              {isSubmitting ? "Setting..." : confirmLabel}
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex flex-col gap-4">

@@ -14,6 +14,9 @@ const ProductTable = ({
   products,
   selectedTransactionTypeName,
   isReservedTransaction = false,
+  allowManualSoldEntry = false,
+  autoFillSoldFromDispatched = true,
+  allowDiscountWithoutSold = false,
   miscItems = [],
   warehouseId,
 
@@ -49,8 +52,16 @@ const ProductTable = ({
     const dispatchedNow = n(row.dispatchedPcs);
     const soldNow = n(row.soldPcs);
     const discountNow = n(row.discount);
-    const discountAmtNow = (price * soldNow * discountNow) / 100;
 
+    if (isReservedTransaction && allowDiscountWithoutSold) {
+      const discountAmtNow = (price * dispatchedNow * discountNow) / 100;
+      row.expectedSale = Number((price * dispatchedNow - discountAmtNow).toFixed(2));
+      row.actualSale = 0;
+      row.discrepancy = 0;
+      return;
+    }
+
+    const discountAmtNow = (price * soldNow * discountNow) / 100;
     row.expectedSale = Number((price * dispatchedNow).toFixed(2));
     row.actualSale = Number((price * soldNow - discountAmtNow).toFixed(2));
     row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
@@ -290,7 +301,7 @@ useEffect(() => {
     return;
   }
 
-  if (["soldShell", "soldPcs"].includes(field)) {
+  if (!allowManualSoldEntry && ["soldShell", "soldPcs"].includes(field)) {
     return;
   }
 
@@ -313,13 +324,28 @@ useEffect(() => {
       row.expectedSale = "";
       row.actualSale = "";
       row.discrepancy = "";
+    } else if (allowManualSoldEntry && ["soldShell", "soldPcs"].includes(field)) {
+      const productId = Number(row.productId);
+      const product = products.find(p => p.id === productId);
+      const price =
+        n(row.unitPrice) ||
+        n(product?.price?.selling_price) ||
+        n(pricingMap[row.priceId]?.selling_price) ||
+        0;
+
+      row.soldShell = "";
+      row.soldPcs = "";
+      row.expectedReturnShellEmpty = "";
+      row.expectedReturnPcsEmpty = "";
+      row.discrepancyShellEmpty = "";
+      row.discrepancyPcsEmpty = "";
+      recalculateRowTotals(row, price);
     }
 
     updated[index] = row;
     setRows(updated);
     return;
   }
-  const n = (v) => parseFloat(v) || 0;
   row[field] = value;
 
   const productId = Number(row.productId);
@@ -334,9 +360,6 @@ useEffect(() => {
 
   row.unitPrice = price;
   row.conversion = conversion;
-
-  const discountPercent = n(row.discount);
-  const discountAmt = (price * row.soldPcs * discountPercent) / 100;
 
   const isReturnable =
     product?.returnable === true ||
@@ -353,26 +376,42 @@ useEffect(() => {
       row.dispatchedPcs = n(value);
     }
 
-    row.soldShell = Math.floor(n(row.dispatchedShell));
-    row.soldPcs = n(row.dispatchedPcs);
+    if (autoFillSoldFromDispatched) {
+      row.soldShell = Math.floor(n(row.dispatchedShell));
+      row.soldPcs = n(row.dispatchedPcs);
+    } else if (!allowManualSoldEntry) {
+      row.soldShell = "";
+      row.soldPcs = "";
+      row.expectedReturnShellEmpty = "";
+      row.expectedReturnPcsEmpty = "";
+      row.expectedReturnShellNonempty = "";
+      row.expectedReturnPcsNonempty = "";
+      row.discrepancyShellEmpty = "";
+      row.discrepancyPcsEmpty = "";
+      row.discrepancyShellNonempty = "";
+      row.discrepancyPcsNonempty = "";
+    }
 
-    // Stock availability check (only if stock is loaded)
     const stockQty = availableStock[productId];
     if (stockQty !== undefined && stockQty !== null) {
       if (row.dispatchedPcs > stockQty) {
-        alert(`Insufficient stock! Available: ${stockQty}, You entered: ${row.dispatchedPcs}`);
-        // Reset back to 0 instead of clamping
+        alert("Insufficient stock! Available: " + stockQty + ", You entered: " + row.dispatchedPcs);
         row.dispatchedPcs = 0;
         row.dispatchedShell = 0;
-        row.soldPcs = 0;
-        row.soldShell = 0;
+        if (autoFillSoldFromDispatched) {
+          row.soldPcs = 0;
+          row.soldShell = 0;
+        } else if (!allowManualSoldEntry) {
+          row.soldPcs = "";
+          row.soldShell = "";
+        }
         row.expectedSale = 0;
         row.actualSale = 0;
         row.discrepancy = 0;
       }
 
     } else {
-      console.warn(`Stock not yet loaded for product ${productId}`);
+      console.warn("Stock not yet loaded for product " + productId);
     }
     if (n(row.soldPcs) > n(row.dispatchedPcs)) {
       row.soldPcs = n(row.dispatchedPcs);
@@ -389,7 +428,7 @@ useEffect(() => {
     }
 
     recalculateRowTotals(row, price);
-}
+  }
 
   if (["soldPcs", "soldShell"].includes(field)) {
     const maxSoldShell = Math.floor(n(row.dispatchedShell));
@@ -441,40 +480,25 @@ useEffect(() => {
 
 // --- DISCOUNT FIELD CHANGE ---
 if (field === "discount") {
-  const price = n(row.unitPrice);  // Selling price
-  const soldPcs = n(row.soldPcs);  // Number of sold pieces
-  const discountPercent = n(row.discount);  // Discount percentage
-
-  // Store the actual sale before the discount
-  const totalAmount = price * soldPcs;
-  const previousActualSale = row.actualSale;
-
-  // Calculate the discount amount
+  const discountBaseQty = allowDiscountWithoutSold
+    ? n(row.dispatchedPcs)
+    : n(row.soldPcs);
+  const discountPercent = n(row.discount);
+  const totalAmount = price * discountBaseQty;
   const discountAmt = (totalAmount * discountPercent) / 100;
 
-  // **Validation for discount exceeding actual sale**
   if (discountAmt > totalAmount) {
     toast.error("Discount cannot exceed the total amount of the product.", {
-    autoClose: 3000, // Close after 3 seconds
+    autoClose: 3000,
     hideProgressBar: true,
-    className: 'toast-error',  // Custom class for styling
+    className: 'toast-error',
   });
 
-    // Reset the discount to 0
     row.discount = 0;
-
-    // Manually reset the actualSale to the original value (before discount)
-    row.actualSale = totalAmount;
-
-    // Recalculate discrepancy based on the original actualSale
-    row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));
-  } else {
-    // Valid discount: Update actual sale and discrepancy as usual
-    row.actualSale = Number((totalAmount - discountAmt).toFixed(2));  // Update actual sale based on discount
-    row.discrepancy = Number((row.expectedSale - row.actualSale).toFixed(2));  // Recalculate discrepancy
   }
-}
 
+  recalculateRowTotals(row, price);
+}
 
 
   // --- RETURNED EMPTY FIELDS (dependent on DISPATCHED) ---
@@ -762,11 +786,24 @@ useEffect(() => {
       if (!pm) return r;
 
       const price = n(pm.selling_price);
+      const dispatchedPcs = n(r.dispatchedPcs);
+      const soldPcs = n(r.soldPcs);
       const discountPercent = n(r.discount);
-      const discountAmt = (price * n(r.soldPcs) * discountPercent) / 100;
 
-      const expectedSale = price * n(r.dispatchedPcs);
-      const actualSale = price * n(r.soldPcs) - discountAmt;
+      if (isReservedTransaction && allowDiscountWithoutSold) {
+        const discountAmt = (price * dispatchedPcs * discountPercent) / 100;
+        return {
+          ...r,
+          unitPrice: price,
+          expectedSale: Number((price * dispatchedPcs - discountAmt).toFixed(2)),
+          actualSale: 0,
+          discrepancy: 0,
+        };
+      }
+
+      const discountAmt = (price * soldPcs * discountPercent) / 100;
+      const expectedSale = price * dispatchedPcs;
+      const actualSale = price * soldPcs - discountAmt;
       const discrepancy = expectedSale - actualSale;
 
       return {
@@ -779,7 +816,7 @@ useEffect(() => {
     });
     return next;
   });
-}, [pricingMap]);
+}, [allowDiscountWithoutSold, isReservedTransaction, pricingMap, setRows]);
 
 
   
@@ -828,7 +865,20 @@ useEffect(() => {
             const product = products.find(p => p.id === productId);
             const hasProduct = !!product;
             const isMissing = (value) => value == null || value === "";
-
+            const soldInputClass = allowManualSoldEntry && hasProduct
+              ? "input-always-spinner w-full p-1 text-sm text-center rounded bg-yellow-50"
+              : autoFillSoldFromDispatched && hasProduct && n(row.dispatchedPcs) > 0
+                ? "input-always-spinner w-full p-1 text-sm text-center rounded bg-white"
+                : "input-always-spinner w-full p-1 text-sm text-center rounded bg-gray-200 cursor-not-allowed";
+            const soldInputDisabled = !hasProduct || (!allowManualSoldEntry && !autoFillSoldFromDispatched);
+            const soldInputTitle = allowManualSoldEntry
+              ? "Enter the actual sold quantity"
+              : autoFillSoldFromDispatched
+                ? "Auto-filled from dispatched"
+                : "Sold quantity is entered during payment";
+            const discountInputEnabled = allowDiscountWithoutSold
+              ? hasProduct
+              : row.soldShell > 0 || row.soldPcs > 0;
 
             const shellFromProd = product?.price?.shell_price ?? 0;
                 const bottleFromProd = product?.price?.bottle_price ?? 0;
@@ -903,21 +953,29 @@ useEffect(() => {
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
-                    className={`input-always-spinner w-full p-1 text-sm text-center rounded ${hasProduct && n(row.dispatchedPcs) > 0 ? "bg-white" : "bg-gray-200 cursor-not-allowed"}`}
+                    className={soldInputClass}
                     value={row.soldShell ?? ""}
-                    readOnly
-                    tabIndex={-1}
-                    title="Auto-filled from dispatched"
+                    onChange={(e) =>
+                      handleRowChange(index, "soldShell", e.target.value === "" ? null : e.target.value)
+                    }
+                    readOnly={!allowManualSoldEntry}
+                    disabled={soldInputDisabled}
+                    tabIndex={allowManualSoldEntry ? 0 : -1}
+                    title={soldInputTitle}
                   />
                 </td>
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
-                    className={`input-always-spinner w-full p-1 text-sm text-center rounded ${hasProduct && n(row.dispatchedPcs) > 0 ? "bg-white" : "bg-gray-200 cursor-not-allowed"}`}
+                    className={soldInputClass}
                     value={row.soldPcs ?? ""}
-                    readOnly
-                    tabIndex={-1}
-                    title="Auto-filled from dispatched"
+                    onChange={(e) =>
+                      handleRowChange(index, "soldPcs", e.target.value === "" ? null : e.target.value)
+                    }
+                    readOnly={!allowManualSoldEntry}
+                    disabled={soldInputDisabled}
+                    tabIndex={allowManualSoldEntry ? 0 : -1}
+                    title={soldInputTitle}
                   />
                 </td>
 
@@ -1018,14 +1076,12 @@ useEffect(() => {
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
-                    className={`input-always-spinner w-full p-1 text-sm text-center rounded border ${
-                      row.soldShell > 0 || row.soldPcs > 0
-                        ? "bg-yellow-50"
-                        : "bg-gray-200 cursor-not-allowed"
-                    }`}
+                    className={discountInputEnabled
+                      ? "input-always-spinner w-full p-1 text-sm text-center rounded border bg-yellow-50"
+                      : "input-always-spinner w-full p-1 text-sm text-center rounded border bg-gray-200 cursor-not-allowed"}
                     value={row.discount ?? ""}
                     onChange={(e) => handleRowChange(index, "discount", e.target.value)}
-                    disabled={!(row.soldShell > 0 || row.soldPcs > 0)}
+                    disabled={!discountInputEnabled}
                   />
                 </td>
 

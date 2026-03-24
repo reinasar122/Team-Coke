@@ -101,3 +101,9 @@
 .modal-body .pe-alert-msg + .modal-actions {
   justify-content: center;
 }
+
+.pe-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 24px;
+}
