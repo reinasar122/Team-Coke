@@ -37,22 +37,23 @@ function arrayBufferToBase64(buffer) {
 }
 
 async function ensurePesoFont(doc) {
-  if (window.__pesoFontLoaded) return;
+  if (!window.__pdfFontCache) {
+    const [bufNormal, bufBold] = await Promise.all([
+      fetch(DejaVuSansTTF).then((r) => r.arrayBuffer()),
+      fetch(DejaVuSansBoldTTF).then((r) => r.arrayBuffer()),
+    ]);
 
-  const [bufNormal, bufBold] = await Promise.all([
-    fetch(DejaVuSansTTF).then((r) => r.arrayBuffer()),
-    fetch(DejaVuSansBoldTTF).then((r) => r.arrayBuffer()),
-  ]);
+    window.__pdfFontCache = {
+      normal: arrayBufferToBase64(bufNormal),
+      bold: arrayBufferToBase64(bufBold),
+    };
+  }
 
-  const base64N = arrayBufferToBase64(bufNormal);
-  const base64B = arrayBufferToBase64(bufBold);
-
-  doc.addFileToVFS("DejaVuSans.ttf", base64N);
+  // Register the font on every new jsPDF document instance.
+  doc.addFileToVFS("DejaVuSans.ttf", window.__pdfFontCache.normal);
   doc.addFont("DejaVuSans.ttf", "DejaVuSans", "normal");
-  doc.addFileToVFS("DejaVuSans-Bold.ttf", base64B);
+  doc.addFileToVFS("DejaVuSans-Bold.ttf", window.__pdfFontCache.bold);
   doc.addFont("DejaVuSans-Bold.ttf", "DejaVuSans", "bold");
-
-  window.__pesoFontLoaded = true;
 }
 
 // ---------------- small utils ----------------
@@ -238,13 +239,13 @@ export async function downloadInvoicePDF(payload, opts = {}) {
   };
 
   const fromLines = [
-    warehouse.fullAddress ? `📍 ${warehouse.fullAddress}` : "",
-    warehouse.phone ? `📞 ${warehouse.phone}` : "",
-    warehouse.email ? `✉️ ${warehouse.email}` : "",
+    warehouse.fullAddress ? `Address: ${warehouse.fullAddress}` : "",
+    warehouse.phone ? `Phone: ${warehouse.phone}` : "",
+    warehouse.email ? `Email: ${warehouse.email}` : "",
   ];
   const toLines = [
-    customer.address ? `📍 ${customer.address}` : "",
-    customer.phone ? `📞 ${customer.phone}` : "",
+    customer.address ? `Address: ${customer.address}` : "",
+    customer.phone ? `Phone: ${customer.phone}` : "",
   ];
 
   y = drawInfoBox(innerLeft, y, infoBoxW, "From (Source Warehouse):", warehouse.name || "Warehouse", fromLines, [239, 246, 255]);
@@ -419,7 +420,7 @@ export async function downloadInvoicePDF(payload, opts = {}) {
     line("Empty Returns:", `- ${peso(totals.emptyReturns)}`);
     line("Total:", peso(totals.emptyDiscrepancies), { bold: true });
     line("Actual Sales", `+ ${peso(totals.actualSales)}`);
-    line("Total Amount Due:", peso(totals.totalAmount), { bold: true, size: 11, gap: 8 });
+    line("Total Amount Due:", peso(totals.amountDue), { bold: true, size: 11, gap: 8 });
   }
 
   line("Cash Received:", peso(totals.cashReceived));

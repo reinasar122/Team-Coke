@@ -1593,6 +1593,7 @@ def warehouse_details_view(request):
         "date": latest_dt.date().isoformat() if latest_dt else day,
         "status": latest_header.status if latest_header else None,
         "reserved_date": latest_header.reserved_date.isoformat() if getattr(latest_header, "reserved_date", None) else None,
+        "actual_pickup_date": latest_header.actual_pickup_date.isoformat() if getattr(latest_header, "actual_pickup_date", None) else None,
         "items": items,
         "overall_total": overall_total,
     })

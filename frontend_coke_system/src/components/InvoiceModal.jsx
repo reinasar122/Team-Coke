@@ -714,7 +714,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
   const handleDownloadPDF = async () => {
     try {
       const payload = buildInvoicePdfPayload();
-      await downloadInvoicePDF(payload);
+      await downloadInvoicePDF(payload, { paper, orientation });
       showCustomAlert("PDF downloaded successfully!");
     } catch (error) {
       console.error("PDF generation error:", error);

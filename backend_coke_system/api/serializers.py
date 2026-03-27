@@ -1034,6 +1034,48 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
         return int(getattr(item, "sold_pcs", 0) or 0)
 
+    def _normalize_status_key(self, value):
+        return " ".join(str(value or "").strip().lower().replace("-", " ").split())
+
+    def _sync_reservation_lifecycle_fields(self, validated_data, instance=None):
+        transaction_type = validated_data.get("transaction_type", getattr(instance, "transaction_type", None))
+        reserved_date = validated_data.get("reserved_date", getattr(instance, "reserved_date", None))
+        status_name = self._normalize_status_key(
+            validated_data.get("status", getattr(instance, "status", None))
+        )
+        is_reservation = self._is_warehouse_transaction(transaction_type) and reserved_date is not None
+        has_explicit_actual_pickup = "actual_pickup_date" in validated_data
+
+        if not is_reservation:
+            if (
+                not has_explicit_actual_pickup
+                and instance is not None
+                and getattr(instance, "actual_pickup_date", None)
+                and "reserved_date" in validated_data
+                and validated_data.get("reserved_date") is None
+            ):
+                validated_data["actual_pickup_date"] = None
+            return
+
+        if status_name in {"complete", "completed", "picked up"}:
+            validated_data["status"] = "Picked Up"
+            if not has_explicit_actual_pickup:
+                validated_data["actual_pickup_date"] = (
+                    getattr(instance, "actual_pickup_date", None) or timezone.localdate()
+                )
+            return
+
+        if status_name == "reserved":
+            validated_data["status"] = "Reserved"
+            if has_explicit_actual_pickup or getattr(instance, "actual_pickup_date", None):
+                validated_data["actual_pickup_date"] = None
+            return
+
+        if status_name in {"cancelled", "canceled"}:
+            validated_data["status"] = "Cancelled"
+            if has_explicit_actual_pickup or getattr(instance, "actual_pickup_date", None):
+                validated_data["actual_pickup_date"] = None
+
 
 
     def _adjust_stock_quantity(self, product, warehouse, delta_pcs):
@@ -1108,6 +1150,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         misc_items_data = validated_data.pop('misc_items', [])
         payments_data = validated_data.pop('payments', [])
         transaction_type = validated_data.get("transaction_type")
+        self._sync_reservation_lifecycle_fields(validated_data)
         status_value = validated_data.get("status")
 
         print(">>> DEBUG misc_items_data received:", misc_items_data) 
@@ -1271,6 +1314,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         validated_data.pop('payments', None)                    # ignore on update
         before_transaction_type = instance.transaction_type
         before_status = instance.status
+        self._sync_reservation_lifecycle_fields(validated_data, instance)
         transaction_type = validated_data.get("transaction_type", instance.transaction_type)
         status_value = validated_data.get("status", instance.status)
         zero_expected_sale = self._is_pending_van_load(transaction_type, status_value)

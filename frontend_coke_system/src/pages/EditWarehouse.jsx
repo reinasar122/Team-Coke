@@ -29,6 +29,56 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
     email: null,
   });
 
+  const syncStoredWarehouseData = (updatedWarehouse) => {
+    if (!updatedWarehouse?.id) return;
+
+    try {
+      const storedSelectedWarehouse = JSON.parse(
+        localStorage.getItem("selectedWarehouse") || "null"
+      );
+
+      if (
+        storedSelectedWarehouse &&
+        String(storedSelectedWarehouse.id) === String(updatedWarehouse.id)
+      ) {
+        localStorage.setItem(
+          "selectedWarehouse",
+          JSON.stringify({
+            ...storedSelectedWarehouse,
+            ...updatedWarehouse,
+            name: updatedWarehouse.name || storedSelectedWarehouse.name,
+          })
+        );
+      }
+
+      const storedUser = JSON.parse(localStorage.getItem("user") || "null");
+      const storedUserWarehouseId =
+        storedUser?.warehouse?.id || storedUser?.warehouse_id || null;
+
+      if (storedUser && String(storedUserWarehouseId) === String(updatedWarehouse.id)) {
+        const nextUser = {
+          ...storedUser,
+          warehouse_id: storedUser.warehouse_id || updatedWarehouse.id,
+          warehouse_name: updatedWarehouse.name || storedUser.warehouse_name,
+        };
+
+        if (storedUser.warehouse && typeof storedUser.warehouse === "object") {
+          nextUser.warehouse = {
+            ...storedUser.warehouse,
+            ...updatedWarehouse,
+            name: updatedWarehouse.name || storedUser.warehouse.name,
+          };
+        } else {
+          nextUser.warehouse = updatedWarehouse.name || storedUser.warehouse;
+        }
+
+        localStorage.setItem("user", JSON.stringify(nextUser));
+      }
+    } catch (storageError) {
+      console.error("Error syncing renamed warehouse in storage:", storageError);
+    }
+  };
+
   // Map municipality names to zip codes
   const zipCodeMap = new Map();
   psgcData.forEach(region => {
@@ -123,12 +173,25 @@ const EditWarehouse = ({ id, onClose, onSuccess }) => {
 
     try {
       const res = await api.put(`/warehouses/${id}/`, formData);
+      const updatedWarehouse = res.data;
+
+      syncStoredWarehouseData(updatedWarehouse);
+
+      window.dispatchEvent(
+        new CustomEvent("warehouseChanged", {
+          detail: {
+            warehouse: updatedWarehouse,
+            action: "rename",
+            source: "edit-warehouse",
+          },
+        })
+      );
 
       toast.success(
-        `Warehouse '${res.data.name || formData.name}' has been updated successfully!`,
+        `Warehouse '${updatedWarehouse.name || formData.name}' has been updated successfully!`,
         { style: successStyle }
       );
-      onSuccess?.();
+      onSuccess?.(updatedWarehouse);
       onClose?.();
     } catch (error) {
       console.error("Error updating warehouse:", error);

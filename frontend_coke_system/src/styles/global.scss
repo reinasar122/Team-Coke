@@ -262,12 +262,16 @@ main {
 .app-shell-warehouse-switch--mobile {
   width: 100%;
   max-width: 28rem;
+  display: flex;
+  margin-inline: auto;
 }
 
 .app-shell-header-mobile {
   top: var(--app-header-height) !important;
   padding: 0.55rem 1rem !important;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+  display: none;
+  justify-content: center;
 }
 
 .app-shell-sidebar {
@@ -345,6 +349,10 @@ main {
     padding-inline: 1rem !important;
   }
 
+  .app-shell-header-mobile {
+    display: flex;
+  }
+
   .app-shell-header__inner {
     grid-template-columns: minmax(0, 1fr) auto;
   }
@@ -355,6 +363,11 @@ main {
 
   .app-shell-header__right {
     gap: 0.55rem !important;
+  }
+
+  .page-warehouse-chip--inline,
+  .trading-warehouse-chip {
+    display: none !important;
   }
 }
 

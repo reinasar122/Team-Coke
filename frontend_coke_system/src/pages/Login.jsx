@@ -427,7 +427,11 @@ const Login = () => {
   useEffect(() => {
     if (!isSignUp) {
       const rememberFlag = localStorage.getItem("rememberMe") === "true";
-      if (!rememberFlag) setPhoneNumber("");
+      if (rememberFlag) {
+        setPhoneNumber(localStorage.getItem("rememberPhoneNumber") || "");
+      } else {
+        setPhoneNumber("");
+      }
 
       setPassword("");
       setConfirmPassword("");
@@ -441,6 +445,8 @@ const Login = () => {
       setShowRecentNumbers(false);
       setFilteredRecentNumbers([]);
     } else {
+      // Keep sign-up phone input blank instead of carrying over the last login number.
+      setPhoneNumber("");
       setShowRecentNumbers(false);
       setFilteredRecentNumbers([]);
     }

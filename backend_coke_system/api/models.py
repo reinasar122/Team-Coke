@@ -615,6 +615,7 @@ class Merchandising(models.Model):
     invoice_no = models.CharField(max_length=20, blank=True, null=True)
     status = models.CharField(max_length=50, default="PENDING")
     reserved_date = models.DateField(blank=True, null=True)
+    actual_pickup_date = models.DateField(blank=True, null=True)
     remarks = models.TextField(blank=True, null=True)
 
     returned_with_content = models.DecimalField(max_digits=12, decimal_places=2, default=0)

@@ -95,7 +95,7 @@ DATABASES = {
          'NAME': 'cokedb6',
          'USER': 'cokeuser',
          'PASSWORD': '@-@CokE123',
-         'HOST': '192.168.0.167',
+         'HOST': '192.168.0.167,
          'PORT': '3306',
      }
  } 

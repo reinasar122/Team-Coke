@@ -92,6 +92,23 @@ const toDateInputValue = (value) => {
   return local.toISOString().slice(0, 10);
 };
 
+const normalizeReservationStatus = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const isCancelledReservationStatus = (value) => {
+  const normalized = normalizeReservationStatus(value);
+  return normalized === "cancelled" || normalized === "canceled";
+};
+
+const isPickedUpReservationStatus = (value) => {
+  const normalized = normalizeReservationStatus(value);
+  return normalized === "picked up" || normalized === "complete" || normalized === "completed";
+};
+
 const MerchandisingSale = () => {
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
   const [users, setUsers] = useState([]);
@@ -110,10 +127,13 @@ const MerchandisingSale = () => {
   const [transactionDate, setTransactionDate] = useState(() => toDatetimeLocalValue());
   const location = useLocation();
   const requestedReservationMode = Boolean(location.state?.reservationMode);
-  const incomingReservationStatus = String(location.state?.sale?.status || "").trim().toLowerCase();
+  const incomingReservationStatus = normalizeReservationStatus(location.state?.sale?.status);
+  const incomingReservedDate = toDateInputValue(location.state?.sale?.reserved_date);
   const isReservationMode =
     requestedReservationMode ||
-    ["reserved", "cancelled", "canceled"].includes(incomingReservationStatus);
+    Boolean(incomingReservedDate) ||
+    incomingReservationStatus === "reserved" ||
+    isCancelledReservationStatus(incomingReservationStatus);
   const [transactionType, setTransactionType] = useState(
     location.state?.transactionTypeId || ""
   );
@@ -139,8 +159,9 @@ const MerchandisingSale = () => {
   const [vans, setVans] = useState([]);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isReservedModalOpen, setIsReservedModalOpen] = useState(false);
-  const [selectedReservedDate, setSelectedReservedDate] = useState(() =>
-    toDateInputValue(location.state?.sale?.reserved_date)
+  const [selectedReservedDate, setSelectedReservedDate] = useState(() => incomingReservedDate);
+  const [selectedActualPickupDate, setSelectedActualPickupDate] = useState(() =>
+    toDateInputValue(location.state?.sale?.actual_pickup_date)
   );
 
   const [dispatchAdjustments, setDispatchAdjustments] = useState([]);
@@ -217,6 +238,7 @@ const MerchandisingSale = () => {
       setIsPaymentModalOpen(false);
       setIsReservedModalOpen(false);
       setSelectedReservedDate("");
+      setSelectedActualPickupDate("");
       setEditMode(false);
       setTransactionDate(toDatetimeLocalValue());
       editingExistingRef.current = false;
@@ -610,10 +632,15 @@ const MerchandisingSale = () => {
   const showPickupDateCard =
     isReservationMode && selectedTransactionTypeName === "Warehouse";
   const pickupDateCardValue = selectedReservedDate || "Set pickup date";
-  const isReservedSaleDetail = editMode && incomingReservationStatus === "reserved";
+  const isReservedSaleDetail =
+    editMode && Boolean(incomingReservedDate) && incomingReservationStatus === "reserved";
   const isCancelledReservationDetail =
-    editMode && ["cancelled", "canceled"].includes(incomingReservationStatus);
-  const usesReservationDraftTotals = isReservationMode && !isReservedSaleDetail;
+    editMode && Boolean(incomingReservedDate) && isCancelledReservationStatus(incomingReservationStatus);
+  const isPickedUpReservationDetail =
+    editMode && Boolean(incomingReservedDate) && isPickedUpReservationStatus(incomingReservationStatus);
+  const isArchivedReservationDetail =
+    isCancelledReservationDetail || isPickedUpReservationDetail;
+  const usesReservationDraftTotals = isReservationMode && !editMode;
   const showReservationHeaderBack = isReservationMode && editMode;
   const showFormHeaderBack = !editMode || showReservationHeaderBack;
   const headerBackLabel = "Back";
@@ -621,7 +648,9 @@ const MerchandisingSale = () => {
     navigate(showReservationHeaderBack ? "/reservationlist" : -1);
   const pageTitle = isReservationMode
     ? editMode
-      ? "View/Edit Reservation"
+      ? isPickedUpReservationDetail
+        ? "Reservation Details"
+        : "View/Edit Reservation"
       : "New Reservation"
     : editMode
       ? "View/Edit Merchandising Sale"
@@ -676,6 +705,7 @@ const MerchandisingSale = () => {
       setTransactionDate(toDatetimeLocalValue(new Date(sale.date_time)));
     }
     setSelectedReservedDate(toDateInputValue(sale.reserved_date));
+    setSelectedActualPickupDate(toDateInputValue(sale.actual_pickup_date));
 
     if (!allProductsRaw?.length && !products?.length) return;
 
@@ -697,6 +727,10 @@ const MerchandisingSale = () => {
         console.error("? Could not load merchandising detail (both URLs failed).");
         return;
       }
+
+      setSelectedActualPickupDate(
+        toDateInputValue(data.actual_pickup_date ?? sale.actual_pickup_date)
+      );
 
       const detailTypeName = String(
         data.transaction_type_name ?? chosenType?.name ?? fallbackTypeName
@@ -914,6 +948,19 @@ const MerchandisingSale = () => {
     );
     const isReservationTransaction =
       isReservationMode && !isVanLoad && selectedTransactionTypeName === "Warehouse";
+    const rawStatus =
+      statusOverride ||
+      (selectedTransactionTypeName === "Van Load"
+        ? "Pending"
+        : isReservationTransaction
+          ? "Reserved"
+          : "Complete");
+    const isPickedUpReservation =
+      isReservationTransaction && isPickedUpReservationStatus(rawStatus);
+    const normalizedActualPickupDate = toDateInputValue(
+      submitOptions.actualPickupDate || (isPickedUpReservation ? new Date() : "")
+    );
+    const finalStatus = isPickedUpReservation ? "Picked Up" : rawStatus;
 
     if (!warehouseId) {
       showAlert("Warehouse is required.");
@@ -990,14 +1037,12 @@ const MerchandisingSale = () => {
           ? Number(refundablesTotal || 0)
           : 0,
       invoice_no: "",
-      status:
-        statusOverride ||
-        (selectedTransactionTypeName === "Van Load"
-          ? "Pending"
-          : isReservationTransaction
-            ? "Reserved"
-            : "Complete"),
+      status: finalStatus,
       reserved_date: isReservationTransaction ? normalizedReservedDate : null,
+      actual_pickup_date:
+        isReservationTransaction && isPickedUpReservation
+          ? normalizedActualPickupDate
+          : null,
       remarks: submitOptions.remarks || "",
       items: validItems.map((row) => {
         const base = {
@@ -1049,9 +1094,9 @@ const MerchandisingSale = () => {
       customer: payload.customer,
       handled_by: payload.handled_by,
       date_time: payload.date_time,
-      items_count: payload.items.length,
-      misc_items_count: payload.misc_items.length,
-      status: payload.status,
+          items_count: payload.items.length,
+          misc_items_count: payload.misc_items.length,
+          status: payload.status,
     });
     console.log("?? Full payload:", payload);
     console.log("?? misc_items about to submit:", payload.misc_items);
@@ -1115,6 +1160,12 @@ const MerchandisingSale = () => {
         }
       } else if (paymentData && paymentData.paymentMethod === "credit") {
         console.log("?? Credit payment - no immediate payment record needed");
+      }
+
+      if (isReservationTransaction) {
+        setSelectedActualPickupDate(
+          payload.actual_pickup_date ? toDateInputValue(payload.actual_pickup_date) : ""
+        );
       }
 
       showAlert(successMessage);
@@ -1237,8 +1288,9 @@ const MerchandisingSale = () => {
 
   const handleCompleteReservedSale = async (paymentData) => {
     return handleSubmit(paymentData, {
-      status: "Complete",
-      successMessage: "Reservation paid successfully!",
+      status: "Picked Up",
+      actualPickupDate: new Date(),
+      successMessage: "Reservation picked up and paid successfully!",
     });
   };
 
@@ -1488,7 +1540,12 @@ const MerchandisingSale = () => {
                   <button
                     type="button"
                     className="pickup-date-card merch-sale-form-control"
-                    onClick={() => setIsReservedModalOpen(true)}
+                    onClick={() => {
+                      if (!isArchivedReservationDetail) {
+                        setIsReservedModalOpen(true);
+                      }
+                    }}
+                    disabled={isArchivedReservationDetail}
                   >
                     <span
                       className={
@@ -1503,6 +1560,11 @@ const MerchandisingSale = () => {
                       <FaRegCalendarAlt />
                     </span>
                   </button>
+                  {selectedActualPickupDate && (
+                    <p className="mt-2 text-sm font-medium text-emerald-700">
+                      Actual pick up date: {selectedActualPickupDate}
+                    </p>
+                  )}
                 </div>
               )}
             </div>
@@ -1687,7 +1749,7 @@ const MerchandisingSale = () => {
           onCancel={handleCancelReservation}
           warehouseActionLabel={isReservedSaleDetail ? "Pay" : isReservationMode ? "Reserve" : "Pay"}
           showWarehouseAction={
-            !isCancelledReservationDetail && (
+            !isArchivedReservationDetail && (
               selectedTransactionTypeName !== "Warehouse" ||
               hasWarehouseDispatchedInput
             )

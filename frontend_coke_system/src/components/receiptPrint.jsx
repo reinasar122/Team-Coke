@@ -271,10 +271,15 @@ export const generateReceiptHTML = (payload, options = {}) => {
 </html>`;
 };
 
+let activePrintJob = false;
+
 export const printReceipt = (payload, options = {}) => {
   const html = generateReceiptHTML(payload, options);
 
   if (typeof window === "undefined" || typeof document === "undefined") return;
+  if (activePrintJob) return;
+
+  activePrintJob = true;
 
   let win = null;
   try {
@@ -282,21 +287,32 @@ export const printReceipt = (payload, options = {}) => {
   } catch (_) {}
 
   if (win && win.document) {
+    let didPrint = false;
+    let cleanedUp = false;
+    let loadTimer = null;
+
+    const cleanup = () => {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      activePrintJob = false;
+      if (loadTimer) clearTimeout(loadTimer);
+      try { win.close(); } catch (_) {}
+    };
+
+    const finalize = () => {
+      if (didPrint) return;
+      didPrint = true;
+      try { win.focus(); } catch (_) {}
+      try { win.print(); } catch (_) {}
+      setTimeout(cleanup, 200);
+    };
+
     win.document.open();
     win.document.write(html);
     win.document.close();
 
-    const finalize = () => {
-      try { win.focus(); } catch (_) {}
-      try { win.print(); } catch (_) {}
-      try { win.close(); } catch (_) {}
-    };
-
-    if ("onload" in win) {
-      win.onload = finalize;
-    } else {
-      setTimeout(finalize, 250);
-    }
+    try { win.onload = finalize; } catch (_) {}
+    loadTimer = setTimeout(finalize, 400);
     return;
   }
 
@@ -314,18 +330,28 @@ export const printReceipt = (payload, options = {}) => {
   idoc.write(html);
   idoc.close();
 
+  let didPrint = false;
+  let cleanedUp = false;
+  let fallbackTimer = null;
+
   const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    activePrintJob = false;
+    if (fallbackTimer) clearTimeout(fallbackTimer);
     setTimeout(() => {
       try { document.body.removeChild(iframe); } catch (_) {}
     }, 500);
   };
 
   const doPrint = () => {
+    if (didPrint) return;
+    didPrint = true;
     try { (iframe.contentWindow || iframe).focus(); } catch (_) {}
     try { (iframe.contentWindow || iframe).print(); } catch (_) {}
     cleanup();
   };
 
   iframe.onload = doPrint;
-  setTimeout(doPrint, 300);
+  fallbackTimer = setTimeout(doPrint, 500);
 };

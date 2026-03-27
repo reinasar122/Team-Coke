@@ -44,15 +44,62 @@ const normalizeReservedDate = (value) => {
   return toYMD_PH(parsed);
 };
 
-const StatusPill = ({ status, dueToday = false }) => {
-  const st = (status || "").toLowerCase().trim();
+const normalizeStatusValue = (value) =>
+  String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ");
+
+const getTransactionTypeName = (sale) =>
+  normalizeStatusValue(
+    sale?.transaction_type_name ??
+      sale?.transaction_type?.name ??
+      sale?.transaction_type ??
+      ""
+  );
+
+const isReservationOriginSale = (sale) =>
+  getTransactionTypeName(sale) === "warehouse" &&
+  Boolean(normalizeReservedDate(sale?.reserved_date));
+
+const getReservationLifecycleStatus = (sale) => {
+  const statusName = normalizeStatusValue(sale?.status);
+  const reservedDate = normalizeReservedDate(sale?.reserved_date);
+  const todayYmd = toYMD_PH(new Date());
+
+  if (statusName === "cancelled" || statusName === "canceled") {
+    return "Cancelled";
+  }
+
+  if (statusName === "picked up" || statusName.startsWith("complete")) {
+    return "Picked Up";
+  }
+
+  if (statusName === "reserved") {
+    if (reservedDate && reservedDate < todayYmd) return "Overdue";
+    if (reservedDate && reservedDate === todayYmd) return "Due Today";
+    return "Reserved";
+  }
+
+  return sale?.status || "Reserved";
+};
+
+const StatusPill = ({ status }) => {
+  const st = normalizeStatusValue(status);
   const base = "merch-status-pill";
   if (st === "pending" || st === "draft")
     return <span className={`${base} merch-status-pill--pending`}>Pending</span>;
   if (st === "reserved")
-    return <span className={`${base} merch-status-pill--reserved${dueToday ? " merch-status-pill--due" : ""}`} title={dueToday ? "Pickup date is today" : undefined}>Reserved</span>;
+    return <span className={`${base} merch-status-pill--reserved`}>Reserved</span>;
+  if (st === "due today")
+    return <span className={`${base} merch-status-pill--reserved merch-status-pill--due`}>Due Today</span>;
+  if (st === "overdue")
+    return <span className={`${base} merch-status-pill--overdue`}>Overdue</span>;
   if (st === "cancelled" || st === "canceled")
     return <span className={`${base} merch-status-pill--cancelled`}>Cancelled</span>;
+  if (st === "picked up")
+    return <span className={`${base} merch-status-pill--completed`}>Picked Up</span>;
   if (st.startsWith("complete"))
     return <span className={`${base} merch-status-pill--completed`}>Completed</span>;
   if (st === "in progress" || st === "in-progress" || st === "ongoing" || st === "on going")
@@ -178,11 +225,11 @@ const MerchandisingList = ({ view = "trading" }) => {
   const groupedWarehouseRows = useMemo(() => {
     const groups = new Map();
     for (const r of timeSorted) {
-      const tname = String(r.transaction_type_name ?? r.transaction_type?.name ?? "").toLowerCase();
+      const tname = getTransactionTypeName(r);
       if (tname !== "warehouse") continue;
 
-      const status = String(r.status || "").trim().toLowerCase();
-      if (["reserved", "cancelled", "canceled"].includes(status)) continue;
+      const status = normalizeStatusValue(r.status);
+      if (isReservationOriginSale(r) || ["cancelled", "canceled"].includes(status)) continue;
 
       const day = asYmd(r.date_time);
       const key = `${r.msp_no}__${day}`;
@@ -237,21 +284,13 @@ const MerchandisingList = ({ view = "trading" }) => {
 
   const reservedWarehouseRows = useMemo(() => {
     return timeSorted
-      .filter((r) => {
-        const tname = String(
-          r.transaction_type_name ?? r.transaction_type?.name ?? ""
-        )
-          .trim()
-          .toLowerCase();
-        const status = String(r.status || "").trim().toLowerCase();
-        return tname === "warehouse" && ["reserved", "cancelled", "canceled"].includes(status);
-      })
+      .filter((r) => isReservationOriginSale(r))
       .map((r) => ({
         _kind: "warehouse-reserved",
         record: r,
         sortTime: r?.date_time ? new Date(r.date_time).getTime() : 0,
         reservedDateYmd: normalizeReservedDate(r.reserved_date),
-        isDueToday: normalizeReservedDate(r.reserved_date) === toYMD_PH(new Date()),
+        displayStatus: getReservationLifecycleStatus(r),
       }));
   }, [timeSorted]);
 
@@ -473,6 +512,10 @@ const MerchandisingList = ({ view = "trading" }) => {
                 }
 
                 const sale = row.record;
+                const displayStatus =
+                  row._kind === "warehouse-reserved"
+                    ? row.displayStatus
+                    : sale.status;
                 return (
                   <tr
                     key={sale.id}
@@ -489,7 +532,7 @@ const MerchandisingList = ({ view = "trading" }) => {
                         "\u2014"}
                     </td>
                     <td className="p-2">
-                      <StatusPill status={sale.status} dueToday={Boolean(row.isDueToday)} />
+                      <StatusPill status={displayStatus} />
                     </td>
                   </tr>
                 );
