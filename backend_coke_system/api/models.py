@@ -149,7 +149,7 @@ class Supplier(models.Model):
     company_name = models.CharField(max_length=255, unique=True)
     registration_number = models.CharField(max_length=20, unique=True, editable=False)
     bir_no = models.CharField(max_length=100, blank=True, null=True)
-    contact_person = models.CharField(max_length=255)
+    contact_person = models.CharField(max_length=255, blank=True, default="")
     email = models.EmailField(unique=True)
     phone_number = models.CharField(max_length=11, blank=True, null=True)
     country = models.CharField(max_length=100, default="Philippines")
@@ -186,12 +186,13 @@ class Supplier(models.Model):
 
 class SupplierContact(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.CASCADE, related_name="contacts")
-    contact_person = models.CharField(max_length=255)
+    contact_person = models.CharField(max_length=255, blank=True, default="")
     email = models.EmailField()
     phone_number = models.CharField(max_length=11, blank=True, null=True)
 
     def __str__(self):
-        return f"{self.contact_person} ({self.supplier.company_name})"
+        display_name = self.contact_person or "No contact person"
+        return f"{display_name} ({self.supplier.company_name})"
 
     def clean(self):
         if self.phone_number:

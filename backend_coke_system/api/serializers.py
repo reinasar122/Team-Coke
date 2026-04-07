@@ -481,9 +481,9 @@ class SupplierContactSerializer(serializers.ModelSerializer):
         model = SupplierContact
         fields = ['id', 'supplier', 'contact_person', 'email', 'phone_number']
         extra_kwargs = {
-            'supplier': {'read_only': True},  # supplier auto-linked
-            'email': {'required': True},      # ensure required
-            'contact_person': {'required': True},
+            'supplier': {'read_only': True},
+            'email': {'required': True},
+            'contact_person': {'required': False, 'allow_blank': True},
         }
 
 
@@ -494,6 +494,9 @@ class SupplierSerializer(serializers.ModelSerializer):
     class Meta:
         model = Supplier
         fields = '__all__'
+        extra_kwargs = {
+            'contact_person': {'required': False, 'allow_blank': True},
+        }
 
     def validate_company_name(self, value):
         qs = Supplier.objects.filter(company_name__iexact=value.strip())
@@ -891,6 +894,8 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     # Store text in DB, but still accept numbers from the client
     handled_by = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     handled_by_name = serializers.SerializerMethodField()
+    customer_name = serializers.SerializerMethodField()
+    customer_display_name = serializers.SerializerMethodField()
     warehouse_full_address = serializers.SerializerMethodField()
 
     # ---- existing fields you already have ----
@@ -924,6 +929,15 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 return ",".join(parts)
             return "N/A"
         return "N/A"
+    def get_customer_name(self, obj):
+        customer = getattr(obj, "customer", None)
+        if customer and getattr(customer, "name", None):
+            return customer.name
+        return ""
+
+    def get_customer_display_name(self, obj):
+        return self.get_customer_name(obj)
+
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
