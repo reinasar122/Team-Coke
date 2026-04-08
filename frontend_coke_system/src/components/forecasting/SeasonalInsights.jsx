@@ -1,28 +1,29 @@
 // src/components/forecasting/SeasonalInsights.jsx
 import React from "react";
+import { FaCalendar, FaCalendarAlt, FaChartLine, FaBullseye } from "react-icons/fa";
 
 export const SeasonalInsights = ({ insights }) => {
   const cards = [
     {
       label: "Weekly Peak Day",
       value: insights.weeklyPeakDay,
-      icon: "📅",
+      icon: <FaCalendarAlt />,
     },
     {
       label: "Yearly Peak Month",
       value: insights.yearlyPeakMonth,
-      icon: "📆",
+      icon: <FaCalendar />,
     },
     {
       label: "Trend Direction",
       value: insights.trendDirection,
-      icon: "📈",
+      icon: <FaChartLine />,
       valueClass: "text-emerald-600",
     },
     {
-      label: "MAPE Accuracy", //Karen Changes
+      label: "MAPE Accuracy",
       value: `${Number(insights.mape || 0).toFixed(2)}%`,
-      icon: "🎯",
+      icon: <FaBullseye />,
     },
   ];
 
@@ -58,23 +59,23 @@ export const SeasonalInsights = ({ insights }) => {
         ))}
       </div>
 
-      {/* 🔽 MAPE Accuracy Guide Label */}
+      {/* MAPE Accuracy Guide Label */}
       <div className="mt-4 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-xl p-3">
         <p className="font-semibold text-gray-700 mb-1">
           MAPE Accuracy Guide
         </p>
         <ul className="space-y-0.5">
           <li>
-            <span className="font-medium text-emerald-600">0–10%</span> – Excellent (Very reliable)
+            <span className="font-medium text-emerald-600">0-10%</span> - Excellent (Very reliable)
           </li>
           <li>
-            <span className="font-medium text-green-600">10–20%</span> – Good (Reliable for planning)
+            <span className="font-medium text-green-600">10-20%</span> - Good (Reliable for planning)
           </li>
           <li>
-            <span className="font-medium text-orange-500">20–50%</span> – Moderate (Use with caution)
+            <span className="font-medium text-orange-500">20-50%</span> - Moderate (Use with caution)
           </li>
           <li>
-            <span className="font-medium text-red-500">&gt;50%</span> – Low (Not reliable)
+            <span className="font-medium text-red-500">&gt;50%</span> - Low (Not reliable)
           </li>
         </ul>
       </div>

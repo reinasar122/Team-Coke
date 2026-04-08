@@ -2562,6 +2562,7 @@ class ForecastViewSet(viewsets.ModelViewSet):
         queryset = self.get_queryset()
         serializer = self.get_serializer(queryset, many=True)
         data = serializer.data
+        warehouse_id = request.query_params.get("warehouse_id")
 
         # 1) Build actual sales map in Python (not using TruncDate)
         items = (
@@ -2569,6 +2570,8 @@ class ForecastViewSet(viewsets.ModelViewSet):
             .select_related("merchandising")
             .values("product_id", "merchandising__date_time", "sold_pcs")
         )
+        if warehouse_id:
+            items = items.filter(merchandising__warehouse_id=warehouse_id)
 
         actual_map = defaultdict(int)  # key = (product_id, date) -> total sold_pcs
 
@@ -2577,7 +2580,7 @@ class ForecastViewSet(viewsets.ModelViewSet):
             if dt is None:
                 continue
 
-            d = dt.date()  # convert to plain date
+            d = timezone.localtime(dt).date() if timezone.is_aware(dt) else dt.date()
             key = (row["product_id"], d)
             actual_map[key] += row["sold_pcs"] or 0
 
@@ -2594,11 +2597,14 @@ class ForecastViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         queryset = self.queryset
         product_id = self.request.query_params.get("product_id")
+        warehouse_id = self.request.query_params.get("warehouse_id")
         start_date = self.request.query_params.get("start_date")
         end_date = self.request.query_params.get("end_date")
 
         if product_id:
             queryset = queryset.filter(product_id=product_id)
+        if warehouse_id:
+            queryset = queryset.filter(product__warehouse_id=warehouse_id)
         if start_date and end_date:
             queryset = queryset.filter(date__range=[start_date, end_date])
 
@@ -2614,7 +2620,9 @@ class GenerateForecastAPIView(APIView):
 
     def post(self, request, *args, **kwargs):
         product_id = request.data.get("product")
+        warehouse_id = request.data.get("warehouse_id")
         days = int(request.data.get("days", 30))
+        target_date = request.data.get("target_date")
 
         if not product_id:
             return Response({"detail": "product is required"}, status=400)
@@ -2622,33 +2630,35 @@ class GenerateForecastAPIView(APIView):
         # ------------------------------------------
         # 1) Fetch historical sales grouped by DATE
         # ------------------------------------------
-        qs = (
+        items_qs = (
             MerchandisingItem.objects
             .filter(product_id=product_id)
-            .values("merchandising__date_time__date")
-            .annotate(y=Sum("sold_pcs"))
-            .order_by("merchandising__date_time__date")
+            .select_related("merchandising")
+            .values("merchandising__date_time", "sold_pcs")
         )
+        if warehouse_id:
+            items_qs = items_qs.filter(merchandising__warehouse_id=warehouse_id)
 
-        # Build rows with a clean 'sale_date' key
+        daily_sales = defaultdict(int)
+        for row in items_qs:
+            dt = row["merchandising__date_time"]
+            if dt is None:
+                continue
+
+            sale_date = timezone.localtime(dt).date() if timezone.is_aware(dt) else dt.date()
+            daily_sales[sale_date] += row["sold_pcs"] or 0
+
         rows = [
-            {
-                "sale_date": r["merchandising__date_time__date"],
-                "y": r["y"],
-            }
-            for r in qs
-            if r["merchandising__date_time__date"] is not None
+            {"sale_date": sale_date, "y": qty}
+            for sale_date, qty in sorted(daily_sales.items())
+            if qty > 0
         ]
 
         # ------------------------------------------
         # Padding logic
         # ------------------------------------------
         if len(rows) == 0:
-            today = timezone.now().date()
-            rows = [
-                {"sale_date": today - timedelta(days=1), "y": 10},
-                {"sale_date": today, "y": 12},
-            ]
+            return Response([], status=200)
 
         elif len(rows) == 1:
             only = rows[0]
@@ -2665,6 +2675,15 @@ class GenerateForecastAPIView(APIView):
         df.rename(columns={"sale_date": "ds"}, inplace=True)
         df["ds"] = pd.to_datetime(df["ds"]).dt.tz_localize(None)  # REMOVE TZ
         df = df[["ds", "y"]]
+
+        last_hist_date = df["ds"].max().date()
+        if target_date:
+            try:
+                target = date.fromisoformat(str(target_date))
+                days = max(days, (target - last_hist_date).days)
+            except ValueError:
+                return Response({"detail": "target_date must be YYYY-MM-DD"}, status=400)
+        days = max(days, 30)
 
         # ------------------------------------------
         # 4) Prepare Holidays (optional)
@@ -2692,7 +2711,6 @@ class GenerateForecastAPIView(APIView):
         # 7) Save forecast into DB
         # ------------------------------------------
         created = []
-        last_hist_date = df["ds"].max().date()
 
 
         for _, row in forecast.iterrows():

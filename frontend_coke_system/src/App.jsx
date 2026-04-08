@@ -40,6 +40,8 @@ import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
 import ReservationList from "./pages/ReservationList";
 import ReservationDetailPage from "./pages/ReservationDetailPage";
+import ReservationSaleDetails from "./pages/ReservationSaleDetails";
+import ReservationCancelledDetails from "./pages/ReservationCancelledDetails";
 import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -171,7 +173,7 @@ const ProtectedLayout = ({
   const hideLayout = hiddenRoutes.includes(location.pathname);
 
   // Pages where we want to HIDE the universal scrollbar
-  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist", "/reservation-details"];
+  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist", "/reservation-details", "/reservation-sale-details", "/reservation-cancelled-details"];
   const path = location.pathname.toLowerCase();
   const lockScroll = lockPrefixes.some(p => path === p || path.startsWith(p + "/"));
 
@@ -342,6 +344,8 @@ const ProtectedLayout = ({
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/reservationlist" element={<ReservationList />} />
             <Route path="/reservation-details/:id" element={<ReservationDetailPage />} />
+            <Route path="/reservation-sale-details/:id" element={<ReservationSaleDetails />} />
+            <Route path="/reservation-cancelled-details/:id" element={<ReservationCancelledDetails />} />
             <Route
               path="/merchandising"
               element={

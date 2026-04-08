@@ -546,23 +546,7 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
 
     console.log("✅ Invoice saved:", res.data);
 
-    const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
-
-    if (isWarehouse) {
-      const warehouseType = Array.isArray(transactionTypes)
-        ? transactionTypes.find(tt => tt.name === "Warehouse")
-        : null;
-
-      navigate("/merchandising-sale", {
-        replace: true,
-        state: {
-          reset: true,
-          transactionTypeId: warehouseType?.id || "",
-        },
-      });
-    } else {
-      navigate("/trading", { replace: true, state: { reset: true } });
-    }
+    navigate("/trading", { replace: true, state: { reset: true } });
 
     onClose?.();
   } catch (err) {
