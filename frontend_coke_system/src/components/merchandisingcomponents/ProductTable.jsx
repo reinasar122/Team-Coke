@@ -17,6 +17,9 @@ const ProductTable = ({
   allowManualSoldEntry = false,
   autoFillSoldFromDispatched = true,
   allowDiscountWithoutSold = false,
+  allowProductSelection = true,
+  allowDispatchEdit = true,
+  allowRowRemoval = true,
   miscItems = [],
   warehouseId,
 
@@ -143,6 +146,14 @@ useEffect(() => {
     });
     return map;
   }, [unitTypes]);
+
+  const displayRows = useMemo(
+    () =>
+      allowProductSelection
+        ? rows
+        : rows.filter((row) => row.productId || row.productName),
+    [rows, allowProductSelection]
+  );
 
   // product/warehouse stock (optional)
   const fetchStockQuantity = async (productId) => {
@@ -860,7 +871,8 @@ useEffect(() => {
         </thead>
 
         <tbody>
-          {rows.map((row, index) => {
+          {displayRows.map((row, index) => {
+            const rowIndex = rows.indexOf(row);
             const productId = Number(row.productId);
             const product = products.find(p => p.id === productId);
             const hasProduct = !!product;
@@ -898,9 +910,10 @@ useEffect(() => {
                   <ProductSearchSelect
                     products={products}
                     value={row.productName ?? ""}
-                    onChange={(id) => handleProductChange(index, String(id))}
-                    excludeIds={getSelectedProductIds(index)}
+                    onChange={(id) => handleProductChange(rowIndex, String(id))}
+                    excludeIds={getSelectedProductIds(rowIndex)}
                     placeholder="Search product..."
+                    readOnly={!allowProductSelection}
                   />
                 </td>
 
@@ -909,24 +922,28 @@ useEffect(() => {
                   <input
                     type="number"
                     placeholder="0"
-                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : "bg-yellow-50"}`}
+                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : allowDispatchEdit ? "bg-yellow-50" : "bg-gray-100 cursor-default"}`}
                     value={row.dispatchedShell === null || row.dispatchedShell === undefined ? "" : row.dispatchedShell}
                     onChange={(e) =>
-                      handleRowChange(index, "dispatchedShell", e.target.value === "" ? null : e.target.value)
+                      handleRowChange(rowIndex, "dispatchedShell", e.target.value === "" ? null : e.target.value)
                     }
-                    disabled={!hasProduct} // Disabled if no product is selected
+                    readOnly={!allowDispatchEdit}
+                    disabled={!hasProduct}
+                    tabIndex={allowDispatchEdit ? 0 : -1}
                   />
                 </td>
                 <td className="border border-gray-200 py-1 px-1">
                   <input
                     type="number"
                     placeholder="0"
-                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : "bg-yellow-50"}`}
+                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : allowDispatchEdit ? "bg-yellow-50" : "bg-gray-100 cursor-default"}`}
                     value={row.dispatchedPcs === null || row.dispatchedPcs === undefined ? "" : row.dispatchedPcs}
                     onChange={(e) =>
-                      handleRowChange(index, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
+                      handleRowChange(rowIndex, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
                     }
-                    disabled={!hasProduct} // Disabled if no product is selected
+                    readOnly={!allowDispatchEdit}
+                    disabled={!hasProduct}
+                    tabIndex={allowDispatchEdit ? 0 : -1}
                   />
                 </td>
 
@@ -956,7 +973,7 @@ useEffect(() => {
                     className={soldInputClass}
                     value={row.soldShell ?? ""}
                     onChange={(e) =>
-                      handleRowChange(index, "soldShell", e.target.value === "" ? null : e.target.value)
+                      handleRowChange(rowIndex, "soldShell", e.target.value === "" ? null : e.target.value)
                     }
                     readOnly={!allowManualSoldEntry}
                     disabled={soldInputDisabled}
@@ -970,7 +987,7 @@ useEffect(() => {
                     className={soldInputClass}
                     value={row.soldPcs ?? ""}
                     onChange={(e) =>
-                      handleRowChange(index, "soldPcs", e.target.value === "" ? null : e.target.value)
+                      handleRowChange(rowIndex, "soldPcs", e.target.value === "" ? null : e.target.value)
                     }
                     readOnly={!allowManualSoldEntry}
                     disabled={soldInputDisabled}
@@ -1051,7 +1068,7 @@ useEffect(() => {
                       }
                       onChange={(e) =>
                         handleRowChange(
-                          index,
+                          rowIndex,
                           field,
                           e.target.value === "" ? null : e.target.value
                         )
@@ -1080,7 +1097,7 @@ useEffect(() => {
                       ? "input-always-spinner w-full p-1 text-sm text-center rounded border bg-yellow-50"
                       : "input-always-spinner w-full p-1 text-sm text-center rounded border bg-gray-200 cursor-not-allowed"}
                     value={row.discount ?? ""}
-                    onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+                    onChange={(e) => handleRowChange(rowIndex, "discount", e.target.value)}
                     disabled={!discountInputEnabled}
                   />
                 </td>
@@ -1106,10 +1123,10 @@ useEffect(() => {
 
                 {/* Action */}
                 <td className="icon-btn-danger">
-                  {row.productId && (
+                  {allowRowRemoval && row.productId && (
                     <button
                       type="button"
-                      onClick={() => handleRemoveRow(index)}
+                      onClick={() => handleRemoveRow(rowIndex)}
                       className="trash-btn"
                     >
                       <FaTrash />
@@ -1172,3 +1189,8 @@ useEffect(() => {
 };
 
 export default ProductTable;
+
+
+
+
+

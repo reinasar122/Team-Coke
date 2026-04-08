@@ -256,6 +256,7 @@ export default function Statistics({
   customStartDate = '', // 🔧 NEW: Add custom date support
   customEndDate = '', // 🔧 NEW: Add custom date support
   revenue = 0, // Pass the revenue here
+  loading = false,
 }) {
   const isDark = useDarkFlag();
   const data = React.useMemo(
@@ -285,6 +286,16 @@ export default function Statistics({
 
   const minY =
     minYRaw === 0 ? -Math.max(100, Math.round((Number.isFinite(maxY) ? maxY : 1000) * 0.05)) : minYRaw;
+
+  const seriesAnimationProps = React.useMemo(
+    () => ({
+      isAnimationActive: !loading && data.length > 0,
+      animationBegin: 0,
+      animationDuration: 420,
+      animationEasing: "ease-out",
+    }),
+    [loading, data.length]
+  );
 
   const MoneyTooltip = ({ active, payload, label }) => {
     if (!active) return null;
@@ -388,6 +399,7 @@ export default function Statistics({
                   stroke="#4488efff"
                   fill="url(#moneyRed)"
                   strokeWidth={2}
+                  {...seriesAnimationProps}
                   dot={<Dot r={3} stroke="#4488efff" fill="#4488efff" />}
                   activeDot={{ r: 5 }}
                 />
@@ -400,7 +412,7 @@ export default function Statistics({
                   stroke="#10b981"
                   strokeWidth={2}
                   fill="url(#profitGlow)"
-                  isAnimationActive={false}
+                  {...seriesAnimationProps}
                   dot={<Dot r={3} stroke="#10b981" fill="#10b981" />}
                   activeDot={{ r: 5 }}
                 />
@@ -415,6 +427,7 @@ export default function Statistics({
                   strokeLinecap="round"
                   dot={false}
                   activeDot={false}
+                  {...seriesAnimationProps}
                   connectNulls
                 />
                 {/* POSITIVE PROFIT -- main stroke */}
@@ -430,6 +443,7 @@ export default function Statistics({
                   activeDot={{ r: 7, stroke: "#fff", strokeWidth: 2, fill: "#10b981" }}
                   connectNulls
                   legendType="line"
+                  {...seriesAnimationProps}
                 />
 
                 {/* NEGATIVE PROFIT -- halo */}
@@ -443,6 +457,7 @@ export default function Statistics({
                   strokeLinecap="round"
                   dot={false}
                   activeDot={false}
+                  {...seriesAnimationProps}
                   connectNulls
                 />
                 {/* NEGATIVE PROFIT -- dashed */}
@@ -456,6 +471,7 @@ export default function Statistics({
                   strokeLinecap="round"
                   dot={{ r: 5, stroke: "#fff", strokeWidth: 2, fill: "#ef4444" }}
                   activeDot={{ r: 7, stroke: "#fff", strokeWidth: 2, fill: "#ef4444" }}
+                  {...seriesAnimationProps}
                   connectNulls
                 />
               </AreaChart>
@@ -467,3 +483,5 @@ export default function Statistics({
     </GlassCard>
   );
 }
+
+

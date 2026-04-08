@@ -6,12 +6,10 @@ const ActionButtons = ({
   onBack,
   onFinalize,
   onPay,
-  onCancel,
   finalizeDisabled,
   warehouseActionLabel = "Pay",
   warehouseActionDisabled = false,
   showWarehouseAction = true,
-  showCancel = false,
   hideBack = false,
 }) => {
   return (
@@ -32,16 +30,6 @@ const ActionButtons = ({
           title={finalizeDisabled ? "No dispatched items to deduct" : "Finalize Sale"}
         >
           For Delivery
-        </button>
-      )}
-
-      {transactionType === "Warehouse" && showCancel && (
-        <button
-          type="button"
-          onClick={onCancel}
-          className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded"
-        >
-          Cancel
         </button>
       )}
 

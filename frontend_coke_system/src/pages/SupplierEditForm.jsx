@@ -1,11 +1,13 @@
 // src/pages/SupplierEditForm.jsx
 import React, { useState, useEffect } from "react";
-import api from "../api"; // ✅ centralized API instance
+import api from "../api"; // centralized API instance
 //import psgcData from "../data/psgc_output.json";
 import psgcData from "../data/updated_psgc_output.json";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
-import { validatePhoneNumber} from "../utils/validators";
+import {
+  validateOptionalPhoneNumber, 
+} from "../utils/validators";
 
 const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -52,11 +54,11 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     });
   });
 
-  // ✅ Fetch Supplier Data
+  // Fetch Supplier Data
   useEffect(() => {
     const loadSupplier = async () => {
       try {
-        const { data } = await api.get(`/suppliers/${supplierId}/`); // ✅ use centralized API call
+        const { data } = await api.get(`/suppliers/${supplierId}/`); // use centralized API call
         setFormData({
           ...data,
           street_address: data.street_address ?? data.street ?? "",
@@ -71,7 +73,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     if (supplierId) loadSupplier();
   }, [supplierId]);
 
-  // ✅ PSGC cascading logic
+  // PSGC cascading logic
   useEffect(() => {
     const selectedRegion = psgcData.find(
       (r) => r.region_name === formData.region
@@ -89,7 +91,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     setBarangays(selectedCity ? selectedCity.barangays : []);
   }, [formData.region, formData.province, formData.city]);
 
-  // ✅ Handle field changes (with live validation)
+  // Handle field changes (with live validation)
   const handleChange = (e) => {
     const { name, value } = e.target;
     const nextValue =
@@ -106,12 +108,12 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
 
     // Live validations
     if (name === "phone_number") {
-      const err = validatePhoneNumber(nextValue);
+      const err = validateOptionalPhoneNumber(nextValue);
       setErrors((prev) => ({ ...prev, phone_number: err }));
     }
   };
 
-  // ✅ Handle Additional Contact Input (with live validation)
+  // Handle Additional Contact Input (with live validation)
   const handleNewContactChange = (e) => {
     const { name, value } = e.target;
     const nextValue =
@@ -119,50 +121,57 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     setNewContact((prev) => ({ ...prev, [name]: nextValue }));
 
     if (name === "phone_number") {
-      const err = validatePhoneNumber(nextValue);
+      const err = validateOptionalPhoneNumber(nextValue);
       setContactErrors((prev) => ({ ...prev, phone_number: err }));
     }
 
     if (name === "email") {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const err = !emailRegex.test(nextValue)
-        ? "Please enter a valid email address."
-        : null;
+      const err =
+        nextValue.trim() && !emailRegex.test(nextValue)
+          ? "Please enter a valid email address."
+          : null;
       setContactErrors((prev) => ({ ...prev, email: err }));
     }
 
     if (name === "contact_person") {
-      const err = nextValue.trim() ? null : "Contact person is required.";
-      setContactErrors((prev) => ({ ...prev, contact_person: err }));
+      setContactErrors((prev) => ({
+        ...prev,
+        contact_person: null,
+      }));
     }
   };
 
-  // ✅ Add contact with same validation rules
   const addContact = () => {
     const { contact_person, email, phone_number } = newContact;
+    const trimmedContactPerson = contact_person.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhoneNumber = phone_number.trim();
 
-    const phoneError = validatePhoneNumber(phone_number);
+    const phoneError = validateOptionalPhoneNumber(trimmedPhoneNumber);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const emailError = !emailRegex.test(email)
-      ? "Please enter a valid email address."
-      : null;
+    const emailError = trimmedEmail
+      ? !emailRegex.test(trimmedEmail)
+        ? "Please enter a valid email address."
+        : null
+      : "Email is required.";
 
     const errors = {
-      contact_person: contact_person.trim() ? null : "Contact person is required.",
+      contact_person: null,
       email: emailError,
       phone_number: phoneError,
     };
     setContactErrors(errors);
 
-    if (errors.contact_person || errors.email || errors.phone_number) {
+    if (errors.email || errors.phone_number) {
       toast.error("Please fix the errors before adding.", { style: errorStyle });
       return;
     }
 
     const duplicate = formData.contacts.some(
       (c) =>
-        c.email.toLowerCase() === email.toLowerCase() ||
-        c.phone_number === phone_number
+        c.email.toLowerCase() === trimmedEmail.toLowerCase() ||
+        (trimmedPhoneNumber && c.phone_number === trimmedPhoneNumber)
     );
     if (duplicate) {
       toast.error("This contact already exists.", { style: errorStyle });
@@ -171,14 +180,20 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
 
     setFormData((prev) => ({
       ...prev,
-      contacts: [...prev.contacts, newContact],
+      contacts: [
+        ...prev.contacts,
+        {
+          contact_person: trimmedContactPerson,
+          email: trimmedEmail,
+          phone_number: trimmedPhoneNumber,
+        },
+      ],
     }));
     toast.success("Additional contact added.", { style: successStyle });
     setNewContact({ contact_person: "", email: "", phone_number: "" });
     setContactErrors({ contact_person: null, email: null, phone_number: null });
   };
 
-  // ✅ Remove contact
   const removeContact = (index) => {
     setFormData((prev) => ({
       ...prev,
@@ -186,9 +201,9 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     }));
   };
 
-  // ✅ Validate before saving
+  // Validate before saving
   const validateMainFields = () => {
-    const phoneError = validatePhoneNumber(formData.phone_number);
+    const phoneError = validateOptionalPhoneNumber(formData.phone_number);
 
     if (phoneError) {
       toast.error(phoneError, { style: errorStyle });
@@ -197,7 +212,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
     return true;
   };
 
-  // ✅ Submit form
+  // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateMainFields()) return;
@@ -211,11 +226,14 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
 
     const payload = {
       ...formData,
+      contact_person: formData.contact_person?.trim() || '',
+      email: formData.email?.trim() || '',
+      phone_number: formData.phone_number?.trim() || '',
       contacts: contactsData,
     };
 
     try {
-      await api.put(`/suppliers/${supplierId}/`, payload); // ✅ use centralized API call
+      await api.put(`/suppliers/${supplierId}/`, payload); // use centralized API call
       toast.success(
         `Supplier '${formData.company_name}' has been successfully updated!`,
         { style: successStyle }
@@ -300,14 +318,13 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
         {/* Primary Contact */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="block font-medium">Contact Person</label>
+            <label className="block font-medium">Contact Person (Optional)</label>
             <input
               type="text"
               name="contact_person"
               value={formData.contact_person}
               onChange={handleChange}
               className="w-full border p-2 rounded"
-              required
             />
           </div>
           <div>
@@ -337,7 +354,6 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
               className={`w-full border p-2 rounded ${
                 errors.phone_number ? "border-red-500" : ""
               }`}
-              required
             />
             {errors.phone_number && (
               <p className="text-red-500 text-sm mt-1">{errors.phone_number}</p>
@@ -447,7 +463,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
               name="zip_code"
               className={`w-full border p-2 rounded ${errors.zip_code ? "border-red-500" : ""}`}
               required
-              value={formData.zip_code}  // Bind the value to formData.zip_code
+              value={formData.zip_code}
               onChange={handleChange}
             />
             {errors.zip_code && (
@@ -459,7 +475,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
         {/* Additional Contacts */}
         <div className="mt-4">
           <h3 className="font-semibold mb-2">
-            Additional Contacts{" "}
+            Additional Contacts (Optional){" "}
             {formData.contacts.length > 0 && (
               <span className="ml-2 text-sm text-gray-500">
                 ({formData.contacts.length} added)
@@ -473,7 +489,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
               className="border p-2 mb-2 flex justify-between items-center rounded"
             >
               <span className="text-sm">
-                {c.contact_person} — {c.email} — {c.phone_number}
+                {[c.contact_person || "No contact person", c.email, c.phone_number || "No phone number"].join(" - ")}
               </span>
               <button
                 type="button"
@@ -490,7 +506,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
               <input
                 type="text"
                 name="contact_person"
-                placeholder="Contact Person"
+                placeholder="Contact Person (optional)"
                 value={newContact.contact_person}
                 onChange={handleNewContactChange}
                 className={`w-full border p-2 rounded ${
@@ -524,7 +540,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
               <input
                 type="text"
                 name="phone_number"
-                placeholder="Phone Number"
+                placeholder="Phone Number (Optional)"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 autoCorrect="off"
@@ -549,11 +565,7 @@ const SupplierEditForm = ({ supplierId, onClose, onSuccess }) => {
             type="button"
             onClick={addContact}
             className="btn btn-add mt-4"
-            disabled={
-              !newContact.contact_person ||
-              !newContact.email ||
-              !newContact.phone_number
-            }
+            disabled={!newContact.email.trim()}
           >
             Add Contact
           </button>

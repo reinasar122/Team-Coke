@@ -137,37 +137,20 @@ const WarehouseDropdown = ({ selectedWarehouseIds, onWarehouseChange, warehouses
   }, []);
 
   const handleWarehouseSelect = (warehouseId) => {
-    if (selectedWarehouseIds.includes(warehouseId)) {
-      onWarehouseChange(selectedWarehouseIds.filter(id => id !== warehouseId));
-    } else {
-      onWarehouseChange([...selectedWarehouseIds, warehouseId]);
+    if (selectedWarehouseIds[0] === warehouseId) {
+      setIsOpen(false);
+      return;
     }
+
+    onWarehouseChange([warehouseId]);
+    setIsOpen(false);
   };
 
   const getDisplayText = () => {
-    if (!selectedWarehouseIds.length) return "Select Warehouses";
+    if (!selectedWarehouseIds.length) return "Select Warehouse";
     
-    if (selectedWarehouseIds.length === warehouses.length) {
-      if (warehouses.length === 2) {
-        return "Both Warehouses";
-      }
-      return "All Warehouses Selected";
-    }
-    
-    if (selectedWarehouseIds.length === 1) {
-      const warehouse = warehouses.find(w => w.id === selectedWarehouseIds[0]);
-      return warehouse ? warehouse.name : "Unknown Warehouse";
-    }
-    
-    if (selectedWarehouseIds.length === 2) {
-      return "Both Warehouses";
-    }
-    
-    if (selectedWarehouseIds.length >= 3) {
-      return `${selectedWarehouseIds.length} or More Warehouses Selected`;
-    }
-    
-    return `${selectedWarehouseIds.length} Warehouses Selected`;
+    const warehouse = warehouses.find((w) => w.id === selectedWarehouseIds[0]);
+    return warehouse ? warehouse.name : "Unknown Warehouse"; 
   };
 
   const isSelected = (warehouseId) => selectedWarehouseIds.includes(warehouseId);
@@ -199,10 +182,11 @@ const WarehouseDropdown = ({ selectedWarehouseIds, onWarehouseChange, warehouses
                 className="flex items-center gap-3 px-3 py-2 text-xs text-slate-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-800 cursor-pointer"
               >
                 <input
-                  type="checkbox"
+                  type="radio"
+                  name="dashboard-warehouse"
                   checked={isSelected(warehouse.id)}
                   onChange={() => handleWarehouseSelect(warehouse.id)}
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  className="w-4 h-4 text-blue-600 border-gray-300 focus:ring-blue-500"
                 />
                 <span className="truncate">
                   {warehouse.name}
@@ -1536,6 +1520,9 @@ const Dashboard = () => {
   const [period, setPeriod] = useState("this-week");
   const [customStartDate, setCustomStartDate] = useState('');
   const [customEndDate, setCustomEndDate] = useState('');
+  const [appliedPeriod, setAppliedPeriod] = useState("this-week");
+  const [appliedCustomStartDate, setAppliedCustomStartDate] = useState('');
+  const [appliedCustomEndDate, setAppliedCustomEndDate] = useState('');
 
   // Warehouse selection state
   const [selectedWarehouseIds, setSelectedWarehouseIds] = useState([]);
@@ -1543,6 +1530,10 @@ const Dashboard = () => {
   const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
   const userLS = JSON.parse(localStorage.getItem("user") || "{}");
   const warehouseMeta = selectedWarehouse || (userLS?.warehouse ? userLS.warehouse : null);
+  const isChartSyncing = loading || isPending;
+  const activePeriod = isChartSyncing ? appliedPeriod : period;
+  const activeCustomStartDate = isChartSyncing ? appliedCustomStartDate : customStartDate;
+  const activeCustomEndDate = isChartSyncing ? appliedCustomEndDate : customEndDate;
 
   useEffect(() => {
     if (location.state?.openWidgetsModal) {
@@ -1574,6 +1565,10 @@ const Dashboard = () => {
           setLists(fresh.lists);
           setAvailableWarehouses(fresh.availableWarehouses || []);
           setLastUpdated(new Date());
+          setAppliedPeriod(periodParam);
+          setAppliedCustomStartDate(customStart);
+          setAppliedCustomEndDate(customEnd);
+          setLoading(false);
         });
         
       } catch (e) {
@@ -1613,9 +1608,11 @@ const Dashboard = () => {
             invoiceList: [],
           });
           setLastUpdated(new Date());
+          setAppliedPeriod(periodParam);
+          setAppliedCustomStartDate(customStart);
+          setAppliedCustomEndDate(customEnd);
+          setLoading(false);
         });
-      } finally {
-        setLoading(false);
       }
     },
     [period, customStartDate, customEndDate]
@@ -1756,7 +1753,7 @@ const Dashboard = () => {
 
   /* ---------- PERIOD-SYNCED SUMS FOR CARDS ---------- */
   const periodSums = useMemo(() => {
-    const { from, to } = getCustomPeriodRange(period, customStartDate, customEndDate);
+    const { from, to } = getCustomPeriodRange(activePeriod, activeCustomStartDate, activeCustomEndDate);
     const inRange = (iso) => {
       const d = new Date(iso);
       return d >= from && d <= to;
@@ -1775,7 +1772,7 @@ const Dashboard = () => {
       .reduce((s, p) => s + Number(p.amount || 0), lists?.miscPoints ? 0 : Number(lists?.totals?.misc || 0));
 
     return { revenue, profit, misc };
-  }, [lists, period, customStartDate, customEndDate]);
+  }, [lists, activePeriod, activeCustomStartDate, activeCustomEndDate]);
 
   const smallSummary = {
     revenue: periodSums.revenue ?? 0,
@@ -1821,13 +1818,7 @@ const Dashboard = () => {
                 <span className="font-medium">
                   {selectedWarehouseIds.length === 0 
                     ? (warehouseMeta?.warehouse || warehouseMeta?.name || "Default Warehouse")
-                    : selectedWarehouseIds.length === availableWarehouses.length
-                    ? availableWarehouses.length === 2 ? "Both Warehouses" : "All Warehouses"
-                    : selectedWarehouseIds.length === 1
-                    ? availableWarehouses.find(w => w.id === selectedWarehouseIds[0])?.name || "Unknown"
-                    : selectedWarehouseIds.length === 2
-                    ? "Both Warehouses"
-                    : `${selectedWarehouseIds.length} Warehouses`
+                    : availableWarehouses.find(w => w.id === selectedWarehouseIds[0])?.name || "Unknown"
                   }
                 </span>
               </div>
@@ -1887,9 +1878,9 @@ const Dashboard = () => {
           profitTotal={lists?.totals?.profit}
           revenue={periodSums.revenue}
           miscTotal={periodSums.misc}
-          period={period}
-          customStartDate={customStartDate}
-          customEndDate={customEndDate}
+          period={activePeriod}
+          customStartDate={activeCustomStartDate}
+          customEndDate={activeCustomEndDate}
         />
 
         {/* PRODUCT PERFORMANCE */}
@@ -1898,9 +1889,10 @@ const Dashboard = () => {
             title="Product Performance"
             data={lists.productPerformanceSeries}
             categoryMap={lists.categoryMap}
-            period={period}
-            customStartDate={customStartDate}
-            customEndDate={customEndDate}
+            period={activePeriod}
+            customStartDate={activeCustomStartDate}
+            customEndDate={activeCustomEndDate}
+            loading={loading || isPending}
             height={300}
           />
         </div>
@@ -1909,9 +1901,9 @@ const Dashboard = () => {
         <div className="col-span-1 md:col-span-1 lg:col-span-1 min-w-0">
           <TopSellingProductsWidget
             series={lists.productPerformanceSeries}
-            period={period}
-            customStartDate={customStartDate}
-            customEndDate={customEndDate}
+            period={activePeriod}
+            customStartDate={activeCustomStartDate}
+            customEndDate={activeCustomEndDate}
             topN={10}
           />
         </div>
@@ -2119,3 +2111,6 @@ const TradingPreview = memo(function TradingPreview({ rows }) {
 });
 
 export default Dashboard;
+
+
+

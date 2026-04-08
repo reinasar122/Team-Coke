@@ -1,18 +1,31 @@
-// src/pdf/PDFInvoice.jsx
+// src/components/PDFInvoice.jsx
 // Public API:
-//   await downloadInvoicePDF(payload)
+//   await downloadInvoicePDF(payload, { paper, orientation, margins })
 
 import DejaVuSansTTF from "../components/fonts/dejavu-sans/DejaVuSans.ttf";
 import DejaVuSansBoldTTF from "../components/fonts/dejavu-sans/DejaVuSans-Bold.ttf";
 
-// ---------------- font + lib helpers ----------------
 const ensureScript = (src) =>
   new Promise((resolve, reject) => {
-    const s = document.createElement("script");
-    s.src = src;
-    s.onload = resolve;
-    s.onerror = reject;
-    document.head.appendChild(s);
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      if (existing.dataset.loaded === "true") {
+        resolve();
+        return;
+      }
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", reject, { once: true });
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = () => {
+      script.dataset.loaded = "true";
+      resolve();
+    };
+    script.onerror = reject;
+    document.head.appendChild(script);
   });
 
 async function ensurePdfLibs() {
@@ -29,44 +42,72 @@ async function ensurePdfLibs() {
 function arrayBufferToBase64(buffer) {
   let binary = "";
   const bytes = new Uint8Array(buffer);
-  const chunk = 0x8000;
-  for (let i = 0; i < bytes.length; i += chunk) {
-    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  const chunkSize = 0x8000;
+
+  for (let index = 0; index < bytes.length; index += chunkSize) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(index, index + chunkSize));
   }
+
   return btoa(binary);
 }
 
 async function ensurePesoFont(doc) {
   if (window.__pesoFontLoaded) return;
 
-  const [bufNormal, bufBold] = await Promise.all([
-    fetch(DejaVuSansTTF).then((r) => r.arrayBuffer()),
-    fetch(DejaVuSansBoldTTF).then((r) => r.arrayBuffer()),
+  const [normalBuffer, boldBuffer] = await Promise.all([
+    fetch(DejaVuSansTTF).then((response) => response.arrayBuffer()),
+    fetch(DejaVuSansBoldTTF).then((response) => response.arrayBuffer()),
   ]);
 
-  const base64N = arrayBufferToBase64(bufNormal);
-  const base64B = arrayBufferToBase64(bufBold);
-
-  doc.addFileToVFS("DejaVuSans.ttf", base64N);
+  doc.addFileToVFS("DejaVuSans.ttf", arrayBufferToBase64(normalBuffer));
   doc.addFont("DejaVuSans.ttf", "DejaVuSans", "normal");
-  doc.addFileToVFS("DejaVuSans-Bold.ttf", base64B);
+  doc.addFileToVFS("DejaVuSans-Bold.ttf", arrayBufferToBase64(boldBuffer));
   doc.addFont("DejaVuSans-Bold.ttf", "DejaVuSans", "bold");
 
   window.__pesoFontLoaded = true;
 }
 
-// ---------------- small utils ----------------
-const n = (v) => Number(v || 0);
-const fmt = (v) => n(v).toFixed(2);
-const peso = (v) =>
-  `₱${n(v).toLocaleString("en-PH", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+const PESO_SYMBOL = "₱";
+const INCH = 25.4;
+
+const BOND_FORMATS = {
+  letter: [8.5 * INCH, 11 * INCH],
+  short: [8.5 * INCH, 11 * INCH],
+  a4: [210, 297],
+  legal: [8.5 * INCH, 14 * INCH],
+  long: [8.5 * INCH, 13 * INCH],
+  f4: [8.5 * INCH, 13 * INCH],
+};
+
+const n = (value) => Number(value || 0);
+
+const fmt = (value, decimals = 2) =>
+  n(value).toLocaleString("en-PH", {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  });
+
+const peso = (value) => `${PESO_SYMBOL}${fmt(value, 2)}`;
+
+const cleanText = (value, fallback = "") => {
+  if (value === null || value === undefined) return fallback;
+  const normalized = String(value).replace(/\s+/g, " ").trim();
+  return normalized || fallback;
+};
+
+const hasMeaningfulValue = (...values) =>
+  values.some((value) => {
+    if (value === null || value === undefined || value === "") return false;
+    const numeric = Number(value);
+    if (!Number.isNaN(numeric)) return Math.abs(numeric) > 0;
+    return cleanText(value) !== "";
+  });
+
+const normalizeRows = (rows) => (Array.isArray(rows) ? rows : []);
 
 const formatLocalToManila = (localStr) => {
   if (!localStr) return "--";
-  const d = new Date(localStr);
+  const date = new Date(localStr);
   return new Intl.DateTimeFormat("en-PH", {
     timeZone: "Asia/Manila",
     year: "numeric",
@@ -75,368 +116,540 @@ const formatLocalToManila = (localStr) => {
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
-  }).format(d);
-};
-
-/**
- * payload = {
- *   invoiceNumber, paymentMethod, transactionDate, handledBy, mspNo,
- *   transactionTypeName, remarks,
- *   customer: { name, address, phone },
- *   warehouse: { name, fullAddress, phone, email },
- *   totals: {
- *     actualSales, emptiesPriceTotal, emptyReturns, emptyDiscrepancies,
- *     expensesTotal, totalAmount, cashReceived, change, amountDue,
- *     isVanLoad, isWarehouse,
- *     expectedSale, vl_actual, vl_retWc, vl_discNE, vl_discE,
- *     vl_totalActualRetrieved, vl_overallTotal, vl_grandTotal
- *   },
- *   tables: {
- *     products: [{ product, dispatchedShell, dispatchedPcs, soldShell, soldPcs, unitPrice, discountPercent, amount }],
- *     empties:  [{ product, shellPrice, bottlePrice, totalShells, totalPieces, amount }],
- *     returns:  [{ product, shellPrice, bottlePrice, returnedShells, returnedPieces, amount }]
- *   }
- * }
- */
-
-// --- sizes & helpers --------------------------------------------------------
-const INCH = 25.4; // mm per inch
-const mm = (inches) => inches * INCH;
-
-const BOND_FORMATS = {
-  // aliases -> [w, h] in mm (portrait base)
-  letter: [mm(8.5), mm(11)],         // Short bond (US Letter)
-  short:  [mm(8.5), mm(11)],
-  a4:     [210, 297],
-  legal:  [mm(8.5), mm(14)],
-  long:   [mm(8.5), mm(13)],         // PH Long bond / F4 (8.5" × 13")
-  f4:     [mm(8.5), mm(13)],
+  }).format(date);
 };
 
 function resolveFormat(paper = "a4", orientation = "portrait") {
   const key = String(paper || "a4").toLowerCase();
-  // jsPDF accepts string keywords for a4/letter/legal; use arrays for others
   if (key === "a4" || key === "letter" || key === "legal") {
     return { format: key, orientation };
   }
+
   const base = BOND_FORMATS[key] || BOND_FORMATS.a4;
-  const [w, h] = base;
-  const fmt = orientation === "landscape" ? [h, w] : [w, h];
-  return { format: fmt, orientation };
+  const [width, height] = base;
+  return {
+    format: orientation === "landscape" ? [height, width] : [width, height],
+    orientation,
+  };
 }
 
-function pctWidth(pageW, margins, pct) {
-  const inner = pageW - (margins.left + margins.right);
-  return inner * pct;
+function buildLayoutConfig(doc, margins) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const innerW = pageW - (margins.left + margins.right);
+  const narrow = innerW < 175;
+  const compact = innerW < 210;
+
+  return {
+    pageW,
+    pageH,
+    innerW,
+    compact,
+    narrow,
+    stackInfoBoxes: innerW < 215,
+    headerH: compact ? 26 : 30,
+    titleFontSize: narrow ? 15 : compact ? 16.5 : 18,
+    metaFontSize: narrow ? 7.5 : compact ? 8.2 : 9.2,
+    sectionTitleSize: narrow ? 10.5 : 12,
+    bodyFontSize: narrow ? 7.5 : compact ? 8.2 : 9,
+    smallFontSize: narrow ? 7 : compact ? 7.6 : 8.2,
+    breakdownFontSize: narrow ? 8 : compact ? 8.6 : 9.5,
+    tableFontSize: narrow ? 7 : compact ? 7.6 : 8.5,
+    tablePadding: narrow ? 1.4 : compact ? 1.7 : 2.2,
+    sectionGap: narrow ? 4.5 : compact ? 5.5 : 6.5,
+    boxGap: 4,
+    infoLineHeight: narrow ? 3.4 : compact ? 3.8 : 4.3,
+  };
 }
 
-/**
- * New signature:
- *   await downloadInvoicePDF(payload, {
- *     paper: 'long' | 'short' | 'a4' | 'letter' | 'legal' | 'f4',
- *     orientation: 'portrait' | 'landscape',
- *     margins: { top:12, right:12, bottom:12, left:12 }
- *   })
- */
+function createColumnStyles(innerW, specs) {
+  return specs.reduce((styles, spec, index) => {
+    styles[index] = {
+      cellWidth: innerW * spec.pct,
+      ...(spec.align ? { halign: spec.align } : {}),
+    };
+    return styles;
+  }, {});
+}
+
 export async function downloadInvoicePDF(payload, opts = {}) {
   await ensurePdfLibs();
-  const { paper = "a4", orientation = "portrait", margins } = opts;
 
-  // margins (mm)
-  const M = {
-    top:    margins?.top    ?? 12,
-    right:  margins?.right  ?? 12,
-    bottom: margins?.bottom ?? 12,
-    left:   margins?.left   ?? 12,
+  const requestedPaper = String(opts.paper || "long").toLowerCase();
+  const requestedOrientation = String(opts.orientation || "portrait").toLowerCase();
+  const defaultMargin = requestedOrientation === "landscape" || ["short", "letter"].includes(requestedPaper) ? 10 : 12;
+  const margins = {
+    top: opts.margins?.top ?? defaultMargin,
+    right: opts.margins?.right ?? defaultMargin,
+    bottom: opts.margins?.bottom ?? defaultMargin,
+    left: opts.margins?.left ?? defaultMargin,
   };
 
-  // Create jsPDF with chosen paper/orientation
   const { jsPDF } = window.jspdf;
-  const { format, orientation: ori } = resolveFormat(paper, orientation);
-  const doc = new jsPDF({ unit: "mm", format, orientation: ori });
-
-  // Ensure Unicode font with ₱
+  const { format, orientation } = resolveFormat(requestedPaper, requestedOrientation);
+  const doc = new jsPDF({ unit: "mm", format, orientation });
   await ensurePesoFont(doc);
   doc.setFont("DejaVuSans", "normal");
 
-  const {
-    invoiceNumber, paymentMethod, transactionDate, handledBy, mspNo,
-    transactionTypeName, remarks, customer, warehouse, totals, tables,
-  } = payload;
+  const customer = payload?.customer || {};
+  const warehouse = payload?.warehouse || {};
+  const totals = payload?.totals || {};
+  const tables = payload?.tables || {};
+  const remarks = cleanText(payload?.remarks);
 
-  // Page geometry
-  const pageW = doc.internal.pageSize.getWidth();
-  const innerLeft = M.left;
-  const innerRight = pageW - M.right;
-  //let y = M.top - 2;
+  const layout = buildLayoutConfig(doc, margins);
+  const innerLeft = margins.left;
+  const innerRight = layout.pageW - margins.right;
+  const pageBottom = layout.pageH - margins.bottom;
+  const text = (value, x, y, options = {}) => doc.text(value ?? "", x, y, options);
 
-  const txt = (s, x, yy, opts = {}) => doc.text(String(s ?? ""), x, yy, opts);
+  let y = layout.headerH + layout.sectionGap;
 
-  // ---- Header bar ----------------------------------------------------------
-  const headerH = 30; // a bit taller to fit two lines
+  const ensureSpace = (requiredHeight = 12) => {
+    if (y + requiredHeight <= pageBottom) return;
+    doc.addPage();
+    y = margins.top;
+  };
+
+  const drawSectionTitle = (title) => {
+    ensureSpace(layout.sectionGap + 8);
+    doc.setFont("DejaVuSans", "bold");
+    doc.setFontSize(layout.sectionTitleSize);
+    doc.setTextColor(55, 65, 81);
+    text(title, innerLeft, y);
+    doc.setTextColor(0, 0, 0);
+    y += layout.compact ? 4 : 5;
+  };
+
+  const drawSubtotal = (label, value) => {
+    ensureSpace(8);
+    doc.setFont("DejaVuSans", "bold");
+    doc.setFontSize(layout.breakdownFontSize);
+    text(`${label}: ${peso(value)}`, innerRight, y, { align: "right" });
+    y += layout.sectionGap;
+  };
+
+  const drawInfoBox = (x, startY, width, title, name, lines, fillColor) => {
+    const pad = layout.narrow ? 3 : 4;
+    const usableWidth = width - pad * 2;
+    const nameLines = doc.splitTextToSize(cleanText(name, "--"), usableWidth);
+    const detailLines = (lines || []).flatMap((line) => doc.splitTextToSize(cleanText(line), usableWidth));
+    const minHeight = layout.compact ? 24 : 28;
+    const boxHeight = Math.max(
+      minHeight,
+      pad + 4 + nameLines.length * layout.infoLineHeight + detailLines.length * layout.infoLineHeight + pad
+    );
+
+    doc.setFillColor(...fillColor);
+    doc.roundedRect(x, startY, width, boxHeight, 2, 2, "F");
+    doc.setDrawColor(191, 219, 254);
+    doc.roundedRect(x, startY, width, boxHeight, 2, 2, "S");
+
+    let lineY = startY + pad + 2.5;
+    doc.setFont("DejaVuSans", "bold");
+    doc.setFontSize(layout.smallFontSize);
+    text(title, x + pad, lineY);
+
+    lineY += layout.infoLineHeight;
+    doc.setFont("DejaVuSans", "bold");
+    doc.setFontSize(layout.bodyFontSize + 1);
+    text(nameLines, x + pad, lineY);
+    lineY += nameLines.length * layout.infoLineHeight + 0.5;
+
+    doc.setFont("DejaVuSans", "normal");
+    doc.setFontSize(layout.bodyFontSize);
+    detailLines.forEach((line) => {
+      text(line, x + pad, lineY);
+      lineY += layout.infoLineHeight;
+    });
+
+    return startY + boxHeight;
+  };
+
+  const renderTableSection = ({ title, head, body, columnSpecs, subtotalLabel, subtotalValue }) => {
+    if (!body.length) return;
+
+    drawSectionTitle(title);
+    doc.autoTable({
+      startY: y,
+      head: [head],
+      body,
+      margin: { left: margins.left, right: margins.right },
+      theme: "grid",
+      styles: {
+        font: "DejaVuSans",
+        fontSize: layout.tableFontSize,
+        cellPadding: layout.tablePadding,
+        lineColor: [226, 232, 240],
+        lineWidth: 0.2,
+        overflow: "linebreak",
+        textColor: [31, 41, 55],
+        valign: "middle",
+      },
+      headStyles: {
+        font: "DejaVuSans",
+        fontStyle: "bold",
+        fillColor: [241, 245, 249],
+        textColor: [17, 24, 39],
+      },
+      alternateRowStyles: {
+        fillColor: [248, 250, 252],
+      },
+      columnStyles: createColumnStyles(layout.innerW, columnSpecs),
+      rowPageBreak: "avoid",
+    });
+
+    y = (doc.lastAutoTable?.finalY || y) + layout.sectionGap;
+
+    if (subtotalLabel) {
+      drawSubtotal(subtotalLabel, subtotalValue);
+    }
+  };
+
+  const productRows = normalizeRows(tables.products)
+    .filter((row) =>
+      hasMeaningfulValue(
+        row?.product,
+        row?.dispatchedShell,
+        row?.dispatchedPcs,
+        row?.soldShell,
+        row?.soldPcs,
+        row?.unitPrice,
+        row?.discountPercent,
+        row?.amount
+      )
+    )
+    .map((row) => [
+      cleanText(row?.product, "-"),
+      `${n(row?.dispatchedShell)}s / ${n(row?.dispatchedPcs)}p`,
+      `${n(row?.soldShell)}s / ${n(row?.soldPcs)}p`,
+      peso(row?.unitPrice),
+      fmt(row?.discountPercent),
+      peso(row?.amount),
+    ]);
+
+  const emptyRows = normalizeRows(tables.empties)
+    .filter((row) =>
+      hasMeaningfulValue(
+        row?.product,
+        row?.shellPrice,
+        row?.bottlePrice,
+        row?.totalShells,
+        row?.totalPieces,
+        row?.amount
+      )
+    )
+    .map((row) => [
+      cleanText(row?.product, "-"),
+      peso(row?.shellPrice),
+      peso(row?.bottlePrice),
+      String(n(row?.totalShells)),
+      String(n(row?.totalPieces)),
+      peso(row?.amount),
+    ]);
+
+  const returnRows = normalizeRows(tables.returns)
+    .filter((row) =>
+      hasMeaningfulValue(
+        row?.product,
+        row?.shellPrice,
+        row?.bottlePrice,
+        row?.returnedShells,
+        row?.returnedPieces,
+        row?.amount
+      )
+    )
+    .map((row) => [
+      cleanText(row?.product, "-"),
+      peso(row?.shellPrice),
+      peso(row?.bottlePrice),
+      String(n(row?.returnedShells)),
+      String(n(row?.returnedPieces)),
+      peso(row?.amount),
+    ]);
+
   doc.setFillColor(59, 130, 246);
-  doc.rect(0, 0, pageW, headerH, "F");
+  doc.rect(0, 0, layout.pageW, layout.headerH, "F");
+  doc.setTextColor(255, 255, 255);
 
   doc.setFont("DejaVuSans", "bold");
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(18);
-  txt("INVOICE", innerLeft, 12); // title
+  doc.setFontSize(layout.titleFontSize);
+  text("INVOICE", innerLeft, layout.compact ? 11 : 12.5);
+
+  const badgeText = String(payload?.paymentMethod || "").toLowerCase() === "credit" ? "CREDIT" : "PAID";
+  const badgeColor = badgeText === "CREDIT" ? [234, 179, 8] : [16, 185, 129];
+  doc.setFont("DejaVuSans", "bold");
+  doc.setFontSize(layout.smallFontSize);
+  const badgePaddingX = layout.compact ? 3 : 4;
+  const badgeWidth = Math.max(24, doc.getTextWidth(badgeText) + badgePaddingX * 2);
+  const badgeHeight = layout.compact ? 6.5 : 8;
+  const badgeY = layout.compact ? 4.5 : 5.5;
+  const badgeX = innerRight - badgeWidth;
+  doc.setFillColor(...badgeColor);
+  doc.roundedRect(badgeX, badgeY, badgeWidth, badgeHeight, 2, 2, "F");
+  text(badgeText, badgeX + badgeWidth / 2, badgeY + badgeHeight / 2 + 1.1, { align: "center" });
 
   doc.setFont("DejaVuSans", "normal");
-  doc.setFontSize(10);
-
-  // two rows, two columns
-  const row1Y = 18;
-  const row2Y = 24;
-
-  txt(`Invoice No: ${invoiceNumber || "--"}`, innerLeft, row1Y);
-  txt(`Date: ${formatLocalToManila(transactionDate)}`, innerRight, row1Y, { align: "right" });
-
-  txt(`Payment: ${paymentMethod ? String(paymentMethod).toUpperCase() : "--"}`, innerLeft, row2Y);
-  txt(`Handled By: ${handledBy || "--"}`, innerRight, row2Y, { align: "right" });
-
-  // status badge (kept)
-  const badgeTxt = paymentMethod === "credit" ? "CREDIT" : "PAID";
-  const badgeColor = paymentMethod === "credit" ? [234, 179, 8] : [16, 185, 129];
-  const badgeW = 28, badgeH = 8, badgeX = innerRight - badgeW, badgeY = 6;
-  doc.setFillColor(...badgeColor);
-  doc.rect(badgeX, badgeY, badgeW, badgeH, "F");
-  doc.setFont("DejaVuSans", "bold");
-  doc.setFontSize(9);
-  txt(badgeTxt, badgeX + badgeW / 2, badgeY + 5.5, { align: "center", baseline: "middle" });
+  doc.setFontSize(layout.metaFontSize);
+  const row1Y = layout.compact ? 17 : 18.5;
+  const row2Y = layout.compact ? 21.5 : 24.5;
+  text(`Invoice No: ${cleanText(payload?.invoiceNumber, "--")}`, innerLeft, row1Y);
+  text(`Date: ${formatLocalToManila(payload?.transactionDate)}`, innerRight, row1Y, { align: "right" });
+  text(`Payment: ${cleanText(payload?.paymentMethod, "--").toUpperCase()}`, innerLeft, row2Y);
+  text(`Handled By: ${cleanText(payload?.handledBy, "--")}`, innerRight, row2Y, { align: "right" });
 
   doc.setTextColor(0, 0, 0);
-  let y = headerH + 6; // continue layout below header
-
-
-  // ---- From / To boxes -----------------------------------------------------
-  const infoBoxW = (pageW - (M.left + M.right) - 4) / 2;
-  const drawInfoBox = (x, y0, w, title, name, lines, bg) => {
-    const pad = 4;
-    doc.setFillColor(...bg);
-    doc.rect(x, y0, w, 26, "F");
-    doc.setDrawColor(59, 130, 246);
-    doc.setLineWidth(0.6);
-    doc.line(x, y0, x, y0 + 26);
-    doc.setLineWidth(0.2);
-
-    doc.setFont("DejaVuSans", "bold"); doc.setFontSize(9);
-    txt(title, x + pad, y0 + 6);
-
-    doc.setFont("DejaVuSans", "normal"); doc.setFontSize(12);
-    txt(name || "", x + pad, y0 + 12);
-
-    doc.setFontSize(9); doc.setTextColor(60);
-    let yy = y0 + 17;
-    (lines || []).filter(Boolean).forEach((l) => {
-      const wrapped = doc.splitTextToSize(l, w - pad * 2);
-      txt(wrapped, x + pad, yy);
-      yy += wrapped.length * 4;
-    });
-    doc.setTextColor(0, 0, 0);
-    return y0 + 26;
-  };
 
   const fromLines = [
-    warehouse.fullAddress ? `📍 ${warehouse.fullAddress}` : "",
-    warehouse.phone ? `📞 ${warehouse.phone}` : "",
-    warehouse.email ? `✉️ ${warehouse.email}` : "",
-  ];
+    cleanText(warehouse?.fullAddress) ? `Address: ${cleanText(warehouse?.fullAddress)}` : "",
+    cleanText(warehouse?.phone) ? `Phone: ${cleanText(warehouse?.phone)}` : "",
+    cleanText(warehouse?.email) ? `Email: ${cleanText(warehouse?.email)}` : "",
+  ].filter(Boolean);
+
   const toLines = [
-    customer.address ? `📍 ${customer.address}` : "",
-    customer.phone ? `📞 ${customer.phone}` : "",
-  ];
+    cleanText(customer?.address) ? `Address: ${cleanText(customer?.address)}` : "",
+    cleanText(customer?.phone) ? `Phone: ${cleanText(customer?.phone)}` : "",
+  ].filter(Boolean);
 
-  y = drawInfoBox(innerLeft, y, infoBoxW, "From (Source Warehouse):", warehouse.name || "Warehouse", fromLines, [239, 246, 255]);
-  drawInfoBox(innerLeft + infoBoxW + 4, 32, infoBoxW, "To (Customer):", customer.name || "Walk-in", toLines, [240, 253, 244]);
-  y = Math.max(y, 58) + 4;
+  const infoBoxWidth = layout.stackInfoBoxes ? layout.innerW : (layout.innerW - layout.boxGap) / 2;
+  const fromBottom = drawInfoBox(
+    innerLeft,
+    y,
+    infoBoxWidth,
+    "From",
+    cleanText(warehouse?.name, "Warehouse"),
+    fromLines,
+    [239, 246, 255]
+  );
 
-  // ---- Meta row ------------------------------------------------------------
-  // doc.setFillColor(249, 250, 251);
-  // doc.rect(innerLeft, y, pageW - (M.left + M.right), 12, "F");
-  // doc.setFontSize(9);
-  // const metaY = y + 4.5;
-  // txt(`Invoice No: ${invoiceNumber}`, innerLeft + 2, metaY);
-  // txt(`Date: ${formatLocalToManila(transactionDate)}`, innerLeft + 70, metaY);
-  // txt(`Method: ${paymentMethod ? String(paymentMethod).toUpperCase() : "--"}`, innerLeft + 120, metaY);
-  // txt(`Handled By: ${handledBy || "--"}`, innerLeft + 160, metaY);
-  y += 16;
+  const toBottom = layout.stackInfoBoxes
+    ? drawInfoBox(
+        innerLeft,
+        fromBottom + layout.boxGap,
+        infoBoxWidth,
+        "To",
+        cleanText(customer?.name, "Walk-in"),
+        toLines,
+        [240, 253, 244]
+      )
+    : drawInfoBox(
+        innerLeft + infoBoxWidth + layout.boxGap,
+        y,
+        infoBoxWidth,
+        "To",
+        cleanText(customer?.name, "Walk-in"),
+        toLines,
+        [240, 253, 244]
+      );
 
-  // MSP chip
-  if (mspNo) {
+  y = Math.max(fromBottom, toBottom) + layout.sectionGap;
+
+  if (cleanText(payload?.mspNo)) {
+    const chipHeight = layout.compact ? 7 : 8;
     doc.setFillColor(254, 243, 199);
-    doc.rect(innerLeft, y, pageW - (M.left + M.right), 8, "F");
-    doc.setFontSize(9);
-    txt(`MSP Reference No: ${mspNo}`, innerLeft + 2, y + 5.5);
-    y += 12;
-  }
-
-  // Type chip
-  if (transactionTypeName) {
-    const isVan = /van\s*load/i.test(String(transactionTypeName));
-    const chip = isVan ? { bg: [243, 232, 255], fg: [109, 40, 217] } : { bg: [219, 234, 254], fg: [29, 78, 216] };
-    doc.setFillColor(...chip.bg);
-    doc.rect(innerLeft, y, 40, 6, "F");
-    doc.setTextColor(...chip.fg);
-    doc.setFontSize(8);
+    doc.roundedRect(innerLeft, y, layout.innerW, chipHeight, 2, 2, "F");
     doc.setFont("DejaVuSans", "bold");
-    txt(String(transactionTypeName), innerLeft + 2, y + 4.2);
+    doc.setFontSize(layout.smallFontSize);
+    text(`MSP Reference No: ${cleanText(payload?.mspNo)}`, innerLeft + 3, y + chipHeight - 2.1);
+    y += chipHeight + layout.sectionGap;
+  }
+
+  if (cleanText(payload?.transactionTypeName)) {
+    const isVanLoad = /van\s*load/i.test(String(payload.transactionTypeName));
+    const chipText = cleanText(payload.transactionTypeName);
+    const chipHeight = layout.compact ? 6.5 : 7;
+    const chipPadding = layout.compact ? 3 : 4;
+    const colors = isVanLoad
+      ? { bg: [243, 232, 255], fg: [109, 40, 217] }
+      : { bg: [219, 234, 254], fg: [29, 78, 216] };
+
+    doc.setFont("DejaVuSans", "bold");
+    doc.setFontSize(layout.smallFontSize);
+    const chipWidth = Math.min(layout.innerW, doc.getTextWidth(chipText) + chipPadding * 2);
+    doc.setFillColor(...colors.bg);
+    doc.roundedRect(innerLeft, y, chipWidth, chipHeight, 2, 2, "F");
+    doc.setTextColor(...colors.fg);
+    text(chipText, innerLeft + chipPadding, y + chipHeight - 2.0);
     doc.setTextColor(0, 0, 0);
+    y += chipHeight + layout.sectionGap;
+  }
+
+  renderTableSection({
+    title: "SOLD PRODUCTS",
+    head: [
+      "Product",
+      "Dispatched",
+      "Sold",
+      layout.compact ? "Price" : "Unit Price",
+      layout.compact ? "Disc (%)" : "Discount (%)",
+      "Amount",
+    ],
+    body: productRows,
+    columnSpecs: layout.compact
+      ? [
+          { pct: 0.28 },
+          { pct: 0.16, align: "center" },
+          { pct: 0.16, align: "center" },
+          { pct: 0.13, align: "right" },
+          { pct: 0.11, align: "right" },
+          { pct: 0.16, align: "right" },
+        ]
+      : [
+          { pct: 0.34 },
+          { pct: 0.15, align: "center" },
+          { pct: 0.15, align: "center" },
+          { pct: 0.12, align: "right" },
+          { pct: 0.12, align: "right" },
+          { pct: 0.12, align: "right" },
+        ],
+    subtotalLabel: "Subtotal",
+    subtotalValue: totals.actualSales,
+  });
+
+  renderTableSection({
+    title: "EMPTY PRICE",
+    head: [
+      "Product",
+      layout.compact ? "Shell" : "Shell Price",
+      layout.compact ? "Bottle" : "Bottle Price",
+      layout.compact ? "Shells" : "Total Shells",
+      layout.compact ? "Pieces" : "Total Pieces",
+      "Amount",
+    ],
+    body: emptyRows,
+    columnSpecs: layout.compact
+      ? [
+          { pct: 0.24 },
+          { pct: 0.13, align: "right" },
+          { pct: 0.13, align: "right" },
+          { pct: 0.15, align: "right" },
+          { pct: 0.15, align: "right" },
+          { pct: 0.20, align: "right" },
+        ]
+      : [
+          { pct: 0.30 },
+          { pct: 0.14, align: "right" },
+          { pct: 0.14, align: "right" },
+          { pct: 0.14, align: "right" },
+          { pct: 0.14, align: "right" },
+          { pct: 0.14, align: "right" },
+        ],
+    subtotalLabel: "Subtotal",
+    subtotalValue: totals.emptiesPriceTotal,
+  });
+
+  renderTableSection({
+    title: "RETURNS",
+    head: [
+      "Product",
+      layout.compact ? "Shell" : "Shell Price",
+      layout.compact ? "Bottle" : "Bottle Price",
+      layout.compact ? "Ret. Shells" : "Returned Shells",
+      layout.compact ? "Ret. Pieces" : "Returned Pieces",
+      "Amount",
+    ],
+    body: returnRows,
+    columnSpecs: layout.compact
+      ? [
+          { pct: 0.24 },
+          { pct: 0.13, align: "right" },
+          { pct: 0.13, align: "right" },
+          { pct: 0.15, align: "right" },
+          { pct: 0.15, align: "right" },
+          { pct: 0.20, align: "right" },
+        ]
+      : [
+          { pct: 0.30 },
+          { pct: 0.14, align: "right" },
+          { pct: 0.14, align: "right" },
+          { pct: 0.14, align: "right" },
+          { pct: 0.14, align: "right" },
+          { pct: 0.14, align: "right" },
+        ],
+  });
+
+  const breakdownRows = totals.isVanLoad
+    ? [
+        { label: "Expected Sale", value: peso(totals.expectedSale), strong: true, large: true },
+        { heading: "Total Actual Retrieved" },
+        { label: "Actual Sale", value: peso(totals.vl_actual) },
+        { label: "Returned With Content", value: `+ ${peso(totals.vl_retWc)}` },
+        { label: "Discrepancies (Non-empty)", value: `+ ${peso(totals.vl_discNE)}` },
+        { label: "Retrieved Total", value: peso(totals.vl_totalActualRetrieved), strong: true },
+        { heading: "Overall Total" },
+        { label: "Actual Sale", value: peso(totals.vl_actual) },
+        { label: "Discrepancies (Empty)", value: `+ ${peso(totals.vl_discE)}` },
+        { label: "Discrepancies (Non-empty)", value: `+ ${peso(totals.vl_discNE)}` },
+        { label: "Overall Total", value: peso(totals.vl_overallTotal), strong: true },
+        { label: "Expenses", value: `- ${peso(totals.expensesTotal)}` },
+        { label: "Grand Total", value: peso(totals.vl_grandTotal), strong: true, large: true },
+        { label: "Cash Received", value: peso(totals.cashReceived) },
+        { label: "Change", value: peso(totals.change) },
+      ]
+    : [
+        { label: "Actual Sales", value: peso(totals.actualSales), strong: true },
+        { label: "Empties Price Total", value: peso(totals.emptiesPriceTotal) },
+        { label: "Less Empty Returns", value: `- ${peso(totals.emptyReturns)}` },
+        { label: "Discrepancy Total", value: peso(totals.emptyDiscrepancies), strong: true },
+        { label: "Total Amount Due", value: peso(totals.totalAmount), strong: true, large: true },
+        { label: "Cash Received", value: peso(totals.cashReceived) },
+        { label: "Change", value: peso(totals.change) },
+      ];
+
+  const remarksLines = remarks ? doc.splitTextToSize(remarks, layout.innerW - 10) : [];
+  const breakdownBoxHeight =
+    14 +
+    breakdownRows.reduce(
+      (sum, row) => sum + (row.heading ? (layout.compact ? 5 : 6) : row.large ? 7 : layout.compact ? 5 : 6),
+      0
+    );
+  const remarksHeight = remarksLines.length ? remarksLines.length * layout.infoLineHeight + 10 : 0;
+
+  ensureSpace(breakdownBoxHeight + remarksHeight);
+
+  const boxX = innerLeft;
+  const boxY = y;
+  const boxWidth = layout.innerW;
+  const boxPad = layout.narrow ? 4 : 5;
+  let lineY = boxY + boxPad + 2;
+
+  doc.setDrawColor(209, 213, 219);
+  doc.roundedRect(boxX, boxY, boxWidth, breakdownBoxHeight - 2, 2, 2, "S");
+
+  doc.setFont("DejaVuSans", "bold");
+  doc.setFontSize(layout.sectionTitleSize);
+  text("PAYMENT BREAKDOWN", boxX + boxPad, lineY + 2);
+  lineY += layout.compact ? 7 : 8;
+
+  breakdownRows.forEach((row) => {
+    if (row.heading) {
+      doc.setFont("DejaVuSans", "bold");
+      doc.setFontSize(layout.breakdownFontSize);
+      text(row.heading, boxX + boxPad, lineY);
+      lineY += layout.compact ? 5 : 6;
+      return;
+    }
+
+    doc.setFont("DejaVuSans", row.strong ? "bold" : "normal");
+    doc.setFontSize(row.large ? layout.breakdownFontSize + 0.8 : layout.breakdownFontSize);
+    text(row.label, boxX + boxPad, lineY);
+    text(row.value, boxX + boxWidth - boxPad, lineY, { align: "right" });
+    lineY += row.large ? 7 : layout.compact ? 5 : 6;
+  });
+
+  y = boxY + breakdownBoxHeight + layout.sectionGap;
+
+  if (remarksLines.length) {
+    ensureSpace(remarksLines.length * layout.infoLineHeight + 10);
+    doc.setFont("DejaVuSans", "bold");
+    doc.setFontSize(layout.breakdownFontSize);
+    text("Remarks", innerLeft, y);
+    y += layout.compact ? 4.5 : 5.5;
     doc.setFont("DejaVuSans", "normal");
-    y += 10;
+    doc.setFontSize(layout.bodyFontSize);
+    text(remarksLines, innerLeft, y);
+    y += remarksLines.length * layout.infoLineHeight + layout.sectionGap;
   }
 
-  // ---- SOLD PRODUCTS -------------------------------------------------------
-  doc.setFont("DejaVuSans", "bold"); doc.setFontSize(12); doc.setTextColor(55, 65, 81);
-  txt("SOLD PRODUCTS", innerLeft, y); y += 4;
-
-  // adaptive column widths (percent of inner width)
-  const cwProducts = {
-    0: { cellWidth: pctWidth(pageW, M, 0.34) }, // Product
-    1: { cellWidth: pctWidth(pageW, M, 0.15) }, // Dispatched
-    2: { cellWidth: pctWidth(pageW, M, 0.15) }, // Sold
-    3: { cellWidth: pctWidth(pageW, M, 0.12), halign: "right" }, // Unit Price
-    4: { cellWidth: pctWidth(pageW, M, 0.12), halign: "right" }, // Discount
-    5: { cellWidth: pctWidth(pageW, M, 0.12), halign: "right" }, // Amount
-  };
-
-  doc.autoTable({
-    startY: y,
-    head: [["Product", "Dispatched", "Sold", "Unit Price", "Discount (%)", "Amount"]],
-    body: (tables.products || []).map((r) => [
-      (r.product || "").slice(0, 40),
-      `${n(r.dispatchedShell)}s (${n(r.dispatchedPcs)}p)`,
-      `${n(r.soldShell)}s (${n(r.soldPcs)}p)`,
-      peso(r.unitPrice),
-      fmt(r.discountPercent),
-      peso(r.amount),
-    ]),
-    margin: { left: M.left, right: M.right },
-    styles: { font: "DejaVuSans", fontSize: 9, cellPadding: 2, lineColor: [209, 213, 219], lineWidth: 0.2 },
-    headStyles: { font: "DejaVuSans", fontStyle: "bold", fillColor: [243, 244, 246], textColor: [0, 0, 0] },
-    columnStyles: cwProducts,
-  });
-  y = (doc.lastAutoTable?.finalY || y) + 6;
-  doc.setFontSize(10); doc.setFont("DejaVuSans", "bold");
-  txt(`SUBTOTAL: ${peso(totals.actualSales)}`, innerRight, y, { align: "right" });
-  y += 6;
-
-  // ---- EMPTY PRICE ---------------------------------------------------------
-  doc.setFont("DejaVuSans", "bold"); doc.setFontSize(12); doc.setTextColor(55, 65, 81);
-  txt("EMPTY PRICE", innerLeft, y); y += 4;
-
-  const cwEmpties = {
-    0: { cellWidth: pctWidth(pageW, M, 0.30) },           // Product
-    1: { cellWidth: pctWidth(pageW, M, 0.14), halign: "right" }, // Shell Price
-    2: { cellWidth: pctWidth(pageW, M, 0.14), halign: "right" }, // Bottle Price
-    3: { cellWidth: pctWidth(pageW, M, 0.14), halign: "right" }, // Total Shells
-    4: { cellWidth: pctWidth(pageW, M, 0.14), halign: "right" }, // Total Pieces
-    5: { cellWidth: pctWidth(pageW, M, 0.14), halign: "right" }, // Amount
-  };
-
-  doc.autoTable({
-    startY: y,
-    head: [["Product", "Shell Price", "Bottle Price", "Total Shells", "Total Pieces", "Amount"]],
-    body: (tables.empties || []).map((r) => [
-      (r.product || "").slice(0, 40),
-      peso(r.shellPrice),
-      peso(r.bottlePrice),
-      n(r.totalShells),
-      n(r.totalPieces),
-      peso(r.amount),
-    ]),
-    margin: { left: M.left, right: M.right },
-    styles: { font: "DejaVuSans", fontSize: 9, cellPadding: 2, lineColor: [209, 213, 219], lineWidth: 0.2 },
-    headStyles: { font: "DejaVuSans", fontStyle: "bold", fillColor: [243, 244, 246], textColor: [0, 0, 0] },
-    columnStyles: cwEmpties,
-  });
-  y = (doc.lastAutoTable?.finalY || y) + 6;
-  doc.setFontSize(10); doc.setFont("DejaVuSans", "bold");
-  txt(`SUBTOTAL: ${peso(totals.emptiesPriceTotal)}`, innerRight, y, { align: "right" });
-  y += 6;
-
-  // ---- RETURNS -------------------------------------------------------------
-  doc.setFont("DejaVuSans", "bold"); doc.setFontSize(12); doc.setTextColor(55, 65, 81);
-  txt("RETURNS", innerLeft, y); y += 4;
-
-  doc.autoTable({
-    startY: y,
-    head: [["Product", "Shell Price", "Bottle Price", "Returned Shells", "Returned Pieces", "Amount"]],
-    body: (tables.returns || []).map((r) => [
-      (r.product || "").slice(0, 40),
-      peso(r.shellPrice),
-      peso(r.bottlePrice),
-      n(r.returnedShells),
-      n(r.returnedPieces),
-      peso(r.amount),
-    ]),
-    margin: { left: M.left, right: M.right },
-    styles: { font: "DejaVuSans", fontSize: 9, cellPadding: 2, lineColor: [209, 213, 219], lineWidth: 0.2 },
-    headStyles: { font: "DejaVuSans", fontStyle: "bold", fillColor: [243, 244, 246], textColor: [0, 0, 0] },
-    columnStyles: cwEmpties,
-  });
-  y = (doc.lastAutoTable?.finalY || y) + 8;
-
-  // ---- PAYMENT BREAKDOWN ---------------------------------------------------
-  const breakdownX = M.left;
-  const breakdownW = pageW - (M.left + M.right);
-  const line = (label, value, opts = {}) => {
-    const leftX = breakdownX + 4;
-    const rightX = breakdownX + breakdownW - 4;
-    doc.setFont("DejaVuSans", opts.bold ? "bold" : "normal");
-    doc.setFontSize(opts.size || 10);
-    doc.text(label, leftX, y);
-    doc.text(value, rightX, y, { align: "right" });
-    y += opts.gap || 6;
-  };
-
-  doc.setFontSize(12); doc.setFont("DejaVuSans", "bold");
-  txt("PAYMENT BREAKDOWN", breakdownX, y); y += 8;
-  const boxTop = y - 6;
-
-  if (totals.isVanLoad) {
-    line("Expected Sale", peso(totals.expectedSale), { bold: true, size: 11, gap: 7 });
-    doc.setFont("DejaVuSans", "bold"); doc.setFontSize(10);
-    txt("Total Actual Retrieved:", breakdownX + 4, y); y += 6;
-    line("Actual Sale:", peso(totals.vl_actual));
-    line("Returned With Content:", `+ ${peso(totals.vl_retWc)}`);
-    line("Discrepancies (non-empty):", `+ ${peso(totals.vl_discNE)}`);
-    line("Total:", peso(totals.vl_totalActualRetrieved), { bold: true });
-
-    y += 2; doc.setFont("DejaVuSans", "bold"); doc.setFontSize(10);
-    txt("Overall Total:", breakdownX + 4, y); y += 6;
-    line("Actual Sale:", peso(totals.vl_actual));
-    line("Discrepancies (empty):", `+ ${peso(totals.vl_discE)}`);
-    line("Discrepancies (non-empty):", `+ ${peso(totals.vl_discNE)}`);
-    line("Total:", peso(totals.vl_overallTotal), { bold: true });
-    line("Expenses:", `- ${peso(totals.expensesTotal)}`);
-    line("Grand Total:", peso(totals.vl_grandTotal), { bold: true, size: 11, gap: 8 });
-  } else {
-    line("Actual Sales:", peso(totals.actualSales), { bold: true });
-    doc.setFont("DejaVuSans", "bold"); doc.setFontSize(10);
-    txt("Discrepancy:", breakdownX + 4, y); y += 6;
-    line("Empties Price Total:", peso(totals.emptiesPriceTotal));
-    line("Empty Returns:", `- ${peso(totals.emptyReturns)}`);
-    line("Total:", peso(totals.emptyDiscrepancies), { bold: true });
-    line("Actual Sales", `+ ${peso(totals.actualSales)}`);
-    line("Total Amount Due:", peso(totals.totalAmount), { bold: true, size: 11, gap: 8 });
-  }
-
-  line("Cash Received:", peso(totals.cashReceived));
-  line("Change:", peso(totals.change));
-
-  const boxBottom = y + 2;
-  doc.setDrawColor(0); doc.setLineWidth(0.3);
-  doc.rect(breakdownX, boxTop, breakdownW, boxBottom - boxTop);
-
-  if (totals.isVanLoad && remarks) {
-    y = boxBottom + 4;
-    doc.setFont("DejaVuSans", "bold"); doc.setFontSize(10);
-    txt("Remarks:", M.left, y);
-    doc.setFont("DejaVuSans", "normal"); y += 5;
-    const wrapped = doc.splitTextToSize(remarks, pageW - (M.left + M.right));
-    txt(wrapped, M.left, y);
-  }
-
-  doc.save(`Invoice_${invoiceNumber}.pdf`);
+  doc.save(`Invoice_${cleanText(payload?.invoiceNumber, "invoice")}.pdf`);
 }

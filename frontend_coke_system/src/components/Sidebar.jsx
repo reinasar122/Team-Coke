@@ -160,7 +160,8 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
                       const isTradingSection =
                         isActive ||
                         location.pathname === "/reservationlist" ||
-                        location.pathname.startsWith("/reservationlist/");
+                        location.pathname.startsWith("/reservationlist/") ||
+                        location.pathname.startsWith("/reservation-details/");
 
                       return `block p-2 text-sm rounded hover:bg-gray-600 ${
                         isTradingSection ? "bg-gray-700" : ""
@@ -520,3 +521,7 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
 };
 
 export default Sidebar;
+
+
+
+

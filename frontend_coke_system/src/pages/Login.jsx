@@ -423,27 +423,25 @@ const Login = () => {
     }
   }, [loginSuccessful, navigate]);
 
-  // ✅ reset fields when switching modes
+  // Reset form fields when switching between sign in and sign up.
   useEffect(() => {
-    if (!isSignUp) {
-      const rememberFlag = localStorage.getItem("rememberMe") === "true";
-      if (!rememberFlag) setPhoneNumber("");
+    const rememberFlag = localStorage.getItem("rememberMe") === "true";
+    const rememberedPhone = rememberFlag ? localStorage.getItem("rememberPhoneNumber") || "" : "";
 
-      setPassword("");
-      setConfirmPassword("");
-      setFirstName("");
-      setLastName("");
-      setGender("");
-      setEmail("");
-      setError("");
-      setPasswordValid(false);
-      setPasswordError("");
-      setShowRecentNumbers(false);
-      setFilteredRecentNumbers([]);
-    } else {
-      setShowRecentNumbers(false);
-      setFilteredRecentNumbers([]);
-    }
+    setPhoneNumber(isSignUp ? "" : rememberedPhone);
+    setPassword("");
+    setConfirmPassword("");
+    setFirstName("");
+    setLastName("");
+    setGender("");
+    setEmail("");
+    setError("");
+    setFieldErrors({});
+    setPasswordValid(false);
+    setPasswordError("");
+    setCapsLockOn(false);
+    setShowRecentNumbers(false);
+    setFilteredRecentNumbers([]);
   }, [isSignUp]);
 
   const logoSrc = process.env.PUBLIC_URL + "/static/images/Wilfie’s 5.png";
@@ -497,6 +495,8 @@ const Login = () => {
                   <label className="block text-sm font-medium text-gray-200 mb-1">Phone Number *</label>
                   <input
                     type="text"
+                    name="signup-phone"
+                    autoComplete="off"
                     inputMode="numeric"
                     pattern="[0-9]*"
                     autoCorrect="off"
@@ -804,7 +804,12 @@ const Login = () => {
                     Don't have an account?{" "}
                     <button
                       type="button"
-                      onClick={() => setIsSignUp(true)}
+                      onClick={() => {
+                        setPhoneNumber("");
+                        setFieldErrors({});
+                        setError("");
+                        setIsSignUp(true);
+                      }}
                       className="text-blue-400 font-semibold hover:text-blue-300 hover:underline"
                     >
                       Sign up

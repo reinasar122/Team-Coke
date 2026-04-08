@@ -9,7 +9,6 @@ import { FaRegCalendarAlt } from "react-icons/fa";
 import "../../styles/components/merchandisingSale.scss";
 import api from "../../api"; // centralized API instance
 import CustomerRegistration from './CustomerRegistration';
-import { showAppConfirmDialog } from "../common/modalDialogs";
 
 // Van Load notification helper
 const notifyVanLoadCreated = (vanLoadData) => {
@@ -114,6 +113,9 @@ const MerchandisingSale = () => {
   const isReservationMode =
     requestedReservationMode ||
     ["reserved", "cancelled", "canceled"].includes(incomingReservationStatus);
+  const reservationAction =
+    location.state?.reservationAction ||
+    "edit";
   const [transactionType, setTransactionType] = useState(
     location.state?.transactionTypeId || ""
   );
@@ -156,6 +158,7 @@ const MerchandisingSale = () => {
   const [stocks, setStocks] = useState([]);
   const initTxTypeOnce = useRef(false);
   const customerDrawerCloseTimerRef = useRef(null);
+  const completedReservationRemittanceRef = useRef(false);
 
   const showAlert = (message) => {
     const alertDiv = document.createElement("div");
@@ -611,9 +614,18 @@ const MerchandisingSale = () => {
     isReservationMode && selectedTransactionTypeName === "Warehouse";
   const pickupDateCardValue = selectedReservedDate || "Set pickup date";
   const isReservedSaleDetail = editMode && incomingReservationStatus === "reserved";
+  const reservationDetailMode = isReservedSaleDetail ? reservationAction : null;
+  const isReservationEditDetail = reservationDetailMode === "edit";
+  const isReservationRemittanceDetail = reservationDetailMode === "remittance";
   const isCancelledReservationDetail =
     editMode && ["cancelled", "canceled"].includes(incomingReservationStatus);
   const usesReservationDraftTotals = isReservationMode && !isReservedSaleDetail;
+  const isReservationHeaderLocked = isReservationMode && editMode;
+  const canEditReservationPickupDate =
+    !isReservationHeaderLocked || isReservationEditDetail;
+  const canEditReservationDispatch =
+    !isReservationHeaderLocked || isReservationEditDetail;
+  const allowReservationProductChanges = !isReservationHeaderLocked;
   const showReservationHeaderBack = isReservationMode && editMode;
   const showFormHeaderBack = !editMode || showReservationHeaderBack;
   const headerBackLabel = "Back";
@@ -621,11 +633,14 @@ const MerchandisingSale = () => {
     navigate(showReservationHeaderBack ? "/reservationlist" : -1);
   const pageTitle = isReservationMode
     ? editMode
-      ? "View/Edit Reservation"
+      ? isReservationEditDetail
+        ? "Edit Reservation"
+        : "Reservation Remittance"
       : "New Reservation"
     : editMode
       ? "View/Edit Merchandising Sale"
       : "New Sale";
+
   useEffect(() => {
     const sale = location.state?.sale;
     const isEdit = location.state?.editMode === true;
@@ -1236,33 +1251,18 @@ const MerchandisingSale = () => {
   };
 
   const handleCompleteReservedSale = async (paymentData) => {
-    return handleSubmit(paymentData, {
+    const result = await handleSubmit(paymentData, {
       status: "Complete",
       successMessage: "Reservation paid successfully!",
     });
+
+    if (result) {
+      completedReservationRemittanceRef.current = true;
+    }
+
+    return result;
   };
 
-  const handleCancelReservation = async () => {
-    const confirmed = await showAppConfirmDialog({
-      title: "Cancel Reservation",
-      message: "Cancel this reservation?",
-      details: "The reserved stock will be returned to warehouse stocks.",
-      confirmLabel: "Cancel Reservation",
-      cancelLabel: "Keep Reservation",
-      danger: true,
-      size: "sm",
-    });
-
-    if (!confirmed) return;
-
-    const success = await handleSubmit(null, {
-      status: "Cancelled",
-      successMessage: "Reservation cancelled successfully!",
-    });
-    if (!success) return;
-
-    navigate("/reservationlist");
-  };
 
   const handlePay = () => {
     if (isReservedSaleDetail) {
@@ -1280,6 +1280,11 @@ const MerchandisingSale = () => {
 
   const handleClosePayment = () => {
     setIsPaymentModalOpen(false);
+
+    if (completedReservationRemittanceRef.current) {
+      completedReservationRemittanceRef.current = false;
+      navigate("/reservationlist", { replace: true });
+    }
   };
 
   const handleConfirmPayment = (paymentData) => {
@@ -1376,7 +1381,10 @@ const MerchandisingSale = () => {
               type="text"
               value={mspNo}
               onChange={(e) => setMspNo(e.target.value)}
-              className="border w-full rounded-md px-2 py-1 text-sm"
+              readOnly={isReservationHeaderLocked}
+              className={`border w-full rounded-md px-2 py-1 text-sm ${
+                isReservationHeaderLocked ? "bg-white cursor-default" : ""
+              }`}
             />
           </div>
 
@@ -1454,55 +1462,73 @@ const MerchandisingSale = () => {
                 <label className="text-sm block mb-1">
                   Customer{isReservationMode ? " *" : ""}
                 </label>
-                <select
-                  value={selectedCustomerId}
-                  onChange={(e) => {
-                    if (e.target.value === "add_new") {
-                      navigateToCustomerRegistration();
-                    } else {
-                      console.log("Customer selected:", e.target.value);
-                      setSelectedCustomerId(e.target.value);
-                    }
-                  }}
-                  className="border w-full rounded-md px-2 py-1 text-black text-base"
-                >
-                  {isReservationMode ? (
-                    <option value="" disabled hidden>
-                      Select Customer
-                    </option>
-                  ) : (
-                    <option value="">Walk-in Customer</option>
-                  )}
-                  {customers.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                  <option value="add_new">+ New Customer</option>
-                </select>
+                {isReservationHeaderLocked ? (
+                  <input
+                    type="text"
+                    value={customerName}
+                    readOnly
+                    className="border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
+                  />
+                ) : (
+                  <select
+                    value={selectedCustomerId}
+                    onChange={(e) => {
+                      if (e.target.value === "add_new") {
+                        navigateToCustomerRegistration();
+                      } else {
+                        console.log("Customer selected:", e.target.value);
+                        setSelectedCustomerId(e.target.value);
+                      }
+                    }}
+                    className="border w-full rounded-md px-2 py-1 text-black text-base"
+                  >
+                    {isReservationMode ? (
+                      <option value="" disabled hidden>
+                        Select Customer
+                      </option>
+                    ) : (
+                      <option value="">Walk-in Customer</option>
+                    )}
+                    {customers.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                    <option value="add_new">+ New Customer</option>
+                  </select>
+                )}
               </div>
 
               {showPickupDateCard && (
                 <div>
                   <label className="text-sm block mb-1">Pick Up Date</label>
-                  <button
-                    type="button"
-                    className="pickup-date-card merch-sale-form-control"
-                    onClick={() => setIsReservedModalOpen(true)}
-                  >
-                    <span
-                      className={
-                        selectedReservedDate
-                          ? "pickup-date-card__value"
-                          : "pickup-date-card__value pickup-date-card__value--placeholder"
-                      }
+                  {canEditReservationPickupDate ? (
+                    <button
+                      type="button"
+                      className="pickup-date-card merch-sale-form-control"
+                      onClick={() => setIsReservedModalOpen(true)}
                     >
-                      {pickupDateCardValue}
-                    </span>
-                    <span className="pickup-date-card__icon" aria-hidden="true">
-                      <FaRegCalendarAlt />
-                    </span>
-                  </button>
+                      <span
+                        className={
+                          selectedReservedDate
+                            ? "pickup-date-card__value"
+                            : "pickup-date-card__value pickup-date-card__value--placeholder"
+                        }
+                      >
+                        {pickupDateCardValue}
+                      </span>
+                      <span className="pickup-date-card__icon" aria-hidden="true">
+                        <FaRegCalendarAlt />
+                      </span>
+                    </button>
+                  ) : (
+                    <input
+                      type="text"
+                      value={pickupDateCardValue}
+                      readOnly
+                      className="border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
+                    />
+                  )}
                 </div>
               )}
             </div>
@@ -1642,9 +1668,12 @@ const MerchandisingSale = () => {
           products={products}
           selectedTransactionTypeName={selectedTransactionTypeName}
           isReservedTransaction={usesReservationDraftTotals}
-          allowManualSoldEntry={isReservedSaleDetail}
+          allowManualSoldEntry={isReservationRemittanceDetail}
           autoFillSoldFromDispatched={!isReservationMode}
           allowDiscountWithoutSold={usesReservationDraftTotals}
+          allowProductSelection={allowReservationProductChanges}
+          allowDispatchEdit={canEditReservationDispatch}
+          allowRowRemoval={allowReservationProductChanges}
           miscItems={miscItems}
           warehouseId={currentWarehouse?.id}
           setTotalExpectedSale={setTotalExpectedSale}
@@ -1664,7 +1693,7 @@ const MerchandisingSale = () => {
       )}
 
       {editMode && selectedTransactionTypeName === "Van Load" ? (
-        <div className="flex justify-end gap-4 mt-6 max-w-7xl mx-auto">
+        <div className="flex justify-end gap-4 mt-6">
           <button
             onClick={() => navigate(-1)}
             className="bg-gray-500 text-white px-4 py-2 rounded"
@@ -1673,7 +1702,22 @@ const MerchandisingSale = () => {
           </button>
           <button
             onClick={handleSaveVanLoadEdit}
-            className="bg-amber-600 hover:bg-amber-700 text-white px-4 py-2 rounded"
+            className="bg-blue-600 hover:bg-amber-700 text-white px-4 py-2 rounded"
+          >
+            Save Changes
+          </button>
+        </div>
+      ) : isReservationEditDetail ? (
+        <div className="flex justify-end gap-4 mt-6">
+          <button
+            onClick={() => navigate(-1)}
+            className="bg-gray-500 text-white px-4 py-2 rounded"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleReserveTransaction}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
           >
             Save Changes
           </button>
@@ -1683,16 +1727,14 @@ const MerchandisingSale = () => {
           transactionType={selectedTransactionTypeName}
           onBack={() => navigate(isReservationMode ? "/reservationlist" : -1)}
           onFinalize={handleFinalizeSale}
-          onPay={isReservedSaleDetail ? handlePay : isReservationMode ? handleReserveTransaction : handlePay}
-          onCancel={handleCancelReservation}
-          warehouseActionLabel={isReservedSaleDetail ? "Pay" : isReservationMode ? "Reserve" : "Pay"}
+          onPay={isReservationRemittanceDetail ? handlePay : isReservationMode ? handleReserveTransaction : handlePay}
+          warehouseActionLabel={isReservationRemittanceDetail ? "Pay" : isReservationMode ? "Reserve" : "Pay"}
           showWarehouseAction={
             !isCancelledReservationDetail && (
               selectedTransactionTypeName !== "Warehouse" ||
               hasWarehouseDispatchedInput
             )
           }
-          showCancel={isReservedSaleDetail}
           hideBack={showFormHeaderBack}
           finalizeDisabled={
             selectedTransactionTypeName === "Van Load" &&
@@ -1765,4 +1807,5 @@ const MerchandisingSale = () => {
 };
 
 export default MerchandisingSale;
+
 

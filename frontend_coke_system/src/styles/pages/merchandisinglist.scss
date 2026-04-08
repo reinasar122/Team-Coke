@@ -36,6 +36,12 @@
   color: #9a3412;
   border-color: #fdba74;
 }
+
+.merch-status-pill--overdue {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
 .merch-status-pill--due::after {
   content: "";
   position: absolute;
@@ -223,6 +229,12 @@
   color: #fdba74 !important;
   border-color: rgba(249, 115, 22, 0.28) !important;
 }
+
+.dark .merch-status-pill--overdue {
+  background: rgba(239, 68, 68, 0.16) !important;
+  color: #fca5a5 !important;
+  border-color: rgba(239, 68, 68, 0.34) !important;
+}
 .dark .merch-status-pill--due::after {
   box-shadow: 0 0 0 2px #111827;
 }
@@ -271,3 +283,4 @@
 .dark .tradinglist-row {
   border-top-color: rgba(148, 163, 184, 0.12) !important;
 }
+

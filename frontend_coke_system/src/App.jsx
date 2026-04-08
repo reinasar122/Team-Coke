@@ -39,6 +39,7 @@ import ReceivingList from "./pages/ReceivingList";
 import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
 import ReservationList from "./pages/ReservationList";
+import ReservationDetailPage from "./pages/ReservationDetailPage";
 import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -170,7 +171,7 @@ const ProtectedLayout = ({
   const hideLayout = hiddenRoutes.includes(location.pathname);
 
   // Pages where we want to HIDE the universal scrollbar
-  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist"];
+  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist", "/reservation-details"];
   const path = location.pathname.toLowerCase();
   const lockScroll = lockPrefixes.some(p => path === p || path.startsWith(p + "/"));
 
@@ -257,14 +258,7 @@ const ProtectedLayout = ({
                     </h1>
                   }
                 />
-                <Route
-                  path="/supplier-returns"
-                  element={
-                    <h1 className="text-2xl flex items-center mt-4 gap-2">
-                      <FaTruck /> Supplier Returns
-                    </h1>
-                  }
-                />
+                <Route path="/supplier-returns" element={null} />
                 <Route path="/return-empties" />
                 <Route path="/credits" />
                 <Route
@@ -347,6 +341,7 @@ const ProtectedLayout = ({
             {/* Merchandising */}
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/reservationlist" element={<ReservationList />} />
+            <Route path="/reservation-details/:id" element={<ReservationDetailPage />} />
             <Route
               path="/merchandising"
               element={
@@ -525,3 +520,6 @@ function App() {
 }
 
 export default App;
+
+
+

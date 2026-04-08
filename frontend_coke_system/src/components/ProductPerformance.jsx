@@ -116,6 +116,7 @@ export default function ProductPerformance({
   categoryMap = undefined,
   categoryResolver = undefined,
   topK = 3,
+  loading = false,
 }) {
   const ProductTooltip = ({ active, payload, label }) => {
     if (!active || !payload?.length) return null;
@@ -266,6 +267,16 @@ export default function ProductPerformance({
     };
   }, [categoryChartData, categoryKeys, topK]);
 
+  const lineAnimationProps = React.useMemo(
+    () => ({
+      isAnimationActive: !loading && categoryChartData.length > 0,
+      animationBegin: 0,
+      animationDuration: 420,
+      animationEasing: "ease-out",
+    }),
+    [loading, categoryChartData.length]
+  );
+
   return (
     <div
       className={[
@@ -313,6 +324,7 @@ export default function ProductPerformance({
                   fill: COLORS[idx % COLORS.length],
                 }}
                 activeDot={{ r: 5 }}
+                {...lineAnimationProps}
               />
             ))}
           </LineChart>
@@ -322,3 +334,6 @@ export default function ProductPerformance({
     </div>
   );
 }
+
+
+

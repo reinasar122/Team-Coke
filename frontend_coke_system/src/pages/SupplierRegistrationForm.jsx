@@ -1,11 +1,13 @@
 // src/pages/SupplierRegistrationForm.jsx
 import React, { useState, useEffect } from "react";
-import api from "../api"; // ✅ centralized API instance
+import api from "../api"; // centralized API instance
 //import psgcData from "../data/psgc_output.json";
 import psgcData from "../data/updated_psgc_output.json";
 import { toast } from "react-toastify";
 import { successStyle, errorStyle } from "../utils/toastStyles";
-import { validatePhoneNumber} from "../utils/validators";
+import { 
+  validateOptionalPhoneNumber,
+} from "../utils/validators";
 
 const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
@@ -76,7 +78,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
   }, []);
 
 
-  // ✅ PSGC cascading dropdowns
+  // PSGC cascading dropdowns
   useEffect(() => {
     const selectedRegion = psgcData.find(
       (r) => r.region_name === formData.region
@@ -94,7 +96,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     setBarangays(selectedCity ? selectedCity.barangays : []);
   }, [formData.region, formData.province, formData.city]);
 
-  // ✅ Handle change with live validation
+  // Handle change with live validation
   const handleChange = (e) => {
     const { name, value } = e.target;
     const nextValue =
@@ -110,7 +112,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     });
 
     if (name === "phone_number") {
-      const err = validatePhoneNumber(nextValue);
+      const err = validateOptionalPhoneNumber(nextValue);
       setErrors((prev) => ({ ...prev, phone_number: err }));
     }
   };
@@ -121,60 +123,73 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
       name === "phone_number" ? value.replace(/\D/g, "").slice(0, 11) : value;
     setNewContact((prev) => ({ ...prev, [name]: nextValue }));
 
-    // Live validation feedback
     if (name === "phone_number") {
-      const err = validatePhoneNumber(nextValue);
+      const err = validateOptionalPhoneNumber(nextValue);
       setContactErrors((prev) => ({ ...prev, phone_number: err }));
     }
 
     if (name === "email") {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      const err = !emailRegex.test(nextValue) ? "Please enter a valid email address." : null;
+      const err =
+        nextValue.trim() && !emailRegex.test(nextValue)
+          ? "Please enter a valid email address."
+          : null;
       setContactErrors((prev) => ({ ...prev, email: err }));
     }
 
     if (name === "contact_person") {
-      const err = nextValue.trim() ? null : "Contact person is required.";
-      setContactErrors((prev) => ({ ...prev, contact_person: err }));
+      setContactErrors((prev) => ({
+        ...prev,
+        contact_person: null,
+      }));
     }
   };
 
-  // ✅ Add contact with validation
   const addContact = () => {
     const { contact_person, email, phone_number } = newContact;
+    const trimmedContactPerson = contact_person.trim();
+    const trimmedEmail = email.trim();
+    const trimmedPhoneNumber = phone_number.trim();
 
-    // Final check before adding
-    const phoneError = validatePhoneNumber(phone_number);
+    const phoneError = validateOptionalPhoneNumber(trimmedPhoneNumber);
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    const emailError = !emailRegex.test(email) ? "Please enter a valid email address." : null;
-
+    const emailError = trimmedEmail
+      ? !emailRegex.test(trimmedEmail)
+        ? "Please enter a valid email address."
+        : null
+      : "Email is required.";
     const errors = {
-      contact_person: contact_person.trim() ? null : "Contact person is required.",
+      contact_person: null,
       email: emailError,
       phone_number: phoneError,
     };
     setContactErrors(errors);
 
-    if (errors.contact_person || errors.email || errors.phone_number) {
+    if (errors.email || errors.phone_number) {
       toast.error("Please fix the errors before adding.", { style: errorStyle });
       return;
     }
 
-    // ✅ Prevent duplicates
     const duplicate = formData.contacts.some(
       (c) =>
-        c.email.toLowerCase() === email.toLowerCase() ||
-        c.phone_number === phone_number
+        c.email.toLowerCase() === trimmedEmail.toLowerCase() ||
+        (trimmedPhoneNumber && c.phone_number === trimmedPhoneNumber)
     );
     if (duplicate) {
       toast.error("This contact already exists.", { style: errorStyle });
       return;
     }
 
-    // ✅ Add valid contact
     setFormData((prev) => ({
       ...prev,
-      contacts: [...prev.contacts, newContact],
+      contacts: [
+        ...prev.contacts,
+        {
+          contact_person: trimmedContactPerson,
+          email: trimmedEmail,
+          phone_number: trimmedPhoneNumber,
+        },
+      ],
     }));
 
     toast.success("Additional contact added.", { style: successStyle });
@@ -189,9 +204,9 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     }));
   };
 
-  // ✅ Validate before submit
+  // Validate before submit
   const validateMainFields = () => {
-    const phoneError = validatePhoneNumber(formData.phone_number);
+    const phoneError = validateOptionalPhoneNumber(formData.phone_number);
 
     setErrors({
       phone_number: phoneError,
@@ -205,13 +220,16 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     return true;
   };
 
-  // ✅ Submit form (Create supplier) with notification dispatch
+  // Submit form (Create supplier) with notification dispatch
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateMainFields()) return;
 
     const payload = {
       ...formData,
+      contact_person: formData.contact_person?.trim() || '',
+      email: formData.email?.trim() || '',
+      phone_number: formData.phone_number?.trim() || '',
       contacts: formData.contacts.map((c) => ({
         contact_person: c.contact_person?.trim(),
         email: c.email?.trim(),
@@ -220,9 +238,9 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
     };
 
     try {
-      const response = await api.post("/suppliers/", payload); // ✅ use centralized API call
+      const response = await api.post("/suppliers/", payload); // use centralized API call
       
-      // ✅ NEW: Dispatch supplier creation event for notifications
+      // Dispatch supplier creation event for notifications
       if (response.data) {
         // Get current user and warehouse info
         const userData = JSON.parse(localStorage.getItem("user") || "{}");
@@ -251,7 +269,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
         });
         window.dispatchEvent(supplierEvent);
         
-        console.log('🏪 Supplier creation notification dispatched for warehouse:', warehouseId);
+        console.log("Supplier creation notification dispatched for warehouse:", warehouseId);
       }
       
       toast.success("Supplier successfully added!", { style: successStyle });
@@ -341,14 +359,13 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
         {/* Primary Contact */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
-            <label className="block font-medium">Contact Person</label>
+            <label className="block font-medium">Contact Person (Optional)</label>
             <input
               type="text"
               name="contact_person"
               value={formData.contact_person}
               onChange={handleChange}
               className="w-full border p-2 rounded"
-              required
             />
           </div>
           <div>
@@ -378,7 +395,6 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               className={`w-full border p-2 rounded ${
                 errors.phone_number ? "border-red-500" : ""
               }`}
-              required
             />
             {errors.phone_number && (
               <p className="text-red-500 text-sm mt-1">
@@ -491,7 +507,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               name="zip_code"
               className={`w-full border p-2 rounded ${errors.zip_code ? "border-red-500" : ""}`}
               required
-              value={formData.zip_code}  // Bind the value to formData.zip_code
+              value={formData.zip_code}
               onChange={handleChange}
             />
             {errors.zip_code && (
@@ -499,13 +515,12 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
             )}
           </div>
 
-          
         </div>
 
         {/* Additional Contacts */}
         <div className="mt-4">
           <h3 className="font-semibold mb-2">
-            Additional Contact Person{" "}
+            Additional Contacts (Optional){" "}
             {formData.contacts.length > 0 && (
               <span className="ml-2 text-sm text-gray-500">
                 ({formData.contacts.length} added)
@@ -519,7 +534,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               className="border p-2 mb-2 flex justify-between items-center rounded"
             >
               <span className="text-sm">
-                {c.contact_person} — {c.email} — {c.phone_number}
+                {[c.contact_person || "No contact person", c.email, c.phone_number || "No phone number"].join(" - ")}
               </span>
               <button
                 type="button"
@@ -536,7 +551,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               <input
                 type="text"
                 name="contact_person"
-                placeholder="Contact Person"
+                placeholder="Contact Person (optional)"
                 value={newContact.contact_person}
                 onChange={handleNewContactChange}
                 className={`w-full border p-2 rounded ${
@@ -552,7 +567,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               <input
                 type="email"
                 name="email"
-                placeholder="Email (optional)"
+                placeholder="Email"
                 value={newContact.email}
                 onChange={handleNewContactChange}
                 className={`w-full border p-2 rounded ${
@@ -568,7 +583,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
               <input
                 type="text"
                 name="phone_number"
-                placeholder="Phone Number"
+                placeholder="Phone Number (optional)"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 autoCorrect="off"
@@ -591,11 +606,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
             type="button"
             onClick={addContact}
             className="btn btn-add mt-4"
-            disabled={
-              !newContact.contact_person ||
-              !newContact.email ||
-              !newContact.phone_number
-            }
+            disabled={!newContact.email.trim()}
           >
             Add Contact
           </button>

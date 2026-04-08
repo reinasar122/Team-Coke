@@ -2,11 +2,12 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
 import { Link } from 'react-router-dom';
-import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaChevronDown, FaSearch, FaTimes } from 'react-icons/fa';
+import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaSearch, FaWarehouse } from 'react-icons/fa';
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
 import { notifyProductChange } from '../utils/productNotifier';
 import { getCurrentWarehouse, findWarehouseByName, getWarehouseAxiosConfig } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
 import { showAppAlertDialog, showAppConfirmDialog } from "../components/common/modalDialogs";
+import PageSearchToolbar, { PageToolbarSelect } from "../components/common/PageSearchToolbar";
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -15,7 +16,6 @@ const ProductList = () => {
   const [showPagination, setShowPagination] = useState(false);
   const [productsPerPage, setProductsPerPage] = useState(6);
   const [viewMode, setViewMode] = useState('carousel');
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ KEPT: from old version
   const [searchQuery, setSearchQuery] = useState('');
   const gridRef = useRef(null);
@@ -216,12 +216,11 @@ const ProductList = () => {
 
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
-    setDropdownOpen(false);
     setCurrentPage(0);
   };
 
-  const handleSearchChange = (e) => {
-    setSearchQuery(e.target.value);
+  const handleSearchChange = (value) => {
+    setSearchQuery(value);
     setCurrentPage(0); // Reset to first page when searching
   };
 
@@ -290,225 +289,47 @@ const ProductList = () => {
   return (
     <div className="page">
       {/* Header */}
-      <div className="page-header" style={{ flexWrap: 'wrap', rowGap: 8 }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 16,
-            marginRight: 'auto',
-            flexWrap: 'wrap',
-            minWidth: 0
-          }}
-        >
+      <div className="page-header">
+        <div className="flex flex-wrap items-center gap-4 min-w-0">
           <h2 className="page-title" style={{ margin: 0 }}>Product List</h2>
-         
-          {/* ✅ KEPT: Show current warehouse (from old version) */}
-          <span className="page-warehouse-chip page-warehouse-chip--inline">
-            <span className="page-warehouse-chip__icon" aria-hidden="true">📦</span>
+          <span className="page-warehouse-chip">
+            <span className="page-warehouse-chip__icon" aria-hidden="true"><FaWarehouse /></span>
             <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
           </span>
-         
-          {/* View Mode Dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-                padding: '8px 12px',
-                border: '1px solid #e5e7eb',
-                background: '#fff',
-                color: '#374151',
-                borderRadius: '6px',
-                cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '500',
-                minWidth: '120px',
-                justifyContent: 'space-between'
-              }}
-            >
-              <span>{viewMode === 'carousel' ? 'Carousel View' : 'Table View'}</span>
-              <FaChevronDown style={{
-                fontSize: '12px',
-                transform: dropdownOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.2s ease'
-              }} />
-            </button>
-           
-            {dropdownOpen && (
-              <div style={{
-                position: 'absolute',
-                top: '100%',
-                left: 0,
-                right: 0,
-                marginTop: '4px',
-                background: '#fff',
-                border: '1px solid #e5e7eb',
-                borderRadius: '6px',
-                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)',
-                zIndex: 10,
-                overflow: 'hidden'
-              }}>
-                <button
-                  onClick={() => handleViewModeChange('carousel')}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: 'none',
-                    background: viewMode === 'carousel' ? '#f3f4f6' : '#fff',
-                    color: '#374151',
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: viewMode === 'carousel' ? '600' : '400'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (viewMode !== 'carousel') {
-                      e.target.style.background = '#f9fafb';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (viewMode !== 'carousel') {
-                      e.target.style.background = '#fff';
-                    }
-                  }}
-                >
-                  Carousel View
-                </button>
-                <button
-                  onClick={() => handleViewModeChange('table')}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: 'none',
-                    background: viewMode === 'table' ? '#f3f4f6' : '#fff',
-                    color: '#374151', // ✅ KEPT: Fixed typo from old version (#374171 -> #374151)
-                    textAlign: 'left',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: viewMode === 'table' ? '600' : '400'
-                  }}
-                  onMouseEnter={(e) => {
-                    if (viewMode !== 'table') {
-                      e.target.style.background = '#f9fafb';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (viewMode !== 'table') {
-                      e.target.style.background = '#fff';
-                    }
-                  }}
-                >
-                  Table View
-                </button>
-              </div>
-            )}
-          </div>
         </div>
-       
-        <Link
-          to="/products/new"
-          className={`btn ${canCreate("Product") ? 'btn-add' : 'btn-disabled'}`}
-          onClick={(e) => { if (!canCreate("Product")) e.preventDefault(); }}
-        >
-          + Product
-        </Link>
       </div>
 
-      {/* Search Bar */}
-      <div style={{ marginBottom: '20px', width: '100%' }}>
-        <div style={{ position: 'relative', width: 'min(100%, 500px)' }}>
-          <div style={{ position: 'relative' }}>
-            <FaSearch style={{
-              position: 'absolute',
-              left: '12px',
-              top: '50%',
-              transform: 'translateY(-50%)',
-              color: '#9ca3af',
-              fontSize: '14px'
-            }} />
-            <input
-              type="text"
-              placeholder="Search products by name, system code, supplier code, or category..."
-              value={searchQuery}
-              onChange={handleSearchChange}
-              style={{
-                width: '100%',
-                padding: '12px 12px 12px 40px',
-                border: '1px solid #e5e7eb',
-                borderRadius: '8px',
-                fontSize: '14px',
-                background: '#fff',
-                color: '#374151',
-                paddingRight: searchQuery ? '40px' : '12px',
-                transition: 'all 0.2s ease',
-                outline: 'none'
-              }}
-              onFocus={(e) => {
-                e.target.style.borderColor = '#5D5CDE';
-                e.target.style.boxShadow = '0 0 0 3px rgba(93, 92, 222, 0.1)';
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = '#e5e7eb';
-                e.target.style.boxShadow = 'none';
-              }}
-            />
-            {searchQuery && (
-              <button
-                onClick={clearSearch}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  color: '#9ca3af',
-                  cursor: 'pointer',
-                  padding: '4px',
-                  borderRadius: '4px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center'
-                }}
-                title="Clear search"
-                onMouseEnter={(e) => e.target.style.color = '#6b7280'}
-                onMouseLeave={(e) => e.target.style.color = '#9ca3af'}
-              >
-                <FaTimes style={{ fontSize: '12px' }} />
-              </button>
-            )}
-          </div>
-        </div>
-        {searchQuery && (
-          <div style={{
-            marginTop: '8px',
-            fontSize: '14px',
-            color: '#6b7280'
-          }}>
-            Found {filteredProducts.length} product{filteredProducts.length !== 1 ? 's' : ''}
-            {filteredProducts.length > 0 && ` matching "${searchQuery}"`}
-          </div>
-        )}
-      </div>
-
-      {/* Close dropdown when clicking outside */}
-      {dropdownOpen && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            zIndex: 5
-          }}
-          onClick={() => setDropdownOpen(false)}
-        />
-      )}
-
+      <PageSearchToolbar
+        value={searchQuery}
+        onChange={handleSearchChange}
+        onClear={clearSearch}
+        placeholder="Search products by name, system code, supplier code, or category..."
+        controls={
+          <PageToolbarSelect
+            value={viewMode}
+            onChange={(event) => handleViewModeChange(event.target.value)}
+            ariaLabel="Select product view"
+            options={[
+              { value: 'carousel', label: 'Carousel View' },
+              { value: 'table', label: 'Table View' },
+            ]}
+          />
+        }
+        actions={
+          <Link
+            to="/products/new"
+            className={`btn ${canCreate("Product") ? 'btn-add' : 'btn-disabled'}`}
+            onClick={(e) => { if (!canCreate("Product")) e.preventDefault(); }}
+          >
+            + Product
+          </Link>
+        }
+        summary={
+          searchQuery
+            ? `Found ${filteredProducts.length} product${filteredProducts.length !== 1 ? 's' : ''}${filteredProducts.length > 0 ? ` matching "${searchQuery}"` : ''}`
+            : null
+        }
+      />
       {/* Empty state */}
       {products.length === 0 ? (
         <div className="empty-state">
@@ -916,3 +737,6 @@ const ProductList = () => {
 };
 
 export default ProductList;
+
+
+

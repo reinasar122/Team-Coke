@@ -1,8 +1,8 @@
-﻿// SupplierReturnList.jsx - UPDATED VERSION WITH STATUS COLUMN (NO DELETE FUNCTIONALITY)
+// SupplierReturnList.jsx - UPDATED VERSION WITH STATUS COLUMN (NO DELETE FUNCTIONALITY)
 import React, { useEffect, useState, useCallback } from "react";
 import api from "../api";
 import { useNavigate } from "react-router-dom";
-import { FaEye, FaSearch } from "react-icons/fa"; // Removed FaTrash import
+import { FaEye, FaSearch, FaWarehouse } from "react-icons/fa"; // Removed FaTrash import
 import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils';
 
 const SupplierReturnList = () => {
@@ -17,14 +17,14 @@ const SupplierReturnList = () => {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  // ✅ KEPT: Proper warehouse setup using utilities
+  // ? KEPT: Proper warehouse setup using utilities
   const setupWarehouse = useCallback(async () => {
-    console.log('🏭 Setting up warehouse for SupplierReturnList...');
+    console.log('?? Setting up warehouse for SupplierReturnList...');
     
     const warehouse = getCurrentWarehouse();
     
     if (!warehouse) {
-      console.warn('⚠️ No warehouse found for user');
+      console.warn('?? No warehouse found for user');
       setCurrentWarehouse(null);
       setLoading(false);
       return;
@@ -44,15 +44,15 @@ const SupplierReturnList = () => {
   // Function to fetch supplier returns for current warehouse
   const fetchSupplierReturns = useCallback(async (warehouseId) => {
     if (!warehouseId) {
-      console.warn('❌ No warehouse ID provided for fetching supplier returns');
+      console.warn('? No warehouse ID provided for fetching supplier returns');
       return [];
     }
 
     try {
-      console.log('📋 Fetching supplier returns for warehouse ID:', warehouseId);
+      console.log('?? Fetching supplier returns for warehouse ID:', warehouseId);
       const warehouseParam = `?warehouse_id=${warehouseId}`;
       const response = await api.get(`/supplier-return-form/${warehouseParam}`);
-      console.log(`✅ Loaded ${response.data.length} supplier returns`);
+      console.log(`? Loaded ${response.data.length} supplier returns`);
       return response.data;
     } catch (err) {
       console.error("Error fetching supplier returns:", err);
@@ -60,15 +60,15 @@ const SupplierReturnList = () => {
     }
   }, []);
 
-  // ✅ KEPT: Setup warehouse first
+  // ? KEPT: Setup warehouse first
   useEffect(() => {
     setupWarehouse();
   }, [setupWarehouse]);
 
-  // ✅ KEPT: Listen for warehouse changes
+  // ? KEPT: Listen for warehouse changes
   useEffect(() => {
     const handleWarehouseChange = (event) => {
-      console.log('🏭 Warehouse change detected in SupplierReturnList:', event.detail);
+      console.log('?? Warehouse change detected in SupplierReturnList:', event.detail);
       setupWarehouse();
     };
     
@@ -76,7 +76,7 @@ const SupplierReturnList = () => {
     return () => window.removeEventListener('warehouseChanged', handleWarehouseChange);
   }, [setupWarehouse]);
 
-  // ✅ KEPT: Fetch data when warehouse is available
+  // ? KEPT: Fetch data when warehouse is available
   useEffect(() => {
     if (currentWarehouse?.id) {
       // Fetch all data in parallel for better performance
@@ -86,7 +86,7 @@ const SupplierReturnList = () => {
         api.get("/pricing/")
       ])
       .then(([returnsData, productsRes, pricingRes]) => {
-        console.log(`📊 Loaded data for ${currentWarehouse.name}:`, {
+        console.log(`?? Loaded data for ${currentWarehouse.name}:`, {
           returns: returnsData.length,
           products: productsRes.data.length,
           pricing: pricingRes.data.length
@@ -101,7 +101,7 @@ const SupplierReturnList = () => {
     }
   }, [currentWarehouse, fetchSupplierReturns]);
 
-  // ✅ FIXED helper function to format date correctly
+  // ? FIXED helper function to format date correctly
   const formatDate = (dateString) => {
     if (!dateString) return "N/A";
     
@@ -139,6 +139,8 @@ const SupplierReturnList = () => {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
+
+  const formatCurrency = (value) => String.fromCharCode(8369) + formatMoney(value);
 
   // Function to get status badge
   const getStatusBadge = (status) => {
@@ -281,7 +283,7 @@ const SupplierReturnList = () => {
     return supNo.includes(search.toLowerCase()) || supplier.includes(search.toLowerCase());
   });
 
-  // ✅ KEPT: Show loading state while setting up warehouse
+  // ? KEPT: Show loading state while setting up warehouse
   if (loading && !currentWarehouse) {
     return (
       <div className="page">
@@ -295,21 +297,29 @@ const SupplierReturnList = () => {
 
   return (
     <div className="page">
-      {/* Header section with styled search bar */}
-      <div className="page-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            📋 Supplier Returns
-            {/* ✅ KEPT: Show current warehouse */}
-            {currentWarehouse && (
-              <span className="page-warehouse-chip page-warehouse-chip--inline">
-                <span className="page-warehouse-chip__icon" aria-hidden="true">🏢</span>
-                <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
-              </span>
-            )}
+      {/* Header section with search bar */}
+      <div
+        className="page-header"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "1rem",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", minWidth: 0 }}>
+          <h2 className="page-title" style={{ margin: 0 }}>
+            Supplier Returns
           </h2>
-          
-          <div className="relative w-72 mr-4">
+          {currentWarehouse && (
+            <span className="page-warehouse-chip">
+              <span className="page-warehouse-chip__icon" aria-hidden="true"><FaWarehouse /></span>
+              <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
+            </span>
+          )}
+
+          <div className="relative w-72 max-w-full">
             <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
             <input
               type="text"
@@ -329,7 +339,6 @@ const SupplierReturnList = () => {
           <span>+</span> New Supplier Return
         </button>
       </div>
-
       {/* Table - Updated with status column and no delete action */}
       <div className="table-wrapper">
         <table className="table table-hover" style={{ tableLayout: 'fixed' }}>
@@ -366,7 +375,7 @@ const SupplierReturnList = () => {
                     {item.warehouse_name || "N/A"}
                   </td>
                   <td style={{ textAlign: 'center' }}>
-                    ₱{formatMoney(item.total_amount)}
+                    {formatCurrency(item.total_amount)}
                   </td>
                   <td style={{ textAlign: 'center' }}>
                     {getStatusBadge(item.status)}
@@ -417,9 +426,7 @@ const SupplierReturnList = () => {
                 onClick={closeModal}
                 className="icon-btn"
                 style={{ fontSize: '1.5rem', color: 'var(--text-muted)' }}
-              >
-                ×
-              </button>
+              >&times;</button>
             </div>
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -441,7 +448,7 @@ const SupplierReturnList = () => {
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>Total Amount</p>
-                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>₱{formatMoney(selectedReturn.total_amount)}</p>
+                <p style={{ margin: '4px 0 0', fontWeight: 500 }}>{formatCurrency(selectedReturn.total_amount)}</p>
               </div>
               <div>
                 <p style={{ margin: 0, fontSize: '0.875rem', color: 'var(--text-muted)' }}>Status</p>
@@ -467,11 +474,11 @@ const SupplierReturnList = () => {
                     returnItems.map((item, index) => (
                       <tr key={index}>
                         <td className="text-left">{item.product_name}</td>
-                        <td className="text-right">₱{formatMoney(item.display_bottle_price)}</td>
-                        <td className="text-right">₱{formatMoney(item.display_shell_price)}</td>
+                        <td className="text-right">{formatCurrency(item.display_bottle_price)}</td>
+                        <td className="text-right">{formatCurrency(item.display_shell_price)}</td>
                         <td className="text-right">{item.qty_shell}</td>
                         <td className="text-right">{item.qty_pcs}</td>
-                        <td className="text-right">₱{formatMoney(item.line_total)}</td>
+                        <td className="text-right">{formatCurrency(item.line_total)}</td>
                       </tr>
                     ))
                   ) : (
@@ -488,7 +495,7 @@ const SupplierReturnList = () => {
                       Total:
                     </td>
                     <td className="text-right" style={{ fontWeight: 600 }}>
-                      ₱{formatMoney(selectedReturn.total_amount)}
+                      {formatCurrency(selectedReturn.total_amount)}
                     </td>
                   </tr>
                 </tfoot>
@@ -511,3 +518,4 @@ const SupplierReturnList = () => {
 };
 
 export default SupplierReturnList;
+

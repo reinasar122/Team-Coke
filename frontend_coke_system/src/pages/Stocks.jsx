@@ -27,48 +27,65 @@ const getBadgeClass = (s) => {
 const checkAndStoreNotifications = async (warehouseId) => {
   try {
     const response = await api.get(`/stocks/?warehouse=${warehouseId}`);
-    const rawStocks = response.data;
-    
-    // Process stocks with current thresholds
-    const stocks = applyStockThresholds(rawStocks);
-    
-    const criticalStocks = stocks.filter(item => 
-      item.stock_status === "Low" || item.stock_status === "Out of Stock"
+    const criticalStocks = groupStocksForDisplay(response.data).filter(
+      (item) => item.stock_status === "Low" || item.stock_status === "Out of Stock"
     );
-    
-    if (criticalStocks.length > 0) {
-      // Store in localStorage for notifications
-      const existingNotifications = JSON.parse(localStorage.getItem("stockNotifications") || "[]");
-      const newNotifications = criticalStocks.map(item => ({
-        id: `stock-${item.id}-${Date.now()}`,
+
+    const currentAlertKeys = new Set(
+      criticalStocks.map(
+        (item) => `${warehouseId}:${String(item.product_name || "").trim().toLowerCase()}:${item.stock_status}`
+      )
+    );
+
+    const existingNotifications = JSON.parse(localStorage.getItem("stockNotifications") || "[]").filter(
+      (notification) =>
+        notification?.warehouseId !== warehouseId || currentAlertKeys.has(notification.alertKey)
+    );
+
+    const newNotifications = criticalStocks.map((item) => {
+      const normalizedProductName = (String(item.product_name || "unknown")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")) || "unknown";
+      const normalizedStatus = (String(item.stock_status || "unknown")
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")) || "unknown";
+      const normalizedLastUpdated = (String(item.last_updated || "na")
+        .trim()
+        .replace(/[^0-9a-z]+/gi, "-")
+        .replace(/^-+|-+$/g, "")) || "na";
+
+      return {
+        id: `stock-${warehouseId}-${normalizedProductName}-${normalizedStatus}-${normalizedLastUpdated}`,
+        alertKey: `${warehouseId}:${String(item.product_name || "").trim().toLowerCase()}:${item.stock_status}`,
+        warehouseId,
         type: "stock",
         productName: item.product_name,
         status: item.stock_status,
         quantity: item.quantity_available,
         timestamp: new Date().toISOString(),
-        read: false
-      }));
-      
-      // Avoid duplicate notifications
-      const uniqueNotifications = newNotifications.filter(newNotif => 
-        !existingNotifications.some(existing => 
-          existing.productName === newNotif.productName && 
-          existing.status === newNotif.status &&
-          !existing.read
+        read: false,
+      };
+    });
+
+    const uniqueNotifications = newNotifications.filter(
+      (newNotif) =>
+        !existingNotifications.some(
+          (existing) => existing.alertKey === newNotif.alertKey && !existing.read
         )
-      );
-      
-      if (uniqueNotifications.length > 0) {
-        localStorage.setItem("stockNotifications", JSON.stringify([
-          ...existingNotifications,
-          ...uniqueNotifications
-        ]));
-        
-        // Dispatch event for notification system
-        window.dispatchEvent(new CustomEvent('newStockNotification', { 
-          detail: { notifications: uniqueNotifications }
-        }));
-      }
+    );
+
+    localStorage.setItem(
+      "stockNotifications",
+      JSON.stringify([...existingNotifications, ...uniqueNotifications])
+    );
+
+    if (uniqueNotifications.length > 0) {
+      window.dispatchEvent(new CustomEvent('newStockNotification', {
+        detail: { notifications: uniqueNotifications }
+      }));
     }
   } catch (error) {
     console.error("Error checking stock notifications:", error);

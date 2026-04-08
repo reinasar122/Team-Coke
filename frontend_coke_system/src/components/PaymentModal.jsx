@@ -160,6 +160,21 @@ const PaymentModal = ({
       maximumFractionDigits: 2,
     })}`;
 
+  const formatCashInput = (value) => {
+    const raw = String(value ?? "").replace(/,/g, "");
+    if (!raw) return "";
+
+    const parts = raw.split(".");
+    const whole = parts[0] || "0";
+    const decimal = parts.slice(1).join("");
+    const formattedWhole = Number(whole).toLocaleString("en-PH");
+
+    if (raw.endsWith(".") && decimal === "") {
+      return `${formattedWhole}.`;
+    }
+
+    return parts.length > 1 ? `${formattedWhole}.${decimal}` : formattedWhole;
+  };
 
   const isVanLoad = /van\s*load/i.test(String(transactionTypeName || ""));
   const isWarehouse = /warehouse/i.test(String(transactionTypeName || ""));
@@ -1161,7 +1176,7 @@ const PaymentModal = ({
                         ? "border-red-600 bg-red-100 text-red-600"
                         : "border-slate-200"
                     }`}
-                    value={cashReceived}
+                    value={formatCashInput(cashReceived)}
                     onChange={(e) => {
                       let v = e.target.value.replace(/[^\d.]/g, "");
                       const parts = v.split(".");
@@ -1627,3 +1642,4 @@ const PaymentModal = ({
 
 
 export default PaymentModal;
+

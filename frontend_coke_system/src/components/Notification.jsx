@@ -33,7 +33,7 @@ import {
 import api from '../api'; // Using centralized API instance
 import { useNotifications } from '../contexts/NotificationContext';
 import { getCurrentWarehouse, getWarehouseAxiosConfig, getWarehouseQueryParam, findWarehouseByName } from '../utils/warehouseUtils';
-import { getStockThresholds, calculateStockStatus } from '../utils/stockThresholds';
+import { getStockThresholds, calculateStockStatus, groupStocksForDisplay } from '../utils/stockThresholds';
 
 // NEW: Backend notification API helper functions
 const NotificationAPI = {
@@ -67,6 +67,18 @@ const NotificationAPI = {
 
   async clearAll(warehouseId, config) {
     await api.post('/notifications/clear_all/', { warehouse_id: warehouseId }, config);
+  },
+
+  async bulkUpdate(notificationIds, action, config) {
+    if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return null;
+    }
+
+    const response = await api.post('/notifications/bulk_update/', {
+      notification_ids: notificationIds,
+      action,
+    }, config);
+    return response.data;
   },
 
     async loadVanLoadEditRequests(warehouseId, adminId, config) {
@@ -125,17 +137,55 @@ const mapApprovalRequestToNotification = (requestItem, fallbackWarehouseId = nul
   },
 });
 
+const STOCK_NOTIFICATION_TYPES = new Set(['low_stock', 'out_of_stock']);
+
+const normalizeStockProductKey = (value) =>
+  String(value || 'unknown-product').trim().toLowerCase();
+
+const slugifyStockProductKey = (value) =>
+  normalizeStockProductKey(value)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'unknown-product';
+
+const isStockAlertNotification = (notification) =>
+  STOCK_NOTIFICATION_TYPES.has(String(notification?.type || '').trim().toLowerCase());
+
+const isEphemeralLoginStockAlert = (notification) =>
+  Boolean(notification?.data?.login_check) && isStockAlertNotification(notification);
+
+const isBackendNotificationId = (value) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || '')
+  );
+
+const buildStockAlertSourceId = (stock, warehouseId, computedStatus) => {
+  const statusKey = String(computedStatus || 'unknown')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-');
+  const productKey = slugifyStockProductKey(stock?.product_name);
+  const lastUpdated = (String(stock?.last_updated || 'na')
+    .trim()
+    .replace(/[^0-9a-z]+/gi, '-')
+    .replace(/^-+|-+$/g, '')) || 'na';
+
+  return `stock-alert-${warehouseId}-${productKey}-${statusKey}-${lastUpdated}`;
+};
+
 const buildStockAlertPayload = (stock, warehouseId) => {
   const parsedQty = Number.parseInt(stock?.quantity_available ?? 0, 10);
   const quantity = Number.isFinite(parsedQty) ? parsedQty : 0;
   const thresholds = getStockThresholds();
   const computedStatus = calculateStockStatus(quantity);
+  const sourceId = buildStockAlertSourceId(stock, warehouseId, computedStatus);
 
   return {
     quantity,
     computedStatus,
     payload: {
       ...stock,
+      id: sourceId,
+      stock_id: stock?.id ?? null,
       warehouse_id: warehouseId,
       product_name: stock?.product_name || `Product ${stock?.id ?? 'Unknown'}`,
       quantity_available: quantity,
@@ -145,6 +195,49 @@ const buildStockAlertPayload = (stock, warehouseId) => {
     },
   };
 };
+
+const buildGroupedStockStatusMap = (stocks = [], warehouseId) =>
+  new Map(
+    groupStocksForDisplay(stocks).map((stock) => {
+      const { computedStatus, payload } = buildStockAlertPayload(stock, warehouseId);
+      return [
+        normalizeStockProductKey(payload.product_name),
+        {
+          status: computedStatus,
+          payload,
+        },
+      ];
+    })
+  );
+
+const doesStockNotificationMatchCurrentStatus = (notification, stockStatusMap) => {
+  if (!isStockAlertNotification(notification)) {
+    return true;
+  }
+
+  if (notification?.data?.summary_notification) {
+    return false;
+  }
+
+  const productKey = normalizeStockProductKey(notification?.data?.product_name);
+  const currentStockState = stockStatusMap.get(productKey);
+
+  if (!currentStockState) {
+    return false;
+  }
+
+  if (notification.type === 'out_of_stock') {
+    return currentStockState.status === 'Out of Stock';
+  }
+
+  if (notification.type === 'low_stock') {
+    return currentStockState.status === 'Low';
+  }
+
+  return true;
+};
+
+const shouldPersistNotification = (notification) => !isEphemeralLoginStockAlert(notification);
 
 const normalizeWarehouseId = (value) => {
   const parsed = Number.parseInt(value, 10);
@@ -187,6 +280,73 @@ const normalizeReservedDate = (value) => {
   const raw = String(value).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
   return toManilaYmd(raw);
+};
+
+const RESERVED_PICKUP_FALLBACK_CUSTOMER = 'Reserved customer';
+
+const getReadableCustomerName = (record) => {
+  if (!record || typeof record !== 'object') {
+    return '';
+  }
+
+  const customerObject = typeof record.customer === 'object' ? record.customer : null;
+  const candidates = [
+    record.customer_name,
+    record.customer_display_name,
+    record.customerName,
+    customerObject?.name,
+    customerObject?.customer_name,
+    customerObject?.full_name,
+  ];
+
+  return candidates
+    .map((value) => (value === null || value === undefined ? '' : String(value).trim()))
+    .find(Boolean) || '';
+};
+
+const isReservedPickupCustomerMissing = (value) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return !normalized || normalized === RESERVED_PICKUP_FALLBACK_CUSTOMER.toLowerCase();
+};
+
+const buildReservedPickupNotificationPayload = (sale, warehouseId) => {
+  const reservedDate = normalizeReservedDate(sale?.reserved_date);
+  const saleId = sale?.id || sale?.sale_id || null;
+  const customerName = getReadableCustomerName(sale) || RESERVED_PICKUP_FALLBACK_CUSTOMER;
+  const handledBy = sale?.handled_by_name || sale?.handled_by_username || sale?.handled_by || 'Unknown';
+
+  return {
+    id: `pickup-due-${saleId || sale?.msp_no || 'unknown'}-${reservedDate}-${warehouseId}`,
+    sale_id: saleId,
+    msp_no: sale?.msp_no,
+    customer_name: customerName,
+    handled_by: handledBy,
+    reserved_date: reservedDate,
+    warehouse_id: warehouseId,
+    date_time: sale?.date_time,
+  };
+};
+
+const hydrateReservedPickupNotification = (notification, resolvedWarehouseId, salesById) => {
+  if (notification?.type !== 'reserved_pickup_due') {
+    return notification;
+  }
+
+  const sale = salesById.get(String(notification?.data?.sale_id || ''));
+  const payloadSource = sale || notification?.data || {};
+  const reservedPayload = buildReservedPickupNotificationPayload(payloadSource, resolvedWarehouseId);
+
+  reservedPayload.id = notification?.data?.id || reservedPayload.id;
+  reservedPayload.sale_id = sale?.id || notification?.data?.sale_id || reservedPayload.sale_id;
+  reservedPayload.msp_no = sale?.msp_no || notification?.data?.msp_no || reservedPayload.msp_no;
+  reservedPayload.date_time = sale?.date_time || notification?.data?.date_time || reservedPayload.date_time;
+
+  return {
+    ...notification,
+    message: `${reservedPayload.customer_name} has a pickup scheduled today`,
+    details: `MSP: ${reservedPayload.msp_no || `Sale #${reservedPayload.sale_id || 'Unknown'}`} - Pick Up Date: ${reservedPayload.reserved_date || 'Today'}${reservedPayload.handled_by ? ` - Handler: ${reservedPayload.handled_by}` : ''}`,
+    data: reservedPayload,
+  };
 };
 
 const Notification = ({ closeProfile }) => {
@@ -330,6 +490,67 @@ const Notification = ({ closeProfile }) => {
     }
   }, [getCurrentUser]);
 
+  const removeNotificationsFromState = useCallback((notificationIds) => {
+    if (!Array.isArray(notificationIds) || notificationIds.length === 0) {
+      return;
+    }
+
+    const notificationIdSet = new Set(notificationIds.map((id) => String(id)));
+    const remainingNotifications = (notificationsRef.current || []).filter(
+      (notification) => !notificationIdSet.has(String(notification.id))
+    );
+
+    dispatch({ type: 'SET_NOTIFICATIONS', payload: remainingNotifications });
+  }, [dispatch]);
+
+  const cleanupStockNotifications = useCallback(async (stockStatusMap, { removeLoginCheck = false } = {}) => {
+    const targetWarehouseId = normalizeWarehouseId(currentWarehouseIdRef.current);
+    if (!targetWarehouseId) {
+      return [];
+    }
+
+    const notificationsToRemove = (notificationsRef.current || []).filter((notification) => {
+      if (!isSameWarehouseId(resolveNotificationWarehouseId(notification), targetWarehouseId)) {
+        return false;
+      }
+
+      if (!isStockAlertNotification(notification)) {
+        return false;
+      }
+
+      if (removeLoginCheck && isEphemeralLoginStockAlert(notification)) {
+        return true;
+      }
+
+      if (!stockStatusMap || stockStatusMap.size === 0) {
+        return false;
+      }
+
+      return !doesStockNotificationMatchCurrentStatus(notification, stockStatusMap);
+    });
+
+    if (notificationsToRemove.length === 0) {
+      return [];
+    }
+
+    removeNotificationsFromState(notificationsToRemove.map((notification) => notification.id));
+
+    const backendIds = notificationsToRemove
+      .map((notification) => notification.id)
+      .filter(isBackendNotificationId);
+
+    if (backendIds.length > 0) {
+      try {
+        const config = getWarehouseAxiosConfig(currentWarehouse);
+        await NotificationAPI.bulkUpdate(backendIds, 'delete', config);
+      } catch (error) {
+        console.warn('Failed to delete stale stock notifications from backend:', error.message);
+      }
+    }
+
+    return notificationsToRemove;
+  }, [currentWarehouse, removeNotificationsFromState]);
+
   // ENHANCED: Initialize warehouse using warehouse utils consistently
   const initializeWarehouse = useCallback(async () => {
     try {
@@ -457,11 +678,65 @@ const Notification = ({ closeProfile }) => {
     try {
       const config = getWarehouseAxiosConfig(currentWarehouse);
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
-      
+
       const backendNotifications = await NotificationAPI.loadNotifications(warehouseQueryParam, config);
       const visibleBackendNotifications = backendNotifications.filter(
         (notification) => !isVanLoadEditApprovalNotification(notification)
       );
+
+      let reservedPickupSalesById = new Map();
+      let stockStatusMap = null;
+      const backendStockNotificationIdsToDelete = new Set();
+      const needsReservedPickupCustomerSync = visibleBackendNotifications.some(
+        (notification) =>
+          notification.type === 'reserved_pickup_due' &&
+          notification.data?.sale_id &&
+          isReservedPickupCustomerMissing(notification.data?.customer_name)
+      );
+
+      if (needsReservedPickupCustomerSync) {
+        try {
+          const salesResponse = await api.get('/merchandisings/', config);
+          const sales = Array.isArray(salesResponse.data) ? salesResponse.data : salesResponse.data?.results || [];
+          reservedPickupSalesById = new Map(
+            sales
+              .filter((sale) => sale?.id !== null && sale?.id !== undefined)
+              .map((sale) => [String(sale.id), sale])
+          );
+        } catch (error) {
+          console.warn('Failed to resolve reserved pickup customer names:', error.message);
+        }
+      }
+
+      const needsStockAlertValidation = visibleBackendNotifications.some((notification) =>
+        isStockAlertNotification(notification)
+      );
+
+      if (needsStockAlertValidation) {
+        try {
+          const stockResponse = await api.get(`/stocks/?warehouse=${warehouseQueryParam}`, config);
+          const stockData = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
+          stockStatusMap = buildGroupedStockStatusMap(stockData, targetWarehouseId);
+        } catch (error) {
+          console.warn('Failed to validate stock notifications against grouped stock totals:', error.message);
+        }
+      }
+
+      const shouldKeepStockNotification = (notification) => {
+        if (!isStockAlertNotification(notification)) {
+          return true;
+        }
+
+        if (isEphemeralLoginStockAlert(notification)) {
+          return false;
+        }
+
+        if (!stockStatusMap) {
+          return true;
+        }
+
+        return doesStockNotificationMatchCurrentStatus(notification, stockStatusMap);
+      };
 
       const formattedNotifications = visibleBackendNotifications
         .map((notification) => {
@@ -471,55 +746,87 @@ const Notification = ({ closeProfile }) => {
             return null;
           }
 
+          const enrichedNotification = hydrateReservedPickupNotification(
+            notification,
+            resolvedWarehouseId,
+            reservedPickupSalesById
+          );
+
           return {
-            id: notification.id,
-            type: notification.type,
-            category: notification.category,
-            title: notification.title,
-            message: notification.message,
-            details: notification.details,
-            priority: notification.priority,
-            timestamp: notification.timestamp || notification.created_at,
-            is_read: notification.is_read,
+            id: enrichedNotification.id,
+            type: enrichedNotification.type,
+            category: enrichedNotification.category,
+            title: enrichedNotification.title,
+            message: enrichedNotification.message,
+            details: enrichedNotification.details,
+            priority: enrichedNotification.priority,
+            timestamp: enrichedNotification.timestamp || enrichedNotification.created_at,
+            is_read: enrichedNotification.is_read,
             data: {
-              ...notification.data,
+              ...enrichedNotification.data,
               warehouse_id: resolvedWarehouseId
             }
           };
         })
         .filter(Boolean)
-        .filter((notif) => isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId));
+        .filter((notif) => isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId))
+        .filter((notif) => {
+          const shouldKeep = shouldKeepStockNotification(notif);
+          if (!shouldKeep && isBackendNotificationId(notif.id)) {
+            backendStockNotificationIdsToDelete.add(notif.id);
+          }
+          return shouldKeep;
+        });
 
       if (!isSameWarehouseId(currentWarehouseIdRef.current, targetWarehouseId)) {
-        console.log(`⏭️ Skipping stale notification sync for warehouse ${targetWarehouseId}`);
+        console.log(`Skipping stale notification sync for warehouse ${targetWarehouseId}`);
         return false;
       }
 
       const existingNotifications = (notificationsRef.current || []).filter(
         (notification) => !isVanLoadEditApprovalNotification(notification)
       );
+      const shouldKeepLocalNotification = (notification) => {
+        if (isEphemeralLoginStockAlert(notification)) {
+          return false;
+        }
+
+        if (!stockStatusMap || !isStockAlertNotification(notification)) {
+          return true;
+        }
+
+        return doesStockNotificationMatchCurrentStatus(notification, stockStatusMap);
+      };
+
       const currentWarehouseNotifications = existingNotifications.filter((notif) =>
-        isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId)
+        isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId) &&
+        shouldKeepLocalNotification(notif)
       );
       const otherWarehouseNotifications = existingNotifications.filter((notif) =>
         !isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId)
       );
-      
+
       const backendIds = new Set(formattedNotifications.map((n) => String(n.id)));
-      // Treat backend as source-of-truth for the current warehouse.
-      // If backend is empty (e.g., fresh database), do not keep old local cache.
       const recentLocalNotifications = formattedNotifications.length > 0
         ? currentWarehouseNotifications.filter((localNotif) => !backendIds.has(String(localNotif.id)))
         : [];
-      
+
       const mergedNotifications = [
         ...otherWarehouseNotifications,
         ...formattedNotifications,
         ...recentLocalNotifications
       ];
-      
+
       dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
       console.log(`Synced ${formattedNotifications.length} backend + ${recentLocalNotifications.length} local notifications for warehouse ${targetWarehouseId}`);
+
+      if (backendStockNotificationIdsToDelete.size > 0) {
+        try {
+          await NotificationAPI.bulkUpdate([...backendStockNotificationIdsToDelete], 'delete', config);
+        } catch (error) {
+          console.warn('Failed to remove stale stock notifications from backend sync:', error.message);
+        }
+      }
 
       if (formattedNotifications.length === 0) {
         clearPersistedNotificationsForWarehouse(targetWarehouseId);
@@ -1151,6 +1458,16 @@ const Notification = ({ closeProfile }) => {
         }
         break;
 
+      case 'reserved_pickup_due':
+        details.push(
+          { label: 'MSP No', value: safeToString(data.msp_no || 'N/A') },
+          { label: 'Sale Id', value: safeToString(data.sale_id || 'N/A') },
+          { label: 'Customer Name', value: safeToString(data.customer_name || RESERVED_PICKUP_FALLBACK_CUSTOMER) },
+          { label: 'Handled By', value: safeToString(data.handled_by || 'Unknown') },
+          { label: 'Reserved Date', value: safeToString(data.reserved_date || 'Today') }
+        );
+        break;
+
       case 'new_sale':
       case 'sale_voided':
         details.push(
@@ -1320,8 +1637,9 @@ const Notification = ({ closeProfile }) => {
           const validNotifications = parsedNotifications.filter(notif => {
             const notDeleted = !deletedNotificationIds.has(notif.id);
             const isCurrentWarehouse = isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId);
+            const canPersist = shouldPersistNotification(notif);
             
-            return notDeleted && isCurrentWarehouse;
+            return notDeleted && isCurrentWarehouse && canPersist;
           });
           
           const mergedNotifications = [...existingOtherWarehouseNotifications, ...validNotifications];
@@ -1337,7 +1655,8 @@ const Notification = ({ closeProfile }) => {
             const allNotifications = JSON.parse(globalAdminNotifications);
             const warehouseNotifications = allNotifications.filter(notif =>
               isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId) &&
-              !deletedNotificationIds.has(notif.id)
+              !deletedNotificationIds.has(notif.id) &&
+              shouldPersistNotification(notif)
             );
             
             if (warehouseNotifications.length > 0) {
@@ -1363,8 +1682,9 @@ const Notification = ({ closeProfile }) => {
           const validNotifications = parsedNotifications.filter(notif => {
             const notDeleted = !deletedNotificationIds.has(notif.id);
             const isCurrentWarehouse = isSameWarehouseId(resolveNotificationWarehouseId(notif), targetWarehouseId);
+            const canPersist = shouldPersistNotification(notif);
             
-            return notDeleted && isCurrentWarehouse;
+            return notDeleted && isCurrentWarehouse && canPersist;
           });
           
           dispatch({ type: 'SET_NOTIFICATIONS', payload: validNotifications });
@@ -1446,19 +1766,21 @@ const Notification = ({ closeProfile }) => {
         const user = getCurrentUser();
         const userRole = user.role?.toLowerCase();
         
+        const notificationsToPersist = notifications.filter(shouldPersistNotification);
+
         if (userRole === 'admin' && currentWarehouseId) {
           // Store notifications per warehouse for admin
           const warehouseKey = `persistedNotifications_warehouse_${currentWarehouseId}`;
-          const warehouseNotifications = notifications.filter(notif => 
+          const warehouseNotifications = notificationsToPersist.filter(notif => 
             isSameWarehouseId(resolveNotificationWarehouseId(notif), currentWarehouseId)
           );
           localStorage.setItem(warehouseKey, JSON.stringify(warehouseNotifications));
           
           // Also maintain global admin notifications for migration purposes
-          localStorage.setItem('persistedNotifications_admin_all', JSON.stringify(notifications));
+          localStorage.setItem('persistedNotifications_admin_all', JSON.stringify(notificationsToPersist));
         } else {
           // Regular storage for non-admin users
-          localStorage.setItem('persistedNotifications', JSON.stringify(notifications));
+          localStorage.setItem('persistedNotifications', JSON.stringify(notificationsToPersist));
         }
       } catch (error) {
         console.warn('Error persisting notifications - storage may be full');
@@ -1550,7 +1872,6 @@ const Notification = ({ closeProfile }) => {
 
   // ENHANCED: Stock notifications with API integration
   const checkStockNotifications = useCallback(async () => {
-    // Only proceed if user data is ready and warehouse is set
     if (!userDataReady || !currentWarehouseId) {
       return;
     }
@@ -1563,75 +1884,68 @@ const Notification = ({ closeProfile }) => {
     let processedIdsUpdated = false;
 
     try {
-      // Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 10000;
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
       console.log('Checking stock notifications for warehouse:', warehouseQueryParam);
-      
-      const stockResponse = await api.get(`/stocks/?warehouse=${warehouseQueryParam}`, config);
-      const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
 
-      // Get previous stock levels for comparison
+      const stockResponse = await api.get(`/stocks/?warehouse=${warehouseQueryParam}`, config);
+      const rawStocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
+      const groupedStockStatusMap = buildGroupedStockStatusMap(rawStocks, warehouseId);
+      const groupedStocks = Array.from(groupedStockStatusMap.values()).map(({ payload }) => payload);
+
+      await cleanupStockNotifications(groupedStockStatusMap);
+
       const previousStocksKey = `previousStocks_${warehouseId}`;
       const previousStocks = JSON.parse(localStorage.getItem(previousStocksKey) || '{}');
       const now = new Date().toISOString();
 
-      stocks.forEach(stock => {
-        const stockId = `stock-${stock.id}-${warehouseId}`;
-        const { quantity: currentQuantity, computedStatus, payload: stockAlertPayload } = buildStockAlertPayload(stock, warehouseId);
-        const previousQuantity = previousStocks[stock.id]?.quantity;
-        const lastChecked = previousStocks[stock.id]?.timestamp;
-        const outKey = stockId + "-out";
-        const lowKey = stockId + "-low";
+      groupedStocks.forEach((stock) => {
+        const productKey = normalizeStockProductKey(stock.product_name);
+        const currentQuantity = Number.parseInt(stock.quantity_available ?? 0, 10) || 0;
+        const computedStatus = stock.stock_status;
+        const previousQuantity = previousStocks[productKey]?.quantity;
+        const lastChecked = previousStocks[productKey]?.timestamp;
+        const outKey = `stock-status-${warehouseId}-${productKey}-out`;
+        const lowKey = `stock-status-${warehouseId}-${productKey}-low`;
 
-        // Re-arm stock alerts when item recovers, so future low/out events notify again
-        if (computedStatus !== "Out of Stock") {
+        if (computedStatus !== 'Out of Stock') {
           if (processedIds.delete(outKey)) {
             processedIdsUpdated = true;
           }
         }
-        if (computedStatus !== "Low") {
+        if (computedStatus !== 'Low') {
           if (processedIds.delete(lowKey)) {
             processedIdsUpdated = true;
           }
         }
-        
-        // CHECK FOR OUT OF STOCK
-        if (computedStatus === "Out of Stock" && !processedIds.has(outKey)) {
-          createNotificationWithBackend('out_of_stock', { 
-            ...stockAlertPayload,
-          }, userRole);
+
+        if (computedStatus === 'Out of Stock' && !processedIds.has(outKey)) {
+          createNotificationWithBackend('out_of_stock', stock, userRole);
           processedIds.add(outKey);
           processedIdsUpdated = true;
           newNotifications++;
-        }
-        // CHECK FOR LOW STOCK (but not out of stock)
-        else if (computedStatus === "Low" && currentQuantity > 0 && !processedIds.has(lowKey)) {
-          createNotificationWithBackend('low_stock', { 
-            ...stockAlertPayload,
-          }, userRole);
+        } else if (computedStatus === 'Low' && currentQuantity > 0 && !processedIds.has(lowKey)) {
+          createNotificationWithBackend('low_stock', stock, userRole);
           processedIds.add(lowKey);
           processedIdsUpdated = true;
           newNotifications++;
         }
 
-        // CHECK FOR STOCK QUANTITY CHANGES (MANUAL ADJUSTMENTS)
         if (previousQuantity !== undefined && previousQuantity !== currentQuantity) {
-          const changeId = `change-${stock.id}-${warehouseId}-${currentQuantity}-${previousQuantity}`;
-          
-          // Only process if this is a recent change (not initial load)
+          const changeId = `change-${warehouseId}-${productKey}-${currentQuantity}-${previousQuantity}`;
+
           const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
           const isRecentChange = !lastChecked || new Date(lastChecked) > fiveMinutesAgo;
-          
+
           if (isRecentChange && !processedIds.has(changeId)) {
             const changeType = currentQuantity > previousQuantity ? 'increased' : 'decreased';
             const changeDiff = Math.abs(currentQuantity - previousQuantity);
-            
-            // Create better notification message showing remaining quantity
-            let adjustmentMessage, adjustmentTitle;
-            
+
+            let adjustmentMessage;
+            let adjustmentTitle;
+
             if (currentQuantity === 0) {
               adjustmentTitle = 'Stock Depleted';
               adjustmentMessage = `${stock.product_name} stock reduced to 0 (was ${previousQuantity})`;
@@ -1642,12 +1956,11 @@ const Notification = ({ closeProfile }) => {
               adjustmentTitle = 'Stock Reduced';
               adjustmentMessage = `${stock.product_name} stock reduced by ${changeDiff}. Remaining: ${currentQuantity} units`;
             }
-            
-            // Notify for any quantity change
-            createNotificationWithBackend('stock_adjustment', { 
-              id: `${stock.id}_${Date.now()}`,
+
+            createNotificationWithBackend('stock_adjustment', {
+              id: `stock-adjustment-${warehouseId}-${productKey}-${currentQuantity}-${previousQuantity}`,
               warehouse_id: warehouseId,
-              product_name: stock.product_name || `Product ${stock.id}`,
+              product_name: stock.product_name || 'Unknown Product',
               old_quantity: previousQuantity,
               new_quantity: currentQuantity,
               remaining_quantity: currentQuantity,
@@ -1656,44 +1969,40 @@ const Notification = ({ closeProfile }) => {
               reason: `Stock adjustment: ${previousQuantity} -> ${currentQuantity}`,
               adjustment_summary: `${changeType === 'increased' ? '+' : '-'}${changeDiff} units`,
               created_at: now,
-              stock_id: stock.id,
+              stock_id: stock.stock_id || stock.id,
               custom_title: adjustmentTitle,
-              custom_message: adjustmentMessage
+              custom_message: adjustmentMessage,
+              system_codes: stock.system_codes || [],
             }, userRole);
             processedIds.add(changeId);
+            processedIdsUpdated = true;
             newNotifications++;
           }
         }
 
-        // Store current quantity and timestamp for next comparison
-        previousStocks[stock.id] = {
+        previousStocks[productKey] = {
           quantity: currentQuantity,
           timestamp: now,
-          product_name: stock.product_name
+          product_name: stock.product_name,
         };
       });
 
-      // Save current stock levels for next comparison
       localStorage.setItem(previousStocksKey, JSON.stringify(previousStocks));
 
-      // SAVE PROCESSED IDS
       if (newNotifications > 0 || processedIdsUpdated) {
         localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIds]));
         processedIdsRef.current = processedIds;
-        
-        // FORCE UPDATE after creating notifications
-        setTimeout(() => setForceUpdate(prev => prev + 1), 200);
+
+        setTimeout(() => setForceUpdate((prev) => prev + 1), 200);
         console.log(`Created ${newNotifications} stock notifications`);
       }
-
     } catch (error) {
       console.warn('Stock notifications check failed:', error.message);
     }
-  }, [currentWarehouseId, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouse]);
+  }, [currentWarehouseId, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouse, cleanupStockNotifications]);
 
   // ENHANCED: Login stock check with API integration
   const checkLowStockOnLogin = useCallback(async () => {
-    // Only proceed if user data is ready and warehouse is set
     if (!userDataReady || !currentWarehouseId) {
       return;
     }
@@ -1701,72 +2010,59 @@ const Notification = ({ closeProfile }) => {
     const user = getCurrentUser();
     const userRole = user.role?.toLowerCase();
     const warehouseId = currentWarehouseId;
+    const processedIds = processedIdsRef.current;
 
     try {
-      // Using warehouse utils for consistent configuration
       const config = getWarehouseAxiosConfig(currentWarehouse);
       config.timeout = 10000;
 
       const warehouseQueryParam = getWarehouseQueryParam(currentWarehouse);
       console.log('Login stock check for warehouse:', warehouseQueryParam);
-      
+
       const stockResponse = await api.get(`/stocks/?warehouse=${warehouseQueryParam}`, config);
-      const stocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
+      const rawStocks = Array.isArray(stockResponse.data) ? stockResponse.data : stockResponse.data?.results || [];
+      const groupedStockStatusMap = buildGroupedStockStatusMap(rawStocks, warehouseId);
+      const groupedStocks = Array.from(groupedStockStatusMap.values()).map(({ payload }) => payload);
+
+      await cleanupStockNotifications(groupedStockStatusMap, { removeLoginCheck: true });
 
       let loginNotifications = 0;
-      const lowStockItems = [];
-      const outOfStockItems = [];
+      let processedIdsUpdated = false;
 
-      stocks.forEach(stock => {
-        const { quantity: currentQuantity, computedStatus, payload: stockAlertPayload } = buildStockAlertPayload(stock, warehouseId);
-        
-        // Check for out of stock - always notify on login
-        if (computedStatus === "Out of Stock") {
-          outOfStockItems.push(stockAlertPayload.product_name);
-          createNotificationWithBackend('out_of_stock', { 
-            ...stockAlertPayload,
+      groupedStocks.forEach((stock) => {
+        const productKey = normalizeStockProductKey(stock.product_name);
+        const currentQuantity = Number.parseInt(stock.quantity_available ?? 0, 10) || 0;
+        const outKey = `stock-status-${warehouseId}-${productKey}-out`;
+        const lowKey = `stock-status-${warehouseId}-${productKey}-low`;
+
+        if (stock.stock_status === 'Out of Stock' && !processedIds.has(outKey)) {
+          createNotificationWithBackend('out_of_stock', {
+            ...stock,
             login_check: true,
-            id: `login-out-${stock.id}-${Date.now()}` // Unique ID for login check
           }, userRole);
+          processedIds.add(outKey);
+          processedIdsUpdated = true;
           loginNotifications++;
-        }
-        // Check for low stock - always notify on login
-        else if (computedStatus === "Low" && currentQuantity > 0) {
-          lowStockItems.push(`${stockAlertPayload.product_name} (${currentQuantity} left)`);
-          createNotificationWithBackend('low_stock', { 
-            ...stockAlertPayload,
+        } else if (stock.stock_status === 'Low' && currentQuantity > 0 && !processedIds.has(lowKey)) {
+          createNotificationWithBackend('low_stock', {
+            ...stock,
             login_check: true,
-            id: `login-low-${stock.id}-${Date.now()}` // Unique ID for login check
           }, userRole);
+          processedIds.add(lowKey);
+          processedIdsUpdated = true;
           loginNotifications++;
         }
       });
 
-      // Create a summary notification if there are multiple items
+      if (processedIdsUpdated) {
+        localStorage.setItem('processedNotificationIds', JSON.stringify([...processedIds]));
+        processedIdsRef.current = processedIds;
+      }
+
       if (loginNotifications > 0) {
-        // FORCE UPDATE after creating login notifications
-        setTimeout(() => setForceUpdate(prev => prev + 1), 300);
-        
-        if (loginNotifications > 3) {
-          const summaryMessage = [
-            outOfStockItems.length > 0 ? `${outOfStockItems.length} items out of stock` : '',
-            lowStockItems.length > 0 ? `${lowStockItems.length} items low in stock` : ''
-          ].filter(Boolean).join(', ');
-          
-          createNotificationWithBackend('low_stock', {
-            id: `login-summary-${warehouseId}-${Date.now()}`,
-            product_name: 'Stock Alert Summary',
-            quantity_available: loginNotifications,
-            warehouse_id: warehouseId,
-            stock_status: 'Multiple Items Need Attention',
-            summary_notification: true,
-            login_check: true,
-            summary_details: summaryMessage
-          }, userRole);
-        }
-        
-        // Show browser notification if permission granted
-        if (Notification.permission === "granted") {
+        setTimeout(() => setForceUpdate((prev) => prev + 1), 300);
+
+        if (Notification.permission === 'granted') {
           try {
             new Notification('Stock Alert', {
               body: `${loginNotifications} items need attention in your warehouse`,
@@ -1776,14 +2072,13 @@ const Notification = ({ closeProfile }) => {
             console.warn('Browser notification failed');
           }
         }
-        
+
         console.log(`Created ${loginNotifications} login stock notifications`);
       }
-
     } catch (error) {
       console.warn('Login stock check failed:', error.message);
     }
-  }, [currentWarehouseId, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouse]);
+  }, [currentWarehouseId, userDataReady, createNotificationWithBackend, getCurrentUser, currentWarehouse, cleanupStockNotifications]);
   
   // ENHANCED: Expense notification checking with API integration
   const checkExpenseNotifications = useCallback(async (warehouseId, userRole, processedIds) => {
@@ -2713,29 +3008,13 @@ const Notification = ({ closeProfile }) => {
           continue;
         }
 
-        const notificationSourceId = `pickup-due-${sale.id || sale.msp_no}-${reservedDate}-${warehouseId}`;
+        const reservedPickupPayload = buildReservedPickupNotificationPayload(sale, warehouseId);
+        const notificationSourceId = reservedPickupPayload.id;
         if (processedIds.has(notificationSourceId)) {
           continue;
         }
 
-        await createNotificationWithBackend('reserved_pickup_due', {
-          id: notificationSourceId,
-          sale_id: sale.id,
-          msp_no: sale.msp_no,
-          customer_name:
-            sale.customer_name ||
-            sale.customer?.name ||
-            sale.customer_display_name ||
-            'Reserved customer',
-          handled_by:
-            sale.handled_by_name ||
-            sale.handled_by_username ||
-            sale.handled_by ||
-            'Unknown',
-          reserved_date: reservedDate,
-          warehouse_id: warehouseId,
-          date_time: sale.date_time,
-        }, userRole);
+        await createNotificationWithBackend('reserved_pickup_due', reservedPickupPayload, userRole);
 
         processedIds.add(notificationSourceId);
         newNotifications += 1;
@@ -3160,7 +3439,7 @@ const Notification = ({ closeProfile }) => {
           if (detail.metadata?.event_timestamp) {
             const eventAge = Date.now() - detail.metadata.event_timestamp;
             if (eventAge > 30000) { // 30 seconds max
-              console.log(`⏰ IGNORED: Event too old (${eventAge}ms)`);
+              console.log(`IGNORED: Event too old (${eventAge}ms)`);
               return;
             }
           }
@@ -3939,14 +4218,13 @@ useEffect(() => {
     };
   }, [isLoaded, userDataReady, currentWarehouseId, checkCreditNotifications, getCurrentUser]);
 
-  // Proper click outside handling that respects detail modal
+  // Proper click outside handling that respects the detail modal backdrop
   useEffect(() => {
     const handleClickOutside = (event) => {
-      // Don't close main dropdown if detail modal is open and click is on detail modal
-      if (showDetailModal && event.target.closest('.notification-detail-modal')) {
+      if (showDetailModal) {
         return;
       }
-      
+
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false);
         setShowOptionsMenu(false);
@@ -4363,7 +4641,7 @@ useEffect(() => {
 
       {/* Notification Detail Modal with proper X button behavior */}
       {showDetailModal && selectedNotification && createPortal(
-        <div className="fixed inset-0 bg-black/60 flex items-start sm:items-center justify-center z-[9999] p-4 sm:p-6 overflow-y-auto">
+        <div className="app-modal-overlay z-[9999] !items-start sm:!items-center !overflow-y-auto !p-4 sm:!p-6">
           <div className="notification-detail-modal my-16 sm:my-0 bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
             {/* Modal Header */}
             <div className="p-6 border-b border-gray-200 dark:border-gray-700">
@@ -4430,7 +4708,7 @@ useEffect(() => {
                 {/* X button with proper event handling */}
                 <button
                   onClick={closeDetailModal}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-1 z-10"
+                  className="text-blue-400 hover:text-blue-600 blue:hover:text-blue-300 p-1 z-10"
                   type="button"
                 >
                   <FontAwesomeIcon icon={faTimes} className="text-lg" />
@@ -4557,5 +4835,6 @@ useEffect(() => {
 };
 
 export default Notification;
+
 
 

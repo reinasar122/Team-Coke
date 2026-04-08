@@ -10,8 +10,6 @@ import {
   FaPhoneAlt,
   FaEnvelope,
   FaIdCard,
-  FaTimes,
-  FaSearch,
   FaBuilding,
 } from "react-icons/fa";
 import { toast } from "react-toastify";
@@ -20,6 +18,7 @@ import SupplierRegistrationForm from "./SupplierRegistrationForm";
 import SupplierEditForm from "./SupplierEditForm";
 import { canView, canCreate, canEdit, canDelete } from "../utils/accessControl";
 import api from "../api"; // ✅ correct
+import PageSearchToolbar, { PageToolbarSelect } from "../components/common/PageSearchToolbar";
 
 //const API = "http://localhost:8080/api";
 
@@ -469,67 +468,54 @@ const Suppliers = () => {
   return (
     <div className="page">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <div className="page-header">
         <div className="flex flex-wrap items-center gap-3">
-          <h2 className="text-2xl font-bold flex items-center gap-2">
+          <h2 className="page-title flex items-center gap-2">
             <FaBuilding className="text-gray-700" /> Suppliers
           </h2>
-
-          {/* Company Name Search with icon */}
-          <div className="relative">
-            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Search company name…"
-              className="border rounded-lg pl-9 pr-8 py-2 w-64"
-            />
-            {searchTerm && (
-              <button
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                onClick={() => setSearchTerm("")}
-                title="Clear"
-              >
-                <FaTimes />
-              </button>
-            )}
-          </div>
-
-          {/* View dropdown */}
-          <select
-            value={viewMode}
-            onChange={(e) => setViewMode(e.target.value)}
-            className="border rounded-lg px-3 py-2"
-          >
-            <option value="grid">Grid View</option>
-            <option value="list">List View</option>
-          </select>
-
-          {/* Sort by date added */}
-          <select
-            value={sortOrder}
-            onChange={(e) => setSortOrder(e.target.value)}
-            className="border rounded-lg px-3 py-2"
-            title="Sort by date added"
-          >
-            <option value="desc">Sort: Newest</option>
-            <option value="asc">Sort: Oldest</option>
-          </select>
         </div>
-
-        <button
-          onClick={() => {
-            if (supplierCanCreate) setShowRegisterModal(true);
-          }}
-          className={`btn ${supplierCanCreate ? "btn-add" : "btn-disabled"}`}
-          disabled={!supplierCanCreate}
-          title={supplierCanCreate ? "Add Supplier" : "No permission to add suppliers"}
-        >
-          + Add Supplier
-        </button>
       </div>
 
+      <PageSearchToolbar
+        value={searchTerm}
+        onChange={setSearchTerm}
+        onClear={() => setSearchTerm("")}
+        placeholder="Search company name..."
+        controls={
+          <>
+            <PageToolbarSelect
+              value={viewMode}
+              onChange={(event) => setViewMode(event.target.value)}
+              ariaLabel="Select supplier view"
+              options={[
+                { value: 'grid', label: 'Grid View' },
+                { value: 'list', label: 'List View' },
+              ]}
+            />
+            <PageToolbarSelect
+              value={sortOrder}
+              onChange={(event) => setSortOrder(event.target.value)}
+              ariaLabel="Sort suppliers"
+              options={[
+                { value: 'desc', label: 'Sort: Newest' },
+                { value: 'asc', label: 'Sort: Oldest' },
+              ]}
+            />
+          </>
+        }
+        actions={
+          <button
+            onClick={() => {
+              if (supplierCanCreate) setShowRegisterModal(true);
+            }}
+            className={`btn ${supplierCanCreate ? "btn-add" : "btn-disabled"}`}
+            disabled={!supplierCanCreate}
+            title={supplierCanCreate ? "Add Supplier" : "No permission to add suppliers"}
+          >
+            + Add Supplier
+          </button>
+        }
+      />
       {/* Content */}
       {!supplierCanView ? (
         <div className="w-full text-center py-16 border border-dashed rounded-xl text-gray-500">

@@ -1,6 +1,6 @@
 // VanList.jsx - INTEGRATED VERSION WITH API IMPROVEMENTS
 import { useState, useEffect, useCallback } from "react";
-import { FaSearch, FaEdit, FaTrash, FaTruck } from "react-icons/fa";
+import { FaEdit, FaTrash, FaTruck, FaWarehouse } from "react-icons/fa";
 import { toast } from "react-toastify";
 import VanForm from "./VanForm";
 import { errorStyle, successStyle } from "../utils/toastStyles";
@@ -8,6 +8,7 @@ import { canCreate, canEdit, canDelete, canView } from "../utils/accessControl";
 import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils';
 import api from "../api";
 import "../styles/pages/vanlist.scss";
+import PageSearchToolbar from "../components/common/PageSearchToolbar";
 
 const VanList = () => {
   const [vans, setVans] = useState([]);
@@ -182,48 +183,36 @@ const VanList = () => {
 
   return (
     <div className="page">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-6">
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              <FaTruck className="color: var(--text)" /> Van Management
-            </h2>
-            
-            {/* ✅ KEPT: Show current warehouse (from old version) */}
-            {currentWarehouse && (
-              <span className="page-warehouse-chip page-warehouse-chip--inline">
-                <span className="page-warehouse-chip__icon" aria-hidden="true">🏢</span>
-                <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
-              </span>
-            )}
-          </div>
+      <div className="page-header">
+        <div className="flex flex-wrap items-center gap-3 min-w-0">
+          <h2 className="page-title flex items-center gap-2">
+            <FaTruck /> Van Management
+          </h2>
 
-          <div className="relative w-72 mr-4">
-            <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search plate number..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-lg bg-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-400"
-            />
-          </div>
+          {currentWarehouse && (
+            <span className="page-warehouse-chip">
+              <span className="page-warehouse-chip__icon" aria-hidden="true"><FaWarehouse /></span>
+              <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
+            </span>
+          )}
         </div>
-
-        {/* Add Van Button */}
-        <button
-          onClick={() => canCreate("Van") && setIsVanFormVisible(true)}
-          disabled={!canCreate("Van") || !currentWarehouse?.id}
-          className={`px-4 py-2 rounded-lg text-white font-semibold ${
-            canCreate("Van") && currentWarehouse?.id
-              ? "btn-add hover:bg-green-600 cursor-pointer"
-              : "bg-gray-400 cursor-not-allowed"
-          }`}
-        >
-          + Add Van
-        </button>
       </div>
 
+      <PageSearchToolbar
+        value={searchTerm}
+        onChange={setSearchTerm}
+        onClear={() => setSearchTerm("")}
+        placeholder="Search plate number..."
+        actions={
+          <button
+            onClick={() => canCreate("Van") && setIsVanFormVisible(true)}
+            disabled={!canCreate("Van") || !currentWarehouse?.id}
+            className={`btn ${canCreate("Van") && currentWarehouse?.id ? "btn-add" : "btn-disabled"}`}
+          >
+            + Add Van
+          </button>
+        }
+      />
       <div className="table-wrapper bg-white shadow-md rounded-lg">
         <table className="table table-hover w-full">
           <thead>
@@ -292,3 +281,5 @@ const VanList = () => {
 };
 
 export default VanList;
+
+

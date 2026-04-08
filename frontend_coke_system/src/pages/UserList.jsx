@@ -6,30 +6,7 @@ import EditUser from "./EditUser";
 import { canCreate, canEdit, canDelete } from "../utils/accessControl";
 import { FaEdit, FaTrash, FaUsers } from "react-icons/fa";
 import api from "../api"; // ✅ correct
-
-// Search Icon Component
-const SearchIcon = () => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    style={{
-      position: "absolute",
-      left: "12px",
-      top: "50%",
-      transform: "translateY(-50%)",
-      width: "20px",
-      height: "20px",
-      color: "var(--text-muted)",
-    }}
-    viewBox="0 0 20 20"
-    fill="currentColor"
-  >
-    <path
-      fillRule="evenodd"
-      d="M8.5 3a5.5 5.5 0 104.34 9.156l3.685 3.685a1 1 0 101.414-1.414l-3.685-3.685A5.5 5.5 0 008.5 3zM5 8.5a3.5 3.5 0 117 0 3.5 3.5 0 01-7 0z"
-      clipRule="evenodd"
-    />
-  </svg>
-);
+import PageSearchToolbar, { PageToolbarSelect } from "../components/common/PageSearchToolbar";
 
 // Karen Changes: Approval Modal for assigning role + warehouse
 const ApprovalModal = ({ isOpen, onClose, user, roles, warehouses, onApproved }) => {
@@ -173,9 +150,7 @@ const UserList = () => {
   const [deleteModal, setDeleteModal] = useState({ open: false, user: null });
   const [approvalModal, setApprovalModal] = useState({ open: false, user: null }); // Karen Changes
   const [selectedRole, setSelectedRole] = useState("All Users");
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [isFocused, setIsFocused] = useState(false);
 
   useEffect(() => {
     fetchUsers();
@@ -282,7 +257,7 @@ const UserList = () => {
     );
   };
 
-  const uniqueRoles = ["All Users", ...roles.map((role) => role.name)];
+  const uniqueRoles = ["All Users", ...Array.from(new Set(roles.map((role) => role.name).filter(Boolean)))];
 
   const filteredUsers = users
     .filter(
@@ -313,132 +288,28 @@ const UserList = () => {
   return (
     <div className="page">
       {/* Compact Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "1rem",
-          padding: "0 1rem",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          {/* Users Icon + Role dropdown */}
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "8px",
-                background: "none",
-                border: "none",
-                fontSize: "1.1rem",
-                fontWeight: 600,
-                cursor: "pointer",
-                color: "var(--text)",
-                padding: "8px 12px",
-                borderRadius: "var(--r-sm)",
-                transition: "background-color 0.2s",
-              }}
-              onMouseEnter={(e) =>
-                (e.target.style.background = "var(--ghost-hover)")
-              }
-              onMouseLeave={(e) => (e.target.style.background = "none")}
-            >
-              <FaUsers style={{ fontSize: "1.2rem" }} />
-              {selectedRole}
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ width: "16px", height: "16px" }}
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            </button>
-
-            {dropdownOpen && (
-              <div
-                style={{
-                  position: "absolute",
-                  left: 0,
-                  top: "100%",
-                  marginTop: "4px",
-                  width: "180px",
-                  background: "var(--surface)",
-                  boxShadow: "var(--shadow)",
-                  borderRadius: "var(--r-md)",
-                  border: "1px solid var(--border)",
-                  zIndex: 10,
-                }}
-              >
-                {uniqueRoles.map((role) => (
-                  <button
-                    key={role}
-                    onClick={() => {
-                      setSelectedRole(role);
-                      setDropdownOpen(false);
-                    }}
-                    style={{
-                      display: "block",
-                      width: "100%",
-                      textAlign: "left",
-                      padding: "8px 12px",
-                      border: "none",
-                      background: "transparent",
-                      cursor: "pointer",
-                      fontSize: "0.875rem",
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.target.style.background = "var(--ghost-hover)")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.target.style.background = "transparent")
-                    }
-                  >
-                    {role}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Search input */}
-          <div style={{ position: "relative" }}>
-            {!isFocused && <SearchIcon />}
-            <input
-              type="text"
-              placeholder="Search a name..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              onFocus={() => setIsFocused(true)}
-              onBlur={() => setIsFocused(searchTerm.length > 0)}
-              className="input"
-              style={{
-                paddingLeft: isFocused ? "12px" : "40px",
-                width: "250px",
-                textAlign: "left",
-              }}
-            />
-          </div>
+      <div className="page-header">
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="page-title flex items-center gap-2">
+            <FaUsers style={{ fontSize: "1.1rem" }} /> Users
+          </h2>
         </div>
-
-        {/* <button
-          className={`btn ${canCreate("User") ? "btn-add" : "btn-disabled"}`}
-          onClick={() => {
-            if (canCreate("User")) setShowForm(true);
-          }}
-          disabled={!canCreate("User")}
-        >
-          + Create User
-        </button> */}
       </div>
 
+      <PageSearchToolbar
+        value={searchTerm}
+        onChange={setSearchTerm}
+        onClear={() => setSearchTerm("")}
+        placeholder="Search a name..."
+        controls={
+          <PageToolbarSelect
+            value={selectedRole}
+            onChange={(event) => setSelectedRole(event.target.value)}
+            ariaLabel="Filter users by role"
+            options={uniqueRoles.map((role) => ({ value: role, label: role }))}
+          />
+        }
+      />
       {/* Table */}
       <div className="table-wrapper">
         <table className="table table-hover" style={{ tableLayout: "fixed" }}>
@@ -452,8 +323,8 @@ const UserList = () => {
           <thead>
             <tr>
               <th className="text-left">USER DETAILS</th>
-              <th className="text-left">ROLE</th>
-              <th className="text-left">WAREHOUSE</th>
+              <th style={{ textAlign: "center" }}>ROLE</th>
+              <th style={{ textAlign: "center" }}>WAREHOUSE</th>
               <th style={{ textAlign: "center" }}>STATUS</th>
               <th style={{ textAlign: "center" }}>ACTIONS</th>
             </tr>
@@ -534,8 +405,8 @@ const UserList = () => {
                   </td>
 
                   {/* ✅ fixed role/warehouse display */}
-                  <td className="text-left">{user.role?.name || "—"}</td>
-                  <td className="text-left">{user.warehouse?.name || "—"}</td>
+                  <td style={{ textAlign: "center" }}>{user.role?.name || "—"}</td>
+                  <td style={{ textAlign: "center" }}>{user.warehouse?.name || "—"}</td>
 
                   <td style={{ textAlign: "center" }}>
                     {isPendingApproval(user) ? (

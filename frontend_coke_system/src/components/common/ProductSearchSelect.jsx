@@ -7,6 +7,7 @@ const ProductSearchSelect = ({
   onChange,
   excludeIds = [],
   placeholder = "Search product…",
+  readOnly = false,
 }) => {
   const inputRef = useRef(null);
   const [open, setOpen] = useState(false);
@@ -105,11 +106,15 @@ const ProductSearchSelect = ({
         type="text"
         value={query} // Display the product name (query is product name)
         onChange={(e) => {
+          if (readOnly) return;
           setQuery(e.target.value || ""); // Set the query (product name)
           setOpen(true);
         }}
-        onFocus={() => setOpen(true)}
+        onFocus={() => {
+          if (!readOnly) setOpen(true);
+        }}
         onKeyDown={(e) => {
+          if (readOnly) return;
           if (e.key === "ArrowDown") {
             e.preventDefault();
             setHover(Math.min(filtered.length - 1, hover + 1));
@@ -124,7 +129,8 @@ const ProductSearchSelect = ({
           }
         }}
         placeholder={placeholder}
-        className="form-input w-full"
+        readOnly={readOnly}
+        className={`form-input w-full ${readOnly ? "bg-white cursor-default" : ""}`}
       />
 
       {open && filtered.length > 0 &&
@@ -154,3 +160,7 @@ const ProductSearchSelect = ({
 };
 
 export default ProductSearchSelect;
+
+
+
+
