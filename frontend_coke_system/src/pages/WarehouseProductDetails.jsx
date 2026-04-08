@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import api from "../api"; // adjust path if needed
 
 // Access API base URL using process.env for compatibility
@@ -12,11 +12,8 @@ const Peso = (n) =>
 export default function WarehouseProductDetails() {
   const navigate = useNavigate();  
   const { mspNo } = useParams();
-  const [sp] = useSearchParams();
-  // const date = sp.get("date"); // keep if you plan to use it later
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState({ items: [], overall_total: 0 });
-  const [errorMsg, setErrorMsg] = useState("");
 
   const currentWarehouse = useMemo(() => {
     const user = JSON.parse(localStorage.getItem("user") || "{}");
@@ -26,34 +23,11 @@ export default function WarehouseProductDetails() {
     }
     return { id: user.warehouse_id, name: user.warehouse };
   }, []); 
-
-  // Format a Date to YYYY-MM-DD in Asia/Manila
-  const toYMD_PH = (d) =>
-    new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Asia/Manila",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(d);
-
-  // Normalize API date to YYYY-MM-DD (handles ISO or "YYYY-MM-DD")
-  const warehouseYMD = useMemo(() => {
-    const ds = data?.date;
-    if (!ds) return null;
-    if (/^\d{4}-\d{2}-\d{2}$/.test(ds)) return ds; // already YYYY-MM-DD
-    const d = new Date(ds);
-    return Number.isNaN(d.getTime()) ? null : toYMD_PH(d);
-  }, [data?.date]);
-
-  const todayYMD = useMemo(() => toYMD_PH(new Date()), []);
-  const isTodayInPH = warehouseYMD === todayYMD;
-
   useEffect(() => {
     // wait until both mspNo and warehouse id exist
     if (!mspNo || !currentWarehouse?.id) return;
 
     setLoading(true);
-    setErrorMsg("");
     api
   .get("/warehouse-details/", {
     params: {
@@ -64,11 +38,6 @@ export default function WarehouseProductDetails() {
   .then((res) => setData(res.data || { items: [], overall_total: 0 }))
   .catch((err) => {
     console.error("Error loading details:", err);
-    setErrorMsg(
-      err?.response?.status === 404
-        ? "No records found for that MSP No (route working but no matches)."
-        : `Request failed: ${err?.response?.status || ""}`
-    );
   })
   .finally(() => setLoading(false));
   
@@ -76,8 +45,11 @@ export default function WarehouseProductDetails() {
 
   // --- Button handlers ---
   const handleBack = () => navigate("/trading");
-  const handleNewSale = () => navigate("/merchandising-sale", { state: { reset: true } });
   const isReserved = String(data?.status || "").toLowerCase() === "reserved";
+  const isPickedUp =
+    ["picked up", "picked-up", "complete", "completed"].includes(
+      String(data?.status || "").trim().toLowerCase()
+    );
 
   return (
     <div className="warehousedetails-container">
@@ -89,6 +61,11 @@ export default function WarehouseProductDetails() {
           {isReserved && data?.reserved_date && (
             <p className="mt-1 text-sm font-medium text-amber-700">
               Reserved pickup date: {data.reserved_date}
+            </p>
+          )}
+          {isPickedUp && data?.actual_pickup_date && (
+            <p className="mt-1 text-sm font-medium text-emerald-700">
+              Actual pickup date: {data.actual_pickup_date}
             </p>
           )}
         </div>
@@ -142,27 +119,6 @@ export default function WarehouseProductDetails() {
           </tfoot>
 
           </table>
-        )}
-      </div>
-
-      <div className="flex justify-end gap-2 mt-6">
-        {isTodayInPH ? (
-          <button
-            type="button"
-            onClick={handleNewSale}
-            className="btn btn-add"
-          >
-            New Sale
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled
-            className="px-4 py-2 rounded-lg bg-gray-300 text-gray-600 cursor-not-allowed"
-            title={warehouseYMD ? `Completed (${warehouseYMD})` : "Completed"}
-          >
-            Completed
-          </button>
         )}
       </div>
     </div>
