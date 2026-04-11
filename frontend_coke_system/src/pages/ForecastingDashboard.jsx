@@ -1,5 +1,5 @@
 // src/pages/ForecastingDashboard.jsx
-import React, { useMemo, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ForecastOverviewCards } from "../components/forecasting/ForecastOverviewCards";
 import { ProductSelector } from "../components/forecasting/ProductSelector";
@@ -34,6 +34,27 @@ const getDateFromKey = (dateKey) => {
   return new Date(year, month - 1, day);
 };
 
+const toMonthKey = (value) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+};
+
+const getMonthDateFromKey = (monthKey) => {
+  const [year, month] = String(monthKey).split("-").map(Number);
+  return new Date(year, (month || 1) - 1, 1);
+};
+
+const formatForecastMonth = (monthKey) => {
+  if (!monthKey) return "No month";
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    year: "numeric",
+  }).format(getMonthDateFromKey(monthKey));
+};
+
 const getRowDateKey = (row) => String(row.date || row.ds || "").slice(0, 10);
 
 const getNextYearSameDateKey = () => {
@@ -41,6 +62,11 @@ const getNextYearSameDateKey = () => {
   return toDateKey(
     new Date(today.getFullYear() + 1, today.getMonth(), today.getDate())
   );
+};
+
+const getNextMonthKey = () => {
+  const today = new Date();
+  return toMonthKey(new Date(today.getFullYear(), today.getMonth() + 1, 1));
 };
 
 const getForecastDaysForTarget = (dateKey) => {
@@ -101,6 +127,43 @@ const normalizeForecastRows = (rows) =>
         : null,
   }));
 
+const aggregateForecastRowsByMonth = (rows) => {
+  const buckets = new Map();
+
+  (rows || []).forEach((row) => {
+    const rowDateKey = getRowDateKey(row);
+    if (!rowDateKey) return;
+
+    const monthKey = toMonthKey(getDateFromKey(rowDateKey));
+    if (!monthKey) return;
+
+    const existing =
+      buckets.get(monthKey) || {
+        periodKey: monthKey,
+        date: formatForecastMonth(monthKey),
+        forecast: 0,
+        lower: 0,
+        upper: 0,
+        actual: null,
+      };
+
+    existing.forecast += Number(row.forecast || 0);
+    existing.lower += Number(row.lower || 0);
+    existing.upper += Number(row.upper || 0);
+
+    const actual = row.actual != null ? Number(row.actual) : null;
+    if (Number.isFinite(actual)) {
+      existing.actual = (existing.actual ?? 0) + actual;
+    }
+
+    buckets.set(monthKey, existing);
+  });
+
+  return [...buckets.values()].sort((a, b) =>
+    String(a.periodKey).localeCompare(String(b.periodKey))
+  );
+};
+
 export default function ForecastingDashboard() {
   const [products, setProducts] = useState([]);
   const [selectedProductName, setSelectedProductName] = useState("");
@@ -112,6 +175,7 @@ export default function ForecastingDashboard() {
 
   const [bestSellerData, setBestSellerData] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
+  const [forecastBasis, setForecastBasis] = useState("monthly");
 
   // NEW: stocks from backend
   const [stocks, setStocks] = useState([]);
@@ -184,26 +248,7 @@ export default function ForecastingDashboard() {
   }, [warehouseId]);
 
   // Build a fast lookup map: productId -> quantity
-  const stockByProductId = useMemo(() => {
-    const map = {};
-    stocks.forEach((s) => {
-      const id = s.product?.id ?? s.product_id ?? null;
-      if (id == null) return;
-
-      const qty =
-        s.quantity_available ??
-        s.quantity_available_pcs ??
-        s.quantity ??
-        s.current_stock ??
-        0;
-
-      map[Number(id)] = Number(qty) || 0;
-    });
-    return map;
-  }, [stocks]);
-
-  const getCurrentStock = (productName) => {
-
+  const getCurrentStock = useCallback((productName) => {
     if (!productName || !stocks.length) return 0;
     const normalized = productName.trim().toLowerCase();
 
@@ -236,7 +281,7 @@ export default function ForecastingDashboard() {
       0;
 
     return Number(qty) || 0;
-  };
+  }, [stocks, warehouseId]);
 
   // -----------------------
   // 2) Fetch HOLIDAYS
@@ -455,7 +500,7 @@ export default function ForecastingDashboard() {
     return () => {
       cancelled = true;
     };
-  }, [products, stocks, warehouseId, targetForecastDate]);
+  }, [products, warehouseId, targetForecastDate, getCurrentStock]);
 
   // Selected product chart and AI suggestion use forecastData directly.
   // Ranking and inventory stay warehouse-wide through the auto-sync above.
@@ -519,30 +564,37 @@ export default function ForecastingDashboard() {
     };
   }, [bestSellerData]);
 
+  const monthlyForecastData = useMemo(
+    () => aggregateForecastRowsByMonth(forecastData),
+    [forecastData]
+  );
+
+  const displayForecastData = useMemo(
+    () => (forecastBasis === "monthly" ? monthlyForecastData : forecastData),
+    [forecastBasis, monthlyForecastData, forecastData]
+  );
+
   const seasonalInsights = useMemo(() => {
-    if (!forecastData.length) {
+    if (!displayForecastData.length) {
       return {
-        weeklyPeakDay: "No data yet",
-        yearlyPeakMonth: "No data yet",
+        primaryPeakLabel:
+          forecastBasis === "monthly" ? "Peak Forecast Month" : "Weekly Peak Day",
+        primaryPeakValue: "No data yet",
+        secondaryPeakLabel:
+          forecastBasis === "monthly" ? "Recurring Peak Month" : "Yearly Peak Month",
+        secondaryPeakValue: "No data yet",
         trendDirection: "Stable",
-        mape: 0,
+        forecastAccuracy: null,
+        mapeError: null,
+        comparableDays: 0,
+        comparableUnit: forecastBasis === "monthly" ? "month" : "day",
       };
     }
 
     const getDate = (row) => new Date(row.date || row.ds);
-
-    const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-    const weeklySums = new Array(7).fill(0);
-
-    forecastData.forEach((row) => {
-      const d = getDate(row);
-      const value = Number(row.forecast || 0);
-      const dow = d.getDay();
-      weeklySums[dow] += value;
-    });
-
-    const peakDow = weeklySums.indexOf(Math.max(...weeklySums));
-    const weeklyPeakDay = weekdayNames[peakDow];
+    const sortedForecastRows = [...displayForecastData].sort(
+      (a, b) => getDate(a).getTime() - getDate(b).getTime()
+    );
 
     const monthNames = [
       "Jan",
@@ -558,21 +610,59 @@ export default function ForecastingDashboard() {
       "Nov",
       "Dec",
     ];
-    const monthSums = new Array(12).fill(0);
+    let primaryPeakLabel = "Weekly Peak Day";
+    let primaryPeakValue = "No data yet";
+    let secondaryPeakLabel = "Yearly Peak Month";
+    let secondaryPeakValue = "No data yet";
 
-    forecastData.forEach((row) => {
-      const d = getDate(row);
-      const value = Number(row.forecast || 0);
-      const m = d.getMonth();
-      monthSums[m] += value;
-    });
+    if (forecastBasis === "monthly") {
+      const peakMonthRow = sortedForecastRows.reduce((best, row) =>
+        Number(row.forecast || 0) > Number(best?.forecast || 0) ? row : best,
+      null);
 
-    const peakMonthIdx = monthSums.indexOf(Math.max(...monthSums));
-    const yearlyPeakMonth = monthNames[peakMonthIdx];
+      const recurringMonthSums = new Array(12).fill(0);
+      sortedForecastRows.forEach((row) => {
+        const d = getDate(row);
+        recurringMonthSums[d.getMonth()] += Number(row.forecast || 0);
+      });
 
-    const first = Number(forecastData[0].forecast || 0);
+      const recurringPeakMonthIdx = recurringMonthSums.indexOf(
+        Math.max(...recurringMonthSums)
+      );
+
+      primaryPeakLabel = "Peak Forecast Month";
+      primaryPeakValue = peakMonthRow?.date || "No data yet";
+      secondaryPeakLabel = "Recurring Peak Month";
+      secondaryPeakValue = monthNames[recurringPeakMonthIdx] || "No data yet";
+    } else {
+      const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+      const weeklySums = new Array(7).fill(0);
+
+      sortedForecastRows.forEach((row) => {
+        const d = getDate(row);
+        const value = Number(row.forecast || 0);
+        const dow = d.getDay();
+        weeklySums[dow] += value;
+      });
+
+      const peakDow = weeklySums.indexOf(Math.max(...weeklySums));
+
+      const monthSums = new Array(12).fill(0);
+      sortedForecastRows.forEach((row) => {
+        const d = getDate(row);
+        const value = Number(row.forecast || 0);
+        const m = d.getMonth();
+        monthSums[m] += value;
+      });
+
+      const peakMonthIdx = monthSums.indexOf(Math.max(...monthSums));
+      primaryPeakValue = weekdayNames[peakDow];
+      secondaryPeakValue = monthNames[peakMonthIdx];
+    }
+
+    const first = Number(sortedForecastRows[0].forecast || 0);
     const last = Number(
-      forecastData[forecastData.length - 1].forecast || 0
+      sortedForecastRows[sortedForecastRows.length - 1].forecast || 0
     );
     const diff = last - first;
     const threshold = first * 0.05;
@@ -581,11 +671,10 @@ export default function ForecastingDashboard() {
     if (diff > threshold) trendDirection = "Increasing";
     else if (diff < -threshold) trendDirection = "Decreasing";
 
-    let mape = null;
-    let mapeCount = 0;
-    let mapeSum = 0;
+    let comparableDays = 0;
+    let mapeErrorSum = 0;
 
-    forecastData.forEach((row) => {
+    sortedForecastRows.forEach((row) => {
       const actual =
         row.actual != null
           ? Number(row.actual)
@@ -597,29 +686,79 @@ export default function ForecastingDashboard() {
 
       const pred = Number(row.forecast || 0);
 
-      if (actual && actual !== 0) {
-        const ape = Math.abs((actual - pred) / actual);
-        mapeSum += ape;
-        mapeCount += 1;
+      if (Number.isFinite(actual) && Number.isFinite(pred) && actual > 0) {
+        const ape = Math.abs((actual - pred) / actual) * 100;
+        mapeErrorSum += ape;
+        comparableDays += 1;
       }
     });
 
-    // Karen Changes
-    if (mapeCount > 0) {
-      mape = (mapeSum / mapeCount) * 100;
-    } else {
-      mape = 0;
-    }
+    const mapeError =
+      comparableDays > 0 ? mapeErrorSum / comparableDays : null;
+    const forecastAccuracy =
+      mapeError != null ? Math.max(0, 100 - Math.min(mapeError, 100)) : null;
 
     return {
-      weeklyPeakDay,
-      yearlyPeakMonth,
+      primaryPeakLabel,
+      primaryPeakValue,
+      secondaryPeakLabel,
+      secondaryPeakValue,
       trendDirection,
-      mape: mape || 0,
+      forecastAccuracy,
+      mapeError,
+      comparableDays,
+      comparableUnit: forecastBasis === "monthly" ? "month" : "day",
     };
-  }, [forecastData]);
+  }, [displayForecastData, forecastBasis]);
 
   const aiSuggestion = useMemo(() => {
+    if (forecastBasis === "monthly") {
+      if (!monthlyForecastData.length) return null;
+
+      const targetMonthKey = getNextMonthKey();
+      const targetRow =
+        monthlyForecastData.find((row) => String(row.periodKey) >= targetMonthKey) ||
+        monthlyForecastData[monthlyForecastData.length - 1];
+
+      if (!targetRow) return null;
+
+      const actualRows = monthlyForecastData
+        .filter((row) => row.actual != null && Number(row.actual) > 0)
+        .sort((a, b) => String(a.periodKey).localeCompare(String(b.periodKey)));
+
+      const sameMonthRows = actualRows.filter(
+        (row) => String(row.periodKey).slice(5) === String(targetRow.periodKey).slice(5)
+      );
+      const basisRows = sameMonthRows.length ? sameMonthRows : actualRows.slice(-3);
+      const basisAverage = basisRows.length
+        ? Math.round(
+            basisRows.reduce((sum, row) => sum + Number(row.actual || 0), 0) /
+              basisRows.length
+          )
+        : null;
+
+      const latestBasis = basisRows[basisRows.length - 1] || null;
+      const sameMonthLabel = new Intl.DateTimeFormat("en-US", {
+        month: "short",
+      }).format(getMonthDateFromKey(targetRow.periodKey));
+
+      return {
+        targetLabel: targetRow.date,
+        forecast: Math.round(Number(targetRow.forecast || 0)),
+        lower: Math.round(Number(targetRow.lower || 0)),
+        upper: Math.round(Number(targetRow.upper || 0)),
+        basisAverage,
+        basisLabel: sameMonthRows.length
+          ? `previous ${sameMonthLabel} monthly sales`
+          : "latest monthly history",
+        latestBasisDate: latestBasis ? latestBasis.date : null,
+        latestBasisActual: latestBasis
+          ? Math.round(Number(latestBasis.actual || 0))
+          : null,
+        unitContext: "for the month",
+      };
+    }
+
     if (!forecastData.length || !targetForecastDate) return null;
 
     const targetRow = forecastData.find(
@@ -679,8 +818,9 @@ export default function ForecastingDashboard() {
       latestBasisActual: latestBasis
         ? Math.round(Number(latestBasis.actual || 0))
         : null,
+      unitContext: "for the day",
     };
-  }, [forecastData, targetForecastDate]);
+  }, [forecastBasis, monthlyForecastData, forecastData, targetForecastDate]);
 
   // -----------------------
   // 7) Render
@@ -724,6 +864,33 @@ export default function ForecastingDashboard() {
             onChange={(name) => setSelectedProductName(name)}
             isGenerating={generating}
           />
+
+          <div className="mt-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="inline-flex items-center rounded-xl border border-gray-200 bg-white p-1">
+              {[
+                { value: "daily", label: "Daily" },
+                { value: "monthly", label: "Monthly" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setForecastBasis(option.value)}
+                  className={`rounded-lg px-3 py-2 text-xs font-medium transition-colors ${
+                    forecastBasis === option.value
+                      ? "bg-emerald-600 text-white"
+                      : "text-gray-600 hover:bg-gray-100"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500 md:text-right">
+              {forecastBasis === "monthly"
+                ? "Monthly basis smooths daily weather and timing changes so high-demand months are easier to spot."
+                : "Daily basis keeps day-by-day movement visible for short-term planning."}
+            </p>
+          </div>
         </div>
 
         {aiSuggestion && (
@@ -737,7 +904,7 @@ export default function ForecastingDashboard() {
                   {aiSuggestion.targetLabel}: {aiSuggestion.forecast} pcs
                 </h2>
                 <p className="mt-1 text-sm text-gray-600">
-                  Expected range: {aiSuggestion.lower} to {aiSuggestion.upper} pcs.
+                  Expected range: {aiSuggestion.lower} to {aiSuggestion.upper} pcs {aiSuggestion.unitContext}.
                 </p>
               </div>
               <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 md:max-w-xl">
@@ -765,12 +932,20 @@ export default function ForecastingDashboard() {
           {loading ? (
             <div className="forecasting-page__loading">Loading forecasts...</div>
           ) : (
-            <ForecastChart product={selectedProductName} data={forecastData} />
+            <ForecastChart
+              product={selectedProductName}
+              data={displayForecastData}
+              basis={forecastBasis}
+            />
           )}
         </div>
 
         <div className="forecasting-page__panel">
-          <ForecastTable product={selectedProductName} data={forecastData} />
+          <ForecastTable
+            product={selectedProductName}
+            data={displayForecastData}
+            basis={forecastBasis}
+          />
         </div>
 
         <div className="forecasting-page__panel">

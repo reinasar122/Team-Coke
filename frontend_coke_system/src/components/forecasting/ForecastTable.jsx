@@ -1,9 +1,11 @@
 // src/components/forecasting/ForecastTable.jsx
 import React from "react";
 
-export const ForecastTable = ({ product, data }) => {
+export const ForecastTable = ({ product, data, basis = "daily" }) => {
+  const isMonthly = basis === "monthly";
+
   const handleExport = () => {
-    const header = ["Date", "Forecast", "Lower", "Upper"];
+    const header = [isMonthly ? "Month" : "Date", "Forecast", "Lower", "Upper"];
     // Karen Changes: guard against undefined
     const rows = data.map((row) => [
       row.date,
@@ -22,7 +24,7 @@ export const ForecastTable = ({ product, data }) => {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.setAttribute("download", `${product}_forecast.csv`);
+    link.setAttribute("download", `${product}_${basis}_forecast.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -33,10 +35,12 @@ export const ForecastTable = ({ product, data }) => {
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">
-            Forecast Details
+            {isMonthly ? "Monthly Forecast Details" : "Forecast Details"}
           </h2>
           <p className="text-xs text-gray-500">
-            Daily predictions for {product}
+            {isMonthly
+              ? `Monthly predictions for ${product}`
+              : `Daily predictions for ${product}`}
           </p>
         </div>
         <button
@@ -53,7 +57,9 @@ export const ForecastTable = ({ product, data }) => {
           <table className="min-w-full text-xs">
             <thead className="bg-gray-50 text-gray-500 sticky top-0 z-10">
               <tr>
-                <th className="text-left font-medium px-4 py-3">Date</th>
+                <th className="text-left font-medium px-4 py-3">
+                  {isMonthly ? "Month" : "Date"}
+                </th>
                 <th className="text-right font-medium px-4 py-3">
                   Forecast
                 </th>

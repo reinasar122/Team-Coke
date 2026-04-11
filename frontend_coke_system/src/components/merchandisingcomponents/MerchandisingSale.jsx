@@ -9,6 +9,7 @@ import { FaRegCalendarAlt } from "react-icons/fa";
 import "../../styles/components/merchandisingSale.scss";
 import api from "../../api"; // centralized API instance
 import CustomerRegistration from './CustomerRegistration';
+import VanForm from "../../pages/VanForm";
 
 // Van Load notification helper
 const notifyVanLoadCreated = (vanLoadData) => {
@@ -139,6 +140,7 @@ const MerchandisingSale = () => {
   const [isAddingCustomer, setIsAddingCustomer] = useState(false);
   const [isCustomerDrawerClosing, setIsCustomerDrawerClosing] = useState(false);
   const [vans, setVans] = useState([]);
+  const [isVanFormVisible, setIsVanFormVisible] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [isReservedModalOpen, setIsReservedModalOpen] = useState(false);
   const [selectedReservedDate, setSelectedReservedDate] = useState(() =>
@@ -173,6 +175,18 @@ const MerchandisingSale = () => {
       </div>
     `;
     document.body.appendChild(alertDiv);
+  };
+
+  const handleVanAddedFromSale = (newVan) => {
+    if (!newVan?.id) return;
+
+    setVans((prev) => {
+      const exists = prev.some((van) => van.id === newVan.id);
+      return exists ? prev.map((van) => (van.id === newVan.id ? newVan : van)) : [...prev, newVan];
+    });
+    setSelectedVan(String(newVan.id));
+    setIsVanFormVisible(false);
+    showAlert(`Van ${newVan.van_id} - ${newVan.plate_number} is ready to use for this Van Load.`);
   };
 
   useEffect(() => {
@@ -433,13 +447,31 @@ const MerchandisingSale = () => {
     fetchMspNo(transactionType);
   }, [transactionType, currentWarehouse, location.state?.editMode, fetchMspNo]);
   useEffect(() => {
-    if (selectedTransactionTypeName === "Van Load") {
-      api
-        .get("vans/")
-        .then((res) => setVans(res.data))
-        .catch((err) => console.error("Failed to fetch vans:", err));
+    if (selectedTransactionTypeName !== "Van Load" || !currentWarehouse?.id) {
+      return;
     }
-  }, [selectedTransactionTypeName]);
+
+    api
+      .get(`vans/?warehouse=${currentWarehouse.id}`)
+      .then((res) => {
+        const vanList = Array.isArray(res.data) ? res.data : [];
+        setVans(vanList);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch vans:", err);
+        setVans([]);
+      });
+  }, [selectedTransactionTypeName, currentWarehouse?.id]);
+
+  useEffect(() => {
+    if (
+      selectedTransactionTypeName === "Van Load" &&
+      selectedVan &&
+      !vans.some((van) => String(van.id) === String(selectedVan))
+    ) {
+      setSelectedVan("");
+    }
+  }, [selectedTransactionTypeName, selectedVan, vans]);
 
   useEffect(() => {
     if (transactionType) {
@@ -924,6 +956,7 @@ const MerchandisingSale = () => {
     const statusOverride = submitOptions.status || null;
     const successMessage =
       submitOptions.successMessage || "Transaction saved successfully!";
+    const suppressSuccessAlert = Boolean(submitOptions.suppressSuccessAlert);
     const normalizedReservedDate = toDateInputValue(
       submitOptions.reservedDate || selectedReservedDate
     );
@@ -1132,7 +1165,9 @@ const MerchandisingSale = () => {
         console.log("?? Credit payment - no immediate payment record needed");
       }
 
-      showAlert(successMessage);
+      if (!suppressSuccessAlert && successMessage) {
+        showAlert(successMessage);
+      }
       return merchandising;
     } catch (error) {
       console.error("? Transaction save failed:", error);
@@ -1250,10 +1285,12 @@ const MerchandisingSale = () => {
     navigate("/reservationlist");
   };
 
-  const handleCompleteReservedSale = async (paymentData) => {
+  const handleCompleteReservedSale = async (paymentData, submitOptions = {}) => {
     const result = await handleSubmit(paymentData, {
+      ...submitOptions,
       status: "Complete",
-      successMessage: "Reservation paid successfully!",
+      successMessage:
+        submitOptions.successMessage || "Reservation paid successfully!",
     });
 
     if (result) {
@@ -1541,10 +1578,15 @@ const MerchandisingSale = () => {
                 <select
                   value={selectedVan}
                   onChange={(e) => setSelectedVan(e.target.value)}
-                  className="border w-full rounded-md px-2 py-1 text-black text-base"
+                  className={`border w-full rounded-md px-2 py-1 text-base ${
+                    vans.length
+                      ? "text-black bg-white"
+                      : "text-slate-400 bg-slate-50"
+                  }`}
+                  disabled={!vans.length}
                 >
-                  <option value="" disabled hidden>
-                    Select Van
+                  <option value="" disabled hidden={vans.length > 0}>
+                    {vans.length > 0 ? "Select a van" : "No vans available yet"}
                   </option>
                   {vans.map((van) => (
                     <option key={van.id} value={van.id}>
@@ -1552,6 +1594,7 @@ const MerchandisingSale = () => {
                     </option>
                   ))}
                 </select>
+
               </div>
 
               <div>
@@ -1632,10 +1675,14 @@ const MerchandisingSale = () => {
                         setRoute(parseInt(e.target.value));
                       }
                     }}
-                    className="border w-full rounded-md px-2 py-1 text-black text-base"
+                    className={`border w-full rounded-md px-2 py-1 text-base ${
+                      route
+                        ? "text-black bg-white"
+                        : "text-slate-400 bg-slate-50"
+                    }`}
                   >
                     <option value="" disabled hidden>
-                      Select Route
+                      Select a route
                     </option>
                     {routes.map((r) => (
                       <option key={r.id} value={r.id}>
@@ -1743,6 +1790,13 @@ const MerchandisingSale = () => {
         />
       )}
 
+      {isVanFormVisible && (
+        <VanForm
+          onVanAdded={handleVanAddedFromSale}
+          onClose={() => setIsVanFormVisible(false)}
+        />
+      )}
+
       {isAddingCustomer && (
         <CustomerRegistration
           embedded
@@ -1791,7 +1845,15 @@ const MerchandisingSale = () => {
         customer={customerInfo}
         handledBy={handledBy}
         totalAmount={totalAmount}
-        onSave={isReservedSaleDetail ? handleCompleteReservedSale : handleSubmit}
+        onSave={(paymentData) =>
+          isReservedSaleDetail
+            ? handleCompleteReservedSale(paymentData, {
+                suppressSuccessAlert: true,
+              })
+            : handleSubmit(paymentData, {
+                suppressSuccessAlert: true,
+              })
+        }
         transactionDate={transactionDate}
         transactionTypeName={selectedTransactionTypeName}
         transactionTypes={transactionTypes}

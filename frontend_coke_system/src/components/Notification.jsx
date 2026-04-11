@@ -153,6 +153,11 @@ const isStockAlertNotification = (notification) =>
 const isEphemeralLoginStockAlert = (notification) =>
   Boolean(notification?.data?.login_check) && isStockAlertNotification(notification);
 
+const PRODUCT_CHANGE_NOTIFICATION_TYPES = new Set(['product_created', 'product_updated']);
+
+const isProductChangeNotification = (notification) =>
+  PRODUCT_CHANGE_NOTIFICATION_TYPES.has(String(notification?.type || '').trim().toLowerCase());
+
 const isBackendNotificationId = (value) =>
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     String(value || '')
@@ -235,6 +240,53 @@ const doesStockNotificationMatchCurrentStatus = (notification, stockStatusMap) =
   }
 
   return true;
+};
+
+const buildWarehouseProductLookup = (products = [], warehouseId) => {
+  const targetWarehouseId = normalizeWarehouseId(warehouseId);
+  const ids = new Set();
+  const names = new Set();
+
+  products.forEach((product) => {
+    const productWarehouseId = normalizeWarehouseId(product?.warehouse_id ?? product?.warehouse);
+    if (!isSameWarehouseId(productWarehouseId, targetWarehouseId)) {
+      return;
+    }
+
+    const productId = normalizeWarehouseId(product?.id ?? product?.product_id);
+    if (productId) {
+      ids.add(productId);
+    }
+
+    const productNameKey = normalizeStockProductKey(product?.product_name || product?.name);
+    if (productNameKey) {
+      names.add(productNameKey);
+    }
+  });
+
+  return { ids, names };
+};
+
+const doesProductNotificationMatchCurrentWarehouseProducts = (notification, warehouseProductLookup) => {
+  if (!isProductChangeNotification(notification) || !warehouseProductLookup) {
+    return true;
+  }
+
+  const productId = normalizeWarehouseId(
+    notification?.data?.id ??
+    notification?.data?.product_id ??
+    notification?.data?.productId
+  );
+
+  if (productId && warehouseProductLookup.ids.has(productId)) {
+    return true;
+  }
+
+  const productNameKey = normalizeStockProductKey(
+    notification?.data?.product_name || notification?.data?.name
+  );
+
+  return Boolean(productNameKey) && warehouseProductLookup.names.has(productNameKey);
 };
 
 const shouldPersistNotification = (notification) => !isEphemeralLoginStockAlert(notification);
@@ -686,7 +738,8 @@ const Notification = ({ closeProfile }) => {
 
       let reservedPickupSalesById = new Map();
       let stockStatusMap = null;
-      const backendStockNotificationIdsToDelete = new Set();
+      let warehouseProductLookup = null;
+      const backendNotificationIdsToDelete = new Set();
       const needsReservedPickupCustomerSync = visibleBackendNotifications.some(
         (notification) =>
           notification.type === 'reserved_pickup_due' &&
@@ -719,6 +772,22 @@ const Notification = ({ closeProfile }) => {
           stockStatusMap = buildGroupedStockStatusMap(stockData, targetWarehouseId);
         } catch (error) {
           console.warn('Failed to validate stock notifications against grouped stock totals:', error.message);
+        }
+      }
+
+      const needsProductValidation = visibleBackendNotifications.some((notification) =>
+        isProductChangeNotification(notification)
+      );
+
+      if (needsProductValidation) {
+        try {
+          const productsResponse = await api.get(`/products/?warehouse_id=${targetWarehouseId}`, config);
+          const productData = Array.isArray(productsResponse.data)
+            ? productsResponse.data
+            : productsResponse.data?.results || [];
+          warehouseProductLookup = buildWarehouseProductLookup(productData, targetWarehouseId);
+        } catch (error) {
+          console.warn('Failed to validate product notifications against the current warehouse:', error.message);
         }
       }
 
@@ -773,7 +842,17 @@ const Notification = ({ closeProfile }) => {
         .filter((notif) => {
           const shouldKeep = shouldKeepStockNotification(notif);
           if (!shouldKeep && isBackendNotificationId(notif.id)) {
-            backendStockNotificationIdsToDelete.add(notif.id);
+            backendNotificationIdsToDelete.add(notif.id);
+          }
+          return shouldKeep;
+        })
+        .filter((notif) => {
+          const shouldKeep = doesProductNotificationMatchCurrentWarehouseProducts(
+            notif,
+            warehouseProductLookup
+          );
+          if (!shouldKeep && isBackendNotificationId(notif.id)) {
+            backendNotificationIdsToDelete.add(notif.id);
           }
           return shouldKeep;
         });
@@ -788,6 +867,10 @@ const Notification = ({ closeProfile }) => {
       );
       const shouldKeepLocalNotification = (notification) => {
         if (isEphemeralLoginStockAlert(notification)) {
+          return false;
+        }
+
+        if (!doesProductNotificationMatchCurrentWarehouseProducts(notification, warehouseProductLookup)) {
           return false;
         }
 
@@ -820,11 +903,11 @@ const Notification = ({ closeProfile }) => {
       dispatch({ type: 'SET_NOTIFICATIONS', payload: mergedNotifications });
       console.log(`Synced ${formattedNotifications.length} backend + ${recentLocalNotifications.length} local notifications for warehouse ${targetWarehouseId}`);
 
-      if (backendStockNotificationIdsToDelete.size > 0) {
+      if (backendNotificationIdsToDelete.size > 0) {
         try {
-          await NotificationAPI.bulkUpdate([...backendStockNotificationIdsToDelete], 'delete', config);
+          await NotificationAPI.bulkUpdate([...backendNotificationIdsToDelete], 'delete', config);
         } catch (error) {
-          console.warn('Failed to remove stale stock notifications from backend sync:', error.message);
+          console.warn('Failed to remove stale warehouse-mismatched notifications from backend sync:', error.message);
         }
       }
 
@@ -2895,8 +2978,11 @@ const Notification = ({ closeProfile }) => {
 
       // CHECK PRODUCTS WITH WAREHOUSE FILTERING and API integration
       try {
-        const productsResponse = await api.get(`/products/?warehouse=${warehouseQueryParam}`, config);
-        const products = Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.results || [];
+        const productsResponse = await api.get(`/products/?warehouse_id=${warehouseId}`, config);
+        const rawProducts = Array.isArray(productsResponse.data) ? productsResponse.data : productsResponse.data?.results || [];
+        const products = rawProducts.filter((product) =>
+          isSameWarehouseId(product?.warehouse_id ?? product?.warehouse, warehouseId)
+        );
 
         // Get previous products for comparison
         const previousProductsKey = `previousProducts_${warehouseId}`;
@@ -4349,6 +4435,10 @@ useEffect(() => {
     ));
   }, [pendingVanLoadApprovalRequests, currentWarehouseId, isAdminUser]);
 
+  const currentWarehouseBellCount = React.useMemo(() => {
+    return currentWarehouseUnreadCount + pendingApprovalRequestsForCurrentWarehouse.length;
+  }, [currentWarehouseUnreadCount, pendingApprovalRequestsForCurrentWarehouse]);
+
   const approvalTabItems = React.useMemo(() => (
     pendingApprovalRequestsForCurrentWarehouse.map((requestItem) =>
       mapApprovalRequestToNotification(requestItem, currentWarehouseId)
@@ -4389,17 +4479,17 @@ useEffect(() => {
           className={`relative p-2 text-white hover:text-gray-300 focus:outline-none transition-all duration-200 ${
             isTransitioning ? 'opacity-70 transform scale-95' : 'opacity-100 transform scale-100'
           }`}
-          title={`${currentWarehouseUnreadCount} unread notifications for ${getCurrentWarehouseName()}`}
+          title={`${currentWarehouseBellCount} notification/s and approval request/s for ${getCurrentWarehouseName()}`}
         >
           <FontAwesomeIcon icon={faBell} className="text-lg" />
-          {currentWarehouseUnreadCount > 0 && (
+          {currentWarehouseBellCount > 0 && (
             <span 
-              key={`badge-${currentWarehouseUnreadCount}-${forceUpdate}`}
+              key={`badge-${currentWarehouseBellCount}-${forceUpdate}`}
               className={`absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold transition-all duration-200 ${
                 isTransitioning ? 'animate-bounce' : 'animate-pulse'
               }`}
             >
-              {currentWarehouseUnreadCount > 99 ? '99+' : currentWarehouseUnreadCount}
+              {currentWarehouseBellCount > 99 ? '99+' : currentWarehouseBellCount}
             </span>
           )}
         </button>

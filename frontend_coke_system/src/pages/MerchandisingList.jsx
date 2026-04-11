@@ -426,7 +426,7 @@ const MerchandisingList = ({ view = "trading" }) => {
             minWidth: 0,
           }}
         >
-          <h1 className="text-2xl flex items-center gap-2">
+          <h1 className="page-title flex items-center gap-2">
             <FaChartLine /> Trading
           </h1>
 
@@ -437,6 +437,22 @@ const MerchandisingList = ({ view = "trading" }) => {
             </span>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={handleCreateNew}
+          className="btn btn-add app-page-create-btn"
+          disabled={!currentWarehouse?.id}
+          title={
+            currentWarehouse?.id
+              ? isReservationView
+                ? "Create New Reservation"
+                : "Create New Sale"
+              : "Select a warehouse first"
+          }
+        >
+          {isReservationView ? "+ NEW RESERVATION" : "+ NEW SALE"}
+        </button>
       </div>
 
       <div className="trading-view-toolbar">
@@ -458,15 +474,6 @@ const MerchandisingList = ({ view = "trading" }) => {
             RESERVATION
           </button>
         </div>
-
-        <button
-          onClick={handleCreateNew}
-          className="btn btn-add"
-          disabled={!currentWarehouse?.id}
-          style={{ alignSelf: "flex-start" }}
-        >
-          {isReservationView ? "+ NEW RESERVATION" : "+ NEW SALE"}
-        </button>
       </div>
 
       <div className="table-wrapper">

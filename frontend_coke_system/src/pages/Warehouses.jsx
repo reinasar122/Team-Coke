@@ -121,7 +121,7 @@ const Warehouses = () => {
         </h2>
 
         <button
-          className="btn btn-add warehouses-page__new-btn"
+          className="btn btn-add app-page-create-btn warehouses-page__new-btn"
           onClick={() => canCreate("Warehouse") && setShowCreateModal(true)}
           disabled={!canCreate("Warehouse")}
         >

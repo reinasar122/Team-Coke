@@ -45,16 +45,20 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-export const ForecastChart = ({ product, data }) => {
+export const ForecastChart = ({ product, data, basis = "daily" }) => {
+  const isMonthly = basis === "monthly";
+
   return (
     <>
       <div className="flex items-center justify-between mb-4">
         <div>
           <h2 className="text-xl font-semibold text-gray-900">
-            Sales Forecast
+            {isMonthly ? "Monthly Sales Forecast" : "Sales Forecast"}
           </h2>
           <p className="text-xs text-gray-500">
-            Historical data and predictions for {product}
+            {isMonthly
+              ? `Monthly demand view and predictions for ${product}`
+              : `Historical data and predictions for ${product}`}
           </p>
         </div>
       </div>
@@ -65,7 +69,9 @@ export const ForecastChart = ({ product, data }) => {
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
             <XAxis
               dataKey="date"
-              tickFormatter={(d) => (d ? d.slice(5) : "")} // Karen Changes
+              tickFormatter={(d) =>
+                isMonthly ? d || "" : d ? d.slice(5) : ""
+              }
               tick={{ fontSize: 11 }}
             />
 

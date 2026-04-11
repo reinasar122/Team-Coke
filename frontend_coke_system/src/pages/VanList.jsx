@@ -196,6 +196,22 @@ const VanList = () => {
             </span>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={() => canCreate("Van") && setIsVanFormVisible(true)}
+          disabled={!canCreate("Van") || !currentWarehouse?.id}
+          className={`btn app-page-create-btn ${canCreate("Van") && currentWarehouse?.id ? "btn-add" : "btn-disabled"}`}
+          title={
+            !currentWarehouse?.id
+              ? "Select a warehouse first"
+              : canCreate("Van")
+              ? "Add Van"
+              : "No permission to add vans"
+          }
+        >
+          + Add Van
+        </button>
       </div>
 
       <PageSearchToolbar
@@ -203,15 +219,6 @@ const VanList = () => {
         onChange={setSearchTerm}
         onClear={() => setSearchTerm("")}
         placeholder="Search plate number..."
-        actions={
-          <button
-            onClick={() => canCreate("Van") && setIsVanFormVisible(true)}
-            disabled={!canCreate("Van") || !currentWarehouse?.id}
-            className={`btn ${canCreate("Van") && currentWarehouse?.id ? "btn-add" : "btn-disabled"}`}
-          >
-            + Add Van
-          </button>
-        }
       />
       <div className="table-wrapper bg-white shadow-md rounded-lg">
         <table className="table table-hover w-full">

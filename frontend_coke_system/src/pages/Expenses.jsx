@@ -469,7 +469,7 @@ export default function Expenses() {
               amount: "",
             });
           }}
-          className={`btn ${currentWarehouse?.id && warehouseMSP ? 'btn-add' : 'btn-disabled'}`}
+          className={`btn app-page-create-btn ${currentWarehouse?.id && warehouseMSP ? 'btn-add' : 'btn-disabled'}`}
           disabled={!currentWarehouse?.id || !warehouseMSP}
         >
           + Add Expense
@@ -795,15 +795,7 @@ export default function Expenses() {
                 <button
                   type="submit"
                   disabled={!canSave || saving}
-                  style={{
-                    padding: '8px 16px',
-                    border: 'none',
-                    borderRadius: '4px',
-                    background: canSave && !saving ? '#5D5CDE' : '#ccc',
-                    color: 'white',
-                    fontSize: '14px',
-                    cursor: canSave && !saving ? 'pointer' : 'not-allowed'
-                  }}
+                  className={`btn ${canSave && !saving ? 'btn-add' : 'btn-disabled'}`}
                 >
                   {saving ? "Saving…" : "Save Expense"}
                 </button> 

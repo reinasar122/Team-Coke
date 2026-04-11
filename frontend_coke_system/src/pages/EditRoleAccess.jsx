@@ -9,6 +9,7 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
   const [roleName, setRoleName] = useState("");
   const [permissions, setPermissions] = useState({});
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   // ✅ Fetch role + permissions from backend using axios
   useEffect(() => {
@@ -83,6 +84,8 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
 
   // ✅ Save using your axios instance
   const handleSave = async () => {
+    if (saving) return;
+
     const hasSelectedPermission = Object.values(permissions).some((perms) =>
       ["full_access", "view", "create", "edit", "delete"].some(
         (key) => !!perms?.[key]
@@ -104,9 +107,40 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
     }));
 
     try {
+      setSaving(true);
       const res = await api.put("/role-access/bulk-upsert/", payload);
 
       if (res.status >= 200 && res.status < 300) {
+        const currentUser = JSON.parse(localStorage.getItem("user") || "{}");
+        const normalizedRoleName = String(roleName || "").trim().toLowerCase();
+        const currentUserRoleName = String(
+          currentUser?.role_name ||
+          currentUser?.role?.name ||
+          currentUser?.role ||
+          ""
+        )
+          .trim()
+          .toLowerCase();
+        const currentUserRoleId = Number(currentUser?.role_id || currentUser?.role?.id || 0);
+        const editedRoleId = Number(roleId || 0);
+        const isCurrentUsersRole =
+          (editedRoleId > 0 && currentUserRoleId > 0 && editedRoleId === currentUserRoleId) ||
+          (normalizedRoleName && normalizedRoleName === currentUserRoleName);
+
+        if (isCurrentUsersRole) {
+          localStorage.setItem("access", JSON.stringify(payload));
+          window.dispatchEvent(
+            new CustomEvent("accessPermissionsUpdated", {
+              detail: {
+                roleId: editedRoleId,
+                roleName,
+                access: payload,
+                updatedAt: new Date().toISOString(),
+              },
+            })
+          );
+        }
+
         toast.success(`Permissions for role '${roleName}' updated successfully!`, { style: successStyle });
 
         // Dispatch notifications (optional)
@@ -129,6 +163,8 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
     } catch (error) {
       console.error("Error saving permissions:", error);
       toast.error("Failed to update permissions. Please try again.", { style: errorStyle });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -162,18 +198,18 @@ const EditRoleAccess = ({ roleId, onClose, onRoleUpdated }) => {
       </div>
 
       <div className="flex justify-end mt-6 gap-3 pt-1">
-        <button className="px-4 py-2 btn btn-cancel" onClick={onClose}>
+        <button className="px-4 py-2 btn btn-cancel" onClick={onClose} disabled={saving}>
           Cancel
         </button>
         <button
           className={`px-6 py-2 btn btn-primary ${
-            !hasSelectedPermission ? "opacity-50 cursor-not-allowed" : ""
+            !hasSelectedPermission || saving ? "opacity-50 cursor-not-allowed" : ""
           }`}
           onClick={handleSave}
-          disabled={!hasSelectedPermission}
+          disabled={!hasSelectedPermission || saving}
           type="button"
         >
-          Save
+          {saving ? "Saving..." : "Save"}
         </button>
       </div>
     </div>

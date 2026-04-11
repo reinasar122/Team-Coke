@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import api from "../api"; // ✅ correct
 import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { getDefaultAccessibleRoute } from "../utils/accessUtils";
 
 const isStrongPassword = (password) =>
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/.test(password);
@@ -62,24 +63,6 @@ const ChangePassword = () => {
     }
   }, [id, uid, token, navigate, isMandatoryChange, isForgotPassword, userFromStorage]);
 
-  const getAccessibleRoutes = () => {
-    const accessList = JSON.parse(localStorage.getItem("access") || "[]");
-    const routeMap = {
-      // Add your route mapping here based on your routeMap from Login component
-      "dashboard": "/dashboard",
-      "users": "/users",
-      "products": "/products",
-      // ... add other routes
-    };
-    const routeOrder = ["dashboard", "users", "products"]; // Replace with your actual route order
-   
-    const allowed = new Set(
-      accessList.filter((acc) => acc.full || acc.view).map((acc) => acc.submenu)
-    );
-
-    return routeOrder.filter(submenu => allowed.has(submenu) && routeMap[submenu]);
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -136,10 +119,10 @@ const ChangePassword = () => {
        
         // ✅ Redirect to dashboard
         setTimeout(() => {
-          const accessibleRoutes = getAccessibleRoutes();
-          if (accessibleRoutes.length > 0) {
-            console.log("🏠 Redirecting to:", accessibleRoutes[0]);
-            navigate(accessibleRoutes[0]);
+          const nextRoute = getDefaultAccessibleRoute();
+          if (nextRoute) {
+            console.log("🏠 Redirecting to:", nextRoute);
+            navigate(nextRoute, { replace: true });
           } else {
             navigate("/no-access");
           }

@@ -501,7 +501,6 @@ const [invoiceNumber] = useState(() => invoiceData?.invoice_no || generateInvoic
  const handleClose = async () => {
   if (isViewOnly) {
     onClose?.();
-    navigate("/trading", { replace: true });
     return;
   }
 

@@ -8,6 +8,7 @@ import { notifyProductChange } from '../utils/productNotifier';
 import { getCurrentWarehouse, findWarehouseByName, getWarehouseAxiosConfig } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
 import { showAppAlertDialog, showAppConfirmDialog } from "../components/common/modalDialogs";
 import PageSearchToolbar, { PageToolbarSelect } from "../components/common/PageSearchToolbar";
+import '../styles/pages/productlist.scss';
 
 const ProductList = () => {
   const [products, setProducts] = useState([]);
@@ -15,6 +16,7 @@ const ProductList = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [showPagination, setShowPagination] = useState(false);
   const [productsPerPage, setProductsPerPage] = useState(6);
+  const [carouselColumns, setCarouselColumns] = useState(3);
   const [viewMode, setViewMode] = useState('carousel');
   const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ KEPT: from old version
   const [searchQuery, setSearchQuery] = useState('');
@@ -114,73 +116,55 @@ const ProductList = () => {
     );
   });
 
-  // Calculate products per page based on zoom level (only for carousel mode)
+  // Keep carousel paging tied to available width so each page stays compact.
   const calculateProductsPerPage = useCallback(() => {
-    let zoomLevel = 1;
-   
-    if (window.outerWidth && window.innerWidth) {
-      zoomLevel = window.outerWidth / window.innerWidth;
-    }
-   
-    if (zoomLevel === 1 && window.devicePixelRatio) {
-      zoomLevel = 1 / window.devicePixelRatio;
-    }
-   
-    const zoomPercentage = Math.round(zoomLevel * 100);
-   
-    let productsCount = 6;
-   
-    if (zoomPercentage >= 125) {
-      productsCount = 4;
-    } else if (zoomPercentage >= 100) {
-      productsCount = 6;
-    } else if (zoomPercentage >= 90) {
-      productsCount = 8;
-    } else if (zoomPercentage >= 80) {
-      productsCount = 12;
-    } else if (zoomPercentage >= 75) {
-      productsCount = 10;
-    } else if (zoomPercentage >= 50) {
-      productsCount = 12;
+    const availableWidth = gridRef.current?.offsetWidth || window.innerWidth;
+
+    let nextProductsPerPage = 1;
+    let nextCarouselColumns = 1;
+
+    if (availableWidth >= 1320) {
+      nextProductsPerPage = 6;
+      nextCarouselColumns = 3;
+    } else if (availableWidth >= 920) {
+      nextProductsPerPage = 4;
+      nextCarouselColumns = 2;
     } else {
-      productsCount = 15;
+      nextProductsPerPage = 2;
+      nextCarouselColumns = 1;
     }
-   
-    setProductsPerPage(productsCount);
+
+    setProductsPerPage(nextProductsPerPage);
+    setCarouselColumns(nextCarouselColumns);
   }, []);
 
   // Set up view mode specific logic
   useEffect(() => {
     if (viewMode === 'carousel') {
-      const timer = setTimeout(calculateProductsPerPage, 300);
+      const queueMeasure = () => window.requestAnimationFrame(calculateProductsPerPage);
+      const timer = window.setTimeout(queueMeasure, 0);
 
       const handleResize = () => {
-        setTimeout(calculateProductsPerPage, 200);
+        queueMeasure();
       };
 
-      const handleZoom = (e) => {
-        if (e.ctrlKey || e.metaKey) {
-          setTimeout(calculateProductsPerPage, 300);
-        }
-      };
+      const resizeObserver =
+        typeof ResizeObserver !== 'undefined' && gridRef.current
+          ? new ResizeObserver(() => queueMeasure())
+          : null;
 
-      const handleKeyZoom = (e) => {
-        if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '-' || e.key === '0')) {
-          setTimeout(calculateProductsPerPage, 300);
-        }
-      };
+      if (resizeObserver && gridRef.current) {
+        resizeObserver.observe(gridRef.current);
+      }
 
       window.addEventListener('resize', handleResize);
-      window.addEventListener('wheel', handleZoom, { passive: true });
-      window.addEventListener('keydown', handleKeyZoom);
-      window.addEventListener('focus', calculateProductsPerPage);
+      window.addEventListener('focus', queueMeasure);
      
       return () => {
-        clearTimeout(timer);
+        window.clearTimeout(timer);
         window.removeEventListener('resize', handleResize);
-        window.removeEventListener('wheel', handleZoom);
-        window.removeEventListener('keydown', handleKeyZoom);
-        window.removeEventListener('focus', calculateProductsPerPage);
+        window.removeEventListener('focus', queueMeasure);
+        resizeObserver?.disconnect();
       };
     }
   }, [viewMode, calculateProductsPerPage]);
@@ -194,7 +178,7 @@ const ProductList = () => {
     setCurrentPage(0);
   }, [filteredProducts.length, productsPerPage, viewMode]);
 
-  const totalPages = Math.ceil(filteredProducts.length / productsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredProducts.length / productsPerPage));
   const startIndex = currentPage * productsPerPage;
   const endIndex = startIndex + productsPerPage;
  
@@ -202,16 +186,29 @@ const ProductList = () => {
     ? filteredProducts
     : filteredProducts.slice(startIndex, endIndex);
 
+  const visibleCarouselColumns = Math.max(1, carouselColumns);
+  const isCompactCarousel = productsPerPage >= 6;
+  const carouselGridGap = isCompactCarousel ? 16 : 20;
+  const carouselCardPadding = isCompactCarousel ? 18 : carouselColumns >= 2 ? 20 : 24;
+  const carouselPreviewSize = isCompactCarousel ? '148px' : carouselColumns >= 2 ? '168px' : '184px';
+  const carouselTitleSize = isCompactCarousel ? '16px' : '18px';
+  const carouselMetaFontSize = isCompactCarousel ? '13px' : '14px';
+  const carouselActionPadding = isCompactCarousel ? '8px' : '10px';
+  const carouselLayoutStyle = {
+    gridTemplateColumns: `repeat(${visibleCarouselColumns}, minmax(0, 1fr))`,
+    '--product-carousel-gap': `${carouselGridGap}px`,
+    '--product-carousel-preview-size': carouselPreviewSize,
+    '--product-carousel-title-size': carouselTitleSize,
+    '--product-carousel-meta-size': carouselMetaFontSize,
+    '--product-carousel-action-padding': carouselActionPadding,
+  };
+
   const nextPage = () => {
-    setCurrentPage(prev => (prev + 1) % totalPages);
+    setCurrentPage(prev => Math.min(prev + 1, totalPages - 1));
   };
 
   const prevPage = () => {
-    setCurrentPage(prev => (prev - 1 + totalPages) % totalPages);
-  };
-
-  const goToPage = (pageIndex) => {
-    setCurrentPage(pageIndex);
+    setCurrentPage(prev => Math.max(prev - 1, 0));
   };
 
   const handleViewModeChange = (mode) => {
@@ -287,9 +284,9 @@ const ProductList = () => {
   }
 
   return (
-    <div className="page">
+    <div className="page product-list-page">
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header product-list-page__header">
         <div className="flex flex-wrap items-center gap-4 min-w-0">
           <h2 className="page-title" style={{ margin: 0 }}>Product List</h2>
           <span className="page-warehouse-chip">
@@ -297,9 +294,19 @@ const ProductList = () => {
             <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
           </span>
         </div>
+
+        <Link
+          to="/products/new"
+          className={`btn app-page-create-btn ${canCreate("Product") ? 'btn-add' : 'btn-disabled'}`}
+          onClick={(e) => { if (!canCreate("Product")) e.preventDefault(); }}
+          title={canCreate("Product") ? "Add Product" : "No permission to add products"}
+        >
+          + Product
+        </Link>
       </div>
 
       <PageSearchToolbar
+        className="product-list-page__toolbar"
         value={searchQuery}
         onChange={handleSearchChange}
         onClear={clearSearch}
@@ -314,15 +321,6 @@ const ProductList = () => {
               { value: 'table', label: 'Table View' },
             ]}
           />
-        }
-        actions={
-          <Link
-            to="/products/new"
-            className={`btn ${canCreate("Product") ? 'btn-add' : 'btn-disabled'}`}
-            onClick={(e) => { if (!canCreate("Product")) e.preventDefault(); }}
-          >
-            + Product
-          </Link>
         }
         summary={
           searchQuery
@@ -473,98 +471,71 @@ const ProductList = () => {
         <>
           <div
             ref={gridRef}
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 320px), 1fr))',
-              gap: 24
-            }}
+            className="product-carousel-shell"
+            data-columns={visibleCarouselColumns}
+            style={carouselLayoutStyle}
           >
             {currentProducts.map(prod => (
-              <div key={prod.id} className="card" style={{ padding: 28 }}>
-                <div style={{
-                  display: 'flex',
-                  gap: 24,
-                  alignItems: 'flex-start',
-                  flexWrap: 'wrap'
-                }}>
+              <div
+                key={prod.id}
+                className="card product-carousel-card"
+                style={{
+                  '--product-carousel-card-padding': `${carouselCardPadding}px`,
+                }}
+              >
+                <div className="product-carousel-card__media">
                   {prod.image ? (
-                    <img
-                      src={prod.image}
-                      alt={prod.product_name}
-                      style={{
-                        width: 'clamp(120px, 32vw, 180px)',
-                        height: 'clamp(120px, 32vw, 180px)',
-                        objectFit: 'cover',
-                        borderRadius: '10px',
-                        border: '2px solid #e5e7eb',
-                        flexShrink: 0
-                      }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: 'clamp(120px, 32vw, 180px)',
-                      height: 'clamp(120px, 32vw, 180px)',
-                      background: '#f3f4f6',
-                      border: '2px solid #e5e7eb',
-                      borderRadius: '10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      color: '#9ca3af',
-                      fontSize: '36px',
-                      flexShrink: 0
-                    }}>
-                      📷
-                    </div>
-                  )}
+                      <img
+                        src={prod.image}
+                        alt={prod.product_name}
+                        className="product-carousel-card__preview"
+                      />
+                    ) : (
+                      <div className="product-carousel-card__placeholder">
+                        <div className="product-carousel-card__placeholder-content">
+                          <div style={{ fontSize: '34px', lineHeight: 1 }}>📷</div>
+                          <div className="product-carousel-card__placeholder-text">No product image</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
 
-                  <div style={{ flex: '1 1 220px', minWidth: 0, display: 'grid', gap: 16 }}>
-                    <h3 style={{
-                      fontSize: '20px',
-                      fontWeight: '600',
-                      margin: 0,
-                      color: '#1e293b',
-                      wordWrap: 'break-word',
-                      lineHeight: '1.3'
-                    }}>
+                  <div className="product-carousel-card__body">
+                    <div className="product-carousel-card__content">
+                    <h3 className="product-carousel-card__title">
                       {prod.product_name}
                     </h3>
 
-                    <div style={{ display: 'grid', gap: 8 }}>
-                      <div style={{ padding: '3px 0' }}>
-                        <span className="text-muted" style={{ fontWeight: '500', fontSize: '15px' }}>System Code: </span>
-                        <span style={{ fontWeight: '500', fontSize: '15px', color: '#1e293b', wordWrap: 'break-word' }}>
+                    <div className="product-carousel-card__meta">
+                      <div className="product-carousel-card__meta-row">
+                        <span className="text-muted product-carousel-card__meta-label">System Code:</span>
+                        <span className="product-carousel-card__meta-value">
                           {prod.system_code}
                         </span>
                       </div>
-                      <div style={{ padding: '3px 0' }}>
-                        <span className="text-muted" style={{ fontWeight: '500', fontSize: '15px' }}>Supplier Code: </span>
-                        <span style={{ fontWeight: '500', fontSize: '15px', color: '#1e293b', wordWrap: 'break-word' }}>
+                      <div className="product-carousel-card__meta-row">
+                        <span className="text-muted product-carousel-card__meta-label">Supplier Code:</span>
+                        <span className="product-carousel-card__meta-value">
                           {prod.supplier_code}
                         </span>
                       </div>
-                      <div style={{ padding: '3px 0' }}>
-                        <span className="text-muted" style={{ fontWeight: '500', fontSize: '15px' }}>Category: </span>
-                        <span style={{ fontWeight: '500', fontSize: '15px', color: '#1e293b', wordWrap: 'break-word' }}>
+                      <div className="product-carousel-card__meta-row">
+                        <span className="text-muted product-carousel-card__meta-label">Category:</span>
+                        <span className="product-carousel-card__meta-value">
                           {prod.product_category?.name || "N/A"}
                         </span>
                       </div>
                     </div>
+                    </div>
 
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'flex-end',
-                      gap: 10,
-                      marginTop: 12,
-                      flexWrap: 'wrap'
-                    }}>
+                    <div className="product-carousel-card__actions">
                       {canEdit("Product") ? (
-                        <Link to={`/products/${prod.id}/edit`} title="Edit" className="icon-btn icon-btn-edit" style={{ padding: '10px', fontSize: '16px' }}>
+                        <Link to={`/products/${prod.id}/edit`} title="Edit" className="icon-btn icon-btn-edit product-carousel-card__action">
                           <FaEdit aria-hidden="true" />
                           <span className="sr-only">Edit</span>
                         </Link>
                       ) : (
-                        <span title="No access" className="icon-btn icon-btn-disabled" style={{ padding: '10px', fontSize: '16px' }}>
+                        <span title="No access" className="icon-btn icon-btn-disabled product-carousel-card__action">
                           <FaEdit aria-hidden="true" />
                           <span className="sr-only">No edit access</span>
                         </span>
@@ -574,159 +545,57 @@ const ProductList = () => {
                           type="button"
                           onClick={() => handleDelete(prod.id)}
                           title="Delete"
-                          className="icon-btn icon-btn-danger"
-                          style={{ padding: '10px', fontSize: '16px' }}
+                          className="icon-btn icon-btn-danger product-carousel-card__action"
                         >
                           <FaTrash aria-hidden="true" />
                           <span className="sr-only">Delete</span>
                         </button>
                       ) : (
-                        <span title="No access" className="icon-btn icon-btn-disabled" style={{ padding: '10px', fontSize: '16px' }}>
+                        <span title="No access" className="icon-btn icon-btn-disabled product-carousel-card__action">
                           <FaTrash aria-hidden="true" />
                           <span className="sr-only">No delete access</span>
                         </span>
                       )}
                     </div>
                   </div>
-                </div>
               </div>
             ))}
           </div>
 
           {/* Carousel Pagination Controls */}
           {showPagination && (
-            <div style={{
-              display: 'flex',
-              justifyContent: 'center',
-              alignItems: 'center',
-              gap: 20,
-              flexWrap: 'wrap',
-              marginTop: 40,
-              padding: '20px 0',
-              borderTop: '1px solid #e5e7eb'
-            }}>
-              <button
-                onClick={prevPage}
-                disabled={currentPage === 0}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '12px 20px',
-                  border: '1px solid #e5e7eb',
-                  background: currentPage === 0 ? '#f8f9fa' : '#fff',
-                  color: currentPage === 0 ? '#9ca3af' : '#374151',
-                  borderRadius: '8px',
-                  cursor: currentPage === 0 ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-                onMouseEnter={(e) => {
-                  if (currentPage !== 0) {
-                    e.target.style.background = '#f3f4f6';
-                    e.target.style.borderColor = '#d1d5db';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (currentPage !== 0) {
-                    e.target.style.background = '#fff';
-                    e.target.style.borderColor = '#e5e7eb';
-                  }
-                }}
-              >
-                <FaChevronLeft style={{ fontSize: '12px' }} />
-                Previous
-              </button>
+            <div className="product-carousel-footer">
+              <div className="product-carousel-footer__controls">
+                <button
+                  type="button"
+                  onClick={prevPage}
+                  disabled={currentPage === 0}
+                  className="product-carousel-footer__button"
+                >
+                  <FaChevronLeft className="product-carousel-footer__button-icon" />
+                  Previous
+                </button>
 
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 12
-              }}>
-                <div style={{ display: 'flex', gap: 6 }}>
-                  {Array.from({ length: totalPages }).map((_, index) => (
-                    <button
-                      key={index}
-                      onClick={() => goToPage(index)}
-                      style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        border: 'none',
-                        background: index === currentPage ? '#5D5CDE' : '#d1d5db',
-                        cursor: 'pointer',
-                        transition: 'all 0.2s ease'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (index !== currentPage) {
-                          e.target.style.background = '#9ca3af';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (index !== currentPage) {
-                          e.target.style.background = '#d1d5db';
-                        }
-                      }}
-                    />
-                  ))}
-                </div>
-
-                <span style={{
-                  color: '#6b7280',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}>
-                  {currentPage + 1} of {totalPages}
+                <span className="product-carousel-footer__page-indicator">
+                  {currentPage + 1} / {totalPages}
                 </span>
+
+                <button
+                  type="button"
+                  onClick={nextPage}
+                  disabled={currentPage >= totalPages - 1}
+                  className="product-carousel-footer__button"
+                >
+                  Next
+                  <FaChevronRight className="product-carousel-footer__button-icon" />
+                </button>
               </div>
 
-              <button
-                onClick={nextPage}
-                disabled={currentPage >= totalPages - 1}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  padding: '12px 20px',
-                  border: '1px solid #e5e7eb',
-                  background: currentPage >= totalPages - 1 ? '#f8f9fa' : '#fff',
-                  color: currentPage >= totalPages - 1 ? '#9ca3af' : '#374151',
-                  borderRadius: '8px',
-                  cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer',
-                  transition: 'all 0.2s ease',
-                  fontSize: '14px',
-                  fontWeight: '500'
-                }}
-                onMouseEnter={(e) => {
-                  if (currentPage < totalPages - 1) {
-                    e.target.style.background = '#f3f4f6';
-                    e.target.style.borderColor = '#d1d5db';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (currentPage < totalPages - 1) {
-                    e.target.style.background = '#fff';
-                    e.target.style.borderColor = '#e5e7eb';
-                  }
-                }}
-              >
-                Next
-                <FaChevronRight style={{ fontSize: '12px' }} />
-              </button>
-            </div>
-          )}
-
-          {showPagination && (
-            <div style={{
-              textAlign: 'center',
-              marginTop: 16,
-              color: '#6b7280',
-              fontSize: '14px'
-            }}>
-              Showing {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} of {filteredProducts.length} {searchQuery ? 'filtered ' : ''}products for {currentWarehouse.name}
-              <span style={{ marginLeft: '8px', fontSize: '12px', opacity: 0.8 }}>
-                ({productsPerPage} per page)
+              <span className="product-carousel-footer__summary">
+                Showing {startIndex + 1}-{Math.min(endIndex, filteredProducts.length)} of {filteredProducts.length} {searchQuery ? 'filtered ' : ''}products for {currentWarehouse.name}
+                <span className="product-carousel-footer__summary-note">
+                  ({productsPerPage} per page)
+                </span>
               </span>
             </div>
           )}

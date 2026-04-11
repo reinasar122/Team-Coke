@@ -10,7 +10,7 @@ import { useNavigate } from "react-router-dom";
 import { FaEye, FaEyeSlash } from "react-icons/fa";
 import ForgotPasswordModal from "./ForgotPassword";
 import VerifyOTPModal from "./VerifyOTP";
-import { routeMap, routeOrder } from "../utils/routeMap";
+import { getDefaultAccessibleRoute } from "../utils/accessUtils";
 import api from "../api";
 
 // Spinner component
@@ -165,12 +165,6 @@ const Login = () => {
       return () => document.removeEventListener("mousedown", handleOutsideClick);
     }
   }, [showRecentNumbers]);
-
-  const getAccessibleRoutes = () => {
-    const accessList = JSON.parse(localStorage.getItem("access") || "[]");
-    const allowed = new Set(accessList.filter((acc) => acc.full || acc.view).map((acc) => acc.submenu));
-    return routeOrder.filter((submenu) => allowed.has(submenu) && routeMap[submenu]);
-  };
 
   const isDefaultAdmin = (user) => {
     const normalizedRole = String(user?.role || "").toLowerCase();
@@ -418,8 +412,8 @@ const Login = () => {
   // ✅ redirect after login success
   useEffect(() => {
     if (loginSuccessful) {
-      const accessibleRoutes = getAccessibleRoutes();
-      navigate(accessibleRoutes.length > 0 ? accessibleRoutes[0] : "/no-access");
+      const nextRoute = getDefaultAccessibleRoute();
+      navigate(nextRoute || "/no-access", { replace: true });
     }
   }, [loginSuccessful, navigate]);
 
