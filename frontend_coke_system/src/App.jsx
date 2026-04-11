@@ -40,6 +40,7 @@ import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
 import ReservationList from "./pages/ReservationList";
 import ReservationDetailPage from "./pages/ReservationDetailPage";
+import ReservationCancelledDetails from "./pages/ReservationCancelledDetails";
 import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -342,6 +343,7 @@ const ProtectedLayout = ({
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/reservationlist" element={<ReservationList />} />
             <Route path="/reservation-details/:id" element={<ReservationDetailPage />} />
+            <Route path="/reservation-cancelled-details/:id" element={<ReservationCancelledDetails />} />
             <Route
               path="/merchandising"
               element={

@@ -341,6 +341,15 @@ const MerchandisingList = ({ view = "trading" }) => {
       s === "in progress" ||
       s === "in-progress";
 
+    // NEW: Handle cancelled reservations
+    const isCancelled = s === "cancelled" || s === "canceled";
+    if (isCancelled && isReservationView) {
+      navigate(`/reservation-cancelled-details/${sale.id}`, {
+        state: { sale },
+      });
+      return;
+    }
+
     if (isVanLoad && isCompleted) {
       navigate(`/van-load-product-details/${sale.id}`, { state: { sale } });
       return;
