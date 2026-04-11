@@ -93,7 +93,7 @@ DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
          'NAME': 'cokedb6',
-         'USER': 'cokeuser',
+         'USER': 'cokedb6',
          'PASSWORD': '@-@CokE123',
          'HOST': '192.168.0.167',
          'PORT': '3306',

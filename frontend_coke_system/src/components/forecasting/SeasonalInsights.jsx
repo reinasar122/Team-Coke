@@ -2,15 +2,19 @@
 import React from "react";
 
 export const SeasonalInsights = ({ insights }) => {
+  // Accuracy = 100% - MAPE Error
+  const mapeError = Number(insights.mapeError || 0);
+  const accuracy = Math.max(0, 100 - mapeError);
+
   const cards = [
     {
       label: "Weekly Peak Day",
-      value: insights.weeklyPeakDay,
+      value: insights.primaryPeakValue || "No data",
       icon: "📅",
     },
     {
       label: "Yearly Peak Month",
-      value: insights.yearlyPeakMonth,
+      value: insights.secondaryPeakValue || "No data",
       icon: "📆",
     },
     {
@@ -20,8 +24,8 @@ export const SeasonalInsights = ({ insights }) => {
       valueClass: "text-emerald-600",
     },
     {
-      label: "MAPE Accuracy", //Karen Changes
-      value: `${Number(insights.mape || 0).toFixed(2)}%`,
+      label: "MAPE Accuracy",
+      value: `${accuracy.toFixed(2)}%`,
       icon: "🎯",
     },
   ];
