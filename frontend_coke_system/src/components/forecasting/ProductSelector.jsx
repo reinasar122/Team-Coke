@@ -6,7 +6,7 @@ export const ProductSelector = ({
   products,
   selectedProduct,
   onChange,
-  isGenerating = false,
+  onGenerate,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
 

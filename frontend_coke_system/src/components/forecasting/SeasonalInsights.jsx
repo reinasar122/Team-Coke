@@ -1,46 +1,28 @@
 // src/components/forecasting/SeasonalInsights.jsx
 import React from "react";
-import { FaCalendar, FaCalendarAlt, FaChartLine, FaBullseye } from "react-icons/fa";
 
 export const SeasonalInsights = ({ insights }) => {
-  const accuracyValue =
-    insights.forecastAccuracy != null
-      ? `${Number(insights.forecastAccuracy).toFixed(2)}%`
-      : "Pending";
-
-  const accuracyClass =
-    insights.forecastAccuracy == null
-      ? "text-slate-500"
-      : insights.forecastAccuracy >= 90
-      ? "text-emerald-600"
-      : insights.forecastAccuracy >= 80
-      ? "text-green-600"
-      : insights.forecastAccuracy >= 60
-      ? "text-orange-500"
-      : "text-red-500";
-
   const cards = [
     {
-      label: insights.primaryPeakLabel || "Weekly Peak Day",
-      value: insights.primaryPeakValue,
-      icon: <FaCalendarAlt />,
+      label: "Weekly Peak Day",
+      value: insights.weeklyPeakDay,
+      icon: "📅",
     },
     {
-      label: insights.secondaryPeakLabel || "Yearly Peak Month",
-      value: insights.secondaryPeakValue,
-      icon: <FaCalendar />,
+      label: "Yearly Peak Month",
+      value: insights.yearlyPeakMonth,
+      icon: "📆",
     },
     {
       label: "Trend Direction",
       value: insights.trendDirection,
-      icon: <FaChartLine />,
+      icon: "📈",
       valueClass: "text-emerald-600",
     },
     {
-      label: "Forecast Accuracy",
-      value: accuracyValue,
-      icon: <FaBullseye />,
-      valueClass: accuracyClass,
+      label: "MAPE Accuracy", //Karen Changes
+      value: `${Number(insights.mape || 0).toFixed(2)}%`,
+      icon: "🎯",
     },
   ];
 
@@ -76,36 +58,26 @@ export const SeasonalInsights = ({ insights }) => {
         ))}
       </div>
 
-      {insights.forecastAccuracy == null ? (
-        <div className="mt-4 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-xl p-3">
-          Forecast accuracy will appear once there are matching actual sales rows to compare against the forecast.
-        </div>
-      ) : (
-        <div className="mt-4 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-xl p-3">
-          <p className="font-semibold text-gray-700 mb-1">
-            Forecast Accuracy Guide
-          </p>
-          <ul className="space-y-0.5">
-            <li>
-              <span className="font-medium text-emerald-600">90-100%</span> - Excellent
-            </li>
-            <li>
-              <span className="font-medium text-green-600">80-89%</span> - Good
-            </li>
-            <li>
-              <span className="font-medium text-orange-500">60-79%</span> - Moderate
-            </li>
-            <li>
-              <span className="font-medium text-red-500">&lt;60%</span> - Low
-            </li>
-          </ul>
-          <p className="mt-2 text-[11px] text-gray-500">
-            Based on {insights.comparableDays || 0} comparable {insights.comparableUnit || "day"}
-            {insights.comparableDays === 1 ? "" : "s"}
-            {insights.mapeError != null ? ` with a MAPE error of ${Number(insights.mapeError).toFixed(2)}%` : ""}.
-          </p>
-        </div>
-      )}
+      {/* 🔽 MAPE Accuracy Guide Label */}
+      <div className="mt-4 text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-xl p-3">
+        <p className="font-semibold text-gray-700 mb-1">
+          MAPE Accuracy Guide
+        </p>
+        <ul className="space-y-0.5">
+          <li>
+            <span className="font-medium text-emerald-600">0–10%</span> – Excellent (Very reliable)
+          </li>
+          <li>
+            <span className="font-medium text-green-600">10–20%</span> – Good (Reliable for planning)
+          </li>
+          <li>
+            <span className="font-medium text-orange-500">20–50%</span> – Moderate (Use with caution)
+          </li>
+          <li>
+            <span className="font-medium text-red-500">&gt;50%</span> – Low (Not reliable)
+          </li>
+        </ul>
+      </div>
     </>
   );
 };

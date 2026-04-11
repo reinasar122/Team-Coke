@@ -1,5 +1,5 @@
 // src/pages/ForecastingDashboard.jsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 
 import { ForecastOverviewCards } from "../components/forecasting/ForecastOverviewCards";
 import { ProductSelector } from "../components/forecasting/ProductSelector";
@@ -9,8 +9,7 @@ import { BestSellerRanking } from "../components/forecasting/BestSellerRanking";
 import { InventoryRecommendations } from "../components/forecasting/InventoryRecommendations";
 import { SeasonalInsights } from "../components/forecasting/SeasonalInsights";
 import { HolidayCalendar } from "../components/forecasting/HolidayCalendar";
-import api from "../api";
-import { getCurrentWarehouse } from "../utils/warehouseUtils";
+import api from "../api"; // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ use shared API instance
 import { FaChartLine } from "react-icons/fa";
 import "../styles/pages/forecasting.scss";
 
@@ -18,94 +17,6 @@ const extractList = (data) => {
   if (Array.isArray(data)) return data;
   if (data && Array.isArray(data.results)) return data.results;
   return [];
-};
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const toDateKey = (date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const getDateFromKey = (dateKey) => {
-  const [year, month, day] = String(dateKey).split("-").map(Number);
-  return new Date(year, month - 1, day);
-};
-
-const toMonthKey = (value) => {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${year}-${month}`;
-};
-
-const getMonthDateFromKey = (monthKey) => {
-  const [year, month] = String(monthKey).split("-").map(Number);
-  return new Date(year, (month || 1) - 1, 1);
-};
-
-const formatForecastMonth = (monthKey) => {
-  if (!monthKey) return "No month";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    year: "numeric",
-  }).format(getMonthDateFromKey(monthKey));
-};
-
-const getRowDateKey = (row) => String(row.date || row.ds || "").slice(0, 10);
-
-const getNextYearSameDateKey = () => {
-  const today = new Date();
-  return toDateKey(
-    new Date(today.getFullYear() + 1, today.getMonth(), today.getDate())
-  );
-};
-
-const getNextMonthKey = () => {
-  const today = new Date();
-  return toMonthKey(new Date(today.getFullYear(), today.getMonth() + 1, 1));
-};
-
-const getForecastDaysForTarget = (dateKey) => {
-  const today = new Date();
-  const start = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-  const target = getDateFromKey(dateKey);
-  const diffDays = Math.ceil((target.getTime() - start.getTime()) / DAY_MS);
-  return Math.max(30, diffDays);
-};
-
-const formatForecastDate = (dateKey) => {
-  if (!dateKey) return "No date";
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "2-digit",
-    year: "numeric",
-  }).format(getDateFromKey(dateKey));
-};
-
-const getProductName = (product) =>
-  product?.product_name || product?.name || product?.product || "";
-
-const forecastCoversDate = (rows, dateKey) =>
-  (rows || []).some((row) => getRowDateKey(row) >= dateKey);
-
-const getNext30ForecastTotal = (rows) => {
-  const todayKey = toDateKey(new Date());
-  const futureRows = (rows || []).filter((row) => getRowDateKey(row) >= todayKey);
-  const sourceRows = futureRows.length ? futureRows : rows || [];
-
-  return sourceRows
-    .slice(0, 30)
-    .reduce((sum, row) => sum + Number(row.forecast || 0), 0);
-};
-
-const getSpeedCategory = (forecast30) => {
-  if (forecast30 > 1000) return "fast";
-  if (forecast30 > 300) return "stable";
-  return "slow";
 };
 
 // Karen Changes: Normalize forecast rows coming from API
@@ -127,43 +38,6 @@ const normalizeForecastRows = (rows) =>
         : null,
   }));
 
-const aggregateForecastRowsByMonth = (rows) => {
-  const buckets = new Map();
-
-  (rows || []).forEach((row) => {
-    const rowDateKey = getRowDateKey(row);
-    if (!rowDateKey) return;
-
-    const monthKey = toMonthKey(getDateFromKey(rowDateKey));
-    if (!monthKey) return;
-
-    const existing =
-      buckets.get(monthKey) || {
-        periodKey: monthKey,
-        date: formatForecastMonth(monthKey),
-        forecast: 0,
-        lower: 0,
-        upper: 0,
-        actual: null,
-      };
-
-    existing.forecast += Number(row.forecast || 0);
-    existing.lower += Number(row.lower || 0);
-    existing.upper += Number(row.upper || 0);
-
-    const actual = row.actual != null ? Number(row.actual) : null;
-    if (Number.isFinite(actual)) {
-      existing.actual = (existing.actual ?? 0) + actual;
-    }
-
-    buckets.set(monthKey, existing);
-  });
-
-  return [...buckets.values()].sort((a, b) =>
-    String(a.periodKey).localeCompare(String(b.periodKey))
-  );
-};
-
 export default function ForecastingDashboard() {
   const [products, setProducts] = useState([]);
   const [selectedProductName, setSelectedProductName] = useState("");
@@ -175,13 +49,9 @@ export default function ForecastingDashboard() {
 
   const [bestSellerData, setBestSellerData] = useState([]);
   const [inventoryData, setInventoryData] = useState([]);
-  const [forecastBasis, setForecastBasis] = useState("monthly");
 
   // NEW: stocks from backend
   const [stocks, setStocks] = useState([]);
-  const currentWarehouse = useMemo(() => getCurrentWarehouse(), []);
-  const warehouseId = currentWarehouse?.id ?? null;
-  const targetForecastDate = useMemo(() => getNextYearSameDateKey(), []);
 
   // -----------------------
   // 1) Fetch product list
@@ -189,9 +59,7 @@ export default function ForecastingDashboard() {
   useEffect(() => {
     const fetchProducts = async () => {
       try {
-        const res = await api.get("products/", {
-          params: warehouseId ? { warehouse_id: warehouseId } : {},
-        });
+        const res = await api.get("products/");
         const data = res.data;
         const list = Array.isArray(data)
           ? data
@@ -207,7 +75,7 @@ export default function ForecastingDashboard() {
           setSelectedProductName(firstName);
         }
       } catch (err) {
-        console.error("Failed to load products:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load products:", err);
         const msg =
           err.response?.data?.detail ||
           err.message ||
@@ -217,7 +85,7 @@ export default function ForecastingDashboard() {
     };
 
     fetchProducts();
-  }, [warehouseId]);
+  }, []);
 
   // -----------------------
   // 1b) Fetch stocks
@@ -225,10 +93,8 @@ export default function ForecastingDashboard() {
   useEffect(() => {
     const fetchStocks = async () => {
       try {
-        const res = await api.get("stocks/", {
-          params: warehouseId ? { warehouse: warehouseId } : {},
-        });
-        console.log("/api/stocks/ response:", res.data);
+        const res = await api.get("stocks/");
+        console.log("ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ¢â‚¬Â° /api/stocks/ response:", res.data);
 
         const data = res.data;
         const list = Array.isArray(data)
@@ -237,19 +103,42 @@ export default function ForecastingDashboard() {
           ? data.results
           : [];
 
-        console.log("Parsed stocks list:", list);
+        console.log("ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ¢â‚¬Â° parsed stocks list:", list);
         setStocks(list);
       } catch (err) {
-        console.error("Failed to load stocks:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load stocks:", err);
       }
     };
 
     fetchStocks();
-  }, [warehouseId]);
+  }, []);
 
   // Build a fast lookup map: productId -> quantity
-  const getCurrentStock = useCallback((productName) => {
+  const stockByProductId = useMemo(() => {
+    const map = {};
+    stocks.forEach((s) => {
+      const id = s.product?.id ?? s.product_id ?? null;
+      if (id == null) return;
+
+      const qty =
+        s.quantity_available ??
+        s.quantity_available_pcs ??
+        s.quantity ??
+        s.current_stock ??
+        0;
+
+      map[Number(id)] = Number(qty) || 0;
+    });
+    return map;
+  }, [stocks]);
+
+  // warehouse id (for picking correct stock row)
+  const warehouseId =
+    JSON.parse(localStorage.getItem("warehouse") || "{}")?.id ?? null;
+
+  const getCurrentStock = (productName) => {
     if (!productName || !stocks.length) return 0;
+
     const normalized = productName.trim().toLowerCase();
 
     const candidates = stocks.filter(
@@ -259,7 +148,7 @@ export default function ForecastingDashboard() {
     );
 
     if (!candidates.length) {
-      console.log("No stock rows for", productName, "stocks:", stocks);
+      console.log("ÃƒÂ¢Ã‚ÂÃ…â€™ No stock rows for", productName, "stocks:", stocks);
       return 0;
     }
 
@@ -281,7 +170,7 @@ export default function ForecastingDashboard() {
       0;
 
     return Number(qty) || 0;
-  }, [stocks, warehouseId]);
+  };
 
   // -----------------------
   // 2) Fetch HOLIDAYS
@@ -292,218 +181,232 @@ export default function ForecastingDashboard() {
         const res = await api.get("holidays/");
         setHolidays(extractList(res.data));
       } catch (err) {
-        console.error("Failed to load holidays:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load holidays:", err);
       }
     };
 
     fetchHolidays();
   }, []);
 
-  // Fetch or generate forecasts for selected product
+  // Fetch forecasts for selected product
   useEffect(() => {
     if (!selectedProductName || !products.length) return;
 
-    let cancelled = false;
-
-    const matchingProducts = products.filter(
-      (product) => getProductName(product) === selectedProductName
-    );
-
-    const isNoSalesHistoryError = (err) =>
-      String(err.response?.data?.detail || err.message || "")
-        .toLowerCase()
-        .includes("no sales history");
-
-    const fetchRowsForProduct = async (product) => {
-      const params = {
-        product_id: product.id,
-        ...(warehouseId ? { warehouse_id: warehouseId } : {}),
-      };
-      const res = await api.get("forecasts/", { params });
-      return extractList(res.data);
-    };
-
-    const generateRowsForProduct = async (product) => {
-      await api.post("forecasts/generate/", {
-        product: product.id,
-        days: getForecastDaysForTarget(targetForecastDate),
-        target_date: targetForecastDate,
-        warehouse_id: warehouseId,
-      });
-      return fetchRowsForProduct(product);
-    };
-
     const fetchForecastForSelectedProduct = async () => {
       setLoading(true);
-      setGenerating(false);
       setError(null);
 
       try {
-        if (!matchingProducts.length) {
-          if (!cancelled) setForecastData([]);
+        const productObj = products.find(
+          (p) => (p.product_name || p.name || p.product) === selectedProductName
+        );
+
+        if (!productObj) {
+          setForecastData([]);
+          setLoading(false);
           return;
         }
 
-        const forecastCoversTarget = (rows) =>
-          rows.some((row) => getRowDateKey(row) >= targetForecastDate);
+        const res = await api.get("forecasts/", {
+          params: { product_id: productObj.id },
+        });
 
-        let raw = [];
-        let productToGenerate = matchingProducts[0];
-
-        for (const product of matchingProducts) {
-          const productRows = await fetchRowsForProduct(product);
-          if (!productRows.length) continue;
-
-          raw = productRows;
-          productToGenerate = product;
-          if (forecastCoversTarget(productRows)) break;
-        }
-
-        if (!raw.length || !forecastCoversTarget(raw)) {
-          setGenerating(true);
-
-          const productsToTry = raw.length ? [productToGenerate] : matchingProducts;
-
-          for (const product of productsToTry) {
-            try {
-              raw = await generateRowsForProduct(product);
-              if (raw.length && forecastCoversTarget(raw)) break;
-            } catch (generateErr) {
-              if (!isNoSalesHistoryError(generateErr)) throw generateErr;
-            }
-          }
-        }
-
-        if (!cancelled) {
-          setForecastData(normalizeForecastRows(raw));
-          setError(null);
-        }
+        const raw = extractList(res.data);
+        const normalized = normalizeForecastRows(raw); // Karen Changes
+        setForecastData(normalized);
       } catch (err) {
-        if (cancelled) return;
-        console.error("Failed to fetch or generate forecasts:", err);
-        if (!isNoSalesHistoryError(err)) {
-          const msg =
-            err.response?.data?.detail ||
-            err.message ||
-            "Failed to fetch or generate forecasts from API";
-          setError(msg);
-        }
-        setForecastData([]);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to fetch forecasts:", err);
+        const msg =
+          err.response?.data?.detail ||
+          err.message ||
+          "Failed to fetch forecasts from API";
+        setError(msg);
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-          setGenerating(false);
-        }
+        setLoading(false);
       }
     };
 
     fetchForecastForSelectedProduct();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedProductName, products, warehouseId, targetForecastDate]);
+  }, [selectedProductName, products]);
 
   // -----------------------
-  // 3) Auto-sync forecasts for all current-warehouse products
+  // 3) Fetch FORECASTS for ALL products (for inventory table)
   // -----------------------
   useEffect(() => {
     if (!products.length) return;
 
-    let cancelled = false;
+    const fetchForecastsForAllProducts = async () => {
+      setLoading(true);
+      setError(null);
 
-    const isNoSalesHistoryError = (err) =>
-      String(err.response?.data?.detail || err.message || "")
-        .toLowerCase()
-        .includes("no sales history");
-
-    const fetchRowsForProduct = async (product) => {
-      const res = await api.get("forecasts/", {
-        params: {
-          product_id: product.id,
-          ...(warehouseId ? { warehouse_id: warehouseId } : {}),
-        },
-      });
-      return extractList(res.data);
-    };
-
-    const generateRowsForProduct = async (product) => {
-      await api.post("forecasts/generate/", {
-        product: product.id,
-        days: getForecastDaysForTarget(targetForecastDate),
-        target_date: targetForecastDate,
-        warehouse_id: warehouseId,
-      });
-      return fetchRowsForProduct(product);
-    };
-
-    const syncForecastsForAllProducts = async () => {
       try {
         const allInventoryData = [];
-        const ranking = [];
 
         for (const product of products) {
-          const productName = getProductName(product);
-          if (!productName || product.id == null) continue;
+          const res = await api.get("forecasts/", {
+            params: { product_id: product.id },
+          });
 
-          let forecasts = await fetchRowsForProduct(product);
+          const forecasts = extractList(res.data);
+          const total30DayForecast = forecasts
+            .slice(0, 30)
+            .reduce((sum, row) => sum + (row.forecast || 0), 0);
 
-          if (!forecastCoversDate(forecasts, targetForecastDate)) {
-            try {
-              forecasts = await generateRowsForProduct(product);
-            } catch (generateErr) {
-              if (!isNoSalesHistoryError(generateErr)) throw generateErr;
-              forecasts = [];
-            }
-          }
-
-          const normalizedForecasts = normalizeForecastRows(forecasts);
-          const total30DayForecast = getNext30ForecastTotal(normalizedForecasts);
-          const currentStock = getCurrentStock(productName);
+          const currentStock = getCurrentStock(product.product_name);
           const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
 
           allInventoryData.push({
-            product: productName,
+            product: product.product_name,
             forecast30Day: total30DayForecast,
             currentStock,
             restock: restockNeeded,
           });
-
-          if (total30DayForecast > 0) {
-            ranking.push({
-              product: productName,
-              projectedSales: total30DayForecast,
-              speedCategory: getSpeedCategory(total30DayForecast),
-            });
-          }
         }
 
-        ranking.sort((a, b) => b.projectedSales - a.projectedSales);
-
-        if (!cancelled) {
-          setInventoryData(allInventoryData);
-          setBestSellerData(ranking);
-        }
+        setInventoryData(allInventoryData);
       } catch (err) {
-        if (cancelled) return;
-        console.error("Failed to sync all product forecasts:", err);
+        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to fetch forecasts:", err);
         const msg =
           err.response?.data?.detail ||
           err.message ||
-          "Failed to sync product forecasts from API";
+          "Failed to fetch forecasts from API";
         setError(msg);
+      } finally {
+        setLoading(false);
       }
     };
 
-    syncForecastsForAllProducts();
+    fetchForecastsForAllProducts();
+  }, [products]);
 
-    return () => {
-      cancelled = true;
+  // -----------------------
+  // 3b) Selected product summary + inventory
+  // -----------------------
+  useEffect(() => {
+    if (!forecastData.length || !selectedProductName) {
+      setBestSellerData([]);
+      setInventoryData([]);
+      return;
+    }
+
+    const total30DayForecast = forecastData
+      .slice(0, 30)
+      .reduce((sum, row) => sum + (row.forecast || 0), 0);
+
+    setBestSellerData([
+      {
+        product: selectedProductName,
+        projectedSales: total30DayForecast,
+        speedCategory:
+          total30DayForecast > 1000
+            ? "fast"
+            : total30DayForecast > 300
+            ? "stable"
+            : "slow",
+      },
+    ]);
+
+    const currentStock = getCurrentStock(selectedProductName);
+    const restockNeeded = Math.max(total30DayForecast - currentStock, 0);
+
+    setInventoryData([
+      {
+        product: selectedProductName,
+        forecast30Day: total30DayForecast,
+        currentStock,
+        restock: restockNeeded,
+      },
+    ]);
+  }, [forecastData, selectedProductName, stocks]);
+
+  // -----------------------
+  // GLOBAL BEST SELLER (all products)
+  // -----------------------
+  useEffect(() => {
+    const fetchGlobalForecasts = async () => {
+      try {
+        const res = await api.get("forecasts/");
+        const allForecasts = extractList(res.data);
+        if (!allForecasts.length) return;
+
+        const grouped = {};
+        allForecasts.forEach((row) => {
+          const pName = row.product_name || row.product;
+          if (!grouped[pName]) grouped[pName] = [];
+          grouped[pName].push(row);
+        });
+
+        const ranking = [];
+
+        Object.keys(grouped).forEach((name) => {
+          const forecast30 = grouped[name]
+            .slice(0, 30)
+            .reduce((sum, r) => sum + (r.forecast || 0), 0);
+
+          let speed = "slow";
+          if (forecast30 > 1000) speed = "fast";
+          else if (forecast30 > 300) speed = "stable";
+
+          ranking.push({
+            product: name,
+            projectedSales: forecast30,
+            speedCategory: speed,
+          });
+        });
+
+        ranking.sort((a, b) => b.projectedSales - a.projectedSales);
+        setBestSellerData(ranking);
+      } catch (err) {
+        console.log("ÃƒÂ¢Ã‚ÂÃ…â€™ Global ranking failed:", err);
+      }
     };
-  }, [products, warehouseId, targetForecastDate, getCurrentStock]);
 
-  // Selected product chart and AI suggestion use forecastData directly.
-  // Ranking and inventory stay warehouse-wide through the auto-sync above.
+    fetchGlobalForecasts();
+  }, [products, forecastData]);
+
+  // -----------------------
+  // 4) Generate FORECAST
+  // -----------------------
+  const handleGenerateForecast = async (days = 30) => {
+    setGenerating(true);
+    setError(null);
+
+    try {
+      const productObj = products.find(
+        (p) =>
+          (p.product_name || p.name || p.product) === selectedProductName
+      );
+
+      if (!productObj) {
+        setError("Please select a valid product");
+        setGenerating(false);
+        return;
+      }
+
+      await api.post("forecasts/generate/", {
+        product: productObj.id,
+        days,
+      });
+
+      // Karen Changes: after generating, re-fetch via GET so we include `actual`
+      const res2 = await api.get("forecasts/", {
+        params: { product_id: productObj.id },
+      });
+
+      const raw2 = extractList(res2.data);
+      const normalized2 = normalizeForecastRows(raw2);
+      setForecastData(normalized2);
+    } catch (err) {
+      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Generate forecast failed:", err);
+      const msg =
+        err.response?.data?.detail ||
+        err.message ||
+        "Generate forecast failed";
+      setError(msg);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   // -----------------------
   // 5) Holiday handlers
@@ -516,7 +419,7 @@ export default function ForecastingDashboard() {
       });
       setHolidays((prev) => [...prev, res.data]);
     } catch (err) {
-      console.error("Failed to create holiday:", err);
+      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to create holiday:", err);
     }
   };
 
@@ -525,73 +428,23 @@ export default function ForecastingDashboard() {
       await api.delete(`holidays/${id}/`);
       setHolidays((prev) => prev.filter((h) => h.id !== id));
     } catch (err) {
-      console.error("Failed to remove holiday:", err);
+      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to remove holiday:", err);
     }
   };
 
   // -----------------------
-  // 4b) Handle manual forecast generation
-  // -----------------------
-  const handleGenerateForecast = useCallback(async (days = 30) => {
-    if (!selectedProductName || !products.length) return;
-
-    const matchingProducts = products.filter(
-      (product) => getProductName(product) === selectedProductName
-    );
-
-    if (!matchingProducts.length) return;
-
-    setGenerating(true);
-    setError(null);
-
-    try {
-      const product = matchingProducts[0];
-
-      await api.post("forecasts/generate/", {
-        product: product.id,
-        days,
-        warehouse_id: warehouseId,
-      });
-
-      // Fetch the generated forecast data
-      const res = await api.get("forecasts/", {
-        params: {
-          product_id: product.id,
-          ...(warehouseId ? { warehouse_id: warehouseId } : {}),
-        },
-      });
-
-      const raw = extractList(res.data);
-      setForecastData(normalizeForecastRows(raw));
-    } catch (err) {
-      console.error("Failed to generate forecast:", err);
-      const msg =
-        err.response?.data?.detail ||
-        err.message ||
-        "Failed to generate forecast";
-      setError(msg);
-    } finally {
-      setGenerating(false);
-    }
-  }, [selectedProductName, products, warehouseId]);
-
-  // -----------------------
   // 6) Derived UI data
   // -----------------------
-  const productNames = Array.from(
-    new Set(
-      products
-        .map((p) => p.product_name || p.name || p.product)
-        .filter(Boolean)
-    )
+  const productNames = products.map(
+    (p) => p.product_name || p.name || p.product
   );
 
   const overview = useMemo(() => {
     if (!bestSellerData.length) {
       return {
         totalPredictedSales: 0,
-        topSellingProduct: "No data yet",
-        highestGrowthProduct: "No data yet",
+        topSellingProduct: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â",
+        highestGrowthProduct: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â",
       };
     }
 
@@ -600,8 +453,8 @@ export default function ForecastingDashboard() {
       0
     );
 
-    const topSellingProduct = bestSellerData[0]?.product || "No data yet";
-    const highestGrowthProduct = bestSellerData[0]?.product || "No data yet";
+    const topSellingProduct = bestSellerData[0]?.product || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
+    const highestGrowthProduct = bestSellerData[0]?.product || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
 
     return {
       totalPredictedSales,
@@ -610,37 +463,30 @@ export default function ForecastingDashboard() {
     };
   }, [bestSellerData]);
 
-  const monthlyForecastData = useMemo(
-    () => aggregateForecastRowsByMonth(forecastData),
-    [forecastData]
-  );
-
-  const displayForecastData = useMemo(
-    () => (forecastBasis === "monthly" ? monthlyForecastData : forecastData),
-    [forecastBasis, monthlyForecastData, forecastData]
-  );
-
   const seasonalInsights = useMemo(() => {
-    if (!displayForecastData.length) {
+    if (!forecastData.length) {
       return {
-        primaryPeakLabel:
-          forecastBasis === "monthly" ? "Peak Forecast Month" : "Weekly Peak Day",
-        primaryPeakValue: "No data yet",
-        secondaryPeakLabel:
-          forecastBasis === "monthly" ? "Recurring Peak Month" : "Yearly Peak Month",
-        secondaryPeakValue: "No data yet",
+        weeklyPeakDay: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“",
+        yearlyPeakMonth: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“",
         trendDirection: "Stable",
-        forecastAccuracy: null,
-        mapeError: null,
-        comparableDays: 0,
-        comparableUnit: forecastBasis === "monthly" ? "month" : "day",
+        mape: 0,
       };
     }
 
     const getDate = (row) => new Date(row.date || row.ds);
-    const sortedForecastRows = [...displayForecastData].sort(
-      (a, b) => getDate(a).getTime() - getDate(b).getTime()
-    );
+
+    const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    const weeklySums = new Array(7).fill(0);
+
+    forecastData.forEach((row) => {
+      const d = getDate(row);
+      const value = Number(row.forecast || 0);
+      const dow = d.getDay();
+      weeklySums[dow] += value;
+    });
+
+    const peakDow = weeklySums.indexOf(Math.max(...weeklySums));
+    const weeklyPeakDay = weekdayNames[peakDow];
 
     const monthNames = [
       "Jan",
@@ -656,59 +502,21 @@ export default function ForecastingDashboard() {
       "Nov",
       "Dec",
     ];
-    let primaryPeakLabel = "Weekly Peak Day";
-    let primaryPeakValue = "No data yet";
-    let secondaryPeakLabel = "Yearly Peak Month";
-    let secondaryPeakValue = "No data yet";
+    const monthSums = new Array(12).fill(0);
 
-    if (forecastBasis === "monthly") {
-      const peakMonthRow = sortedForecastRows.reduce((best, row) =>
-        Number(row.forecast || 0) > Number(best?.forecast || 0) ? row : best,
-      null);
+    forecastData.forEach((row) => {
+      const d = getDate(row);
+      const value = Number(row.forecast || 0);
+      const m = d.getMonth();
+      monthSums[m] += value;
+    });
 
-      const recurringMonthSums = new Array(12).fill(0);
-      sortedForecastRows.forEach((row) => {
-        const d = getDate(row);
-        recurringMonthSums[d.getMonth()] += Number(row.forecast || 0);
-      });
+    const peakMonthIdx = monthSums.indexOf(Math.max(...monthSums));
+    const yearlyPeakMonth = monthNames[peakMonthIdx];
 
-      const recurringPeakMonthIdx = recurringMonthSums.indexOf(
-        Math.max(...recurringMonthSums)
-      );
-
-      primaryPeakLabel = "Peak Forecast Month";
-      primaryPeakValue = peakMonthRow?.date || "No data yet";
-      secondaryPeakLabel = "Recurring Peak Month";
-      secondaryPeakValue = monthNames[recurringPeakMonthIdx] || "No data yet";
-    } else {
-      const weekdayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-      const weeklySums = new Array(7).fill(0);
-
-      sortedForecastRows.forEach((row) => {
-        const d = getDate(row);
-        const value = Number(row.forecast || 0);
-        const dow = d.getDay();
-        weeklySums[dow] += value;
-      });
-
-      const peakDow = weeklySums.indexOf(Math.max(...weeklySums));
-
-      const monthSums = new Array(12).fill(0);
-      sortedForecastRows.forEach((row) => {
-        const d = getDate(row);
-        const value = Number(row.forecast || 0);
-        const m = d.getMonth();
-        monthSums[m] += value;
-      });
-
-      const peakMonthIdx = monthSums.indexOf(Math.max(...monthSums));
-      primaryPeakValue = weekdayNames[peakDow];
-      secondaryPeakValue = monthNames[peakMonthIdx];
-    }
-
-    const first = Number(sortedForecastRows[0].forecast || 0);
+    const first = Number(forecastData[0].forecast || 0);
     const last = Number(
-      sortedForecastRows[sortedForecastRows.length - 1].forecast || 0
+      forecastData[forecastData.length - 1].forecast || 0
     );
     const diff = last - first;
     const threshold = first * 0.05;
@@ -717,10 +525,11 @@ export default function ForecastingDashboard() {
     if (diff > threshold) trendDirection = "Increasing";
     else if (diff < -threshold) trendDirection = "Decreasing";
 
-    let comparableDays = 0;
-    let mapeErrorSum = 0;
+    let mape = null;
+    let mapeCount = 0;
+    let mapeSum = 0;
 
-    sortedForecastRows.forEach((row) => {
+    forecastData.forEach((row) => {
       const actual =
         row.actual != null
           ? Number(row.actual)
@@ -732,141 +541,27 @@ export default function ForecastingDashboard() {
 
       const pred = Number(row.forecast || 0);
 
-      if (Number.isFinite(actual) && Number.isFinite(pred) && actual > 0) {
-        const ape = Math.abs((actual - pred) / actual) * 100;
-        mapeErrorSum += ape;
-        comparableDays += 1;
+      if (actual && actual !== 0) {
+        const ape = Math.abs((actual - pred) / actual);
+        mapeSum += ape;
+        mapeCount += 1;
       }
     });
 
-    const mapeError =
-      comparableDays > 0 ? mapeErrorSum / comparableDays : null;
-    const forecastAccuracy =
-      mapeError != null ? Math.max(0, 100 - Math.min(mapeError, 100)) : null;
-
-    return {
-      primaryPeakLabel,
-      primaryPeakValue,
-      secondaryPeakLabel,
-      secondaryPeakValue,
-      trendDirection,
-      forecastAccuracy,
-      mapeError,
-      comparableDays,
-      comparableUnit: forecastBasis === "monthly" ? "month" : "day",
-    };
-  }, [displayForecastData, forecastBasis]);
-
-  const aiSuggestion = useMemo(() => {
-    if (forecastBasis === "monthly") {
-      if (!monthlyForecastData.length) return null;
-
-      const targetMonthKey = getNextMonthKey();
-      const targetRow =
-        monthlyForecastData.find((row) => String(row.periodKey) >= targetMonthKey) ||
-        monthlyForecastData[monthlyForecastData.length - 1];
-
-      if (!targetRow) return null;
-
-      const actualRows = monthlyForecastData
-        .filter((row) => row.actual != null && Number(row.actual) > 0)
-        .sort((a, b) => String(a.periodKey).localeCompare(String(b.periodKey)));
-
-      const sameMonthRows = actualRows.filter(
-        (row) => String(row.periodKey).slice(5) === String(targetRow.periodKey).slice(5)
-      );
-      const basisRows = sameMonthRows.length ? sameMonthRows : actualRows.slice(-3);
-      const basisAverage = basisRows.length
-        ? Math.round(
-            basisRows.reduce((sum, row) => sum + Number(row.actual || 0), 0) /
-              basisRows.length
-          )
-        : null;
-
-      const latestBasis = basisRows[basisRows.length - 1] || null;
-      const sameMonthLabel = new Intl.DateTimeFormat("en-US", {
-        month: "short",
-      }).format(getMonthDateFromKey(targetRow.periodKey));
-
-      return {
-        targetLabel: targetRow.date,
-        forecast: Math.round(Number(targetRow.forecast || 0)),
-        lower: Math.round(Number(targetRow.lower || 0)),
-        upper: Math.round(Number(targetRow.upper || 0)),
-        basisAverage,
-        basisLabel: sameMonthRows.length
-          ? `previous ${sameMonthLabel} monthly sales`
-          : "latest monthly history",
-        latestBasisDate: latestBasis ? latestBasis.date : null,
-        latestBasisActual: latestBasis
-          ? Math.round(Number(latestBasis.actual || 0))
-          : null,
-        unitContext: "for the month",
-      };
+    // Karen Changes
+    if (mapeCount > 0) {
+      mape = (mapeSum / mapeCount) * 100;
+    } else {
+      mape = 0;
     }
 
-    if (!forecastData.length || !targetForecastDate) return null;
-
-    const targetRow = forecastData.find(
-      (row) => getRowDateKey(row) === targetForecastDate
-    );
-    if (!targetRow) return null;
-
-    const actualRows = forecastData
-      .filter(
-        (row) => row.actual != null && Number(row.actual) > 0 && row.date
-      )
-      .sort((a, b) => String(a.date).localeCompare(String(b.date)));
-
-    const targetDate = getDateFromKey(targetForecastDate);
-    const sameDateRows = actualRows.filter(
-      (row) => String(row.date).slice(5) === targetForecastDate.slice(5)
-    );
-    const sameWeekdayRows = actualRows.filter(
-      (row) => getDateFromKey(row.date).getDay() === targetDate.getDay()
-    );
-    const basisRows = sameDateRows.length
-      ? sameDateRows
-      : sameWeekdayRows.length
-      ? sameWeekdayRows
-      : actualRows.slice(-3);
-
-    const basisAverage = basisRows.length
-      ? Math.round(
-          basisRows.reduce((sum, row) => sum + Number(row.actual || 0), 0) /
-            basisRows.length
-        )
-      : null;
-
-    const weekdayLabel = new Intl.DateTimeFormat("en-US", {
-      weekday: "long",
-    }).format(targetDate);
-    const monthDayLabel = new Intl.DateTimeFormat("en-US", {
-      month: "short",
-      day: "2-digit",
-    }).format(targetDate);
-    const latestBasis = basisRows[basisRows.length - 1] || null;
-
-    const basisLabel = sameDateRows.length
-      ? `previous ${monthDayLabel} sales`
-      : sameWeekdayRows.length
-      ? `previous ${weekdayLabel} sales`
-      : "latest sales history";
-
     return {
-      targetLabel: formatForecastDate(targetForecastDate),
-      forecast: Math.round(Number(targetRow.forecast || 0)),
-      lower: Math.round(Number(targetRow.lower || 0)),
-      upper: Math.round(Number(targetRow.upper || 0)),
-      basisAverage,
-      basisLabel,
-      latestBasisDate: latestBasis ? formatForecastDate(latestBasis.date) : null,
-      latestBasisActual: latestBasis
-        ? Math.round(Number(latestBasis.actual || 0))
-        : null,
-      unitContext: "for the day",
+      weeklyPeakDay,
+      yearlyPeakMonth,
+      trendDirection,
+      mape: mape || 0,
     };
-  }, [forecastBasis, monthlyForecastData, forecastData, targetForecastDate]);
+  }, [forecastData]);
 
   // -----------------------
   // 7) Render
@@ -898,7 +593,7 @@ export default function ForecastingDashboard() {
 
         <div className="forecasting-page__panel forecasting-page__panel--hero">
           <h2 className="forecasting-page__section-title">
-            Product Forecast
+            Generate Forecast
           </h2>
           <p className="forecasting-page__section-copy">
             Select a product to view its sales forecast and predictions.
@@ -912,59 +607,16 @@ export default function ForecastingDashboard() {
           />
         </div>
 
-        {aiSuggestion && (
-          <div className="forecasting-page__panel forecasting-page__suggestion-panel">
-            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">
-                  AI Sales Suggestion
-                </p>
-                <h2 className="mt-1 text-xl font-semibold text-gray-900">
-                  {aiSuggestion.targetLabel}: {aiSuggestion.forecast} pcs
-                </h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  Expected range: {aiSuggestion.lower} to {aiSuggestion.upper} pcs {aiSuggestion.unitContext}.
-                </p>
-              </div>
-              <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 md:max-w-xl">
-                {aiSuggestion.basisAverage != null ? (
-                  <p>
-                    Based on {aiSuggestion.basisLabel}, the average was {" "}
-                    <strong>{aiSuggestion.basisAverage} pcs</strong>
-                    {aiSuggestion.latestBasisDate && (
-                      <>
-                        {" "}
-                        with latest match on {aiSuggestion.latestBasisDate} at {" "}
-                        <strong>{aiSuggestion.latestBasisActual} pcs</strong>.
-                      </>
-                    )}
-                  </p>
-                ) : (
-                  <p>Based on available sales history for {selectedProductName}.</p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="forecasting-page__panel">
           {loading ? (
             <div className="forecasting-page__loading">Loading forecasts...</div>
           ) : (
-            <ForecastChart
-              product={selectedProductName}
-              data={displayForecastData}
-              basis={forecastBasis}
-            />
+            <ForecastChart product={selectedProductName} data={forecastData} />
           )}
         </div>
 
         <div className="forecasting-page__panel">
-          <ForecastTable
-            product={selectedProductName}
-            data={displayForecastData}
-            basis={forecastBasis}
-          />
+          <ForecastTable product={selectedProductName} data={forecastData} />
         </div>
 
         <div className="forecasting-page__panel">
