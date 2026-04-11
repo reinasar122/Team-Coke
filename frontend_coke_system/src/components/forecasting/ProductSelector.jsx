@@ -1,7 +1,6 @@
 // src/components/forecasting/ProductSelector.jsx
-// Karen Changes: make selector searchable
 
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 
 export const ProductSelector = ({
   products,
@@ -9,72 +8,70 @@ export const ProductSelector = ({
   onChange,
   onGenerate,
 }) => {
-  // Karen Changes: local state for search text and dropdown open state
-  const [searchTerm, setSearchTerm] = useState(selectedProduct || "");
   const [isOpen, setIsOpen] = useState(false);
 
-  // Karen Changes: keep input in sync when parent changes selected product
-  useEffect(() => {
-    setSearchTerm(selectedProduct || "");
-  }, [selectedProduct]);
-
-  // Karen Changes: filter products by search term
-  const filteredProducts = (products || []).filter((p) =>
-    String(p).toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const handleSelect = (name) => {
-    setSearchTerm(name);
     onChange(name);
     setIsOpen(false);
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      if (filteredProducts.length > 0) {
-        handleSelect(filteredProducts[0]);
-      }
+    // Auto-generate forecast when product is selected
+    if (onGenerate) {
+      onGenerate(30);
     }
   };
 
   return (
     <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center">
-      {/* Karen Changes: searchable combo instead of <select> */}
+      {/* Product dropdown selector */}
       <div className="relative flex-1">
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => {
-            setSearchTerm(e.target.value);
-            setIsOpen(true);
-          }}
-          onFocus={() => setIsOpen(true)}
-          onKeyDown={handleKeyDown}
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-500 bg-gray-50"
-          placeholder="Search product..."
-        />
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-500 bg-gray-50 text-left flex items-center justify-between hover:border-gray-300 transition-colors"
+        >
+          <span className="text-gray-900">{selectedProduct || "Select Product"}</span>
+          <svg
+            className="w-5 h-5 text-gray-600"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 10l5 5 5-5H7z"
+            />
+          </svg>
+        </button>
 
         {isOpen && (
           <div className="absolute mt-1 w-full max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-sm z-20">
-            {filteredProducts.length > 0 ? (
-              filteredProducts.map((p) => (
+            {products && products.length > 0 ? (
+              products.map((p) => (
                 <button
                   key={p}
                   type="button"
-                  onMouseDown={(e) => e.preventDefault()} // Karen Changes: prevent input blur before click
                   onClick={() => handleSelect(p)}
-                  className="block w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                  className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 border-b border-gray-100 last:border-b-0 transition-colors ${
+                    selectedProduct === p ? "bg-red-50 text-red-600 font-medium" : ""
+                  }`}
                 >
                   {p}
                 </button>
               ))
             ) : (
-              <div className="px-3 py-2 text-sm text-gray-400">
-                No products found
+              <div className="px-4 py-2.5 text-sm text-gray-400">
+                No products available
               </div>
             )}
           </div>
+        )}
+
+        {/* Close dropdown when clicking outside */}
+        {isOpen && (
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setIsOpen(false)}
+          />
         )}
       </div>
     </div>

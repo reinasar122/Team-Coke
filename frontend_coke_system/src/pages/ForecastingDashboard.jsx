@@ -603,7 +603,7 @@ export default function ForecastingDashboard() {
             products={productNames.length ? productNames : ["No products"]}
             selectedProduct={selectedProductName}
             onChange={(name) => setSelectedProductName(name)}
-            onGenerate={() => handleGenerateForecast(30)}
+            onGenerate={handleGenerateForecast}
           />
         </div>
 
