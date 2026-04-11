@@ -72,11 +72,31 @@ const StatusPill = ({ status, dueToday = false, overdue = false, reservationMode
   }
   if (st === "cancelled" || st === "canceled")
     return <span className={`${base} merch-status-pill--cancelled`}>Cancelled</span>;
-  if (st.startsWith("complete"))
+  if (st.startsWith("complete") || st === "pickup" || st === "picked up" || st === "picked-up")
     return <span className={`${base} merch-status-pill--completed`}>{reservationMode ? "Picked Up" : "Completed"}</span>;
   if (st === "in progress" || st === "in-progress" || st === "ongoing" || st === "on going")
     return <span className={`${base} merch-status-pill--progress`}>In Progress</span>;
   return <span className={`${base} merch-status-pill--default`}>{status || "\u2014"}</span>;
+};
+
+const isPickedUpStatus = (status) => {
+  const normalized = String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  return normalized.startsWith("complete") || normalized === "pickup" || normalized === "picked up";
+};
+
+const isCancelledStatus = (status) => {
+  const normalized = String(status || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[-_]+/g, " ")
+    .replace(/\s+/g, " ");
+
+  return normalized === "cancelled" || normalized === "canceled";
 };
 
 const MerchandisingList = ({ view = "trading" }) => {
@@ -297,6 +317,14 @@ const MerchandisingList = ({ view = "trading" }) => {
     });
   const handleOpenTrading = () => navigate("/trading");
   const handleOpenReservation = () => navigate("/reservationlist");
+  const handleOpenReservationSaleDetails = (sale) => {
+    if (!sale?.id) return;
+    navigate(`/reservation-sale-details/${sale.id}`, { state: { sale } });
+  };
+  const handleOpenCancelledReservationDetails = (sale) => {
+    if (!sale?.id) return;
+    navigate(`/reservation-cancelled-details/${sale.id}`, { state: { sale } });
+  };
 
   const handleAnyRowClick = (row) => {
     if (row._kind === "warehouse-group") {
@@ -307,6 +335,16 @@ const MerchandisingList = ({ view = "trading" }) => {
     }
 
     if (row._kind === "warehouse-reserved") {
+      if (isPickedUpStatus(row.record?.status)) {
+        handleOpenReservationSaleDetails(row.record);
+        return;
+      }
+
+      if (isCancelledStatus(row.record?.status)) {
+        handleOpenCancelledReservationDetails(row.record);
+        return;
+      }
+
       navigate(`/reservation-details/${row.record.id}`, {
         state: { sale: row.record },
       });
@@ -397,7 +435,7 @@ const MerchandisingList = ({ view = "trading" }) => {
             minWidth: 0,
           }}
         >
-          <h1 className="text-2xl flex items-center gap-2">
+          <h1 className="page-title flex items-center gap-2">
             <FaChartLine /> Trading
           </h1>
 
@@ -408,6 +446,22 @@ const MerchandisingList = ({ view = "trading" }) => {
             </span>
           )}
         </div>
+
+        <button
+          type="button"
+          onClick={handleCreateNew}
+          className="btn btn-add app-page-create-btn"
+          disabled={!currentWarehouse?.id}
+          title={
+            currentWarehouse?.id
+              ? isReservationView
+                ? "Create New Reservation"
+                : "Create New Sale"
+              : "Select a warehouse first"
+          }
+        >
+          {isReservationView ? "+ NEW RESERVATION" : "+ NEW SALE"}
+        </button>
       </div>
 
       <div className="trading-view-toolbar">
@@ -429,15 +483,6 @@ const MerchandisingList = ({ view = "trading" }) => {
             RESERVATION
           </button>
         </div>
-
-        <button
-          onClick={handleCreateNew}
-          className="btn btn-add"
-          disabled={!currentWarehouse?.id}
-          style={{ alignSelf: "flex-start" }}
-        >
-          {isReservationView ? "+ NEW RESERVATION" : "+ NEW SALE"}
-        </button>
       </div>
 
       <div className="table-wrapper">
@@ -496,6 +541,11 @@ const MerchandisingList = ({ view = "trading" }) => {
                 }
 
                 const sale = row.record;
+                const isPickedUpReservation =
+                  row._kind === "warehouse-reserved" && isPickedUpStatus(sale.status);
+                const isCancelledReservation =
+                  row._kind === "warehouse-reserved" && isCancelledStatus(sale.status);
+
                 return (
                   <tr
                     key={sale.id}
@@ -512,7 +562,25 @@ const MerchandisingList = ({ view = "trading" }) => {
                         "\u2014"}
                     </td>
                     <td className="p-2">
-                      <StatusPill status={sale.status} dueToday={Boolean(row.isDueToday)} overdue={Boolean(row.isOverdue)} reservationMode={row._kind === "warehouse-reserved"} />
+                      {isPickedUpReservation || isCancelledReservation ? (
+                        <button
+                          type="button"
+                          className="merch-status-pill-button"
+                          title={isPickedUpReservation ? "View reservation sale details" : "View cancelled reservation items"}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            if (isPickedUpReservation) {
+                              handleOpenReservationSaleDetails(sale);
+                            } else {
+                              handleOpenCancelledReservationDetails(sale);
+                            }
+                          }}
+                        >
+                          <StatusPill status={sale.status} dueToday={Boolean(row.isDueToday)} overdue={Boolean(row.isOverdue)} reservationMode />
+                        </button>
+                      ) : (
+                        <StatusPill status={sale.status} dueToday={Boolean(row.isDueToday)} overdue={Boolean(row.isOverdue)} reservationMode={row._kind === "warehouse-reserved"} />
+                      )}
                     </td>
                   </tr>
                 );

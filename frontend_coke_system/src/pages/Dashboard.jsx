@@ -9,10 +9,9 @@ import React, {
   useRef,
 } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import axios from "axios";
 import "../styles/dashboard.scss";
 import Statistics, { getPeriodRange, periodOptions } from "../components/Statistics";
-import WidgetPickerModal, { SECTIONS, CATALOG_MAP } from "../components/WidgetPickerModal";
+import WidgetPickerModal, { CATALOG_MAP } from "../components/WidgetPickerModal";
 import MetricsCards from "../components/MetricsCards";
 import ProductPerformance from "../components/ProductPerformance";
 import TopSellingProductsWidget from "../components/TopSellingProductsWidget";
@@ -1480,7 +1479,6 @@ async function fetchDashboard(selectedWarehouseIds = [], period = "this-week", c
 /* -------------------- Dashboard Component (Fixed with warehouse utils) -------------------- */
 const Dashboard = () => {
   const location = useLocation();
-   const navigate = useNavigate(); // ✅ Added useNavigate hook
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedIds, setSelectedIds] = useState(loadSelection());
 
@@ -1529,7 +1527,6 @@ const Dashboard = () => {
 
   const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
   const userLS = JSON.parse(localStorage.getItem("user") || "{}");
-  const warehouseMeta = selectedWarehouse || (userLS?.warehouse ? userLS.warehouse : null);
   const isChartSyncing = loading || isPending;
   const activePeriod = isChartSyncing ? appliedPeriod : period;
   const activeCustomStartDate = isChartSyncing ? appliedCustomStartDate : customStartDate;
@@ -1548,6 +1545,21 @@ const Dashboard = () => {
     () => selectedIds.map((id) => CATALOG_MAP.get(id)).filter(Boolean),
     [selectedIds]
   );
+
+  const selectedWarehouseDisplayName = useMemo(() => {
+    const selectedWarehouseId = selectedWarehouseIds[0];
+    if (selectedWarehouseId != null) {
+      return (
+        availableWarehouses.find((warehouse) => warehouse.id === selectedWarehouseId)?.name ||
+        currentWarehouse?.name ||
+        selectedWarehouse?.name ||
+        userLS?.warehouse ||
+        "Unknown"
+      );
+    }
+
+    return currentWarehouse?.name || selectedWarehouse?.name || userLS?.warehouse || "Default Warehouse";
+  }, [selectedWarehouseIds, availableWarehouses, currentWarehouse, selectedWarehouse, userLS]);
 
   // FIXED: loadData function with warehouse utils integration + API import
   const loadData = useCallback(
@@ -1748,6 +1760,9 @@ const Dashboard = () => {
   const handleWarehouseChange = (warehouseIds) => {
     console.log('🏗️ Manual warehouse selection change:', warehouseIds);
     setSelectedWarehouseIds(warehouseIds);
+    setCurrentWarehouse(
+      availableWarehouses.find((warehouse) => warehouse.id === warehouseIds[0]) || null
+    );
     loadData(warehouseIds, period, customStartDate, customEndDate);
   };
 
@@ -1773,15 +1788,6 @@ const Dashboard = () => {
 
     return { revenue, profit, misc };
   }, [lists, activePeriod, activeCustomStartDate, activeCustomEndDate]);
-
-  const smallSummary = {
-    revenue: periodSums.revenue ?? 0,
-    profit: periodSums.profit ?? 0,
-    misc: periodSums.misc ?? 0,
-    productsSold: metrics?.productsSold ?? 0,
-    todaysReturns: metrics?.todaysReturns ?? 0,
-  };
-
 
   // Debug logging
   console.log('📊 Dashboard Debug:', {
@@ -1816,10 +1822,7 @@ const Dashboard = () => {
                   <IconWarehouse /> Viewing:
                 </span>
                 <span className="font-medium">
-                  {selectedWarehouseIds.length === 0 
-                    ? (warehouseMeta?.warehouse || warehouseMeta?.name || "Default Warehouse")
-                    : availableWarehouses.find(w => w.id === selectedWarehouseIds[0])?.name || "Unknown"
-                  }
+                  {selectedWarehouseDisplayName}
                 </span>
               </div>
             </div>
@@ -1842,7 +1845,7 @@ const Dashboard = () => {
 
             <button
               onClick={() => setPickerOpen(true)}
-              className="btn btn-add dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white "
+              className="btn btn-add app-page-create-btn dark:bg-emerald-600 dark:hover:bg-emerald-700 text-white "
             >
               + Add Widgets
             </button>

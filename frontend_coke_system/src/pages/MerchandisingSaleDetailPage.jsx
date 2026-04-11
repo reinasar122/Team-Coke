@@ -86,6 +86,7 @@ export default function MerchandisingSaleDetailPage() {
   const [products, setProducts] = useState([]);
   const [saleItems, setSaleItems] = useState([]); // merchandising.items normalized
   const [availableStock, setAvailableStock] = useState({}); // productId -> pcs
+  const [isDetailLoading, setIsDetailLoading] = useState(Boolean(sale?.id));
 
   const [users, setUsers] = useState([]);
 
@@ -101,6 +102,7 @@ export default function MerchandisingSaleDetailPage() {
  const [editApprovalStatus, setEditApprovalStatus] = useState("none");
  const [editApprovalRequestId, setEditApprovalRequestId] = useState(null);
  const [isSendingApprovalRequest, setIsSendingApprovalRequest] = useState(false);
+ const [isSavingVanLoad, setIsSavingVanLoad] = useState(false);
 
  const currentUser = useMemo(() => {
   try {
@@ -113,6 +115,7 @@ export default function MerchandisingSaleDetailPage() {
   const currentUserRole = String(currentUser?.role || "").toLowerCase();
   const isCashierUser = currentUserRole === "cashier";
   const lastApprovalStatusRef = useRef("none");
+  const isSavingVanLoadRef = useRef(false);
 
   // Callback function to receive updated rows and calculate the total expectedSaleWithoutDiscount
   const handleTotalExpectedSaleWithoutDiscount = (rows) => {
@@ -287,111 +290,121 @@ export default function MerchandisingSaleDetailPage() {
   ------------------------------------*/
 const loadMerchandisingDetail = useCallback(
   async (id, prodListParam) => {
-    if (!id) return;
-    const urls = [`/merchandisings/${id}/`, `/merchandising/${id}/`];
-    let data = null;
-    for (const url of urls) {
-      try {
-        const r = await api.get(url);
-        data = r.data;
-        break;
-      } catch {}
-    }
-    if (!data) {
-      showAlert("Could not load merchandising detail.");
+    if (!id) {
+      setIsDetailLoading(false);
       return;
     }
 
-    // Update saleDetail
-    setSaleDetail(data);
+    setIsDetailLoading(true);
 
-    const prodList = Array.isArray(prodListParam) && prodListParam.length
-      ? prodListParam
-      : products;
+    try {
+      const urls = [`/merchandisings/${id}/`, `/merchandising/${id}/`];
+      let data = null;
+      for (const url of urls) {
+        try {
+          const r = await api.get(url);
+          data = r.data;
+          break;
+        } catch {}
+      }
+      if (!data) {
+        showAlert("Could not load merchandising detail.");
+        return;
+      }
 
-    const items = Array.isArray(data.items) ? data.items : [];
+      // Update saleDetail
+      setSaleDetail(data);
 
-    const mapped = items.map((it) => {
-      const productId = typeof it.product === "object" ? it.product?.id : it.product;
-      const productObj =
-        (typeof it.product === "object" && it.product) ||
-        prodList.find((p) => Number(p.id) === Number(productId));
+      const prodList = Array.isArray(prodListParam) && prodListParam.length
+        ? prodListParam
+        : products;
 
-      const price = productObj?.price || {};
-      const contentNo = productObj?.unit_type?.content_no ?? it.product?.unit_type?.content_no ?? 1;
+      const items = Array.isArray(data.items) ? data.items : [];
 
-      const dispatchedPcs = Number(it.dispatched_pcs || it.dispatchedPcs || 0);
-      const dispatchedShell =
-        it.dispatched_shell !== undefined && it.dispatched_shell !== null
-          ? Number(it.dispatched_shell)
-          : contentNo > 0 ? Math.floor(dispatchedPcs / contentNo) : 0;
+      const mapped = items.map((it) => {
+        const productId = typeof it.product === "object" ? it.product?.id : it.product;
+        const productObj =
+          (typeof it.product === "object" && it.product) ||
+          prodList.find((p) => Number(p.id) === Number(productId));
 
-      const expectedSaleWithoutDiscount = Number(
-        (Number(price.selling_price || 0) * dispatchedPcs).toFixed(2)
+        const price = productObj?.price || {};
+        const contentNo = productObj?.unit_type?.content_no ?? it.product?.unit_type?.content_no ?? 1;
+
+        const dispatchedPcs = Number(it.dispatched_pcs || it.dispatchedPcs || 0);
+        const dispatchedShell =
+          it.dispatched_shell !== undefined && it.dispatched_shell !== null
+            ? Number(it.dispatched_shell)
+            : contentNo > 0 ? Math.floor(dispatchedPcs / contentNo) : 0;
+
+        const expectedSaleWithoutDiscount = Number(
+          (Number(price.selling_price || 0) * dispatchedPcs).toFixed(2)
+        );
+
+        const expectedSale = Number(
+          (Number(price.selling_price || 0) * dispatchedPcs * (1 - Number(it.discount_percent || 0) / 100)).toFixed(2)
+        );
+
+        return {
+          id: it.id,
+          productId,
+          productName: productObj?.product_name || "",
+          contentNo,
+          sellingPricePc: Number(price.selling_price || 0),
+          shellPrice: Number(price.shell_price || 0),
+          bottlePrice: Number(price.bottle_price || 0),
+          dispatchedPcs,
+          dispatchedShell,
+          discount: Number(it.discount_percent || 0),
+          expectedSaleWithoutDiscount,
+          expectedSale,
+        };
+      });
+
+      setSaleItems(mapped);
+
+      const editRows = [
+        ...mapped.map((m, i) => ({
+          id: `${id}-${i}`,
+          dbItemId: m.id,
+          productId: m.productId,
+          productName: m.productName,
+          priceId: prodList.find((p) => Number(p.id) === Number(m.productId))?.price?.id ?? null,
+          contentNo: m.contentNo,
+          dispatchedPcs: m.dispatchedPcs,
+          dispatchedShell: m.dispatchedShell,
+          sellingPrice: m.sellingPricePc,
+          shellPrice: m.shellPrice,
+          bottlePrice: m.bottlePrice,
+          discount: m.discount || 0,
+          expectedSale: m.expectedSale,
+          expectedSaleWithoutDiscount: m.expectedSaleWithoutDiscount,
+        })),
+        {
+          id: Date.now(),
+          productId: "",
+          priceId: null,
+          dispatchedShell: "",
+          dispatchedPcs: "",
+          expectedSale: "",
+          contentNo: "",
+          sellingPrice: "",
+          shellPrice: "",
+          bottlePrice: "",
+        },
+      ];
+      setRows(editRows);
+
+      // Calculate total expected sale
+      setTotalExpectedSale(
+        editRows.reduce((s, r) => s + (Number(r.expectedSale) || 0), 0)
       );
 
-      const expectedSale = Number(
-        (Number(price.selling_price || 0) * dispatchedPcs * (1 - Number(it.discount_percent || 0) / 100)).toFixed(2)
-      );
-
-      return {
-        id: it.id,
-        productId,
-        productName: productObj?.product_name || "",
-        contentNo,
-        sellingPricePc: Number(price.selling_price || 0),
-        shellPrice: Number(price.shell_price || 0),
-        bottlePrice: Number(price.bottle_price || 0),
-        dispatchedPcs,
-        dispatchedShell,
-        discount: Number(it.discount_percent || 0),
-        expectedSaleWithoutDiscount,  // This is where it's calculated
-        expectedSale,
-      };
-    });
-
-    setSaleItems(mapped);
-
-    const editRows = [
-      ...mapped.map((m, i) => ({
-        id: `${id}-${i}`,
-        dbItemId: m.id,
-        productId: m.productId,
-        productName: m.productName,
-        priceId: prodList.find((p) => Number(p.id) === Number(m.productId))?.price?.id ?? null,
-        contentNo: m.contentNo,
-        dispatchedPcs: m.dispatchedPcs,
-        dispatchedShell: m.dispatchedShell,
-        sellingPrice: m.sellingPricePc,
-        shellPrice: m.shellPrice,
-        bottlePrice: m.bottlePrice,
-        discount: m.discount || 0,
-        expectedSale: m.expectedSale,
-        expectedSaleWithoutDiscount: m.expectedSaleWithoutDiscount, // add expectedSaleWithoutDiscount here
-      })),
-      {
-        id: Date.now(),
-        productId: "",
-        priceId: null,
-        dispatchedShell: "",
-        dispatchedPcs: "",
-        expectedSale: "",
-        contentNo: "",
-        sellingPrice: "",
-        shellPrice: "",
-        bottlePrice: "",
-      },
-    ];
-    setRows(editRows);
-
-    // Calculate total expected sale
-    setTotalExpectedSale(
-      editRows.reduce((s, r) => s + (Number(r.expectedSale) || 0), 0)
-    );
-
-    // Pass total expectedSaleWithoutDiscount to parent (for the callback)
-    const totalWithoutDiscount = editRows.reduce((sum, row) => sum + row.expectedSaleWithoutDiscount, 0);
-    setTotalExpectedSaleWithoutDiscount(totalWithoutDiscount);
+      // Pass total expectedSaleWithoutDiscount to parent (for the callback)
+      const totalWithoutDiscount = editRows.reduce((sum, row) => sum + row.expectedSaleWithoutDiscount, 0);
+      setTotalExpectedSaleWithoutDiscount(totalWithoutDiscount);
+    } finally {
+      setIsDetailLoading(false);
+    }
   },
   [products]
 );
@@ -558,6 +571,7 @@ const loadMerchandisingDetail = useCallback(
   };
 
   const handleSaveVanLoadEdit = async () => {
+  if (isSavingVanLoadRef.current) return;
   if (!sale?.id) return showAlert("Sale not found.");
 
   if (isCashierUser && editApprovalStatus !== "approved") {
@@ -595,6 +609,9 @@ const loadMerchandisingDetail = useCallback(
 
   // Check stock availability before making the request
   try {
+    isSavingVanLoadRef.current = true;
+    setIsSavingVanLoad(true);
+
     for (const item of items) {
       const availableQty = availableStock[item.product];
       if (availableQty == null || availableQty < item.dispatched_pcs) {
@@ -611,7 +628,7 @@ const loadMerchandisingDetail = useCallback(
     });
 
     // After saving the Van Load, adjust the available stock
-    items.forEach(async (item) => {
+    await Promise.all(items.map(async (item) => {
       const availableQty = availableStock[item.product];
       const prevDispatched = saleItems.find((si) => si.productId === item.product)?.dispatchedPcs || 0;
 
@@ -661,9 +678,7 @@ const loadMerchandisingDetail = useCallback(
             });
         }
       }
-    });
-
-    showAlert("Van Load updated.");
+    }));
 
     // Cashier approval is single-use per save cycle; next edit requires new admin approval.
     if (isCashierUser) {
@@ -674,6 +689,7 @@ const loadMerchandisingDetail = useCallback(
 
     setEditMode(false);
     await loadMerchandisingDetail(sale.id);
+    window.dispatchEvent(new CustomEvent("stocksChanged"));
 
   } catch (e) {
     console.error("Failed to save Van Load edits:", e?.response?.data || e.message);
@@ -682,6 +698,9 @@ const loadMerchandisingDetail = useCallback(
       e?.response?.data?.detail ||
       "Failed to save changes.";
     showAlert(serverMessage);    
+  } finally {
+    isSavingVanLoadRef.current = false;
+    setIsSavingVanLoad(false);
   }
 };
 
@@ -709,7 +728,7 @@ const loadMerchandisingDetail = useCallback(
   }
 
   // ---------- READ-ONLY Van-Load-style table for the detail page ----------
-  function ReadOnlyVanLoadTable({ items, availableStock }) {
+  function ReadOnlyVanLoadTable({ items, availableStock, isLoading = false }) {
     const pesoLocal = (x) =>
       `\u20B1${Number(x || 0).toLocaleString("en-PH", {
         minimumFractionDigits: 2,
@@ -752,9 +771,15 @@ const loadMerchandisingDetail = useCallback(
           </thead>
 
           <tbody className="bg-white">
-            {items.length === 0 ? (
+            {isLoading ? (
               <tr>
-                <td className="px-4 py-4 text" colSpan={8}>
+                <td className="px-4 py-4 text-center text-gray-500" colSpan={10}>
+                  Loading products...
+                </td>
+              </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td className="px-4 py-4 text" colSpan={10}>
                   No products.
                 </td>
               </tr>
@@ -1055,7 +1080,11 @@ const loadMerchandisingDetail = useCallback(
       {!editMode && (
         <>
           <h3 className="mt-8 mb-3 text-lg font-semibold">Products</h3>
-          <ReadOnlyVanLoadTable items={saleItems} availableStock={availableStock} />
+          <ReadOnlyVanLoadTable
+            items={saleItems}
+            availableStock={availableStock}
+            isLoading={isDetailLoading}
+          />
         </>
       )}
 
@@ -1111,6 +1140,7 @@ const loadMerchandisingDetail = useCallback(
             type="button"
             className="btn btn-cancel"
             onClick={handleCancelEdit}
+            disabled={isSavingVanLoad}
           >
             Cancel
           </button>
@@ -1118,8 +1148,9 @@ const loadMerchandisingDetail = useCallback(
             type="button"
             className="btn btn-primary"
             onClick={handleSaveVanLoadEdit}
+            disabled={isSavingVanLoad}
           >
-            Save
+            {isSavingVanLoad ? "Saving..." : "Save"}
           </button>
         </div>
       )}

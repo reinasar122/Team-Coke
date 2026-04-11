@@ -11,9 +11,8 @@ import {
   faChartBar,
   faChartLine,
 } from "@fortawesome/free-solid-svg-icons";
-import { hasAccess } from "../utils/accessUtils"; // Import the new permission check functions
+import { getAllowedSubmenus, getDefaultAccessibleRoute, hasAccess } from "../utils/accessUtils"; // Import the new permission check functions
 import { canView } from "../utils/accessControl";
-import { routeMap, routeOrder } from "../utils/routeMap"; // Import route map
 
 const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
   const [openDropdown, setOpenDropdown] = useState(null);
@@ -25,14 +24,29 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
 
   // Fetch accessible routes from localStorage or state whenever it changes
   useEffect(() => {
-    const allowedRoutes = routeOrder.filter((submenu) => hasAccess(submenu)); // Get accessible submenus
+    const allowedRoutes = getAllowedSubmenus();
     setAccessibleRoutes(allowedRoutes); // Update the accessible routes state
   }, []); // Empty dependency array to run only once when the component is mounted
 
+  useEffect(() => {
+    const refreshAccessibleRoutes = () => {
+      setAccessibleRoutes(getAllowedSubmenus());
+    };
+
+    window.addEventListener("accessPermissionsUpdated", refreshAccessibleRoutes);
+    window.addEventListener("rolePermissionsUpdated", refreshAccessibleRoutes);
+    window.addEventListener("storage", refreshAccessibleRoutes);
+
+    return () => {
+      window.removeEventListener("accessPermissionsUpdated", refreshAccessibleRoutes);
+      window.removeEventListener("rolePermissionsUpdated", refreshAccessibleRoutes);
+      window.removeEventListener("storage", refreshAccessibleRoutes);
+    };
+  }, []);
+
   // Redirect user to the first available route they have access to when the sidebar loads
   useEffect(() => {
-    const accessibleRoute =
-      accessibleRoutes.length > 0 ? routeMap[accessibleRoutes[0]] : null;
+    const accessibleRoute = getDefaultAccessibleRoute();
     const currentPath = location.pathname;
 
     if (accessibleRoute) {

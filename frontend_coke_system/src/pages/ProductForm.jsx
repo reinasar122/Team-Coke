@@ -45,6 +45,7 @@ const ProductForm = () => {
   const [newContentInput, setNewContentInput] = useState({});
   const [suppliers, setSuppliers] = useState([]);
   const [validationErrors, setValidationErrors] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [notice, setNotice] = useState({
     open: false,
     type: "success",
@@ -401,8 +402,140 @@ const getSupplierInfo = (supplierId) => {
     return validationErrors.some(error => error.rowIndex === rowIndex && error.field === fieldName);
   };
 
+  const persistCreatedProductNotifications = (createdProducts) => {
+    if (createdProducts.length === 0) {
+      return;
+    }
+
+    try {
+      console.log('📦 Products created successfully:', createdProducts.length);
+      console.log('🏭 Notifying ONLY current warehouse users:', currentWarehouse?.name);
+
+      createdProducts.forEach((product) => {
+        const categoryName =
+          categories.find((c) => c.id.toString() === product.formData.product_category.toString())?.name ||
+          'Unknown';
+        const supplierInfo = getSupplierInfo(product.formData.supplier);
+
+        const notificationData = {
+          action: 'created',
+          id: product.id,
+          product_name: product.formData.product_name,
+          product_code: product.formData.system_code,
+          category: categoryName,
+          selling_price: product.formData.selling_price,
+          warehouse_id: currentWarehouse.id,
+          warehouseId: currentWarehouse.id,
+          targetWarehouse: currentWarehouse.id,
+          restrictToWarehouse: true,
+          source_warehouse: {
+            id: currentWarehouse.id,
+            name: currentWarehouse.name
+          },
+          metadata: {
+            supplier_code: product.formData.supplier_code,
+            supplier_name: supplierInfo.name,
+            supplier_prefix: supplierInfo.prefix,
+            purchase_price: product.formData.purchase_price,
+            returnable: product.formData.returnable,
+            created_at: new Date().toISOString(),
+            event_timestamp: Date.now(),
+            persist_immediate: true
+          }
+        };
+
+        // Best-effort notification dispatch; save should not fail if this side effect fails.
+        try {
+          notifyProductChange(notificationData);
+        } catch (notificationError) {
+          console.error('Non-blocking product notification error:', notificationError);
+        }
+
+        setTimeout(() => {
+          try {
+            const warehouseKey = `persistedNotifications_warehouse_${currentWarehouse.id}`;
+            const existingNotifications = JSON.parse(localStorage.getItem(warehouseKey) || '[]');
+
+            const persistentNotification = {
+              id: `product_created_${product.id}_${Date.now()}`,
+              type: 'product_created',
+              category: 'products',
+              title: '📦 New Product Added',
+              message: `${product.formData.product_name} from ${supplierInfo.name} (${supplierInfo.prefix}) has been added`,
+              details: `Product Code: ${product.formData.system_code}`,
+              priority: 'medium',
+              timestamp: new Date().toISOString(),
+              is_read: false,
+              data: {
+                id: product.id,
+                product_name: product.formData.product_name,
+                product_code: product.formData.system_code,
+                category: categoryName,
+                selling_price: product.formData.selling_price,
+                warehouse_id: currentWarehouse.id,
+                created_at: new Date().toISOString(),
+                supplier_code: product.formData.supplier_code,
+                supplier_name: supplierInfo.name,
+                supplier_prefix: supplierInfo.prefix,
+                purchase_price: product.formData.purchase_price,
+                returnable: product.formData.returnable
+              }
+            };
+
+            const updatedNotifications = [persistentNotification, ...existingNotifications];
+            const trimmedNotifications = updatedNotifications.slice(0, 50);
+            localStorage.setItem(warehouseKey, JSON.stringify(trimmedNotifications));
+
+            console.log(`💾 IMMEDIATE SAVE: Product notification persisted for ${product.formData.product_name} with prefix ${supplierInfo.prefix}`);
+          } catch (error) {
+            console.error('❌ Failed to immediately persist product notification:', error);
+          }
+        }, 200);
+
+        console.log(`📦 Product notification sent for: ${product.formData.product_name} from ${supplierInfo.name} (${supplierInfo.prefix})`);
+      });
+    } catch (postSaveError) {
+      console.error('Non-blocking post-save product side effect error:', postSaveError);
+    }
+  };
+
+  const navigateAfterSave = (createdProducts) => {
+    try {
+      if (returnTo) {
+        const firstCreatedProduct = createdProducts[0];
+        const supplierInfo = getSupplierInfo(firstCreatedProduct.formData.supplier);
+        const navigationState = {
+          refreshProducts: true,
+          newProduct: {
+            id: firstCreatedProduct.id,
+            name: firstCreatedProduct.formData.product_name,
+            supplier_id: firstCreatedProduct.formData.supplier,
+            supplier_name: supplierInfo.name,
+            supplier_prefix: supplierInfo.prefix
+          }
+        };
+
+        if (savedFormState) {
+          navigationState.savedFormState = savedFormState;
+        }
+
+        navigate(returnTo, { state: navigationState, replace: true });
+        return;
+      }
+
+      navigate("/products", { replace: true });
+    } catch (navigationError) {
+      console.error("Post-save navigation error:", navigationError);
+      navigate("/products", { replace: true });
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    if (isSaving) {
+      return;
+    }
 
     setValidationErrors([]);
 
@@ -414,6 +547,8 @@ const getSupplierInfo = (supplierId) => {
       showNotice("No warehouse assigned. Please contact administrator.", "error");
       return;
     }
+
+    setIsSaving(true);
 
     try {
       const filledRows = rows.filter(row => row.product_name.trim() !== "");
@@ -463,116 +598,14 @@ const getSupplierInfo = (supplierId) => {
           });
         }
       }
-     
-      if (createdProducts.length > 0) {
-        console.log('📦 Products created successfully:', createdProducts.length);
-        console.log('🏭 Notifying ONLY current warehouse users:', currentWarehouse.name);
-       
-        // Enhanced notifications with smart prefixes
-        createdProducts.forEach(product => {
-          const categoryName = categories.find(c => c.id.toString() === product.formData.product_category.toString())?.name || 'Unknown';
-          const supplierInfo = getSupplierInfo(product.formData.supplier);
 
-          const notificationData = {
-            action: 'created',
-            id: product.id,
-            product_name: product.formData.product_name,
-            product_code: product.formData.system_code,
-            category: categoryName,
-            selling_price: product.formData.selling_price,
-            warehouse_id: currentWarehouse.id,
-            warehouseId: currentWarehouse.id,
-            targetWarehouse: currentWarehouse.id,
-            restrictToWarehouse: true,
-            source_warehouse: {
-              id: currentWarehouse.id,
-              name: currentWarehouse.name
-            },
-            metadata: {
-              supplier_code: product.formData.supplier_code,
-              supplier_name: supplierInfo.name,
-              supplier_prefix: supplierInfo.prefix,
-              purchase_price: product.formData.purchase_price,
-              returnable: product.formData.returnable,
-              created_at: new Date().toISOString(),
-              event_timestamp: Date.now(),
-              persist_immediate: true
-            }
-          };
-
-          notifyProductChange(notificationData);
-
-          // Enhanced localStorage persistence with supplier prefix info
-          setTimeout(() => {
-            try {
-              const warehouseKey = `persistedNotifications_warehouse_${currentWarehouse.id}`;
-              const existingNotifications = JSON.parse(localStorage.getItem(warehouseKey) || '[]');
-
-              const persistentNotification = {
-                id: `product_created_${product.id}_${Date.now()}`,
-                type: 'product_created',
-                category: 'products',
-                title: '📦 New Product Added',
-                message: `${product.formData.product_name} from ${supplierInfo.name} (${supplierInfo.prefix}) has been added`,
-                details: `Product Code: ${product.formData.system_code}`,
-                priority: 'medium',
-                timestamp: new Date().toISOString(),
-                is_read: false,
-                data: {
-                  id: product.id,
-                  product_name: product.formData.product_name,
-                  product_code: product.formData.system_code,
-                  category: categoryName,
-                  selling_price: product.formData.selling_price,
-                  warehouse_id: currentWarehouse.id,
-                  created_at: new Date().toISOString(),
-                  supplier_code: product.formData.supplier_code,
-                  supplier_name: supplierInfo.name,
-                  supplier_prefix: supplierInfo.prefix,
-                  purchase_price: product.formData.purchase_price,
-                  returnable: product.formData.returnable
-                }
-              };
-
-              const updatedNotifications = [persistentNotification, ...existingNotifications];
-              const trimmedNotifications = updatedNotifications.slice(0, 50);
-              localStorage.setItem(warehouseKey, JSON.stringify(trimmedNotifications));
-
-              console.log(`💾 IMMEDIATE SAVE: Product notification persisted for ${product.formData.product_name} with prefix ${supplierInfo.prefix}`);
-            } catch (error) {
-              console.error('❌ Failed to immediately persist product notification:', error);
-            }
-          }, 200);
-
-          console.log(`📦 Product notification sent for: ${product.formData.product_name} from ${supplierInfo.name} (${supplierInfo.prefix})`);
-        });
+      if (createdProducts.length === 0) {
+        showNotice("No products were created. Please try again.", "error");
+        return;
       }
-           
-      setTimeout(() => {
-        if (returnTo) {
-          const firstCreatedProduct = createdProducts[0];
-          const supplierInfo = getSupplierInfo(firstCreatedProduct.formData.supplier);
-          const navigationState = {
-            //message: `Product "${firstCreatedProduct.formData.product_name}" from ${supplierInfo.name} (${supplierInfo.prefix}) added successfully!`,
-            refreshProducts: true,
-            newProduct: {
-              id: firstCreatedProduct.id,
-              name: firstCreatedProduct.formData.product_name,
-              supplier_id: firstCreatedProduct.formData.supplier,
-              supplier_name: supplierInfo.name,
-              supplier_prefix: supplierInfo.prefix
-            }
-          };
-         
-          if (savedFormState) {
-            navigationState.savedFormState = savedFormState;
-          }
-         
-          navigate(returnTo, { state: navigationState });
-        } else {
-          navigate("/products/");
-        }
-      }, 1200);
+
+      persistCreatedProductNotifications(createdProducts);
+      navigateAfterSave(createdProducts);
     } catch (err) {
       console.log("Form values when saving:", rows);
       console.error("Save Error:", err.response?.data || err.message);
@@ -584,6 +617,8 @@ const getSupplierInfo = (supplierId) => {
               : rawErrorData)
           : rawErrorData?.message || rawErrorData?.detail;
       showNotice("Error saving products: " + (backendMessage || err.message), "error");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1108,9 +1143,9 @@ const getSupplierInfo = (supplierId) => {
           <button
             type="submit"
             className="btn btn-primary"
-            disabled={!currentWarehouse}
+            disabled={!currentWarehouse || isSaving}
           >
-            Save
+            {isSaving ? "Saving..." : "Save"}
           </button>
         </div>
       </div>

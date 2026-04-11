@@ -47,6 +47,8 @@ const ReceivingForm = () => {
   
   // NEW: Track the newly added product for auto-selection
   const [newProductToSelect, setNewProductToSelect] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
 
   const [form, setForm] = useState({
     supplier: "",
@@ -915,6 +917,7 @@ const ReceivingForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSavingRef.current) return;
 
     if (!currentWarehouse?.id) {
       showNotice("❌ No warehouse selected. Please contact your administrator. Debug: " + debugInfo, "error");
@@ -950,6 +953,9 @@ const ReceivingForm = () => {
       details: filteredRows,
     };
 
+    isSavingRef.current = true;
+    setIsSaving(true);
+
     try {
       console.log("💾 Saving receiving for warehouse:", currentWarehouse.name, "ID:", currentWarehouse.id);
       console.log("💾 Data to submit:", dataToSubmit);
@@ -961,12 +967,8 @@ const ReceivingForm = () => {
       console.log("✅ Receiving saved successfully", response.data);
 
       console.log("✅ Starting to mark processed supplier returns as completed...");
-      const completedCount = await markSupplierReturnsAsCompleted(form.supplier);
-
-      
-      setTimeout(() => {
-        navigate("/receiving");
-      }, 300);
+      await markSupplierReturnsAsCompleted(form.supplier);
+      navigate("/receiving", { replace: true });
     } catch (error) {
       console.error("❌ Save failed:", error);
       console.error("❌ Error details:", error.response?.data);
@@ -983,6 +985,8 @@ const ReceivingForm = () => {
       }
 
       showNotice(errorMessage, "error");
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
 
@@ -1358,8 +1362,12 @@ const ReceivingForm = () => {
           <button type="button" onClick={() => navigate("/receiving")} className="btn btn-back">
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary font-semibold">
-            Save
+          <button
+            type="submit"
+            className="btn btn-primary font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={isSaving}
+          >
+            {isSaving ? "Saving..." : "Save"}
           </button>
         </div>
 

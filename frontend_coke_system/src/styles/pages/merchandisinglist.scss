@@ -19,6 +19,24 @@
   position: relative;
 }
 
+.merch-status-pill-button {
+  display: inline-flex;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.merch-status-pill-button:hover .merch-status-pill {
+  filter: brightness(0.96);
+}
+
+.merch-status-pill-button:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: 2px;
+}
+
 .merch-status-pill--pending {
   background: #fef3c7;
   color: #92400e;
@@ -284,3 +302,14 @@
   border-top-color: rgba(148, 163, 184, 0.12) !important;
 }
 
+
+.dark .merch-status-pill-button {
+  background: transparent !important;
+  color: inherit !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.dark .merch-status-pill-button:hover {
+  background: transparent !important;
+}

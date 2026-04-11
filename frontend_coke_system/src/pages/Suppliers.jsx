@@ -469,11 +469,21 @@ const Suppliers = () => {
     <div className="page">
       {/* Header */}
       <div className="page-header">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="page-title flex items-center gap-2">
-            <FaBuilding className="text-gray-700" /> Suppliers
-          </h2>
-        </div>
+        <h2 className="page-title flex items-center gap-2">
+          <FaBuilding className="text-gray-700" /> Suppliers
+        </h2>
+
+        <button
+          type="button"
+          onClick={() => {
+            if (supplierCanCreate) setShowRegisterModal(true);
+          }}
+          className={`btn app-page-create-btn ${supplierCanCreate ? "btn-add" : "btn-disabled"}`}
+          disabled={!supplierCanCreate}
+          title={supplierCanCreate ? "Add Supplier" : "No permission to add suppliers"}
+        >
+          + Add Supplier
+        </button>
       </div>
 
       <PageSearchToolbar
@@ -502,18 +512,6 @@ const Suppliers = () => {
               ]}
             />
           </>
-        }
-        actions={
-          <button
-            onClick={() => {
-              if (supplierCanCreate) setShowRegisterModal(true);
-            }}
-            className={`btn ${supplierCanCreate ? "btn-add" : "btn-disabled"}`}
-            disabled={!supplierCanCreate}
-            title={supplierCanCreate ? "Add Supplier" : "No permission to add suppliers"}
-          >
-            + Add Supplier
-          </button>
         }
       />
       {/* Content */}

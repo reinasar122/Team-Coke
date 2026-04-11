@@ -5,6 +5,11 @@ import { useNavigate } from "react-router-dom";
 import { useNotifications } from '../contexts/NotificationContext';
 import api from "../api"; // ✅ correct
 
+const isCompletedMerchandisingStatus = (statusValue) => {
+  const status = String(statusValue || "").trim().toLowerCase();
+  return status === "complete" || status === "completed" || status === "picked up";
+};
+
 const SupplierReturnForm = () => {
   const navigate = useNavigate();
   const { addNotification } = useNotifications();
@@ -119,7 +124,7 @@ const SupplierReturnForm = () => {
             String(merchandising.warehouse_id) === String(currentWarehouse.id) ||
             String(merchandising.warehouse) === String(currentWarehouse.id);
             
-          if ((merchandising.status === "Complete" || merchandising.status === "COMPLETE") && 
+          if (isCompletedMerchandisingStatus(merchandising.status) && 
               merchandising.items && belongsToCurrentWarehouse) {
             
             merchandising.items.forEach(item => {
@@ -203,7 +208,7 @@ const SupplierReturnForm = () => {
             String(merchandising.warehouse_id) === String(currentWarehouse.id) ||
             String(merchandising.warehouse) === String(currentWarehouse.id);
             
-          if ((merchandising.status === "Complete" || merchandising.status === "COMPLETE") && 
+          if (isCompletedMerchandisingStatus(merchandising.status) && 
               merchandising.items && belongsToCurrentWarehouse) {
             
             merchandising.items.forEach(item => {
@@ -447,7 +452,7 @@ const SupplierReturnForm = () => {
               String(merchandising.warehouse_id) === String(warehouse.id) ||
               String(merchandising.warehouse) === String(warehouse.id);
               
-            if ((merchandising.status === "Complete" || merchandising.status === "COMPLETE") && 
+            if (isCompletedMerchandisingStatus(merchandising.status) && 
                 merchandising.items && belongsToCurrentWarehouse) {
               
               merchandising.items.forEach(item => {

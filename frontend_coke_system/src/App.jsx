@@ -13,6 +13,7 @@ import MerchandisingSale from "./components/merchandisingcomponents/Merchandisin
 import Header from "./components/Header";
 import Sidebar from "./components/Sidebar";
 import { NotificationProvider } from "./contexts/NotificationContext";
+import { getDefaultAccessibleRoute, hasAccess } from "./utils/accessUtils";
 import "./index.css";
 import "./styles/global.scss";
 
@@ -40,6 +41,7 @@ import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
 import ReservationList from "./pages/ReservationList";
 import ReservationDetailPage from "./pages/ReservationDetailPage";
+import ReservationSaleDetails from "./pages/ReservationSaleDetails";
 import ReservationCancelledDetails from "./pages/ReservationCancelledDetails";
 import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
@@ -156,6 +158,32 @@ const ProtectedRoute = ({ children }) => {
 };
 
 // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Layout wrapper for protected pages
+const NavigateToAccessibleRoute = () => {
+  const nextRoute = getDefaultAccessibleRoute();
+  return <Navigate to={nextRoute || "/no-access"} replace />;
+};
+
+const AccessControlledRoute = ({ submenu, children }) => {
+  if (hasAccess(submenu)) {
+    return children;
+  }
+
+  const nextRoute = getDefaultAccessibleRoute();
+  return <Navigate to={nextRoute || "/no-access"} replace />;
+};
+
+const NoAccessPage = () => (
+  <div className="mx-auto flex min-h-[50vh] max-w-2xl items-center justify-center px-4">
+    <div className="w-full rounded-2xl border border-slate-200 bg-white p-8 text-center shadow-sm">
+      <h1 className="text-2xl font-bold text-slate-900">No Accessible Pages</h1>
+      <p className="mt-3 text-sm text-slate-600">
+        Your role does not currently have access to any page in the app.
+        Please contact an admin to update your role access.
+      </p>
+    </div>
+  </div>
+);
+
 const ProtectedLayout = ({
   isSidebarOpen,
   toggleSidebar,
@@ -172,7 +200,7 @@ const ProtectedLayout = ({
   const hideLayout = hiddenRoutes.includes(location.pathname);
 
   // Pages where we want to HIDE the universal scrollbar
-  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist", "/reservation-details"];
+  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist", "/reservation-details", "/reservation-sale-details", "/reservation-cancelled-details"];
   const path = location.pathname.toLowerCase();
   const lockScroll = lockPrefixes.some(p => path === p || path.startsWith(p + "/"));
 
@@ -236,6 +264,7 @@ const ProtectedLayout = ({
                 <Route path="/products" />
                 <Route path="/suppliers" />
                 <Route path="/settings" element={null} />
+                <Route path="/no-access" element={null} />
 
                 {/* Forecasting page title */}
                 <Route path="/forecasting" element={null} />
@@ -290,10 +319,17 @@ const ProtectedLayout = ({
           {/* Page Routes */}
           <Routes>
             {/* Root redirect */}
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/" element={<NavigateToAccessibleRoute />} />
             
             {/* Dashboard */}
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route
+              path="/dashboard"
+              element={
+                <AccessControlledRoute submenu="Dashboard">
+                  <Dashboard />
+                </AccessControlledRoute>
+              }
+            />
 
             {/* Forecasting */}
             <Route path="/forecasting" element={<ForecastingDashboard />} />
@@ -343,6 +379,7 @@ const ProtectedLayout = ({
             <Route path="/trading" element={<MerchandisingList />} />
             <Route path="/reservationlist" element={<ReservationList />} />
             <Route path="/reservation-details/:id" element={<ReservationDetailPage />} />
+            <Route path="/reservation-sale-details/:id" element={<ReservationSaleDetails />} />
             <Route path="/reservation-cancelled-details/:id" element={<ReservationCancelledDetails />} />
             <Route
               path="/merchandising"
@@ -367,6 +404,7 @@ const ProtectedLayout = ({
             {/* Profile & Expenses */}
             <Route path="/profile" element={<Profile />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/no-access" element={<NoAccessPage />} />
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/expences" element={<Navigate to="/expenses" replace />} />
 
@@ -395,7 +433,7 @@ const ProtectedLayout = ({
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
 
             {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Fallback for unmatched routes - redirect to dashboard if authenticated */}
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="*" element={<NavigateToAccessibleRoute />} />
           </Routes>
         </div>
       </div>

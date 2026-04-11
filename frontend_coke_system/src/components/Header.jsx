@@ -1,7 +1,7 @@
 // src/components/Header.jsx - Fixed Dark Mode Implementation
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBars, faUser, faWarehouse, faExchangeAlt, faSun, faMoon } from "@fortawesome/free-solid-svg-icons";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Notification from "./Notification";
 import Profile from "../pages/Profile";
 import api from "../api";
@@ -16,6 +16,32 @@ const Header = ({ toggleSidebar }) => {
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const dropdownRef = useRef(null);
+
+  const syncHeaderStateFromStorage = useCallback(() => {
+    try {
+      const userData = localStorage.getItem("user");
+
+      if (!userData) {
+        setUser(null);
+        setSelectedWarehouse(null);
+        return;
+      }
+
+      const parsedUser = JSON.parse(userData);
+      setUser(parsedUser);
+
+      if (String(parsedUser.role || "").toLowerCase().includes("admin")) {
+        const warehouseData = localStorage.getItem("selectedWarehouse");
+        setSelectedWarehouse(warehouseData ? JSON.parse(warehouseData) : null);
+      } else {
+        setSelectedWarehouse(null);
+      }
+    } catch (error) {
+      console.error("Failed to sync header state from storage:", error);
+      setUser(null);
+      setSelectedWarehouse(null);
+    }
+  }, []);
 
   // Initialize and setup dark mode
   useEffect(() => {
@@ -79,18 +105,7 @@ const Header = ({ toggleSidebar }) => {
   };
 
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(parsedUser);
-
-      if (String(parsedUser.role || "").toLowerCase().includes("admin")) {
-        const warehouseData = localStorage.getItem("selectedWarehouse");
-        if (warehouseData) {
-          setSelectedWarehouse(JSON.parse(warehouseData));
-        }
-      }
-    }
+    syncHeaderStateFromStorage();
 
     // Close profile dropdown when clicking outside
     const handleClickOutside = (e) => {
@@ -100,7 +115,27 @@ const Header = ({ toggleSidebar }) => {
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
+  }, [syncHeaderStateFromStorage]);
+
+  useEffect(() => {
+    const handleWarehouseChange = () => {
+      syncHeaderStateFromStorage();
+    };
+
+    const handleStorageChange = (event) => {
+      if (!event.key || event.key === "selectedWarehouse" || event.key === "user") {
+        syncHeaderStateFromStorage();
+      }
+    };
+
+    window.addEventListener("warehouseChanged", handleWarehouseChange);
+    window.addEventListener("storage", handleStorageChange);
+
+    return () => {
+      window.removeEventListener("warehouseChanged", handleWarehouseChange);
+      window.removeEventListener("storage", handleStorageChange);
+    };
+  }, [syncHeaderStateFromStorage]);
   
   const normalizedRole = String(user?.role || "").toLowerCase();
   const isAdmin = normalizedRole.includes("admin");
@@ -226,7 +261,7 @@ const Header = ({ toggleSidebar }) => {
       <div className="app-shell-header-mobile fixed left-0 right-0 top-16 z-10 bg-gray-800 px-4 py-2 text-white transition-all duration-300 dark:bg-gray-900 md:hidden">
         <button
           onClick={isAdmin ? handleOpenWarehouseModal : undefined}
-          className={`app-shell-warehouse-switch app-shell-warehouse-switch--mobile mx-auto ${
+          className={`app-shell-warehouse-switch app-shell-warehouse-switch--mobile ${
             isAdmin
               ? "cursor-pointer hover:bg-gray-600 dark:hover:bg-gray-700"
               : "cursor-default opacity-95"

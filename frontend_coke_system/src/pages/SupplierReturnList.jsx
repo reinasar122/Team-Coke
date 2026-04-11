@@ -333,7 +333,7 @@ const SupplierReturnList = () => {
 
         <button
           onClick={() => navigate("/supplier-returns/new")}
-          className="btn btn-add"
+          className="btn btn-add app-page-create-btn"
           disabled={!currentWarehouse?.id}
         >
           <span>+</span> New Supplier Return

@@ -188,7 +188,7 @@ const RoleList = () => {
           onClick={() => {
             if (canCreate("Roles")) setIsRoleFormVisible(true);
           }}
-          className={`btn ${canCreate("Roles") ? "btn-add" : "btn-disabled"}`}
+          className={`btn app-page-create-btn ${canCreate("Roles") ? "btn-add" : "btn-disabled"}`}
           disabled={!canCreate("Roles")}
         >
           + Create Role

@@ -1,5 +1,5 @@
 // src/pages/SupplierRegistrationForm.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import api from "../api"; // centralized API instance
 //import psgcData from "../data/psgc_output.json";
 import psgcData from "../data/updated_psgc_output.json";
@@ -30,6 +30,8 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
   const [cities, setCities] = useState([]);
   const [barangays, setBarangays] = useState([]);
   const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
 
   const [newContact, setNewContact] = useState({
@@ -223,6 +225,7 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
   // Submit form (Create supplier) with notification dispatch
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmittingRef.current) return;
     if (!validateMainFields()) return;
 
     const payload = {
@@ -237,44 +240,14 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
       })),
     };
 
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+
+    let createdSupplier = null;
+
     try {
       const response = await api.post("/suppliers/", payload); // use centralized API call
-      
-      // Dispatch supplier creation event for notifications
-      if (response.data) {
-        // Get current user and warehouse info
-        const userData = JSON.parse(localStorage.getItem("user") || "{}");
-        const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
-        
-        let warehouseId;
-        if (userData.role?.toLowerCase() === "admin") {
-          warehouseId = selectedWarehouse?.id || userData.warehouse_id;
-        } else {
-          warehouseId = userData.warehouse_id;
-        }
-        
-        // Dispatch notification event
-        const supplierEvent = new CustomEvent('supplierCreated', {
-          detail: {
-            action: 'created',
-            supplierId: response.data.id,
-            supplierName: response.data.company_name || payload.company_name,
-            contactNumber: response.data.phone_number || payload.phone_number,
-            address: `${payload.street_address}, ${payload.barangay}, ${payload.city}, ${payload.province}`,
-            email: response.data.email || payload.email,
-            warehouseId: warehouseId,
-            warehouse_id: warehouseId,
-            createdBy: userData.username || userData.name || 'User'
-          }
-        });
-        window.dispatchEvent(supplierEvent);
-        
-        console.log("Supplier creation notification dispatched for warehouse:", warehouseId);
-      }
-      
-      toast.success("Supplier successfully added!", { style: successStyle });
-      onSuccess?.(response.data);
-      onClose?.();
+      createdSupplier = response.data;
     } catch (error) {
       const data = error.response?.data;
       if (data && typeof data === "object") {
@@ -287,6 +260,54 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
         toast.error("Failed to register supplier.", { style: errorStyle });
       }
       console.error("Supplier registration error:", data || error.message);
+      return;
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+
+    if (createdSupplier) {
+      // Dispatch supplier creation event for notifications
+      const userData = JSON.parse(localStorage.getItem("user") || "{}");
+      const selectedWarehouse = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+
+      let warehouseId;
+      if (userData.role?.toLowerCase() === "admin") {
+        warehouseId = selectedWarehouse?.id || userData.warehouse_id;
+      } else {
+        warehouseId = userData.warehouse_id;
+      }
+
+      const supplierEvent = new CustomEvent("supplierCreated", {
+        detail: {
+          action: "created",
+          supplierId: createdSupplier.id,
+          supplierName: createdSupplier.company_name || payload.company_name,
+          contactNumber: createdSupplier.phone_number || payload.phone_number,
+          address: `${payload.street_address}, ${payload.barangay}, ${payload.city}, ${payload.province}`,
+          email: createdSupplier.email || payload.email,
+          warehouseId: warehouseId,
+          warehouse_id: warehouseId,
+          createdBy: userData.username || userData.name || "User",
+        },
+      });
+      window.dispatchEvent(supplierEvent);
+
+      console.log("Supplier creation notification dispatched for warehouse:", warehouseId);
+    }
+
+    toast.success("Supplier successfully added!", { style: successStyle });
+
+    try {
+      onSuccess?.(createdSupplier);
+    } catch (callbackError) {
+      console.error("Supplier registration onSuccess error:", callbackError);
+    }
+
+    try {
+      onClose?.();
+    } catch (callbackError) {
+      console.error("Supplier registration onClose error:", callbackError);
     }
   };
 
@@ -621,8 +642,12 @@ const SupplierRegistrationForm = ({ onClose, onSuccess }) => {
           >
             Cancel
           </button>
-          <button type="submit" className="btn btn-primary px-4 py-2">
-            Submit
+          <button
+            type="submit"
+            className="btn btn-primary px-4 py-2 disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Submitting..." : "Submit"}
           </button>
         </div>
       </form>

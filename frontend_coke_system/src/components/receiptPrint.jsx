@@ -276,29 +276,7 @@ export const printReceipt = (payload, options = {}) => {
 
   if (typeof window === "undefined" || typeof document === "undefined") return;
 
-  let win = null;
-  try {
-    win = window.open("", "_blank", "width=480,height=800,noopener,noreferrer");
-  } catch (_) {}
-
-  if (win && win.document) {
-    win.document.open();
-    win.document.write(html);
-    win.document.close();
-
-    const finalize = () => {
-      try { win.focus(); } catch (_) {}
-      try { win.print(); } catch (_) {}
-      try { win.close(); } catch (_) {}
-    };
-
-    if ("onload" in win) {
-      win.onload = finalize;
-    } else {
-      setTimeout(finalize, 250);
-    }
-    return;
-  }
+  // Use a hidden iframe so printing does not open a second app window.
 
   const iframe = document.createElement("iframe");
   iframe.style.position = "fixed";
@@ -314,6 +292,8 @@ export const printReceipt = (payload, options = {}) => {
   idoc.write(html);
   idoc.close();
 
+  let didPrint = false;
+
   const cleanup = () => {
     setTimeout(() => {
       try { document.body.removeChild(iframe); } catch (_) {}
@@ -321,6 +301,8 @@ export const printReceipt = (payload, options = {}) => {
   };
 
   const doPrint = () => {
+    if (didPrint) return;
+    didPrint = true;
     try { (iframe.contentWindow || iframe).focus(); } catch (_) {}
     try { (iframe.contentWindow || iframe).print(); } catch (_) {}
     cleanup();
