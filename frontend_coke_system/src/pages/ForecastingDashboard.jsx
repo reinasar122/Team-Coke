@@ -530,6 +530,52 @@ export default function ForecastingDashboard() {
   };
 
   // -----------------------
+  // 4b) Handle manual forecast generation
+  // -----------------------
+  const handleGenerateForecast = useCallback(async (days = 30) => {
+    if (!selectedProductName || !products.length) return;
+
+    const matchingProducts = products.filter(
+      (product) => getProductName(product) === selectedProductName
+    );
+
+    if (!matchingProducts.length) return;
+
+    setGenerating(true);
+    setError(null);
+
+    try {
+      const product = matchingProducts[0];
+
+      await api.post("forecasts/generate/", {
+        product: product.id,
+        days,
+        warehouse_id: warehouseId,
+      });
+
+      // Fetch the generated forecast data
+      const res = await api.get("forecasts/", {
+        params: {
+          product_id: product.id,
+          ...(warehouseId ? { warehouse_id: warehouseId } : {}),
+        },
+      });
+
+      const raw = extractList(res.data);
+      setForecastData(normalizeForecastRows(raw));
+    } catch (err) {
+      console.error("Failed to generate forecast:", err);
+      const msg =
+        err.response?.data?.detail ||
+        err.message ||
+        "Failed to generate forecast";
+      setError(msg);
+    } finally {
+      setGenerating(false);
+    }
+  }, [selectedProductName, products, warehouseId]);
+
+  // -----------------------
   // 6) Derived UI data
   // -----------------------
   const productNames = Array.from(
