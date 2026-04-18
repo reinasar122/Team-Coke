@@ -44,6 +44,7 @@ const ProductEdit = () => {
   const [showModal, setShowModal] = useState({ type: null });
   const [newValue, setNewValue] = useState("");
   const [suppliers, setSuppliers] = useState([]);
+  const [removedImageSnapshot, setRemovedImageSnapshot] = useState(null);
 
   const [notice, setNotice] = useState({
     open: false,
@@ -91,6 +92,7 @@ const ProductEdit = () => {
           imagePreview: event.target.result,
           removeImage: false
         }));
+        setRemovedImageSnapshot(null);
       };
       reader.readAsDataURL(file);
     }
@@ -104,6 +106,12 @@ const ProductEdit = () => {
     }
 
     try {
+      setRemovedImageSnapshot({
+        image: formData.image,
+        imagePreview: formData.imagePreview,
+        currentImage: formData.currentImage,
+      });
+
       setFormData(prev => ({
         ...prev,
         image: null,
@@ -196,6 +204,7 @@ const ProductEdit = () => {
         };
 
         setFormData(productData);
+        setRemovedImageSnapshot(null);
        
         setOriginalData({
           product_name: product.product_name || "",
@@ -737,11 +746,18 @@ const ProductEdit = () => {
                       </div>
                       <button
                         type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          setFormData(prev => ({ ...prev, removeImage: false }));
-                        }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                           setFormData(prev => ({
+                             ...prev,
+                             removeImage: false,
+                             image: removedImageSnapshot?.image ?? prev.image,
+                             imagePreview: removedImageSnapshot?.imagePreview ?? prev.imagePreview,
+                             currentImage: removedImageSnapshot?.currentImage ?? prev.currentImage,
+                           }));
+                           setRemovedImageSnapshot(null);
+                         }}
                         disabled={saving}
                         style={{
                           padding: '4px 8px',

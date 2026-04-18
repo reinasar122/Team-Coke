@@ -43,46 +43,13 @@ const Header = ({ toggleSidebar }) => {
     }
   }, []);
 
-  // Initialize and setup dark mode
+  // Initialize dark mode (default to LIGHT when there is no saved preference)
   useEffect(() => {
-    // Check for saved theme or system preference
     const savedTheme = localStorage.getItem('darkMode');
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    let shouldBeDark = false;
-    
-    if (savedTheme !== null) {
-      shouldBeDark = savedTheme === 'true';
-    } else {
-      shouldBeDark = prefersDark;
-    }
-    
+    const shouldBeDark = savedTheme === 'true';
+
     setIsDarkMode(shouldBeDark);
     applyDarkMode(shouldBeDark);
-
-    // Listen for system theme changes
-    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    const handleChange = (e) => {
-      if (localStorage.getItem('darkMode') === null) {
-        setIsDarkMode(e.matches);
-        applyDarkMode(e.matches);
-      }
-    };
-    
-    if (mediaQuery.addEventListener) {
-      mediaQuery.addEventListener('change', handleChange);
-    } else {
-      // Fallback for older browsers
-      mediaQuery.addListener(handleChange);
-    }
-    
-    return () => {
-      if (mediaQuery.removeEventListener) {
-        mediaQuery.removeEventListener('change', handleChange);
-      } else {
-        mediaQuery.removeListener(handleChange);
-      }
-    };
   }, []);
 
   // Apply dark mode to document
@@ -94,6 +61,7 @@ const Header = ({ toggleSidebar }) => {
       document.documentElement.classList.remove('dark');
       document.body.classList.remove('dark');
     }
+    window.dispatchEvent(new Event("themeChanged"));
   };
 
   // Toggle dark mode

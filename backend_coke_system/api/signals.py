@@ -7,4 +7,11 @@ from .models import Product, Stock,MiscellaneousItem, Merchandising
 @receiver(post_save, sender=Product)
 def create_stock_for_product(sender, instance, created, **kwargs):
     if created:
-        Stock.objects.get_or_create(product=instance, defaults={'quantity_available': 0})
+        Stock.objects.get_or_create(
+            product=instance,
+            warehouse=instance.warehouse,
+            defaults={
+                'quantity_available': 0,
+                'quantity_reserved': 0,
+            },
+        )

@@ -193,6 +193,7 @@ export default function ForecastingDashboard() {
     if (!selectedProductName || !products.length) return;
 
     const fetchForecastForSelectedProduct = async () => {
+      setForecastData([]); // clear stale forecast values while loading the new product
       setLoading(true);
       setError(null);
 
@@ -466,10 +467,10 @@ export default function ForecastingDashboard() {
   const seasonalInsights = useMemo(() => {
     if (!forecastData.length) {
       return {
-        weeklyPeakDay: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“",
-        yearlyPeakMonth: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“",
+        weeklyPeakDay: "—",
+        yearlyPeakMonth: "—",
         trendDirection: "Stable",
-        mape: 0,
+        mape: null,
       };
     }
 
@@ -548,18 +549,17 @@ export default function ForecastingDashboard() {
       }
     });
 
-    // Karen Changes
     if (mapeCount > 0) {
       mape = (mapeSum / mapeCount) * 100;
     } else {
-      mape = 0;
+      mape = null;
     }
 
     return {
       weeklyPeakDay,
       yearlyPeakMonth,
       trendDirection,
-      mape: mape || 0,
+      mape,
     };
   }, [forecastData]);
 
@@ -603,7 +603,6 @@ export default function ForecastingDashboard() {
             products={productNames.length ? productNames : ["No products"]}
             selectedProduct={selectedProductName}
             onChange={(name) => setSelectedProductName(name)}
-            onGenerate={handleGenerateForecast}
           />
         </div>
 

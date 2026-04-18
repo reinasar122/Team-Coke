@@ -606,6 +606,7 @@ class ProductSerializer(serializers.ModelSerializer):
     product_category = serializers.PrimaryKeyRelatedField(queryset=ProductCategory.objects.all(), required=False)
     unit_type = serializers.PrimaryKeyRelatedField(queryset=UnitType.objects.all(), required=False)
     price = serializers.PrimaryKeyRelatedField(queryset=Pricing.objects.all(), required=False)
+    warehouse = serializers.PrimaryKeyRelatedField(queryset=Warehouse.objects.all(), required=False, allow_null=True)
     image = serializers.ImageField(required=False, allow_null=True)
     remove_image = serializers.CharField(required=False, allow_blank=True, write_only=True)
 
@@ -623,6 +624,7 @@ class ProductSerializer(serializers.ModelSerializer):
             }) from exc
 
     def create(self, validated_data):
+        validated_data.pop('remove_image', None)
         if validated_data.get('image') is not None:
             self._ensure_product_image_dir()
 
@@ -1035,8 +1037,14 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         return tt_name == "warehouse"
 
     def _warehouse_holds_stock(self, transaction_type, status_value):
-        status_name = str(status_value or "").strip().lower()
-        return self._is_warehouse_transaction(transaction_type) and status_name not in {"cancelled", "canceled"}
+        if not self._is_warehouse_transaction(transaction_type):
+            return False
+
+        status_name = self._normalize_status_key(status_value)
+        # Business rule:
+        # - "Reserved" should NOT deduct on-hand stock yet.
+        # - Deduct only when customer actually gets the goods.
+        return status_name in {"complete", "completed", "picked up"}
 
     def _warehouse_committed_pcs(self, item, status_value):
         if item is None:
@@ -1224,7 +1232,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                     merchandising_item.actual_return_pcs,
                 )
 
-            # Reserved warehouse rows hold dispatched stock; completed rows hold only what was sold.
+            # Warehouse stock is deducted only when the reservation is completed/picked up.
             if self._warehouse_holds_stock(merchandising.transaction_type, merchandising.status):
                 committed_pcs = self._warehouse_committed_pcs(merchandising_item, merchandising.status)
                 if committed_pcs > 0:
@@ -1678,7 +1686,7 @@ class ForecastSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Forecast
-        fields = ["id", "product", "product_name", "date", "forecast", "lower", "upper"]
+        fields = ["id", "product", "product_name", "date", "forecast", "lower", "upper", "actual"]
 
 class NotificationSerializer(serializers.ModelSerializer):
     timestamp = serializers.DateTimeField(source='created_at', read_only=True)

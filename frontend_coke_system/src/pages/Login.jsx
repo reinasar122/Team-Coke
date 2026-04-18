@@ -56,8 +56,10 @@ const Login = () => {
     html.dataset.prevDark = hadDarkHtml ? "true" : "false";
     body.dataset.prevDark = hadDarkBody ? "true" : "false";
     return () => {
-      if (html.dataset.prevDark === "true") html.classList.add("dark");
-      if (body.dataset.prevDark === "true") body.classList.add("dark");
+      const persistedTheme = localStorage.getItem("darkMode");
+      const shouldRestoreDark = persistedTheme === "true";
+      if (shouldRestoreDark && html.dataset.prevDark === "true") html.classList.add("dark");
+      if (shouldRestoreDark && body.dataset.prevDark === "true") body.classList.add("dark");
       delete html.dataset.prevDark;
       delete body.dataset.prevDark;
     };

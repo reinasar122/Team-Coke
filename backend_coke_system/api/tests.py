@@ -138,11 +138,14 @@ class ReservedWarehouseStockTests(TestCase):
         self.transaction_type, _ = TransactionType.objects.get_or_create(
             name=TransactionType.WAREHOUSE
         )
-        self.stock = Stock.objects.create(
+        self.stock, _ = Stock.objects.get_or_create(
             product=self.product,
             warehouse=self.warehouse,
-            quantity_available=100,
+            defaults={"quantity_available": 100, "quantity_reserved": 0},
         )
+        self.stock.quantity_available = 100
+        self.stock.quantity_reserved = 0
+        self.stock.save(update_fields=["quantity_available", "quantity_reserved"])
 
     def _payload(self, *, status, sold_pcs, item_id=None, dispatched_pcs=50):
         item = {
@@ -161,7 +164,7 @@ class ReservedWarehouseStockTests(TestCase):
             "items": [item],
         }
 
-    def test_reserved_partial_completion_returns_unsold_stock(self):
+    def test_reserved_keeps_stock_until_completed(self):
         create_serializer = MerchandisingSerializer(
             data=self._payload(status="Reserved", sold_pcs=0)
         )
@@ -169,7 +172,7 @@ class ReservedWarehouseStockTests(TestCase):
         sale = create_serializer.save()
 
         self.stock.refresh_from_db()
-        self.assertEqual(self.stock.quantity_available, 50)
+        self.assertEqual(self.stock.quantity_available, 100)
 
         update_serializer = MerchandisingSerializer(
             sale,

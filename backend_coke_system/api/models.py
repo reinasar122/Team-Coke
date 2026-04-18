@@ -447,6 +447,11 @@ class Stock(models.Model):
     product = models.ForeignKey('Product', on_delete=models.CASCADE)
     warehouse = models.ForeignKey('Warehouse', on_delete=models.CASCADE, null=True, blank=True)
     quantity_available = models.PositiveIntegerField(default=0)
+    # NOTE:
+    # The production DB already includes this non-null column.
+    # Keep it in the model so inserts always provide a value and
+    # Product post_save stock creation does not crash with MySQL 1364.
+    quantity_reserved = models.PositiveIntegerField(default=0)
     last_updated = models.DateTimeField(auto_now=True)
 
     class Meta:
