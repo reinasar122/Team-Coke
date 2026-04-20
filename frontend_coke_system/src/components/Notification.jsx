@@ -2966,44 +2966,67 @@ const Notification = ({ closeProfile }) => {
         const previousProducts = JSON.parse(localStorage.getItem(previousProductsKey) || '{}');
 
         const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+        const hasPreviousSnapshot = Object.keys(previousProducts).length > 0;
         
         products.forEach(product => {
           const productId = `product-${product.id}-${warehouseId}`;
-          const productDate = new Date(product.created_at || product.updated_at || now);
           const previousProduct = previousProducts[product.id];
+          const alreadyProcessed = processedIds.has(productId);
 
-          // Check if this is a recent product (created or updated)
-          if (productDate > thirtyMinutesAgo && !processedIds.has(productId)) {
-            
-            // Determine if it's a creation or update
-            const isUpdate = previousProduct && (
-              previousProduct.name !== product.product_name ||
-              previousProduct.price !== product.selling_price ||
-              previousProduct.category !== product.category ||
-              previousProduct.status !== product.status
-            );
+          const productTimestampValue = product.updated_at || product.created_at || null;
+          const parsedProductDate = productTimestampValue ? new Date(productTimestampValue) : null;
+          const hasValidProductDate = parsedProductDate instanceof Date && !Number.isNaN(parsedProductDate.getTime());
+          const isRecentProduct = hasValidProductDate && parsedProductDate > thirtyMinutesAgo;
 
+          // Determine if it's a creation or update
+          const isUpdate = previousProduct && (
+            previousProduct.name !== product.product_name ||
+            previousProduct.price !== product.selling_price ||
+            previousProduct.category !== product.category ||
+            previousProduct.status !== product.status
+          );
+
+          let shouldNotifyCreate = false;
+          let shouldNotifyUpdate = false;
+
+          if (!alreadyProcessed) {
             if (isUpdate) {
-              // PRODUCT UPDATED
-              const changes = {};
-              if (previousProduct.name !== product.product_name) changes.name = { old: previousProduct.name, new: product.product_name };
-              if (previousProduct.price !== product.selling_price) changes.price = { old: previousProduct.price, new: product.selling_price };
-              if (previousProduct.category !== product.category) changes.category = { old: previousProduct.category, new: product.category };
-              if (previousProduct.status !== product.status) changes.status = { old: previousProduct.status, new: product.status };
-              
-              createNotificationWithBackend('product_updated', { 
-                ...product, 
-                warehouse_id: warehouseId,
-                changes: changes,
-                updated_by: 'Admin'
-              }, userRole);
+              // If backend timestamp exists, enforce recency; otherwise rely on snapshot diff
+              shouldNotifyUpdate = hasValidProductDate ? isRecentProduct : true;
             } else if (!previousProduct) {
-              // NEW PRODUCT CREATED
-              createNotificationWithBackend('product_created', { 
-                ...product, 
-                warehouse_id: warehouseId
-              }, userRole);
+              if (hasValidProductDate) {
+                shouldNotifyCreate = isRecentProduct;
+              } else if (hasPreviousSnapshot) {
+                // Product model may not expose created/updated timestamps.
+                // In that case, only treat unseen IDs as new after baseline snapshot exists.
+                shouldNotifyCreate = true;
+              }
             }
+          }
+
+          if (shouldNotifyUpdate) {
+            const changes = {};
+            if (previousProduct.name !== product.product_name) changes.name = { old: previousProduct.name, new: product.product_name };
+            if (previousProduct.price !== product.selling_price) changes.price = { old: previousProduct.price, new: product.selling_price };
+            if (previousProduct.category !== product.category) changes.category = { old: previousProduct.category, new: product.category };
+            if (previousProduct.status !== product.status) changes.status = { old: previousProduct.status, new: product.status };
+            
+            createNotificationWithBackend('product_updated', {
+              ...product,
+              warehouse_id: warehouseId,
+              updated_at: product.updated_at || now,
+              changes: changes,
+              updated_by: 'Admin'
+            }, userRole);
+
+            processedIds.add(productId);
+            newNotifications++;
+          } else if (shouldNotifyCreate) {
+            createNotificationWithBackend('product_created', {
+              ...product,
+              warehouse_id: warehouseId,
+              created_at: product.created_at || now
+            }, userRole);
 
             processedIds.add(productId);
             newNotifications++;
@@ -3015,7 +3038,7 @@ const Notification = ({ closeProfile }) => {
             price: product.selling_price,
             category: product.category,
             status: product.status,
-            updated_at: product.updated_at || product.created_at,
+            updated_at: product.updated_at || product.created_at || now,
             timestamp: now
           };
         });
@@ -3509,6 +3532,9 @@ const Notification = ({ closeProfile }) => {
           
           console.log(`ALLOWED: Creating notification for warehouse ${currentWarehouseInt}`);
           
+          const detailCreatedAt = detail.created_at || detail.metadata?.created_at;
+          const detailUpdatedAt = detail.updated_at || detail.metadata?.updated_at || detailCreatedAt;
+
           const notificationData = {
             id: detail.productId,
             product_name: detail.productName,
@@ -3516,7 +3542,8 @@ const Notification = ({ closeProfile }) => {
             category: detail.category,
             selling_price: detail.price,
             warehouse_id: currentWarehouseInt, // Force current warehouse
-            created_at: new Date().toISOString(),
+            created_at: detailCreatedAt || new Date().toISOString(),
+            updated_at: detailUpdatedAt || new Date().toISOString(),
             changes: detail.changes,
             updated_by: detail.createdBy || user.username || user.name || 'Admin'
           };
