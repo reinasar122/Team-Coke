@@ -6,8 +6,18 @@ export const ForecastOverviewCards = ({
   topSellingProduct,
   highestGrowthProduct,
 }) => {
+  const emptyLabel = "No forecast yet";
   const formatNumber = (n) =>
-    n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    Number(n || 0)
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const formatProductName = (value) => {
+    const text = typeof value === "string" ? value.trim() : "";
+    return text || emptyLabel;
+  };
+
+  const topProduct = formatProductName(topSellingProduct);
+  const growthProduct = formatProductName(highestGrowthProduct);
 
   return (
     <div className="grid lg:grid-cols-3 gap-4 mt-2">
@@ -32,8 +42,8 @@ export const ForecastOverviewCards = ({
           <p className="text-sm font-medium text-gray-600">
             Top Selling Product
           </p>
-          <p className="mt-3 text-3xl font-semibold text-gray-900">
-            {topSellingProduct}
+          <p className="mt-3 text-2xl font-semibold text-gray-900 break-words">
+            {topProduct}
           </p>
           <p className="mt-1 text-xs text-gray-500">
             Highest forecasted volume
@@ -47,8 +57,8 @@ export const ForecastOverviewCards = ({
           <p className="text-sm font-medium text-gray-600">
             Highest Growth Trend
           </p>
-          <p className="mt-3 text-3xl font-semibold text-emerald-600">
-            {highestGrowthProduct}
+          <p className="mt-3 text-2xl font-semibold text-emerald-600 break-words">
+            {growthProduct}
           </p>
           <p className="mt-1 text-xs text-gray-500">Rising demand pattern</p>
         </div>

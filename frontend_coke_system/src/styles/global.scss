@@ -294,6 +294,30 @@ main {
   gap: 0.35rem;
 }
 
+.app-sidebar,
+.app-sidebar a,
+.app-sidebar button {
+  caret-color: transparent;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.app-sidebar a,
+.app-sidebar button {
+  cursor: pointer;
+}
+
+.app-sidebar a:focus,
+.app-sidebar button:focus {
+  outline: none;
+}
+
+.app-sidebar a:focus-visible,
+.app-sidebar button:focus-visible {
+  outline: 2px solid rgba(226, 232, 240, 0.75);
+  outline-offset: 2px;
+}
+
 .app-sidebar > ul > li > a,
 .app-sidebar > ul > li > button,
 .app-sidebar > ul > li > div {

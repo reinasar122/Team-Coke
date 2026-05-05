@@ -28,8 +28,11 @@ const buildDailyForecastRows = (rows) => {
 
 export const ForecastTable = ({ product, data }) => {
   const rows = useMemo(() => buildDailyForecastRows(data), [data]);
+  const productLabel = product || "a selected product";
 
   const handleExport = () => {
+    if (!rows.length) return;
+
     const header = ["Date", "Forecast", "Lower", "Upper"];
     const csvRows = rows.map((row) => [
       row.date,
@@ -59,13 +62,14 @@ export const ForecastTable = ({ product, data }) => {
         <div>
           <h2 className="text-xl font-semibold text-gray-900">Forecast Details</h2>
           <p className="text-xs text-gray-500">
-            Exact daily forecast list for the next 14 days for {product}
+            Exact daily forecast list for the next 14 days for {productLabel}
           </p>
         </div>
         <button
           type="button"
           onClick={handleExport}
-          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100"
+          disabled={!rows.length}
+          className="inline-flex items-center gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs font-medium text-gray-700 bg-gray-50 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-gray-50"
         >
           Export CSV
         </button>

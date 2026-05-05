@@ -162,6 +162,7 @@ const CustomTooltip = ({ active, payload, label }) => {
 
 export const ForecastChart = ({ product, data }) => {
   const [forecastType, setForecastType] = useState("daily");
+  const productLabel = product || "a selected product";
 
   const chartData = useMemo(() => {
     if (forecastType === "monthly") {
@@ -169,6 +170,7 @@ export const ForecastChart = ({ product, data }) => {
     }
     return buildDailyForecastWindow(data);
   }, [data, forecastType]);
+  const hasChartData = chartData.length > 0;
 
   return (
     <>
@@ -179,8 +181,8 @@ export const ForecastChart = ({ product, data }) => {
           </h2>
           <p className="text-xs text-gray-500">
             {forecastType === "monthly"
-              ? "Monthly aggregated forecast data for " + product
-              : "14-date daily forecast display for " + product}
+              ? "Monthly aggregated forecast data for " + productLabel
+              : "14-date daily forecast display for " + productLabel}
           </p>
         </div>
         <div className="flex gap-2">
@@ -208,80 +210,88 @@ export const ForecastChart = ({ product, data }) => {
       </div>
 
       <div className="h-80">
-        <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={180} debounce={80}>
-          <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: -10 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis
-              dataKey="date"
-              tickFormatter={formatAxisDate}
-              tick={{ fontSize: 10 }}
-              interval={0}
-              angle={0}
-              textAnchor="middle"
-              height={34}
-              minTickGap={0}
-            />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip content={<CustomTooltip />} />
+        {hasChartData ? (
+          <ResponsiveContainer width="100%" height="100%" minWidth={240} minHeight={180} debounce={80}>
+            <ComposedChart data={chartData} margin={{ top: 10, right: 20, left: -10 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis
+                dataKey="date"
+                tickFormatter={formatAxisDate}
+                tick={{ fontSize: 10 }}
+                interval={0}
+                angle={0}
+                textAnchor="middle"
+                height={34}
+                minTickGap={0}
+              />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip content={<CustomTooltip />} />
 
-            <Area
-              type="monotone"
-              dataKey="upper"
-              stroke="none"
-              fill="#dcfce7"
-              fillOpacity={0.45}
-              activeDot={false}
-            />
-            <Area
-              type="monotone"
-              dataKey="lower"
-              stroke="none"
-              fill="#ffffff"
-              fillOpacity={1}
-              activeDot={false}
-            />
+              <Area
+                type="monotone"
+                dataKey="upper"
+                stroke="none"
+                fill="#dcfce7"
+                fillOpacity={0.45}
+                activeDot={false}
+              />
+              <Area
+                type="monotone"
+                dataKey="lower"
+                stroke="none"
+                fill="#ffffff"
+                fillOpacity={1}
+                activeDot={false}
+              />
 
-            <Line
-              type="monotone"
-              dataKey="actual"
-              stroke="#2563eb"
-              dot={{ r: 3 }}
-              strokeWidth={2}
-              name="Actual Sales"
-              connectNulls
-            />
+              <Line
+                type="monotone"
+                dataKey="actual"
+                stroke="#2563eb"
+                dot={{ r: 3 }}
+                strokeWidth={2}
+                name="Actual Sales"
+                connectNulls
+              />
 
-            <Line
-              type="monotone"
-              dataKey="forecast"
-              stroke="#16a34a"
-              dot={false}
-              strokeDasharray="4 4"
-              strokeWidth={2}
-              name="Forecast"
-            />
-          </ComposedChart>
-        </ResponsiveContainer>
+              <Line
+                type="monotone"
+                dataKey="forecast"
+                stroke="#16a34a"
+                dot={false}
+                strokeDasharray="4 4"
+                strokeWidth={2}
+                name="Forecast"
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="h-full rounded-xl border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center text-sm text-gray-500">
+            No forecast data available yet.
+          </div>
+        )}
       </div>
 
-      <div className="flex flex-wrap gap-6 justify-center text-xs mt-3">
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-emerald-200 border border-emerald-400" />
-          <span>Upper Bound</span>
+      {hasChartData && (
+        <div className="flex flex-wrap gap-6 justify-center text-xs mt-3">
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-emerald-200 border border-emerald-400" />
+            <span>Upper Bound</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-emerald-50 border border-emerald-300" />
+            <span>Lower Bound</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-blue-500" />
+            <span>Actual Sales</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-3 h-3 rounded-full bg-emerald-600" />
+            <span>Forecast</span>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-emerald-50 border border-emerald-300" />
-          <span>Lower Bound</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-blue-500" />
-          <span>Actual Sales</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-emerald-600" />
-          <span>Forecast</span>
-        </div>
-      </div>
+      )}
     </>
   );
 };

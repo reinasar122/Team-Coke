@@ -9,6 +9,7 @@ export const ProductSelector = ({
   onGenerate,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
+  const hasProducts = Array.isArray(products) && products.length > 0;
 
   const handleSelect = (name) => {
     onChange(name);
@@ -24,10 +25,14 @@ export const ProductSelector = ({
       {/* Product dropdown selector */}
       <div className="relative flex-1">
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-500 bg-gray-50 text-left flex items-center justify-between hover:border-gray-300 transition-colors"
+          type="button"
+          disabled={!hasProducts}
+          onClick={() => hasProducts && setIsOpen(!isOpen)}
+          className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500/60 focus:border-red-500 bg-gray-50 text-left flex items-center justify-between hover:border-gray-300 transition-colors disabled:cursor-not-allowed disabled:text-gray-400 disabled:hover:border-gray-200"
         >
-          <span className="text-gray-900">{selectedProduct || "Select Product"}</span>
+          <span className={hasProducts ? "text-gray-900" : "text-gray-400"}>
+            {selectedProduct || (hasProducts ? "Select Product" : "No products available")}
+          </span>
           <svg
             className="w-5 h-5 text-gray-600"
             fill="none"
@@ -43,26 +48,20 @@ export const ProductSelector = ({
           </svg>
         </button>
 
-        {isOpen && (
+        {isOpen && hasProducts && (
           <div className="absolute mt-1 w-full max-h-60 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-sm z-20">
-            {products && products.length > 0 ? (
-              products.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => handleSelect(p)}
-                  className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 border-b border-gray-100 last:border-b-0 transition-colors ${
-                    selectedProduct === p ? "bg-red-50 text-red-600 font-medium" : ""
-                  }`}
-                >
-                  {p}
-                </button>
-              ))
-            ) : (
-              <div className="px-4 py-2.5 text-sm text-gray-400">
-                No products available
-              </div>
-            )}
+            {products.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => handleSelect(p)}
+                className={`block w-full text-left px-4 py-2.5 text-sm hover:bg-gray-100 border-b border-gray-100 last:border-b-0 transition-colors ${
+                  selectedProduct === p ? "bg-red-50 text-red-600 font-medium" : ""
+                }`}
+              >
+                {p}
+              </button>
+            ))}
           </div>
         )}
 

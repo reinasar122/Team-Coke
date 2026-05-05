@@ -3,18 +3,19 @@ import React from "react";
 
 export const SeasonalInsights = ({ insights }) => {
   // Accuracy = 100% - MAPE Error
-  const mapeError = Number(insights.mapeError || 0);
-  const accuracy = Math.max(0, 100 - mapeError);
+  const mapeSource = insights.mapeError ?? insights.mape;
+  const hasAccuracy = mapeSource != null && Number.isFinite(Number(mapeSource));
+  const accuracy = hasAccuracy ? Math.max(0, 100 - Number(mapeSource)) : null;
 
   const cards = [
     {
       label: "Weekly Peak Day",
-      value: insights.primaryPeakValue || "No data",
+      value: insights.weeklyPeakDay || insights.primaryPeakValue || "No data",
       icon: "📅",
     },
     {
       label: "Yearly Peak Month",
-      value: insights.secondaryPeakValue || "No data",
+      value: insights.yearlyPeakMonth || insights.secondaryPeakValue || "No data",
       icon: "📆",
     },
     {
@@ -25,7 +26,7 @@ export const SeasonalInsights = ({ insights }) => {
     },
     {
       label: "MAPE Accuracy",
-      value: `${accuracy.toFixed(2)}%`,
+      value: hasAccuracy ? `${accuracy.toFixed(2)}%` : "No data",
       icon: "🎯",
     },
   ];

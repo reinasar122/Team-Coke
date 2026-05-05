@@ -9,7 +9,7 @@ import { BestSellerRanking } from "../components/forecasting/BestSellerRanking";
 import { InventoryRecommendations } from "../components/forecasting/InventoryRecommendations";
 import { SeasonalInsights } from "../components/forecasting/SeasonalInsights";
 import { HolidayCalendar } from "../components/forecasting/HolidayCalendar";
-import api from "../api"; // ÃƒÂ¢Ã…â€œÃ¢â‚¬Â¦ use shared API instance
+import api from "../api";
 import { FaChartLine } from "react-icons/fa";
 import "../styles/pages/forecasting.scss";
 
@@ -18,6 +18,8 @@ const extractList = (data) => {
   if (data && Array.isArray(data.results)) return data.results;
   return [];
 };
+
+const EMPTY_FORECAST_LABEL = "No forecast yet";
 
 // Karen Changes: Normalize forecast rows coming from API
 const normalizeForecastRows = (rows) =>
@@ -75,7 +77,7 @@ export default function ForecastingDashboard() {
           setSelectedProductName(firstName);
         }
       } catch (err) {
-        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load products:", err);
+        console.error("Failed to load products:", err);
         const msg =
           err.response?.data?.detail ||
           err.message ||
@@ -94,7 +96,7 @@ export default function ForecastingDashboard() {
     const fetchStocks = async () => {
       try {
         const res = await api.get("stocks/");
-        console.log("ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ¢â‚¬Â° /api/stocks/ response:", res.data);
+        console.log("/api/stocks/ response:", res.data);
 
         const data = res.data;
         const list = Array.isArray(data)
@@ -103,10 +105,10 @@ export default function ForecastingDashboard() {
           ? data.results
           : [];
 
-        console.log("ÃƒÂ°Ã…Â¸Ã¢â‚¬ËœÃ¢â‚¬Â° parsed stocks list:", list);
+        console.log("Parsed stocks list:", list);
         setStocks(list);
       } catch (err) {
-        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load stocks:", err);
+        console.error("Failed to load stocks:", err);
       }
     };
 
@@ -148,7 +150,7 @@ export default function ForecastingDashboard() {
     );
 
     if (!candidates.length) {
-      console.log("ÃƒÂ¢Ã‚ÂÃ…â€™ No stock rows for", productName, "stocks:", stocks);
+      console.log("No stock rows for", productName, "stocks:", stocks);
       return 0;
     }
 
@@ -181,7 +183,7 @@ export default function ForecastingDashboard() {
         const res = await api.get("holidays/");
         setHolidays(extractList(res.data));
       } catch (err) {
-        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to load holidays:", err);
+        console.error("Failed to load holidays:", err);
       }
     };
 
@@ -216,7 +218,7 @@ export default function ForecastingDashboard() {
         const normalized = normalizeForecastRows(raw); // Karen Changes
         setForecastData(normalized);
       } catch (err) {
-        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to fetch forecasts:", err);
+        console.error("Failed to fetch forecasts:", err);
         const msg =
           err.response?.data?.detail ||
           err.message ||
@@ -266,7 +268,7 @@ export default function ForecastingDashboard() {
 
         setInventoryData(allInventoryData);
       } catch (err) {
-        console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to fetch forecasts:", err);
+        console.error("Failed to fetch forecasts:", err);
         const msg =
           err.response?.data?.detail ||
           err.message ||
@@ -358,7 +360,7 @@ export default function ForecastingDashboard() {
         ranking.sort((a, b) => b.projectedSales - a.projectedSales);
         setBestSellerData(ranking);
       } catch (err) {
-        console.log("ÃƒÂ¢Ã‚ÂÃ…â€™ Global ranking failed:", err);
+        console.log("Global ranking failed:", err);
       }
     };
 
@@ -398,7 +400,7 @@ export default function ForecastingDashboard() {
       const normalized2 = normalizeForecastRows(raw2);
       setForecastData(normalized2);
     } catch (err) {
-      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Generate forecast failed:", err);
+      console.error("Generate forecast failed:", err);
       const msg =
         err.response?.data?.detail ||
         err.message ||
@@ -420,7 +422,7 @@ export default function ForecastingDashboard() {
       });
       setHolidays((prev) => [...prev, res.data]);
     } catch (err) {
-      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to create holiday:", err);
+      console.error("Failed to create holiday:", err);
     }
   };
 
@@ -429,7 +431,7 @@ export default function ForecastingDashboard() {
       await api.delete(`holidays/${id}/`);
       setHolidays((prev) => prev.filter((h) => h.id !== id));
     } catch (err) {
-      console.error("ÃƒÂ¢Ã‚ÂÃ…â€™ Failed to remove holiday:", err);
+      console.error("Failed to remove holiday:", err);
     }
   };
 
@@ -438,14 +440,14 @@ export default function ForecastingDashboard() {
   // -----------------------
   const productNames = products.map(
     (p) => p.product_name || p.name || p.product
-  );
+  ).filter(Boolean);
 
   const overview = useMemo(() => {
     if (!bestSellerData.length) {
       return {
         totalPredictedSales: 0,
-        topSellingProduct: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â",
-        highestGrowthProduct: "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â",
+        topSellingProduct: EMPTY_FORECAST_LABEL,
+        highestGrowthProduct: EMPTY_FORECAST_LABEL,
       };
     }
 
@@ -454,8 +456,8 @@ export default function ForecastingDashboard() {
       0
     );
 
-    const topSellingProduct = bestSellerData[0]?.product || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
-    const highestGrowthProduct = bestSellerData[0]?.product || "ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â";
+    const topSellingProduct = bestSellerData[0]?.product || EMPTY_FORECAST_LABEL;
+    const highestGrowthProduct = bestSellerData[0]?.product || EMPTY_FORECAST_LABEL;
 
     return {
       totalPredictedSales,
@@ -467,8 +469,8 @@ export default function ForecastingDashboard() {
   const seasonalInsights = useMemo(() => {
     if (!forecastData.length) {
       return {
-        weeklyPeakDay: "—",
-        yearlyPeakMonth: "—",
+        weeklyPeakDay: "No data",
+        yearlyPeakMonth: "No data",
         trendDirection: "Stable",
         mape: null,
       };
@@ -600,7 +602,7 @@ export default function ForecastingDashboard() {
           </p>
 
           <ProductSelector
-            products={productNames.length ? productNames : ["No products"]}
+            products={productNames}
             selectedProduct={selectedProductName}
             onChange={(name) => setSelectedProductName(name)}
           />
