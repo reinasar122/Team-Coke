@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import axios from "axios";
 import WifiLoader from "../components/WifiLoader"; // keep your loader
 import api from "../api"; // ✅ correct
 
@@ -9,10 +8,14 @@ const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
-  // Function to validate phone number (Philippine format)
+  const handlePhoneNumberChange = (e) => {
+    const digitsOnly = e.target.value.replace(/\D/g, "");
+    setPhoneNumber(digitsOnly.slice(0, 11));
+  };
+
+  // Function to validate phone number (Philippine local format)
   const validatePhoneNumber = (phone) => {
-    // Updated regex: allows local format (09) and international format (+63)
-    const regex = /^(?:\+63|0)[9][0-9]{9}$/;
+    const regex = /^09[0-9]{9}$/;
     return regex.test(phone);
   };
 
@@ -25,7 +28,7 @@ const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
     // Validate phone number format
     if (!validatePhoneNumber(phoneNumber)) {
       setLoading(false);
-      setMessage("Invalid phone number format. Please enter a valid number.");
+      setMessage("Invalid phone number. Use 11 digits starting with 09.");
       return;
     }
 
@@ -77,11 +80,19 @@ const ForgotPasswordModal = ({ onClose, onOtpSent }) => {
           <input
             type="text"
             id="phone_number"
-            placeholder="e.g. +639XXXXXXXXX or 09XXXXXXXXX"
+            name="forgot-password-phone"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            placeholder="09XXXXXXXXX"
             className="w-full border border-gray-300 rounded-md px-4 py-2 mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none"
             value={phoneNumber}
-            onChange={(e) => setPhoneNumber(e.target.value)}
+            onChange={handlePhoneNumberChange}
             required
+            maxLength={11}
           />
 
           <button
