@@ -47,6 +47,8 @@ import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
+import ChatbotDeviceApprovals from "./pages/ChatbotDeviceApprovals";
+import AdminRoute from "./routes/AdminRoute";
 import Expenses from "./pages/Expenses";
 import VanLoadReturnRemittance from "./pages/VanLoadReturnRemittance";
 import SupplierReturnForm from "./pages/SupplierReturnForm";
@@ -56,7 +58,7 @@ import WarehouseProductDetails from "./pages/WarehouseProductDetails";
 import ReceivingDetails from "./pages/ReceivingDetails";
 import VanLoadProductDetails from "./pages/VanLoadProductDetails";
 import Settings from "./pages/Settings";
-// ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ NEW: Import ExpenseSettings component
+// NEW: Import ExpenseSettings component
 import ExpenseSettings from "./components/Settings";
 
 // Dashboard Page
@@ -74,7 +76,7 @@ import "react-toastify/dist/ReactToastify.css";
 import Invoice from "./pages/Invoice";
 
 import ForecastingDashboard from "./pages/ForecastingDashboard";
-// ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Customer Registration Component
+// Customer Registration Component
 import CustomerRegistration from './components/merchandisingcomponents/CustomerRegistration';
 
 import {
@@ -157,7 +159,7 @@ const ProtectedRoute = ({ children }) => {
   return children;
 };
 
-// ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Layout wrapper for protected pages
+// Layout wrapper for protected pages
 const NavigateToAccessibleRoute = () => {
   const nextRoute = getDefaultAccessibleRoute();
   return <Navigate to={nextRoute || "/no-access"} replace />;
@@ -226,7 +228,7 @@ const ProtectedLayout = ({
           </>
         )}
 
-        {/* ÃƒÆ’Ã‚Â°Ãƒâ€¦Ã‚Â¸ÃƒÂ¢Ã¢â€šÂ¬Ã‹Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¡ app-content + conditional lock */}
+        {/* app-content + conditional lock */}
         <div
           className={`app-content app-shell-content ${lockScroll ? "lock-scroll" : "allow-page-scroll"} p-3 md:p-5 flex-1 min-w-0 transition-all duration-300 ${
             !hideLayout && isSidebarOpen && isDesktopViewport
@@ -246,19 +248,12 @@ const ProtectedLayout = ({
                     </h1>
                   }
                 />
-                <Route
-                  path="/dashboard"
-                  element={
-                    <h1 className="text-2xl flex items-center gap-2">
-                      <FaChartPie /> Dashboard
-                    </h1>
-                  }
-                />
+                <Route path="/dashboard" element={null}/>
 
                 {/* Customer page titles */}
                 <Route path="/customers" element={null} />
                 <Route path="/customer-registration" element={null} />
-
+                <Route path="/chatbot-devices" element={null}/>
                 <Route path="/receiving" />
                 <Route path="/stocks" />
                 <Route path="/products" />
@@ -269,7 +264,7 @@ const ProtectedLayout = ({
                 {/* Forecasting page title */}
                 <Route path="/forecasting" element={null} />
 
-                {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ NEW: Expense Settings page title */}
+                {/*NEW: Expense Settings page title */}
                 <Route
                   path="/expense-settings"
                   element={
@@ -301,7 +296,7 @@ const ProtectedLayout = ({
                 />
                 
                 {/*}
-                ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Sales Report page title
+                Sales Report page title
                 <Route
                   path="/reports/sales"
                   element={
@@ -334,7 +329,7 @@ const ProtectedLayout = ({
             {/* Forecasting */}
             <Route path="/forecasting" element={<ForecastingDashboard />} />
 
-            {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Customer Routes */}
+            {/* Customer Routes */}
             <Route path="/customer-registration" element={<CustomerRegistration />} />
             <Route path="/customers" element={<Navigate to="/customer-registration" replace />} />
 
@@ -363,7 +358,7 @@ const ProtectedLayout = ({
             <Route path="/create-user" element={<UserForm />} />
             <Route path="/roles" element={<RoleList />} />
             <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
-
+            <Route path="/chatbot-devices" element={<AdminRoute><ChatbotDeviceApprovals /></AdminRoute>}/>
             {/* Products */}
             <Route path="/products" element={<ProductList />} />
             <Route path="/products/new" element={<ProductForm />} />
@@ -408,7 +403,7 @@ const ProtectedLayout = ({
             <Route path="/expenses" element={<Expenses />} />
             <Route path="/expences" element={<Navigate to="/expenses" replace />} />
 
-            {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ NEW: Expense Settings Route */}
+            {/* NEW: Expense Settings Route */}
             <Route path="/expense-settings" element={<ExpenseSettings />} />
             <Route path="/settings/expenses" element={<Navigate to="/expense-settings" replace />} />
 
@@ -432,7 +427,7 @@ const ProtectedLayout = ({
             {/* Edit Role Access */}
             <Route path="/edit-role-access/:id" element={<EditRoleAccessWrapper />} />
 
-            {/* ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Fallback for unmatched routes - redirect to dashboard if authenticated */}
+            {/* Fallback for unmatched routes - redirect to dashboard if authenticated */}
             <Route path="*" element={<NavigateToAccessibleRoute />} />
           </Routes>
         </div>
@@ -441,7 +436,7 @@ const ProtectedLayout = ({
   );
 };
 
-// ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ Main App Component with NotificationProvider
+// Main App Component with NotificationProvider
 function SupplierRegistrationPage() {
   const navigate = useNavigate();
 
@@ -462,7 +457,7 @@ function App() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // ÃƒÆ’Ã‚Â¢Ãƒâ€¦Ã¢â‚¬Å“ÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦ FIXED: Don't clear user data on refresh - only set session flag
+    // FIXED: Don't clear user data on refresh - only set session flag
     if (!sessionStorage.getItem("app_initialized")) {
       sessionStorage.setItem("app_initialized", "true");
       console.log("New browser session initialized");
