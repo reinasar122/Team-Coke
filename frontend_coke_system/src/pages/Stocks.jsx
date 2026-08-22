@@ -253,7 +253,7 @@ const Stocks = () => {
   return (
     <div className="stocks-container">
       <div className="stocks-header">
-        <h2 className="page-title stocks-title">
+        <h2 className="page-title stocks-title gap-4 min-w-0">
           <FaClipboardList aria-hidden="true" />
           <span>Stocks Table</span>
         </h2>

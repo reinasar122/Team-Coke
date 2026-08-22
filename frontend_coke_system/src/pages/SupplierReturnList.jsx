@@ -308,10 +308,10 @@ const SupplierReturnList = () => {
           flexWrap: "wrap",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap", minWidth: 0 }}>
-          <h2 className="page-title" style={{ margin: 0 }}>
-            Supplier Returns
-          </h2>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <h1 className="page-title">
+            <FaWarehouse /> Supplier Returns
+          </h1>
           {currentWarehouse && (
             <span className="page-warehouse-chip">
               <span className="page-warehouse-chip__icon" aria-hidden="true"><FaWarehouse /></span>
