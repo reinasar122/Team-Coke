@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
 import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
+import { PageToolbarSelect } from "../components/common/PageSearchToolbar";
 
 const ReturnEmpties = () => {
   const [suppliers, setSuppliers] = useState([]);
@@ -13,7 +14,6 @@ const ReturnEmpties = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // ✅ KEPT: Proper warehouse setup using utilities (from old version)
   const setupWarehouse = useCallback(async () => {
@@ -440,27 +440,33 @@ const ReturnEmpties = () => {
   // ✅ KEPT: Show loading state while setting up warehouse (from old version)
   if (!currentWarehouse && loading) {
     return (
-      <div className="loading">
-        <div className="spinner" />
-        <div className="loading-text">Setting up warehouse...</div>
+      <div className="return-empties">
+        <div className="loading">
+          <div className="spinner" />
+          <span className="loading-text">Setting up warehouse...</span>
+        </div>
       </div>
     );
   }
 
   if (!currentWarehouse) {
     return (
-      <div className="loading">
-        <div className="spinner" />
-        <div className="loading-text">No warehouse selected. Please select a warehouse to view return empties.</div>
+      <div className="return-empties">
+        <div className="loading">
+          <div className="spinner" />
+          <span className="loading-text">No warehouse selected. Please select a warehouse to view return empties.</span>
+        </div>
       </div>
     );
   }
 
   if (loading) {
     return (
-      <div className="loading">
-        <div className="spinner" />
-        <div className="loading-text">Loading returned empties...</div>
+      <div className="return-empties">
+        <div className="loading">
+          <div className="spinner" />
+          <span className="loading-text">Loading return empties...</span>
+        </div>
       </div>
     );
   }
@@ -487,106 +493,22 @@ const ReturnEmpties = () => {
       
       {/* Header */}
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {/* ✅ KEPT: Show current warehouse (from old version) */}
-          <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            📦 Return Empties
-            <span className="page-warehouse-chip page-warehouse-chip--inline">
-              <span className="page-warehouse-chip__icon" aria-hidden="true">🏢</span>
-              <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
-            </span>
-          </h2>
-          
-          {/* Supplier dropdown */}
-          <div style={{ position: 'relative' }}>
-            <button
-              onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="btn btn-ghost"
-              style={{ 
-                fontSize: '1rem', 
-                fontWeight: 600, 
-                display: 'flex', 
-                alignItems: 'center', 
-                gap: '8px',
-                padding: '8px 16px'
-              }}
-            >
-              📦 {selectedSupplier || "All Suppliers"}
-              <svg xmlns="http://www.w3.org/2000/svg" style={{ width: '20px', height: '20px' }} fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
-            </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', width: '100%', flexWrap: 'wrap' }}>
+          <h2 className="page-title" style={{ margin: 0 }}> </h2>
 
-            {dropdownOpen && (
-              <div style={{
-                position: 'absolute',
-                left: 0,
-                top: '100%',
-                marginTop: '4px',
-                width: '220px',
-                background: 'var(--surface)',
-                boxShadow: 'var(--shadow)',
-                borderRadius: 'var(--r-md)',
-                border: '1px solid var(--border)',
-                zIndex: 10,
-                maxHeight: '200px',
-                overflowY: 'auto'
-              }}>
-                <button
-                  onClick={() => {
-                    setSelectedSupplier("");
-                    setDropdownOpen(false);
-                  }}
-                  style={{
-                    display: 'block',
-                    width: '100%',
-                    textAlign: 'left',
-                    padding: '8px 12px',
-                    border: 'none',
-                    background: 'transparent',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem'
-                  }}
-                  onMouseEnter={(e) => e.target.style.background = 'var(--ghost-hover)'}
-                  onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                >
-                  All Suppliers
-                </button>
-                {suppliers.map((supplier) => (
-                  <button
-                    key={supplier.id}
-                    onClick={() => {
-                      setSelectedSupplier(supplier.company_name || supplier.name);
-                      setDropdownOpen(false);
-                    }}
-                    style={{
-                      display: 'block',
-                      width: '100%',
-                      textAlign: 'left',
-                      padding: '8px 12px',
-                      border: 'none',
-                      background: 'transparent',
-                      cursor: 'pointer',
-                      fontSize: '0.875rem'
-                    }}
-                    onMouseEnter={(e) => e.target.style.background = 'var(--ghost-hover)'}
-                    onMouseLeave={(e) => e.target.style.background = 'transparent'}
-                  >
-                    {supplier.company_name || supplier.name}
-                  </button>
-                ))}
-                {suppliers.length === 0 && (
-                  <div style={{
-                    padding: '8px 12px',
-                    fontSize: '0.875rem',
-                    color: 'var(--text-muted)',
-                    fontStyle: 'italic'
-                  }}>
-                    No suppliers available
-                  </div>
-                )}
-              </div>
-            )}
+          <div className="app-page-toolbar__controls" style={{ minWidth: 240, flex: '1 0 auto' }}>
+            <PageToolbarSelect
+              value={selectedSupplier}
+              onChange={(event) => setSelectedSupplier(event.target.value)}
+              ariaLabel="Select supplier"
+              options={[
+                { value: "", label: "All Suppliers" },
+                ...suppliers.map((supplier) => ({
+                  value: supplier.company_name || supplier.name || "",
+                  label: supplier.company_name || supplier.name || `Supplier ${supplier.id}`,
+                })),
+              ]}
+            />
           </div>
         </div>
       </div>
