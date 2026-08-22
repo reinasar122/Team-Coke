@@ -289,10 +289,10 @@ const UserList = () => {
     <div className="page">
       {/* Compact Header */}
       <div className="page-header">
-        <div className="flex flex-wrap items-center gap-3">
-          <h2 className="page-title flex items-center gap-2">
-            <FaUsers style={{ fontSize: "1.1rem" }} /> Users
-          </h2>
+        <div className="flex item-center gap-6">
+          <h1 className="page-title flex items-center gap: 0.5rem">
+            <FaUsers style={{ fontSize: "1.6rem" }} /> Users
+          </h1>
         </div>
       </div>
 
