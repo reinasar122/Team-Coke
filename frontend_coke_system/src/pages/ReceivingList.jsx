@@ -291,7 +291,7 @@ const ReceivingList = () => {
       {/* Header */}
       <div className="page-header">
         <div>
-            <h1 className="text-2xl flex items-center">
+            <h1 className="text-2xl font-bold flex items-center gap-2">
               <FaClipboardCheck /> Receiving
             </h1>
         </div>
