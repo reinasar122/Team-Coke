@@ -50,6 +50,17 @@ const ReceivingForm = () => {
   const [isSaving, setIsSaving] = useState(false);
   const isSavingRef = useRef(false);
 
+  // NEW: Prevents double /products/ fetch (load-data effect vs restore effect)
+  // whose late response would wipe restored/auto-selected rows
+  const skipInitialProductLoadRef = useRef(false);
+
+  // NEW: Tracks last seen supplier so product rows are only cleared when the
+  // user manually switches supplier (not when restore flags change timing)
+  const prevSupplierForDetailsRef = useRef("");
+
+  // Mirrors isRestoring state for synchronous checks inside other effects
+  const isRestoringRef = useRef(false);
+
   const [form, setForm] = useState({
     supplier: "",
     invoice_no: "",
@@ -85,82 +96,6 @@ const ReceivingForm = () => {
       setNotice({ open: false, type: "success", text: "" });
     }, 3000);
   };
-
-  // NEW: Handle return from product form and refresh products + auto-select new product + restore form state
-  useEffect(() => {
-    if (location.state?.refreshProducts && currentWarehouse?.id) {
-      // Show success message from product form if available
-      if (location.state?.message) {
-        showNotice(location.state.message, "success");
-      }
-      
-      // Mark that we're restoring to prevent other effects from interfering
-      setIsRestoring(true);
-      
-      // Reload products to include the newly added product
-      const config = getAxiosConfig();
-      api.get("/products/", config)
-        .then((res) => {
-          console.log(`🔄 Reloaded ${res.data.length} products after adding new product`);
-          setProducts(res.data);
-          
-          // Restore previous form state if it exists
-          if (location.state?.savedFormState) {
-            console.log('🔄 Restoring previous form state...');
-            const savedState = location.state.savedFormState;
-            
-            setForm(savedState);
-            setReceiveNo(savedState.receive_no);
-            setSupplierReturns(savedState.supplier_returns || []);
-            setReceivedByName(savedState.received_by_name || "");
-            
-            //Reiina
-            console.log('✅ Form state restored successfully', {
-              supplier: savedState.supplier,
-              invoice_no: savedState.invoice_no,
-              receive_no: savedState.receive_no
-            });
-            
-            // Store the new product info for auto-selection AFTER filteredProducts updates
-            if (location.state?.newProduct) {
-              const newProductId = location.state.newProduct.id;
-              const newProductName = location.state.newProduct.name;
-              
-              //Reiina
-              console.log(`📦 New product marked for auto-selection: ${newProductName} (ID: ${newProductId})`);
-              
-              //Reina
-              setNewProductToSelect({
-                id: newProductId,
-                name: newProductName,
-                allProducts: res.data
-              });
-              
-              setIsAutoSelecting(true);
-            } else {
-              setIsAutoSelecting(false);
-            }
-            
-            // Clear the restoring flag after a short delay
-            setTimeout(() => {
-              setIsRestoring(false);
-            }, 100);
-          } else {
-            // No saved form state, clear the restoring flag
-            setIsRestoring(false);
-            //end
-          }
-        })
-        .catch((err) => {
-          console.error("❌ Error reloading products:", err);
-          setIsAutoSelecting(false);
-          setIsRestoring(false); //Reina
-        });
-      
-      // Clear the message from state to prevent showing it again
-      navigate(location.pathname, { replace: true, state: {} });
-    }
-  }, [location.state?.refreshProducts, currentWarehouse?.id, navigate]); //Reiina
 
   // NEW: Reset form when warehouse changes
   const resetForm = useCallback(() => {
@@ -335,6 +270,97 @@ const ReceivingForm = () => {
     return config;
   }, [currentWarehouse?.id]);
 
+  // NEW: Handle return from product form and refresh products + auto-select new product + restore form state
+  // (declared AFTER getAxiosConfig and BEFORE the load-data effect so the
+  // skipInitialProductLoadRef flag is set before that effect runs)
+  useEffect(() => {
+    const state = location.state || {};
+    const shouldRestore = state.refreshProducts || state.restoreOnly;
+    if (!shouldRestore || !currentWarehouse?.id) return;
+
+    // Prevent the warehouse-load effect from also fetching /products/
+    // (its late response would wipe the restored rows via the filter reset)
+    skipInitialProductLoadRef.current = Boolean(state.refreshProducts);
+
+    // Show message from product form if available
+    if (state.message) {
+      showNotice(state.message, state.messageType || "success");
+    }
+
+    // Mark that we're restoring to prevent other effects from interfering
+    setIsRestoring(true);
+    isRestoringRef.current = true;
+
+    const finishRestoreFlags = () => {
+      setIsRestoring(false);
+      isRestoringRef.current = false;
+      skipInitialProductLoadRef.current = false;
+    };
+
+    const restoreSavedState = (allProducts) => {
+      if (!state.savedFormState) {
+        finishRestoreFlags();
+        return;
+      }
+
+      console.log("🔄 Restoring previous form state...");
+      const savedState = state.savedFormState;
+
+      setForm(savedState);
+      setReceiveNo(savedState.receive_no);
+      setSupplierReturns(savedState.supplier_returns || []);
+      setReceivedByName(savedState.received_by_name || "");
+      lastFetchedSupplier.current = null;
+      // Sync immediately so the filter effect never treats the restored
+      // supplier as a manual switch (which would wipe product rows)
+      prevSupplierForDetailsRef.current = String(savedState.supplier || "");
+
+      console.log("✅ Form state restored successfully", {
+        supplier: savedState.supplier,
+        invoice_no: savedState.invoice_no,
+        receive_no: savedState.receive_no,
+      });
+
+      // Store the new product info for auto-selection AFTER filteredProducts updates
+      if (state.newProduct && Array.isArray(allProducts)) {
+        console.log(
+          `📦 New product marked for auto-selection: ${state.newProduct.name} (ID: ${state.newProduct.id})`
+        );
+        setNewProductToSelect({
+          id: state.newProduct.id,
+          name: state.newProduct.name,
+          allProducts,
+        });
+        setIsAutoSelecting(true);
+      }
+
+      // Clear the restoring flag after a short delay
+      setTimeout(finishRestoreFlags, 100);
+    };
+
+    if (state.refreshProducts) {
+      // Save path: reload products so the newly created one appears in the dropdown
+      const config = getAxiosConfig();
+      api
+        .get("/products/", config)
+        .then((res) => {
+          console.log(`🔄 Reloaded ${res.data.length} products after adding new product`);
+          setProducts(res.data);
+          restoreSavedState(res.data);
+        })
+        .catch((err) => {
+          console.error("❌ Error reloading products:", err);
+          restoreSavedState(null);
+        });
+    } else {
+      // Cancel path: nothing new was created, just bring back what we left behind
+      restoreSavedState(null);
+    }
+
+    // Clear the state to prevent reprocessing on subsequent renders
+    navigate(location.pathname, { replace: true, state: {} });
+  }, [location.state, currentWarehouse?.id, navigate, getAxiosConfig]);
+
   // Load data when warehouse changes
   useEffect(() => {
     if (!currentWarehouse?.id || isLoadingWarehouse) {
@@ -356,31 +382,40 @@ const ReceivingForm = () => {
       .catch((err) => console.error("❌ Error loading suppliers:", err));
 
     // Load products for this warehouse
-    api
-      .get("/products/", config)
-      .then((res) => {
-        console.log(`✅ Loaded ${res.data.length} products for warehouse ${currentWarehouse.id}`);
-        console.log(
-          "🔍 Sample products:",
-          res.data.slice(0, 3).map((p) => ({
-            id: p.id,
-            name: p.product_name,
-            supplier_id: p.supplier_id,
-            supplier_name: p.supplier_name,
-            warehouse: p.warehouse,
-            warehouse_id: p.warehouse_id,
-          }))
-        );
-        setProducts(res.data);
-      })
-      .catch((err) => console.error("❌ Error loading products:", err));
+    // (skipped when returning from ProductForm - the restore flow controls the list)
+    if (skipInitialProductLoadRef.current) {
+      console.log("⏭️ Skipping initial products load - restoring from product form");
+    } else {
+      api
+        .get("/products/", config)
+        .then((res) => {
+          console.log(`✅ Loaded ${res.data.length} products for warehouse ${currentWarehouse.id}`);
+          console.log(
+            "🔍 Sample products:",
+            res.data.slice(0, 3).map((p) => ({
+              id: p.id,
+              name: p.product_name,
+              supplier_id: p.supplier_id,
+              supplier_name: p.supplier_name,
+              warehouse: p.warehouse,
+              warehouse_id: p.warehouse_id,
+            }))
+          );
+          setProducts(res.data);
+        })
+        .catch((err) => console.error("❌ Error loading products:", err));
+    }
 
     const generateJumbledCode = () => {
       const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
       return `RCV-${Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * chars.length)]).join("")}`;
     };
 
-    setReceiveNo(generateJumbledCode());
+    // Don't regenerate while returning from the product form - the restore
+    // flow sets the saved receive number (this runs after that effect)
+    if (!skipInitialProductLoadRef.current && !isRestoringRef.current) {
+      setReceiveNo(generateJumbledCode());
+    }
   }, [currentWarehouse?.id, currentWarehouse?.name, getAxiosConfig, isLoadingWarehouse]);
 
   // FIXED: Filter products by supplier AND ensure they're available in current warehouse
@@ -488,9 +523,15 @@ const ReceivingForm = () => {
 
       setFilteredProducts(warehouseFilteredProducts);
 
-      //Reina
-      // UPDATED: Only reset product details when NOT auto-selecting and NOT restoring
-      if (!isAutoSelecting && !isRestoring) {
+      // UPDATED: Only clear product rows when the supplier actually changed
+      // (manual switch). Timing flags alone are unsafe - they flip back to
+      // false after restoration, which used to re-run this effect and wipe
+      // restored rows including shell quantities.
+      const supplierChanged =
+        prevSupplierForDetailsRef.current !== String(form.supplier || "");
+      prevSupplierForDetailsRef.current = String(form.supplier || "");
+
+      if (supplierChanged && !isAutoSelecting && !isRestoring) {
         setForm((prev) => ({
           ...prev,
           details: [
@@ -510,6 +551,10 @@ const ReceivingForm = () => {
       }
     } else {
       setFilteredProducts([]);
+      // Keep the supplier tracker in sync here too - otherwise the first
+      // main-branch run after data loads (post-restore) would wrongly see
+      // the restored supplier as "changed" and wipe product rows
+      prevSupplierForDetailsRef.current = String(form.supplier || "");
       if (!form.supplier) {
         console.log("🔍 No supplier selected");
       } else if (products.length === 0) {
@@ -947,10 +992,21 @@ const ReceivingForm = () => {
       return;
     }
 
+    const sanitizedRows = filteredRows.map((row) => ({
+      ...row,
+      product_id: Number(row.product_id),
+      pcs_qty: Number(row.pcs_qty) || 0,
+      shell_qty: Number(row.shell_qty) || 0,
+      bottle_qty: Number(row.bottle_qty) || 0,
+      bad_order_pcs: Number(row.bad_order_pcs) || 0,
+      unit_cost: Number(row.unit_cost) || 0,
+      total: Number(row.total) || 0,
+    }));
+
     const dataToSubmit = {
       ...form,
       receive_no: receiveNo,
-      details: filteredRows,
+      details: sanitizedRows,
     };
 
     isSavingRef.current = true;
