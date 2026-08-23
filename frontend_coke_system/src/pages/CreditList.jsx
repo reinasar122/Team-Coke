@@ -4,6 +4,7 @@ import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { FaEye } from "react-icons/fa";
 import api from "../api"; // ✅ correct
+import { BsFillCreditCard2FrontFill } from "react-icons/bs";
 
 export default function CreditList() {
   const [rows, setRows] = useState([]);
@@ -187,7 +188,7 @@ const sortedRows = [...rows].sort((a, b) => {
   return bt - at;
 });
 
-  if (!currentWarehouse) {
+  if (!currentWarehouse) {  
     return (
       <div className="page" style={{ justifyContent: 'center', alignItems: 'center' }}>
         <div style={{ textAlign: 'center', color: 'var(--danger)' }}>
@@ -207,14 +208,20 @@ const sortedRows = [...rows].sort((a, b) => {
   }
 
   return (
-    <div className="creditlist-container">
-      <h1 className="text-xl font-bold mb-4">Credit List</h1>
+    <div className="page creditlist-container">
+      <div className="page-header">
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem"}}>
+          <h1 className="page-title">
+            <BsFillCreditCard2FrontFill /> Credit List
+          </h1> 
+        </div>
+      </div>
 
       <div className="table-wrapper">
         <table className="table">
           <thead>
             <tr>
-              <th className="text-center">MSP No.</th>
+              <th className="text-center">MSP No.</th>  
               <th className="text-center">Date &amp; Time</th>
               <th className="text-center">Handled By</th>
               <th className="text-center">Customer</th>
