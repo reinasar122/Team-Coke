@@ -568,10 +568,13 @@ const ProductForm = () => {
 
   const handleCancel = () => {
     if (returnTo && savedFormState) {
+      // Silent restore: no popup, just bring the user back with their
+      // previous receiving-form entries intact
       navigate(returnTo, {
+        replace: true,
         state: {
           savedFormState,
-          message: "Product creation cancelled - returning to receiving form",
+          restoreOnly: true,
           refreshProducts: false
         }
       });
