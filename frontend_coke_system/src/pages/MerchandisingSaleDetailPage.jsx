@@ -116,6 +116,7 @@ export default function MerchandisingSaleDetailPage() {
   const isCashierUser = currentUserRole === "cashier";
   const lastApprovalStatusRef = useRef("none");
   const isSavingVanLoadRef = useRef(false);
+  const detailErrorAlertedRef = useRef(false);
 
   // Callback function to receive updated rows and calculate the total expectedSaleWithoutDiscount
   const handleTotalExpectedSaleWithoutDiscount = (rows) => {
@@ -308,7 +309,11 @@ const loadMerchandisingDetail = useCallback(
         } catch {}
       }
       if (!data) {
-        showAlert("Could not load merchandising detail.");
+        // Show the alert only once even if this loader runs multiple times
+        if (!detailErrorAlertedRef.current) {
+          detailErrorAlertedRef.current = true;
+          showAlert("Could not load merchandising detail.");
+        }
         return;
       }
 
@@ -463,18 +468,23 @@ const loadMerchandisingDetail = useCallback(
       .catch(() => setRoutes([]));
   }, [isVanLoad, currentWarehouse?.id]);
 
-  // initial loads
+  // initial loads: product list + merchandising detail (once per sale)
   useEffect(() => {
     (async () => {
       const prodList = await loadProducts();             // get fresh list
       await loadMerchandisingDetail(sale?.id, prodList); // pass it here
-      await loadAvailableStock(currentWarehouse?.id);
       if (sale?.date_time) setTransactionDate(toDatetimeLocalValue(new Date(sale.date_time)));
       setSelectedVan(typeof sale?.van === "object" ? sale?.van?.id : sale?.van || "");
       setRoute(typeof sale?.route === "object" ? sale?.route?.id : sale?.route || "");
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sale?.id, currentWarehouse?.id, loadProducts]);
+  }, [sale?.id, loadProducts]);
+
+  // stock availability depends on the warehouse; load it separately so the
+  // merchandising detail is not re-fetched when the warehouse resolves
+  useEffect(() => {
+    loadAvailableStock(currentWarehouse?.id);
+  }, [currentWarehouse?.id, loadAvailableStock]);
 
     const fetchEditApprovalStatus = useCallback(async () => {
     if (!isCashierUser || !sale?.id || !currentUser?.id) return;
