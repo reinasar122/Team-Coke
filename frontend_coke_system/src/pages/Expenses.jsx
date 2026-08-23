@@ -4,6 +4,7 @@ import axios from "axios";
 import dayjs from "dayjs";
 import api from "../api"; // ✅ NEW: Added centralized API import
 import { getCurrentWarehouse, findWarehouseByName } from '../utils/warehouseUtils'; // ✅ Keep warehouse utilities
+import { GiExpense } from "react-icons/gi";
 
 /* ------------------ helpers ------------------ */
 const peso = (n) =>
@@ -447,7 +448,9 @@ export default function Expenses() {
       {/* Header - Clean with warehouse info */}
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <h1 className="page-title">All Expenses</h1>
+          <h1 className="page-title">
+            <GiExpense />All Expenses
+          </h1>
           
           {/* ✅ Show current warehouse */}
           {currentWarehouse && (

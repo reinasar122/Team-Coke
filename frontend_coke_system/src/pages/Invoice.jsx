@@ -4,6 +4,7 @@ import axios from "axios";
 import InvoiceModal from "../components/InvoiceModal"; // Reuse your existing InvoiceModal
 import { FaEye } from "react-icons/fa";
 import api from "../api"; // ✅ correct
+import { FaFileInvoiceDollar } from "react-icons/fa6";
 
 const InvoiceList = () => {
   const [invoices, setInvoices] = useState([]);
@@ -136,8 +137,9 @@ const InvoiceList = () => {
 
   return (
     <div className="invoicelist-container">
-      <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">Invoice List</h2>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem', marginBottom: '1.2rem' }}>
+        <h1 className="page-title">
+          <FaFileInvoiceDollar /> Invoice List</h1>
         {currentWarehouse && (
           <span className="page-warehouse-chip page-warehouse-chip--inline">
             <span className="page-warehouse-chip__icon" aria-hidden="true">🏢</span>
