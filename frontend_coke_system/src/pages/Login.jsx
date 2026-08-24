@@ -356,6 +356,7 @@ const Login = () => {
 
       localStorage.setItem("user", JSON.stringify(res.data));
       localStorage.setItem("access", JSON.stringify(accessibilities));
+      if (res.data?.token) localStorage.setItem("token", res.data.token);
         if (res.data?.warehouse_id) {
         localStorage.setItem(
           "selectedWarehouse",
