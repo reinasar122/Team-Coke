@@ -10,6 +10,7 @@ import {
   faChevronUp,
   faChartBar,
   faChartLine,
+  faUserShield,
 } from "@fortawesome/free-solid-svg-icons";
 import { getAllowedSubmenus, getDefaultAccessibleRoute, hasAccess } from "../utils/accessUtils"; // Import the new permission check functions
 import { canView } from "../utils/accessControl";
@@ -114,7 +115,7 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
   user?.role ||
   "";
 
-  const isAdmin = roleName.toLowerCase() === "admin";
+  const isAdmin = ["admin", "administrator", "super admin"].includes(roleName.toLowerCase());
 
   return (
     <div className={`app-shell-sidebar app-sidebar fixed left-0 z-30 overflow-y-auto bg-gray-900 text-white shadow-xl transition-transform duration-300 ${isSidebarOpen ? "translate-x-0" : "-translate-x-full"}`}>
@@ -175,7 +176,9 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
                         isActive ||
                         location.pathname === "/reservationlist" ||
                         location.pathname.startsWith("/reservationlist/") ||
-                        location.pathname.startsWith("/reservation-details/");
+                        location.pathname.startsWith("/reservation-details/") ||
+                        location.pathname === "/merchandising-sale" ||
+                        location.pathname.startsWith("/merchandising-sale/");
 
                       return `block p-2 text-sm rounded hover:bg-gray-600 ${
                         isTradingSection ? "bg-gray-700" : ""
@@ -482,6 +485,21 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
               ) : (
                 <DisabledSubItem text="Customers" />
               )}
+              {isAdmin ? (
+                <li>
+                  <NavLink
+                    to="/chatbot-devices"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    <FontAwesomeIcon icon={faUserShield} className="mr-2" />
+                    Chatbot Devices
+                  </NavLink>
+                </li>
+              ) : null}
             </ul>
           )}
         </li>
