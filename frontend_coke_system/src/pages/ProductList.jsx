@@ -3,6 +3,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import api from "../api"; // ✅ NEW: from new version (was: import axios from "axios")
 import { Link } from 'react-router-dom';
 import { FaEdit, FaTrash, FaChevronLeft, FaChevronRight, FaSearch, FaWarehouse } from 'react-icons/fa';
+import { AiFillProduct } from "react-icons/ai";
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
 import { notifyProductChange } from '../utils/productNotifier';
 import { getCurrentWarehouse, findWarehouseByName, getWarehouseAxiosConfig } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
@@ -287,8 +288,10 @@ const ProductList = () => {
     <div className="page product-list-page">
       {/* Header */}
       <div className="page-header product-list-page__header">
-        <div className="flex flex-wrap items-center gap-4 min-w-0">
-          <h2 className="page-title" style={{ margin: 0 }}>Product List</h2>
+        <div className="flex flex-wrap items-center gap-6 min-w-0">
+          <h2 className="page-title" style={{ margin: 0 }}>
+            <AiFillProduct /> Product List
+          </h2>
           <span className="page-warehouse-chip">
             <span className="page-warehouse-chip__icon" aria-hidden="true"><FaWarehouse /></span>
             <span className="page-warehouse-chip__text">{currentWarehouse.name}</span>
