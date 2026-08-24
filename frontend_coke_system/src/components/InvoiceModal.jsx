@@ -1150,12 +1150,6 @@ const subtotal = n(actualSales) > 0 ? n(actualSales) : subtotalFromRows;
                                 <strong>Change:</strong> ₱{fmt(change)}
                               </div>
                             </div>
-                            
-                            {isVanLoad && remarks && (
-                              <div className="col-span-2">
-                                <strong>Remarks:</strong> {remarks}
-                              </div>
-                            )}
                           </div>
                         </div>
                       )}
