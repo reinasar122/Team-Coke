@@ -1,4 +1,78 @@
-# Coke Docker deployment
+﻿# Coke Docker deployment
+
+## Quick Start
+
+### 1. Prerequisites
+
+Install Docker Desktop (or Engine with Compose v2), Git, Bash, curl, gzip, and Python 3.
+
+### 2. Set up the environment
+
+```bash
+cp .env.example .env
+mkdir -p backups deployments
+```
+
+Edit `.env` and replace every placeholder:
+
+- `SECRET_KEY` — random string, at least 50 characters
+- `MYSQL_PASSWORD` / `MYSQL_ROOT_PASSWORD` — database passwords
+- `ALLOWED_HOSTS` — your domain or server IP (no wildcards)
+- `CORS_ALLOWED_ORIGINS` / `CSRF_TRUSTED_ORIGINS` — your site origin
+- `EMAIL_HOST_USER` / `EMAIL_HOST_PASSWORD` / `DEFAULT_FROM_EMAIL` — real SMTP account
+- Keep `DEBUG=false` and `CORS_ALLOW_ALL_ORIGINS=false`
+
+### 3. Deploy (production)
+
+```bash
+bash scripts/deploy.sh
+```
+
+That is the whole deploy. `deploy.sh` runs everything in order:
+preflight checks, database backup, image build, migrations, static files,
+service restart, and verification. If verification fails it rolls back to
+the last-known-good images. It derives the image tag from the current Git
+commit automatically.
+
+`preflight.sh` and `verify.sh` are optional standalone checks — run them
+separately only if you want to inspect before or after a deploy.
+
+### 4. Open the app
+
+Visit `http://SERVER_IP:8080/coke/` (port comes from `NGINX_PORT`).
+
+### 5. Day-to-day operations
+
+```bash
+bash scripts/backup.sh                                        # database backup
+bash scripts/restore.sh backups/database_....sql.gz --confirm # restore database
+bash scripts/rollback.sh                                      # back to last-known-good images
+```
+
+### Development mode
+
+```bash
+docker compose --env-file .env -f compose.yaml -f compose.dev.yaml up -d
+bash scripts/verify.sh dev
+```
+
+Dev mode adds a hot-reloading frontend container. On a fresh database, run
+migrations once:
+
+```bash
+docker compose --env-file .env -f compose.yaml -f compose.dev.yaml exec backend python manage.py migrate
+```
+
+### Troubleshooting
+
+- **`Access denied for user 'coke'`** — the MySQL volume keeps the old password
+  when `.env` changes. Update it in the running DB with `ALTER USER`, or delete
+  the `mysql_data` volume (this wipes the database).
+- **HTTP 400 from the backend** — `ALLOWED_HOSTS` must include `backend,nginx`
+  (the verify script checks the backend through Docker DNS).
+- **Emails not sending** — SMTP values in `.env` are still placeholders.
+
+---
 
 ## Evidence and architecture
 
@@ -116,7 +190,7 @@ docker ps --format "table {{.Names}}\t{{.Ports}}"
 
 Expected result: only the `nginx` container shows `${NGINX_PORT}->80/tcp` in
 the PORTS column. The `backend`, `db`, and (in dev mode) `frontend` containers
-show no published host ports — they are reachable only through Nginx via Compose
+show no published host ports â€” they are reachable only through Nginx via Compose
 DNS. If any other container exposes a host port, the Compose files need
 correction; the application should never be accessed directly.
 
