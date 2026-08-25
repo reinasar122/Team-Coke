@@ -47,8 +47,6 @@ import Merchandising from "./pages/Merchandising";
 import MerchandisingSaleDetailPage from "./pages/MerchandisingSaleDetailPage";
 import ForgotPassword from "./pages/ForgotPassword";
 import VerifyOTP from "./pages/VerifyOTP";
-import ChatbotDeviceApprovals from "./pages/ChatbotDeviceApprovals";
-import AdminRoute from "./routes/AdminRoute";
 import Expenses from "./pages/Expenses";
 import VanLoadReturnRemittance from "./pages/VanLoadReturnRemittance";
 import SupplierReturnForm from "./pages/SupplierReturnForm";
@@ -253,7 +251,6 @@ const ProtectedLayout = ({
                 {/* Customer page titles */}
                 <Route path="/customers" element={null} />
                 <Route path="/customer-registration" element={null} />
-                <Route path="/chatbot-devices" element={null}/>
                 <Route path="/receiving" />
                 <Route path="/stocks" />
                 <Route path="/products" />
@@ -358,7 +355,6 @@ const ProtectedLayout = ({
             <Route path="/create-user" element={<UserForm />} />
             <Route path="/roles" element={<RoleList />} />
             <Route path="/create-role" element={<RoleForm onClose={() => {}} />} />
-            <Route path="/chatbot-devices" element={<AdminRoute><ChatbotDeviceApprovals /></AdminRoute>}/>
             {/* Products */}
             <Route path="/products" element={<ProductList />} />
             <Route path="/products/new" element={<ProductForm />} />

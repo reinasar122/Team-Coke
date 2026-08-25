@@ -2,10 +2,13 @@
 const getMediaOrigin = () => {
   const envApiBase = process.env.REACT_APP_API_BASE;
   if (envApiBase) {
+    if (typeof window === "undefined") {
+      return "";
+    }
     try {
-      return new URL(envApiBase).origin;
+      return new URL(envApiBase, window.location.origin).origin;
     } catch (error) {
-      // Fall through to runtime-based defaults.
+      return "";
     }
   }
 
@@ -19,7 +22,7 @@ const getMediaOrigin = () => {
     return origin;
   }
 
-  return "http://localhost:8080";
+  return "";
 };
 
 export const getProductImage = (product) => {

@@ -11,7 +11,6 @@ const SORTERS = {
 };
 
 export default function ProductBreakdownContainer({
-  apiBase = "api/coke", // Default API base
   warehouseId = "all",
   routeId = "all",
   period = "this_week",
@@ -49,8 +48,8 @@ export default function ProductBreakdownContainer({
         };
 
         const urls = [
-          `${apiBase}/api/sales_report/`,
-          `${apiBase}/api/reports/sales/`,
+          `sales_report/`,
+          `reports/sales/`,
         ];
 
         let data;
@@ -149,7 +148,7 @@ export default function ProductBreakdownContainer({
     return () => {
       cancelled = true;
     };
-  }, [apiBase, warehouseId, routeId, period, start, end]);
+  }, [warehouseId, routeId, period, start, end]);
 
   // 🔎 Apply search + sort + totals
   const rows = useMemo(() => {
