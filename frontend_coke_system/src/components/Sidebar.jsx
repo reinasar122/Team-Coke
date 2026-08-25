@@ -10,7 +10,6 @@ import {
   faChevronUp,
   faChartBar,
   faChartLine,
-  faUserShield,
 } from "@fortawesome/free-solid-svg-icons";
 import { getAllowedSubmenus, getDefaultAccessibleRoute, hasAccess } from "../utils/accessUtils"; // Import the new permission check functions
 import { canView } from "../utils/accessControl";
@@ -495,7 +494,6 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
                       }`
                     }
                   >
-                    <FontAwesomeIcon icon={faUserShield} className="mr-2" />
                     Chatbot Devices
                   </NavLink>
                 </li>
