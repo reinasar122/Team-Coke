@@ -1,0 +1,17 @@
+.git
+**/.env
+**/.env.*
+node_modules
+**/node_modules
+build
+**/build
+dist
+**/dist
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+*.log
+backups
+deployments
+tmpclaude-*

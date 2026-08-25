@@ -10,22 +10,34 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 
+def _env_list(name, default=""):
+    raw = os.environ.get(name, default)
+    return [x.strip() for x in raw.split(",") if x.strip()]
+
+
+def _env_bool(name, default=False):
+    return os.environ.get(name, str(default)).strip().lower() in (
+        "true", "1", "yes", "on",
+    )
+
+
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/4.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-8*k&v#@3hc8j81+2-hf99!jcz6i%)q4hxca==tlu+g37o@%uau'
+SECRET_KEY = os.environ.get("SECRET_KEY", "django-insecure-dev-change-me")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = _env_bool("DEBUG", True)
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = _env_list("ALLOWED_HOSTS", "localhost,127.0.0.1")
 
 # settings.py
 PASSWORD_RESET_TIMEOUT = 60 * 60 
@@ -60,10 +72,15 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
 ]
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",  # React frontend URL
-     "http://127.0.0.1:3000",
-]
+CORS_ALLOWED_ORIGINS = _env_list(
+    "CORS_ALLOWED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000",
+)
+
+CSRF_TRUSTED_ORIGINS = _env_list(
+    "CSRF_TRUSTED_ORIGINS",
+    "http://localhost:3000,http://127.0.0.1:3000",
+)
 
 ROOT_URLCONF = 'backend_coke_system.urls'
 
@@ -92,11 +109,11 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': 'cokedb7',
-         'USER': 'root',
-         'PASSWORD': 'karen_123',
-         'HOST': 'localhost',
-         'PORT': '3306',
+         'NAME': os.environ.get("DB_NAME", "cokedb7"),
+         'USER': os.environ.get("DB_USER", "root"),
+         'PASSWORD': os.environ.get("DB_PASSWORD", ""),
+         'HOST': os.environ.get("DB_HOST", "localhost"),
+         'PORT': os.environ.get("DB_PORT", "3306"),
      }
  } 
 # ✅ ADD THIS BLOCK
@@ -154,7 +171,8 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/4.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
@@ -162,19 +180,17 @@ STATIC_URL = 'static/'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 
-import os
-
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587
-EMAIL_USE_TLS = True
+EMAIL_HOST = os.environ.get("EMAIL_HOST", "smtp.gmail.com")
+EMAIL_PORT = int(os.environ.get("EMAIL_PORT") or "587")
+EMAIL_USE_TLS = _env_bool("EMAIL_USE_TLS", True)
 
-EMAIL_HOST_USER = 'teamners74@gmail.com'         # replace with your actual Gmail
-EMAIL_HOST_PASSWORD = 'vresgmfjzgqdrjla' 
-DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+EMAIL_HOST_USER = os.environ.get("EMAIL_HOST_USER", "")
+EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
+DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", EMAIL_HOST_USER)
 
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -190,7 +206,7 @@ CORS_ALLOW_HEADERS = [
 ]
 
 # Or if you want to allow all origins during development (not recommended for production):
-CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_ALL_ORIGINS = _env_bool("CORS_ALLOW_ALL_ORIGINS", DEBUG)
 
 # Make sure CORS is enabled
 CORS_ALLOW_CREDENTIALS = True
