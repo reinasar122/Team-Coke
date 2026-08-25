@@ -1,0 +1,586 @@
+// ============================================================
+// AI CHATBOT MOBILE APP - ERD DBML FORMAT
+// For: dbdiagram.io
+// Project: Conversational AI for Automated Ordering in Retail POS System
+// ============================================================
+
+// ============================================================
+// EXISTING POS SYSTEM TABLES
+// ============================================================
+
+Table Warehouse {
+  warehouse_id int [pk, increment]
+  name varchar(255) [not null]
+  country varchar(100) [default: "Philippines"]
+  region varchar(100)
+  province varchar(100)
+  city varchar(100)
+  barangay varchar(255)
+  street_address varchar(255)
+  zip_code varchar(4)
+  phone_number varchar(11)
+  email varchar(255)
+  created_at timestamp
+  
+  Note: "Physical warehouse/store locations"
+}
+
+Table Warehouse_MSP_Sequence {
+  sequence_id int [pk, increment]
+  warehouse_id int [ref: > Warehouse.warehouse_id, not null]
+  transaction_type_id int [ref: > TransactionType.transaction_type_id, not null]
+  date_for_sequence date [note: "NULL for Van Load continuous, DATE for Warehouse daily"]
+  last_number int [default: 0]
+  
+  Note: "Auto-increment sequence for Order Number (MSP No) generation"
+}
+
+Table Warehouse_Supervisor {
+  supervisor_id int [pk, increment]
+  warehouse_id int [ref: > Warehouse.warehouse_id, not null]
+  user_id int [ref: > User.id, not null]
+  
+  Note: "Staff assigned to supervise warehouse"
+}
+
+Table Customer {
+  customer_id int [pk, increment]
+  name varchar(255) [not null]
+  address varchar(255)
+  phone varchar(15) [unique, not null]
+  warehouse_id int [ref: > Warehouse.warehouse_id]
+  created_at timestamp [default: `now()`]
+  
+  Note: "Base customer table - shared with POS system"
+}
+
+Table User {
+  id int [pk, increment]
+  email varchar(255) [unique]
+  password varchar(255) [not null]
+  first_name varchar(100) [not null]
+  last_name varchar(100) [not null]
+  phone_number varchar(15)
+  role_id int
+  warehouse_id int [ref: > Warehouse.warehouse_id]
+  is_active bool [default: true]
+  created_at timestamp [default: `now()`]
+  last_login timestamp
+  
+  Note: "POS System Staff/Admin Users"
+}
+
+Table ProductCategory {
+  category_id int [pk, increment]
+  name varchar(100) [not null]
+  
+  Note: "Product categories"
+}
+
+Table ShellType {
+  shell_type_id int [pk, increment]
+  description text
+  
+  Note: "Type of container shell"
+}
+
+Table ContentType {
+  content_type_id int [pk, increment]
+  description text
+  
+  Note: "Type of content"
+}
+
+Table UnitType {
+  unit_type_id int [pk, increment]
+  content_no int [not null, note: "Pieces per shell"]
+  shell_type_id int [ref: > ShellType.shell_type_id]
+  returnable bool [default: false]
+  content_type_id int [ref: > ContentType.content_type_id]
+  content_returnable bool [default: false]
+  
+  Note: "Unit type/packaging information"
+}
+
+Table Pricing {
+  pricing_id int [pk, increment]
+  purchase_price decimal(12,2) [not null]
+  selling_price decimal(12,2) [not null]
+  shell_price decimal(12,2)
+  bottle_price decimal(12,2)
+  
+  Note: "Price structure for products"
+}
+
+Table Supplier {
+  supplier_id int [pk, increment]
+  company_name varchar(255) [unique, not null]
+  registration_number varchar(20) [unique]
+  bir_no varchar(100)
+  contact_person varchar(255)
+  email varchar(255) [unique]
+  phone_number varchar(11)
+  country varchar(100) [default: "Philippines"]
+  region varchar(100)
+  province varchar(100)
+  city varchar(100)
+  barangay varchar(255)
+  street_address varchar(255)
+  zip_code varchar(4)
+  
+  Note: "Product suppliers"
+}
+
+Table Product {
+  product_id int [pk, increment]
+  system_code varchar(100) [unique, not null]
+  supplier_code varchar(100)
+  product_name varchar(255) [not null]
+  category_id int [ref: > ProductCategory.category_id]
+  unit_type_id int [ref: > UnitType.unit_type_id]
+  pricing_id int [ref: > Pricing.pricing_id]
+  supplier_id int [ref: > Supplier.supplier_id]
+  warehouse_id int [ref: > Warehouse.warehouse_id]
+  image_url varchar(500)
+  is_active bool [default: true]
+  created_at timestamp [default: `now()`]
+  
+  Note: "Product master data"
+}
+
+Table Stock {
+  stock_id int [pk, increment]
+  product_id int [ref: > Product.product_id, not null]
+  warehouse_id int [ref: > Warehouse.warehouse_id, not null]
+  quantity_available int [default: 0]
+  last_updated timestamp [default: `now()`]
+  
+  indexes {
+    (product_id, warehouse_id) [unique]
+  }
+  
+  Note: "Real-time inventory per warehouse"
+}
+
+Table Route {
+  route_id int [pk, increment]
+  route_name varchar(100) [unique, not null]
+  warehouse_id int [ref: > Warehouse.warehouse_id, not null]
+  
+  Note: "Delivery routes"
+}
+
+Table Van {
+  van_id int [pk, increment]
+  van_id_code varchar(50) [not null]
+  plate_number varchar(20) [not null]
+  warehouse_id int [ref: > Warehouse.warehouse_id, not null]
+  created_at timestamp [default: `now()`]
+  updated_at timestamp
+  
+  indexes {
+    (van_id_code, warehouse_id) [unique]
+    (plate_number, warehouse_id) [unique]
+  }
+  
+  Note: "Delivery vehicles"
+}
+
+Table TransactionType {
+  transaction_type_id int [pk, increment]
+  name varchar(100) [unique, note: "Van Load or Warehouse"]
+  
+  Note: "Transaction type for orders"
+}
+
+Table Merchandising {
+  msp_no varchar(20) [pk, note: "Master Sale Document Number"]
+  transaction_type_id int [ref: > TransactionType.transaction_type_id, not null]
+  customer_id int [ref: > Customer.customer_id]
+  warehouse_id int [ref: > Warehouse.warehouse_id]
+  van_id int [ref: > Van.van_id]
+  route_id int [ref: > Route.route_id]
+  handled_by varchar(100)
+  date_time timestamp [default: `now()`]
+  expected_sale decimal(12,2) [default: 0]
+  actual_sale decimal(12,2) [default: 0]
+  payment_amount decimal(12,2) [default: 0]
+  payment_method varchar(50)
+  status varchar(50) [default: "PENDING"]
+  reserved_date date
+  actual_pickup_date date
+  remarks text
+  invoice_no varchar(20)
+  created_at timestamp [default: `now()`]
+  
+  Note: "Main order header - shared between POS & Chatbot"
+}
+
+Table MerchandisingItem {
+  item_id int [pk, increment]
+  msp_no varchar(20) [ref: > Merchandising.msp_no, not null]
+  product_id int [ref: > Product.product_id, not null]
+  sold_pcs int [default: 0]
+  sold_shell int [default: 0]
+  selling_price decimal(10,2) [default: 0]
+  actual_sale decimal(12,2) [default: 0]
+  empty_return_pcs int [default: 0]
+  empty_return_shell int [default: 0]
+  discount_percent decimal(5,2) [default: 0]
+  
+  Note: "Line items in an order"
+}
+
+Table Payment {
+  payment_id int [pk, increment]
+  msp_no varchar(20) [ref: > Merchandising.msp_no, not null]
+  amount decimal(12,2) [not null]
+  method varchar(50)
+  date_paid timestamp [default: `now()`]
+  reference_no varchar(100)
+  
+  Note: "Payment records"
+}
+
+Table CreditLedger {
+  credit_id varchar(36) [pk, note: "UUID"]
+  msp_no varchar(20) [ref: > Merchandising.msp_no]
+  customer_id int [ref: > Customer.customer_id, not null]
+  warehouse_id int [ref: > Warehouse.warehouse_id, not null]
+  total_amount decimal(12,2) [not null]
+  amount_paid decimal(12,2) [default: 0]
+  status varchar(20) [default: "PENDING", note: "PENDING, PARTIAL, PAID"]
+  due_date date
+  created_at timestamp [default: `now()`]
+  
+  Note: "Credit ledger for credit sales"
+}
+
+Table CreditPayment {
+  payment_id int [pk, increment]
+  credit_id varchar(36) [ref: > CreditLedger.credit_id, not null]
+  amount decimal(12,2) [not null]
+  method varchar(50)
+  created_at timestamp [default: `now()`]
+  
+  Note: "Credit payment installments"
+}
+
+Table MiscellaneousItem {
+  misc_id int [pk, increment]
+  msp_no varchar(20) [ref: > Merchandising.msp_no, not null]
+  description varchar(255) [not null]
+  amount decimal(10,2) [not null]
+  receipt_file varchar(500)
+  notes varchar(255)
+  created_at timestamp [default: `now()`]
+  
+  Note: "Miscellaneous charges on orders"
+}
+
+// ============================================================
+// NEW CHATBOT SYSTEM TABLES
+// ============================================================
+
+  Table ChatUser {
+    chat_user_id int [pk, increment]
+    customer_id int [ref: > Customer.customer_id, unique]
+    phone_number varchar(15) [unique, not null]
+    password_hash varchar(255) [not null]
+    username varchar(100) [unique]
+    email varchar(255) [unique]
+    auth_provider varchar(50) [default: "local", note: "local, otp, google, apple, facebook"]
+    is_phone_verified bool [default: false]
+    is_active bool [default: true]
+    created_at timestamp [default: `now()`]
+    last_login timestamp
+    
+    Note: "Chatbot mobile app users - phone number is the primary login identifier"
+    }
+
+  Table ChatAuthorizedDevice {
+  authorized_device_id int [pk, increment]
+  chat_user_id int [ref: > ChatUser.chat_user_id, not null]
+
+  device_id_hash varchar(255) [unique, not null, note: "Hash of app-generated installation/device ID"]
+  device_name varchar(150) [note: "Example: Samsung A15, iPhone 12"]
+  platform varchar(20) [note: "android, ios"]
+  os_version varchar(50)
+  app_version varchar(50)
+
+  status varchar(20) [default: "PENDING", note: "PENDING, APPROVED, REJECTED, REVOKED"]
+
+  approved_by int [ref: > User.id]
+  approved_at timestamp
+
+  rejected_by int [ref: > User.id]
+  rejected_at timestamp
+  rejection_reason text
+
+  revoked_by int [ref: > User.id]
+  revoked_at timestamp
+  revocation_reason text
+
+  last_seen_at timestamp
+  last_ip varchar(45)
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (chat_user_id, status)
+    (device_id_hash)
+  }
+
+  Note: "Admin-approved device whitelist for AI Chatbot Mobile App access"
+}
+
+Table DeviceAuthLog {
+  device_auth_log_id int [pk, increment]
+  authorized_device_id int [ref: > ChatAuthorizedDevice.authorized_device_id]
+  chat_user_id int [ref: > ChatUser.chat_user_id]
+  event_type varchar(50) [not null, note: "request_approval, approved, rejected, revoked, login_allowed, login_blocked, token_refresh"]
+  ip_address varchar(45)
+  user_agent varchar(255)
+  details text
+  created_at timestamp [default: `now()`]
+
+  indexes {
+    (chat_user_id, created_at)
+    (event_type, created_at)
+  }
+
+  Note: "Security audit trail for device authorization events"
+}
+
+    Table ChatSession {
+    session_id varchar(36) [pk, note: "UUID"]
+    chat_user_id int [ref: > ChatUser.chat_user_id, not null]
+    authorized_device_id int [ref: > ChatAuthorizedDevice.authorized_device_id]
+    warehouse_id int [ref: > Warehouse.warehouse_id]
+    created_at timestamp [default: `now()`]
+    last_activity timestamp [default: `now()`]
+    session_status varchar(50) [default: "active", note: "active, closed, paused, archived"]
+    current_intent varchar(100) [note: "order, check_stock, delivery, payment, support"]
+    language_preference varchar(20) [default: "English", note: "English, Cebuano/Bisaya, Tagalog"]
+    active_cart_id varchar(36)
+    
+    Note: "Chatbot conversation sessions"
+    }
+
+    Table ChatMessage {
+    message_id varchar(36) [pk, note: "UUID"]
+    session_id varchar(36) [ref: > ChatSession.session_id, not null]
+    sender_type varchar(50) [not null, note: "customer, bot, human_agent"]
+    content text [not null]
+    message_type varchar(50) [note: "text, order_confirm, question, feedback, attachment"]
+    sentiment varchar(20) [note: "positive, neutral, negative"]
+    timestamp timestamp [default: `now()`]
+    confidence_score int [note: "0-100"]
+    is_ai_generated bool [default: false]
+    
+    indexes {
+        (session_id, timestamp)
+    }
+    
+    Note: "Chat conversation messages and AI responses"
+    }
+
+    Table MessageAttachment {
+    attachment_id int [pk, increment]
+    message_id varchar(36) [ref: > ChatMessage.message_id, not null]
+    file_type varchar(50) [note: "image, document, receipt"]
+    file_url varchar(500) [not null]
+    description varchar(255)
+    
+    Note: "File attachments in chat messages"
+    }
+
+    Table ChatContext {
+    context_id varchar(36) [pk, note: "UUID"]
+    session_id varchar(36) [ref: > ChatSession.session_id, not null]
+    intent varchar(100) [note: "order, search, schedule, payment, etc"]
+    entity_type varchar(100) [note: "product, warehouse, date, amount, etc"]
+    entity_value varchar(500)
+    confidence numeric [note: "0-100 NLP confidence"]
+    captured_at timestamp [default: `now()`]
+    
+    Note: "NLP extracted context from conversations"
+    }
+
+    Table CartItem {
+    cart_item_id int [pk, increment]
+    session_id varchar(36) [ref: > ChatSession.session_id, not null]
+    product_id int [ref: > Product.product_id, not null]
+    quantity int [not null]
+    warehouse_id int [ref: > Warehouse.warehouse_id, not null]
+    unit_price decimal(12,2) [not null]
+    added_at timestamp [default: `now()`]
+    expires_at timestamp [note: "Session timeout"]
+    
+    Note: "Temporary shopping cart items"
+    }
+
+    Table CustomerPreference {
+    preference_id int [pk, increment]
+    chat_user_id int [ref: > ChatUser.chat_user_id, unique, not null]
+    preferred_warehouse_id int [ref: > Warehouse.warehouse_id]
+    preferred_payment_method varchar(50) [note: "cash, card, ewallet, credit"]
+    accept_notifications bool [default: true]
+    accept_promotions bool [default: true]
+    dietary_preferences varchar(500)
+    created_at timestamp [default: `now()`]
+    updated_at timestamp [default: `now()`]
+    
+    Note: "Customer personalization settings"
+    }
+
+    Table SavedItem {
+    saved_id int [pk, increment]
+    preference_id int [ref: > CustomerPreference.preference_id, not null]
+    product_id int [ref: > Product.product_id, not null]
+    note varchar(255)
+    saved_at timestamp [default: `now()`]
+    
+    Note: "Wishlist/favorites"
+    }
+
+    Table DeliveryAddress {
+    address_id int [pk, increment]
+    preference_id int [ref: > CustomerPreference.preference_id, not null]
+    warehouse_id int [ref: > Warehouse.warehouse_id, not null]
+    address_line1 varchar(255) [not null]
+    address_line2 varchar(255)
+    city varchar(100) [not null]
+    barangay varchar(255)
+    is_default bool [default: false]
+    is_available bool [default: true]
+    created_at timestamp [default: `now()`]
+    
+    Note: "Multiple delivery addresses per customer"
+    }
+
+    Table ChatbotOrder {
+    chatbot_order_id varchar(36) [pk, note: "UUID"]
+    session_id varchar(36) [ref: > ChatSession.session_id, not null]
+    msp_no varchar(20) [ref: > Merchandising.msp_no, unique, not null]
+    order_source varchar(50) [default: "chatbot"]
+    chat_intent varchar(100)
+    total_amount decimal(12,2) [not null]
+    fulfillment_status varchar(50) [note: "pending, paid, picked, shipped, delivered, cancelled"]
+    created_at timestamp [default: `now()`]
+    completed_at timestamp
+    
+    Note: "Chatbot order links to main Merchandising order"
+    }
+
+    Table OrderFulfillment {
+    fulfillment_id int [pk, increment]
+    chatbot_order_id varchar(36) [ref: > ChatbotOrder.chatbot_order_id, not null]
+    fulfillment_stage varchar(50) [not null, note: "confirmed, picking, packed, in_transit, delivered"]
+    stage_timestamp timestamp [default: `now()`]
+    notes text
+    
+    indexes {
+        (chatbot_order_id, stage_timestamp)
+    }
+    
+    Note: "Tracks fulfillment stages for orders"
+    }
+
+    Table ChatInteractionLog {
+    log_id int [pk, increment]
+    session_id varchar(36) [ref: > ChatSession.session_id, not null]
+    chat_user_id int [ref: > ChatUser.chat_user_id, not null]
+    warehouse_id int [ref: > Warehouse.warehouse_id]
+    interaction_type varchar(100) [note: "product_search, order, payment, faq, feedback, support"]
+    menu_path varchar(500)
+    duration_seconds int
+    ai_model_version varchar(100)
+    confidence_score int [note: "0-100"]
+    timestamp timestamp [default: `now()`]
+    
+    indexes {
+        (chat_user_id, timestamp)
+        (warehouse_id, timestamp)
+        (interaction_type, timestamp)
+    }
+    
+    Note: "Comprehensive analytics on all interactions"
+    }
+
+    Table Notification {
+    notification_id varchar(36) [pk, note: "UUID"]
+    notification_type varchar(100) [note: "promotion, order_update, stock, support"]
+    category varchar(50) [note: "inventory, payment, delivery, marketing"]
+    title varchar(255) [not null]
+    message text [not null]
+    chat_user_id int [ref: > ChatUser.chat_user_id]
+    warehouse_id int [ref: > Warehouse.warehouse_id]
+    priority varchar(20) [default: "medium", note: "low, medium, high"]
+    is_read bool [default: false]
+    read_at timestamp
+    created_at timestamp [default: `now()`]
+    
+    indexes {
+        (chat_user_id, is_read)
+    }
+    
+    Note: "Push notifications to chatbot users"
+    }
+
+// ============================================================
+// RELATIONSHIPS & NOTES
+// ============================================================
+/*
+Note Chatbot_Integration {
+  "**CHATBOT TO POS SYSTEM INTEGRATION:**
+  
+  1. ChatbotOrder.msp_no links to Merchandising.msp_no (order_source='chatbot')
+  2. Shared inventory via Stock table and Warehouse assignments
+  3. Shared customers via Customer → ChatUser link
+  4. Shared pricing via Product → Pricing structure
+  5. Shared payment via Payment & CreditLedger tables
+  
+  **KEY WORKFLOWS:**
+  - Registration: CUSTOMER → CHAT_USER (optional social auth)
+  - Browse: CHAT_MESSAGE + CHAT_CONTEXT extract intent → STOCK + PRODUCT lookup
+  - Order: CART_ITEM → MERCHANDISING + CHAT_BOT_ORDER creation
+  - Track: CHAT_BOT_ORDER → ORDER_FULFILLMENT stages
+  - Support: CHAT_MESSAGE with escalation to human_agent
+  - Analytics: CHAT_INTERACTION_LOG tracks all activity
+  "
+}
+
+Note Data_Privacy {
+  "**IMPORTANT FIELDS FOR SECURITY:**
+  - ChatUser.password_hash: Never store plain passwords
+  - ChatUser.auth_provider: Support SSO (Google, Apple, Facebook)
+  - ChatMessage.is_ai_generated: Track AI vs human responses
+  - ChatInteractionLog.confidence_score: Monitor AI accuracy
+  - All timestamps use timezone-aware datetime (Asia/Manila)
+  "
+}
+
+Note Use_Cases_Covered {
+  "**19 CUSTOMER-FACING USE CASES COVERED**
+1. Register Account Using Phone Number
+2. Login/Logout
+3. Request Device Authorization
+4. View Device Authorization Status
+5. View/Update Profile Information
+6. Check Product Availability via Chatbot
+7. Product Recommendation via Chatbot
+8. Inquire Promotions / Discounts
+9. Place Order via Chat
+10. Modify/Cancel Order
+11. Track Delivery
+12. Payment & Transaction Support
+13. Reorder Previous Purchases
+14. Smart Suggestions / Upselling
+15. Schedule Delivery
+16. Update Delivery Details
+17. View Order History
+18. Ask Questions / FAQs
+19. Feedback Submission
+  "
+}
+*/
