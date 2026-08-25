@@ -361,6 +361,9 @@ export default function ReservationDetailPage() {
         typeof item.product === "object" ? item.product?.id : item.product ?? item.product_id;
       const productObject =
         (typeof item.product === "object" && item.product) ||
+        (item.product_detail && typeof item.product_detail === "object"
+          ? item.product_detail
+          : null) ||
         products.find((product) => Number(product.id) === Number(productId));
       const price = productObject?.price || item.price || {};
       const contentNo =
@@ -567,7 +570,9 @@ export default function ReservationDetailPage() {
               <InfoField label="Handled By" value={handlerName} />
             </div>
 
-            <h3 className="mt-8 mb-3 text-lg font-semibold">Products</h3>
+            <h3 className="mt-8 mb-3 text-lg font-semibold">
+              Products ({reservationItems.length})
+            </h3>
             <ReadOnlyReservationTable
               items={reservationItems}
               availableStock={availableStock}

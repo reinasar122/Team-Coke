@@ -58,7 +58,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     "rest_framework.authtoken",
     'corsheaders',
-
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -109,9 +109,9 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': os.environ.get("DB_NAME", "cokedb7"),
+         'NAME': os.environ.get("DB_NAME", "C11"),
          'USER': os.environ.get("DB_USER", "root"),
-         'PASSWORD': os.environ.get("DB_PASSWORD", ""),
+         'PASSWORD': os.environ.get("DB_PASSWORD", "12345"),
          'HOST': os.environ.get("DB_HOST", "localhost"),
          'PORT': os.environ.get("DB_PORT", "3306"),
      }

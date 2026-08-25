@@ -153,6 +153,8 @@ const MerchandisingSale = () => {
   const [discrepancyEmptyTotal, setDiscrepancyEmptyTotal] = useState(0);
 
   const editingExistingRef = useRef(false);
+  const isSubmittingRef = useRef(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [allProductsRaw, setAllProductsRaw] = useState([]);
 
   const toUtcValue = (date) => new Date(date).toISOString();
@@ -945,7 +947,7 @@ const MerchandisingSale = () => {
     };
   }, []);
 
-  const handleSubmit = async (paymentData = null, submitOptions = {}) => {
+  const performSubmit = async (paymentData = null, submitOptions = {}) => {
     const warehouseId = currentWarehouse?.id;
     const isVanLoad =
       (selectedTransactionTypeName || "")
@@ -1231,6 +1233,22 @@ const MerchandisingSale = () => {
     }
   };
 
+  const handleSubmit = async (paymentData = null, submitOptions = {}) => {
+    if (isSubmittingRef.current) {
+      console.warn("Duplicate submit ignored - a transaction is already being saved.");
+      return false;
+    }
+
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+    try {
+      return await performSubmit(paymentData, submitOptions);
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+    }
+  };
+
   const handleFinalizeSale = async () => {
     const success = await handleSubmit();
     if (!success) return;
@@ -1329,47 +1347,55 @@ const MerchandisingSale = () => {
   };
 
   const handleSaveVanLoadEdit = async () => {
-    const incomingSale = location.state?.sale;
-    if (!incomingSale?.id) {
-      showAlert("Sale not found.");
+    if (isSubmittingRef.current) {
+      console.warn("Duplicate submit ignored - a transaction is already being saved.");
       return;
     }
 
-    const handler = users.find(
-      (u) => String(u.id) === String(selectedUser)
-    );
-    const handled_by = handler
-      ? `${handler.first_name} ${handler.last_name}`.trim()
-      : incomingSale.handled_by || "";
-    const handled_by_user = handler ? Number(handler.id) : undefined;
-
-    const items = rows
-      .filter((r) => Number(r.productId))
-      .map((r) => {
-        const pcs = Math.max(
-          0,
-          parseInt(r.dispatchedPcs) || 0
-        );
-        const perShell = Number(r.contentNo) || 1;
-        const shells = perShell ? +(pcs / perShell).toFixed(2) : 0;
-
-        return {
-          id: r.dbItemId || undefined,
-          product: Number(r.productId),
-          dispatched_pcs: pcs,
-          dispatched_shell: shells,
-        };
-      });
-
-    const payload = {
-      handled_by,
-      ...(handled_by_user ? { handled_by_user } : {}),
-      items,
-      expected_sale: 0,
-      status: "Pending",
-    };
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
 
     try {
+      const incomingSale = location.state?.sale;
+      if (!incomingSale?.id) {
+        showAlert("Sale not found.");
+        return;
+      }
+
+      const handler = users.find(
+        (u) => String(u.id) === String(selectedUser)
+      );
+      const handled_by = handler
+        ? `${handler.first_name} ${handler.last_name}`.trim()
+        : incomingSale.handled_by || "";
+      const handled_by_user = handler ? Number(handler.id) : undefined;
+
+      const items = rows
+        .filter((r) => Number(r.productId))
+        .map((r) => {
+          const pcs = Math.max(
+            0,
+            parseInt(r.dispatchedPcs) || 0
+          );
+          const perShell = Number(r.contentNo) || 1;
+          const shells = perShell ? +(pcs / perShell).toFixed(2) : 0;
+
+          return {
+            id: r.dbItemId || undefined,
+            product: Number(r.productId),
+            dispatched_pcs: pcs,
+            dispatched_shell: shells,
+          };
+        });
+
+      const payload = {
+        handled_by,
+        ...(handled_by_user ? { handled_by_user } : {}),
+        items,
+        expected_sale: 0,
+        status: "Pending",
+      };
+
       await api.patch(
         `merchandisings/${incomingSale.id}/`,
         payload
@@ -1389,6 +1415,9 @@ const MerchandisingSale = () => {
         e?.response?.data || e.message
       );
       showAlert("Failed to save changes.");
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
 
@@ -1749,7 +1778,12 @@ const MerchandisingSale = () => {
           </button>
           <button
             onClick={handleSaveVanLoadEdit}
-            className="bg-blue-600 hover:bg-amber-700 text-white px-4 py-2 rounded"
+            disabled={isSubmitting}
+            className={`px-4 py-2 rounded text-white ${
+              isSubmitting
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-amber-700"
+            }`}
           >
             Save Changes
           </button>
@@ -1764,7 +1798,12 @@ const MerchandisingSale = () => {
           </button>
           <button
             onClick={handleReserveTransaction}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+            disabled={isSubmitting}
+            className={`px-4 py-2 rounded text-white ${
+              isSubmitting
+                ? "bg-gray-400 cursor-not-allowed"
+                : "bg-blue-600 hover:bg-blue-700"
+            }`}
           >
             Save Changes
           </button>
@@ -1776,6 +1815,7 @@ const MerchandisingSale = () => {
           onFinalize={handleFinalizeSale}
           onPay={isReservationRemittanceDetail ? handlePay : isReservationMode ? handleReserveTransaction : handlePay}
           warehouseActionLabel={isReservationRemittanceDetail ? "Pay" : isReservationMode ? "Reserve" : "Pay"}
+          warehouseActionDisabled={isSubmitting}
           showWarehouseAction={
             !isCancelledReservationDetail && (
               selectedTransactionTypeName !== "Warehouse" ||
@@ -1784,8 +1824,9 @@ const MerchandisingSale = () => {
           }
           hideBack={showFormHeaderBack}
           finalizeDisabled={
-            selectedTransactionTypeName === "Van Load" &&
-            !dispatchAdjustments.length
+            (selectedTransactionTypeName === "Van Load" &&
+              !dispatchAdjustments.length) ||
+            isSubmitting
           }
         />
       )}

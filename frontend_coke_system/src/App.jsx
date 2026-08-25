@@ -200,7 +200,10 @@ const ProtectedLayout = ({
   const hideLayout = hiddenRoutes.includes(location.pathname);
 
   // Pages where we want to HIDE the universal scrollbar
-  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist", "/reservation-details", "/reservation-sale-details", "/reservation-cancelled-details"];
+  // NOTE: reservation DETAIL pages are intentionally NOT locked — they grow with
+  // the number of reserved products, so they need normal page scrolling,
+  // otherwise the last table rows get cut off (overflow: hidden).
+  const lockPrefixes = ["/vans", "/suppliers", "/trading", "/reservationlist"];
   const path = location.pathname.toLowerCase();
   const lockScroll = lockPrefixes.some(p => path === p || path.startsWith(p + "/"));
 

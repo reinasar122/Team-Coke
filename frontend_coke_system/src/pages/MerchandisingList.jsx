@@ -99,6 +99,30 @@ const isCancelledStatus = (status) => {
   return normalized === "cancelled" || normalized === "canceled";
 };
 
+const handlerDisplayFromRecord = (record) => {
+  if (!record) return "";
+  const direct =
+    String(record.handled_by_name || "").trim() ||
+    String(record.handled_by_username || "").trim();
+  if (direct) return direct;
+
+  const hb = record.handled_by;
+  if (hb === null || hb === undefined) return "";
+
+  if (typeof hb === "object") {
+    const fullName = `${hb.first_name || ""} ${hb.last_name || ""}`
+      .replace(/\s+/g, " ")
+      .trim();
+    return fullName || String(hb.username || "").trim();
+  }
+
+  const text = String(hb).trim();
+  if (!text) return "";
+  // Legacy rows may store a bare user ID; nothing to resolve client-side
+  if (/^\d+$/.test(text)) return "";
+  return text;
+};
+
 const MerchandisingList = ({ view = "trading" }) => {
   const [sales, setSales] = useState([]);
   const [currentWarehouse, setCurrentWarehouse] = useState(null);
@@ -217,6 +241,15 @@ const MerchandisingList = ({ view = "trading" }) => {
   const groupedWarehouseRows = useMemo(() => {
     const groups = new Map();
     for (const r of timeSorted) {
+      // Only Warehouse transactions belong in this grouped section;
+      // other types (e.g. Van Load) are rendered once via nonWarehouseRows.
+      const rowTname = String(
+        r?.transaction_type_name ?? r?.transaction_type?.name ?? ""
+      )
+        .trim()
+        .toLowerCase();
+      if (rowTname !== "warehouse") continue;
+
       if (isReservationWarehouseRecord(r)) continue;
 
       const day = asYmd(r.date_time);
@@ -233,12 +266,19 @@ const MerchandisingList = ({ view = "trading" }) => {
           total_actual_sale: 0,
           sortTime: ts,
           latestRecord: r,
+          handlers: [],
         });
       }
 
       const g = groups.get(key);
       g.txn_count += 1;
       g.total_actual_sale += actualSale;
+
+      const handlerName = handlerDisplayFromRecord(r);
+      if (handlerName && !g.handlers.includes(handlerName)) {
+        g.handlers.push(handlerName);
+      }
+
       if (ts >= g.sortTime) {
         g.sortTime = ts;
         g.latestRecord = r;
@@ -247,16 +287,26 @@ const MerchandisingList = ({ view = "trading" }) => {
 
     return Array.from(groups.values()).map((g) => {
       const latestStatus = String(g.latestRecord?.status || "").trim().toLowerCase();
-      let groupStatus = null;
+      let groupStatus;
 
       if (latestStatus === "cancelled" || latestStatus === "canceled") {
         groupStatus = "Cancelled";
+      } else if (
+        latestStatus.startsWith("complete") ||
+        latestStatus === "pickup" ||
+        latestStatus === "picked up" ||
+        latestStatus === "picked-up"
+      ) {
+        groupStatus = "Completed";
+      } else {
+        groupStatus = "In Progress";
       }
 
       return {
         ...g,
         openRecord: g.latestRecord,
         groupStatus,
+        handled_by_display: (g.handlers || []).join(", "),
         date_display: new Intl.DateTimeFormat("en-PH", {
           timeZone: "Asia/Manila",
           year: "numeric",
@@ -435,7 +485,7 @@ const MerchandisingList = ({ view = "trading" }) => {
             minWidth: 0,
           }}
         >
-          <h1 className="page-title flex items-center gap-2">
+          <h1 className="text-2xl font-bold flex items-center gap-2">
             <FaChartLine /> Trading
           </h1>
 
@@ -519,9 +569,7 @@ const MerchandisingList = ({ view = "trading" }) => {
             {!loading &&
               displayRows.map((row) => {
                 if (row._kind === "warehouse-group") {
-                  const dayPH = toYMD_PH(new Date(row.sortTime));
-                  const todayPH = toYMD_PH(new Date());
-                  const status = row.groupStatus || (dayPH === todayPH ? "In Progress" : "Completed");
+                  const status = row.groupStatus || "In Progress";
 
                   return (
                     <tr
@@ -532,7 +580,7 @@ const MerchandisingList = ({ view = "trading" }) => {
                       <td className="p-2 font-semibold">{row.msp_no}</td>
                       <td className="p-2">{row.date_display}</td>
                       <td className="p-2">Warehouse</td>
-                      <td className="p-2">{"\u2014"}</td>
+                      <td className="p-2">{row.handled_by_display || "\u2014"}</td>
                       <td className="p-2">
                         <StatusPill status={status} />
                       </td>

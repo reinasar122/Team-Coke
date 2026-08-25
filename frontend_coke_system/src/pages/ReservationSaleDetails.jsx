@@ -429,34 +429,42 @@ const ReservationSaleDetails = () => {
               <EmptyState title="No sold items" subtitle="This reservation has no recorded picked-up sales." />
             </div>
           ) : (
-            <div className="overflow-auto">
-              <table className="min-w-full text-xs md:text-sm">
-                <thead className="bg-gray-50 sticky top-0">
+            <div className="overflow-x-auto">
+              <table className="w-full table-fixed text-xs md:text-sm">
+                <colgroup>
+                  <col />
+                  <col className="w-[72px] md:w-24" />
+                  <col className="w-[72px] md:w-20" />
+                  <col className="w-[92px] md:w-28" />
+                  <col className="w-[84px] md:w-24" />
+                  <col className="w-[104px] md:w-32" />
+                </colgroup>
+                <thead className="bg-gray-50">
                   <tr className="text-gray-600">
                     <th className="p-2 md:p-3 text-left font-medium">Product</th>
                     <th className="p-2 md:p-3 text-center font-medium">Sold (Shell)</th>
                     <th className="p-2 md:p-3 text-center font-medium">Sold (PCS)</th>
                     <th className="p-2 md:p-3 text-center font-medium">Unit Price</th>
                     <th className="p-2 md:p-3 text-center font-medium">Discount (%)</th>
-                    <th className="p-2 md:p-3 text-right font-medium">Line Total</th>
+                    <th className="p-2 md:p-3 text-right font-medium border-l border-gray-200 bg-gray-50">Line Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
                   {soldRows.map((row, index) => (
-                    <tr key={index} className={index % 2 ? "bg-white" : "bg-gray-50/50"}>
-                      <td className="p-2 md:p-3 text-left text-gray-900">{row.name}</td>
+                    <tr key={index} className={index % 2 ? "bg-white" : "bg-gray-50"}>
+                      <td className="p-2 md:p-3 text-left text-gray-900 truncate" title={row.name}>{row.name}</td>
                       <td className="p-2 md:p-3 text-center">{row.soldShell}</td>
                       <td className="p-2 md:p-3 text-center">{row.soldPcs}</td>
-                      <td className="p-2 md:p-3 text-center">{formatPhp(row.sellingPrice)}</td>
+                      <td className="p-2 md:p-3 text-center whitespace-nowrap">{formatPhp(row.sellingPrice)}</td>
                       <td className="p-2 md:p-3 text-center">{row.discountPercent}</td>
-                      <td className="p-2 md:p-3 text-right font-medium">{formatPhp(row.lineTotal)}</td>
+                      <td className={`p-2 md:p-3 text-right font-medium whitespace-nowrap border-l border-gray-200 ${index % 2 ? "bg-white" : "bg-gray-50"}`}>{formatPhp(row.lineTotal)}</td>
                     </tr>
                   ))}
                 </tbody>
                 <tfoot className="bg-gray-50 border-t">
                   <tr className="font-semibold">
-                    <td className="p-2 md:p-3 text-left" colSpan={5}>TOTAL</td>
-                    <td className="p-2 md:p-3 text-right">{formatPhp(displayTotal)}</td>
+                    <td className="p-2 md:p-3 text-right" colSpan={5}>TOTAL</td>
+                    <td className="p-2 md:p-3 text-right font-semibold whitespace-nowrap border-l border-gray-200 bg-gray-50">{formatPhp(displayTotal)}</td>
                   </tr>
                 </tfoot>
               </table>
