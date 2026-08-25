@@ -4,7 +4,7 @@
 
 ### 1. Prerequisites
 
-Install Docker Desktop (or Engine with Compose v2), Git, Bash, curl, gzip, and Python 3.
+Install Docker Desktop (or Engine with Compose v2), Git, curl, gzip, and Python 3.
 
 ### 2. Set up the environment
 
@@ -25,16 +25,16 @@ Edit `.env` and replace every placeholder:
 ### 3. Deploy (production)
 
 ```bash
-bash scripts/deploy.sh
+python scripts/deploy.py
 ```
 
-That is the whole deploy. `deploy.sh` runs everything in order:
+That is the whole deploy. `deploy.py` runs everything in order:
 preflight checks, database backup, image build, migrations, static files,
 service restart, and verification. If verification fails it rolls back to
 the last-known-good images. It derives the image tag from the current Git
 commit automatically.
 
-`preflight.sh` and `verify.sh` are optional standalone checks — run them
+`preflight.py` and `verify.py` are optional standalone checks — run them
 separately only if you want to inspect before or after a deploy.
 
 ### 4. Open the app
@@ -44,16 +44,16 @@ Visit `http://SERVER_IP:8080/coke/` (port comes from `NGINX_PORT`).
 ### 5. Day-to-day operations
 
 ```bash
-bash scripts/backup.sh                                        # database backup
-bash scripts/restore.sh backups/database_....sql.gz --confirm # restore database
-bash scripts/rollback.sh                                      # back to last-known-good images
+python scripts/backup.py                                        # database backup
+python scripts/restore.py backups/database_....sql.gz --confirm # restore database
+python scripts/rollback.py                                      # back to last-known-good images
 ```
 
 ### Development mode
 
 ```bash
 docker compose --env-file .env -f compose.yaml -f compose.dev.yaml up -d
-bash scripts/verify.sh dev
+python scripts/verify.py dev
 ```
 
 Dev mode adds a hot-reloading frontend container. On a fresh database, run
@@ -122,7 +122,7 @@ application. No Redis or queue runtime is deployed.
 
 ## Prerequisites and environment
 
-Install Docker Engine/Desktop with Compose v2, Git, Bash, curl, gzip, Python 3
+Install Docker Engine/Desktop with Compose v2, Git, curl, gzip, Python 3
 (for preflight checks), and DNS/TCP access to Gmail SMTP. Create the directories
 and private environment file:
 
@@ -155,9 +155,9 @@ them automatically):
 
 ```bash
 export IMAGE_TAG="$(git rev-parse --short=12 HEAD)"
-bash scripts/preflight.sh
-bash scripts/deploy.sh
-bash scripts/verify.sh
+python scripts/preflight.py
+python scripts/deploy.py
+python scripts/verify.py
 docker compose --env-file .env -f compose.yaml ps
 ```
 
@@ -166,7 +166,7 @@ Development:
 ```bash
 docker compose --env-file .env -f compose.yaml -f compose.dev.yaml build frontend
 docker compose --env-file .env -f compose.yaml -f compose.dev.yaml up
-bash scripts/verify.sh dev
+python scripts/verify.py dev
 ```
 
 Open `http://127.0.0.1:${NGINX_PORT}/coke/`; the template selects port 8080.
@@ -196,7 +196,7 @@ correction; the application should never be accessed directly.
 
 ## Deployment behavior and safety
 
-`deploy.sh` derives and exports the current 12-character Git SHA (the
+`deploy.py` derives and exports the current 12-character Git SHA (the
 `replace-with-git-sha` template value is replaced at runtime). Standalone
 production preflight therefore needs the explicit `export IMAGE_TAG=...`
 shown above. It runs `docker compose build` to create versioned backend and
@@ -233,11 +233,11 @@ backward-compatible; otherwise use an operator-approved manual restore.
 ## Backup, restore, rollback
 
 ```bash
-bash scripts/backup.sh
-bash scripts/restore.sh backups/database_YYYY-MM-DD_HH-mm-ss.sql.gz --confirm
-bash scripts/rollback.sh
-bash scripts/rollback.sh deployments/previous-<sha>.state
-bash scripts/rollback.sh <prior-sha>
+python scripts/backup.py
+python scripts/restore.py backups/database_YYYY-MM-DD_HH-mm-ss.sql.gz --confirm
+python scripts/rollback.py
+python scripts/rollback.py deployments/previous-<sha>.state
+python scripts/rollback.py <prior-sha>
 ```
 
 Backups are atomically written as
