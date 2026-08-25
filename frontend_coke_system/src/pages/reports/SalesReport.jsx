@@ -12,8 +12,6 @@ import ProductBreakdownContainer from "../../containers/ProductBreakdownContaine
 import api from "../../api"; // Corrected to use the imported `api`
 
 
-const API = api.defaults.baseURL || "coke/api";
-
 export default function SalesReport() {
   const [warehouses, setWarehouses] = useState([]);
   const [routes, setRoutes] = useState([]);
@@ -330,7 +328,6 @@ export default function SalesReport() {
 
           <ProductBreakdownContainer
             key={`${filters.warehouse}-${filters.route}-${filters.period}-${filters.start}-${filters.end}`}
-            apiBase={API.replace("/api", "")}
             warehouseId={filters.warehouse ?? "all"}
             routeId={filters.route ?? "all"}
             period={filters.period}

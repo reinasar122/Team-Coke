@@ -61,8 +61,9 @@ const RoleList = () => {
       try {
         const results = await Promise.all(
           data.map((r) =>
-            fetch(`/role-access/?role_id=${r.id}`)
-              .then((res) => (res.ok ? res.json() : null))
+            api
+              .get(`/role-access/?role_id=${r.id}`)
+              .then((res) => res.data)
               .catch(() => null)
           )
         );

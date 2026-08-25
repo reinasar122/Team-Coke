@@ -26,6 +26,8 @@ env/
 # ======================
 *.sql
 *.sql.gz
+backups/
+deployments/
 
 # ======================
 # Node / React
