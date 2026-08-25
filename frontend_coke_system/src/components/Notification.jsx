@@ -4345,6 +4345,32 @@ useEffect(() => {
     };
   }, [showDetailModal]);
 
+  // NEW: Close UI with Escape key - closes detail modal first, then the panel
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      const key = event.key;
+      if (key !== 'Escape' && key !== 'Esc') {
+        return;
+      }
+
+      if (showDetailModal) {
+        event.preventDefault();
+        event.stopPropagation();
+        closeDetailModal();
+        return;
+      }
+
+      if (isOpen) {
+        event.preventDefault();
+        setIsOpen(false);
+        setShowOptionsMenu(false);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, showDetailModal]);
+
   // Request notification permission
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
