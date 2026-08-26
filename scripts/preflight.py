@@ -172,7 +172,7 @@ def check_images_network_and_nginx():
     ).stdout.strip().splitlines()
     if network:
         last = network[-1].strip()
-        if last and run(
+        if last and subprocess.run(
                 ["docker", "network", "inspect", last],
                 capture_output=True).returncode != 0:
             print(f"Compose network deferred until deploy: {last}")
@@ -180,7 +180,7 @@ def check_images_network_and_nginx():
                   "nginx:" + env_value("NGINX_IMAGE_TAG"),
                   f"{env_value('IMAGE_NAMESPACE')}/coke-backend:{env_value('IMAGE_TAG')}",
                   f"{env_value('IMAGE_NAMESPACE')}/coke-nginx:{env_value('IMAGE_TAG')}"):
-        if run(["docker", "image", "inspect", image],
+        if subprocess.run(["docker", "image", "inspect", image],
                           capture_output=True).returncode != 0:
             print(f"Image deferred to deploy/build: {image}")
     nginx_tag = env_value("NGINX_IMAGE_TAG")
