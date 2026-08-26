@@ -34,17 +34,17 @@ def main():
     with open(state, "w") as f:
         f.write(f"IMAGE_TAG={tag}\nIMAGE_NAMESPACE={env_value('IMAGE_NAMESPACE')}\n")
     for service in ("backend", "nginx"):
-        proc = run(COMPOSE + ["ps", "-q", service],
+        proc = subprocess.run(COMPOSE + ["ps", "-q", service],
                               capture_output=True, text=True)
         cid = proc.stdout.strip()
         if cid:
-            image = run(
+            image = subprocess.run(
                 ["docker", "inspect", "-f", "{{.Config.Image}}", cid],
                 capture_output=True, text=True).stdout.strip()
-            digest = run(
+            digest = subprocess.run(
                 ["docker", "inspect", "-f", "{{index .RepoDigests 0}}", cid],
                 capture_output=True, text=True).stdout.strip()
-            st = run(
+            st = subprocess.run(
                 ["docker", "inspect", "-f", "{{.State.Status}}", cid],
                 capture_output=True, text=True).stdout.strip()
             up = service.upper()

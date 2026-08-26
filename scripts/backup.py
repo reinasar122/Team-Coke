@@ -30,7 +30,7 @@ def main():
     if free < int(min_free) * 1024 * 1024 * 1024:
         die("insufficient free disk for backup")
 
-    proc = run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
+    proc = subprocess.run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
     if not proc.stdout.strip():
         run(COMPOSE + ["up", "-d", "db"], check=False)
     if not wait_for_db(90):

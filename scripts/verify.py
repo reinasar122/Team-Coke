@@ -10,10 +10,10 @@ from common import COMPOSE, die, env_value, run, wait_for_healthy, wait_for_serv
 
 
 def _has_volume_mount(compose, service, target):
-    cid = run(compose + ["ps", "-q", service],
+    cid = subprocess.run(compose + ["ps", "-q", service],
                          capture_output=True, text=True).stdout.strip()
     tpl = '{{range .Mounts}}{{if eq .Destination "%s"}}{{.Type}} {{.Name}}{{end}}{{end}}' % target
-    mount = run(["docker", "inspect", "-f", tpl, cid],
+    mount = subprocess.run(["docker", "inspect", "-f", tpl, cid],
                            capture_output=True, text=True).stdout
     return mount.startswith("volume")
 
@@ -26,7 +26,7 @@ def main():
     if not (port.isdigit() and 1 <= int(port) <= 65535):
         die("invalid NGINX_PORT")
 
-    json_out = run(
+    json_out = subprocess.run(
         compose + ["config", "--format", "json"],
         capture_output=True, text=True,
     ).stdout
@@ -49,10 +49,10 @@ def main():
             die(f"{service} did not become healthy")
 
     for service in services:
-        proc = run(compose + ["ps", "-q", service],
+        proc = subprocess.run(compose + ["ps", "-q", service],
                               capture_output=True, text=True)
         cid = proc.stdout.strip()
-        exposure = run(["docker", "port", cid],
+        exposure = subprocess.run(["docker", "port", cid],
                                   capture_output=True, text=True).stdout
         if service == "nginx":
             if not re.search(rf"^80/tcp\s+->\s+.*:{port}$", exposure, re.M):
@@ -76,10 +76,10 @@ def main():
     if run(compose + ["exec", "-T", "nginx", "nginx", "-t"],
                       capture_output=True).returncode != 0:
         die("Nginx syntax failed")
-    if run(compose + ["exec", "-T", "nginx", "getent", "hosts", "backend"],
+    if subprocess.run(compose + ["exec", "-T", "nginx", "getent", "hosts", "backend"],
                       capture_output=True).returncode != 0:
         die("backend DNS failed")
-    if run(
+    if subprocess.run(
             compose + ["exec", "-T", "nginx", "wget", "-q", "-O", "-",
                        "http://backend:8000/admin/login/"],
             capture_output=True).returncode != 0:

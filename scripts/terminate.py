@@ -25,7 +25,7 @@ def main():
     for svc in ["nginx", "frontend", "backend", "db"]:
         if svc == "frontend" and not dev:
             continue
-        q = run(compose + ["ps", "-q", svc], capture_output=True, text=True)
+        q = subprocess.run(compose + ["ps", "-q", svc], capture_output=True, text=True)
         if not q.stdout.strip():
             continue
         print(f"Stopping {svc}...")

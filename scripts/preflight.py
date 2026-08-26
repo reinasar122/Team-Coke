@@ -124,9 +124,9 @@ def check_files_and_disk():
 
 
 def check_compose_and_port():
-    if run(COMPOSE + ["config"], capture_output=True).returncode != 0:
+    if subprocess.run(COMPOSE + ["config"], capture_output=True).returncode != 0:
         die("invalid Compose configuration")
-    json_out = run(
+    json_out = subprocess.run(
         COMPOSE + ["config", "--format", "json"],
         capture_output=True, text=True,
     ).stdout
@@ -148,14 +148,14 @@ def check_compose_and_port():
         sock.bind(("127.0.0.1", port))
         sock.close()
     except OSError:
-        proc = run(
+        proc = subprocess.run(
             COMPOSE + ["ps", "-q", "nginx"],
             capture_output=True, text=True,
         )
         cid = proc.stdout.strip()
         published = ""
         if cid:
-            published = run(
+            published = subprocess.run(
                 ["docker", "inspect", "-f",
                  "{{(index (index .NetworkSettings.Ports \"80/tcp\") 0).HostPort}}",
                  cid],
@@ -166,7 +166,7 @@ def check_compose_and_port():
 
 
 def check_images_network_and_nginx():
-    network = run(
+    network = subprocess.run(
         COMPOSE + ["config", "--networks"],
         capture_output=True, text=True,
     ).stdout.strip().splitlines()
@@ -193,10 +193,10 @@ def check_images_network_and_nginx():
 
 
 def check_running_database():
-    proc = run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
+    proc = subprocess.run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
     cid = proc.stdout.strip()
     if cid:
-        status = run(
+        status = subprocess.run(
             ["docker", "inspect", "-f", "{{.State.Health.Status}}", cid],
             capture_output=True, text=True,
         ).stdout.strip()

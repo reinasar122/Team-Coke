@@ -38,7 +38,7 @@ def main():
         die("could not stop backend/nginx; restore was not started")
 
     restore_status = 0
-    proc = run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
+    proc = subprocess.run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
     if not proc.stdout.strip():
         if run(COMPOSE + ["up", "-d", "db"], capture_output=True).returncode != 0:
             restore_status = 1

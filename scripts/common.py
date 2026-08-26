@@ -52,7 +52,7 @@ def root_path(p):
 
 
 def env_value(key):
-    proc = run(
+    proc = subprocess.run(
         COMPOSE + ["config", "--environment"],
         capture_output=True, text=True,
     )
@@ -71,7 +71,7 @@ def die(msg):
 
 
 def _container_id(service):
-    proc = run(
+    proc = subprocess.run(
         COMPOSE + ["ps", "-q", service],
         capture_output=True, text=True,
     )
@@ -81,7 +81,7 @@ def _container_id(service):
 def _inspect_field(container_id, template):
     if not container_id:
         return ""
-    proc = run(
+    proc = subprocess.run(
         ["docker", "inspect", "-f", template, container_id],
         capture_output=True, text=True,
     )
