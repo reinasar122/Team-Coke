@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, root_path
+from common import COMPOSE, ROOT, die, env_value, root_path, run
 
 os.umask(0o077)
 
@@ -23,7 +23,7 @@ def main():
     if wipe:
         print("WARNING: --volumes wipes DB (mysql_data, media_data, static_data); ensure backup exists.", file=sys.stderr)
     cmd = COMPOSE + ["down"] + (["-v"] if wipe else [])
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         die(f"docker compose down failed: {(proc.stderr or proc.stdout).strip()}")
     tags = set()
@@ -46,8 +46,8 @@ def main():
             continue
         for svc in ("coke-backend", "coke-nginx"):
             img = f"{ns}/{svc}:{tag}" if ns else f"local/{svc}:{tag}"
-            if subprocess.run(["docker", "image", "inspect", img], capture_output=True).returncode == 0:
-                subprocess.run(["docker", "rmi", img], capture_output=True)
+            if run(["docker", "image", "inspect", img], capture_output=True).returncode == 0:
+                run(["docker", "rmi", img], capture_output=True)
     if wipe:
         print("TEARDOWN SUCCESS: stack removed, volumes wiped - system clean like never deployed")
     else:

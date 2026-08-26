@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-from common import COMPOSE, die, env_value, root_path
+from common import COMPOSE, die, env_value, root_path, run
 import verify
 
 os.umask(0o077)
@@ -35,17 +35,17 @@ def main(state_file=None):
 
     if not tag:
         die("no prior tag/state")
-    if subprocess.run(["docker", "image", "inspect", backend],
+    if run(["docker", "image", "inspect", backend],
                       capture_output=True).returncode != 0:
         die(f"missing exact backend image {backend}")
-    if subprocess.run(["docker", "image", "inspect", nginx],
+    if run(["docker", "image", "inspect", nginx],
                       capture_output=True).returncode != 0:
         die(f"missing exact nginx image {nginx}")
 
     os.environ["IMAGE_TAG"] = tag
     if namespace:
         os.environ["IMAGE_NAMESPACE"] = namespace
-    if subprocess.run(COMPOSE + ["up", "-d", "--no-build", "--force-recreate", "backend", "nginx"],
+    if run(COMPOSE + ["up", "-d", "--no-build", "--force-recreate", "backend", "nginx"],
                       capture_output=True).returncode != 0:
         die("failed to recreate backend/nginx")
 

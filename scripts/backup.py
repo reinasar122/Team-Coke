@@ -7,7 +7,7 @@ import subprocess
 import time
 from datetime import datetime
 
-from common import COMPOSE, die, env_value, root_path, wait_for_db
+from common import COMPOSE, die, env_value, root_path, run, wait_for_db
 
 os.umask(0o077)
 
@@ -30,9 +30,9 @@ def main():
     if free < int(min_free) * 1024 * 1024 * 1024:
         die("insufficient free disk for backup")
 
-    proc = subprocess.run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
+    proc = run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
     if not proc.stdout.strip():
-        subprocess.run(COMPOSE + ["up", "-d", "db"], check=False)
+        run(COMPOSE + ["up", "-d", "db"], check=False)
     if not wait_for_db(90):
         die("database did not become healthy")
 
@@ -42,7 +42,7 @@ def main():
 
     dump_cmd = COMPOSE + ["exec", "-T", "db", "sh", "-c",
                           'export MYSQL_PWD="$MYSQL_PASSWORD"; exec mysqldump --single-transaction --routines --events --triggers -u "$MYSQL_USER" "$MYSQL_DATABASE"']
-    dump = subprocess.run(dump_cmd, capture_output=True)
+    dump = run(dump_cmd, capture_output=True)
     if dump.returncode != 0:
         die("mysqldump failed")
     with open(tmp, "wb") as f:

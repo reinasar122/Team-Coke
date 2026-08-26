@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die
+from common import COMPOSE, ROOT, die, run
 
 os.umask(0o077)
 
@@ -25,17 +25,17 @@ def main():
     for svc in ["nginx", "frontend", "backend", "db"]:
         if svc == "frontend" and not dev:
             continue
-        q = subprocess.run(compose + ["ps", "-q", svc], capture_output=True, text=True)
+        q = run(compose + ["ps", "-q", svc], capture_output=True, text=True)
         if not q.stdout.strip():
             continue
         print(f"Stopping {svc}...")
-        r = subprocess.run(compose + ["stop", svc], capture_output=True, text=True)
+        r = run(compose + ["stop", svc], capture_output=True, text=True)
         if r.returncode != 0:
             print(f"warning: stop {svc} failed: {(r.stderr or r.stdout).strip()}", file=sys.stderr)
     if wipe:
         print("WARNING: --volumes wipes DB (mysql_data, media_data, static_data); ensure backup exists.", file=sys.stderr)
     cmd = compose + ["down"] + (["-v"] if wipe else [])
-    proc = subprocess.run(cmd, capture_output=True, text=True)
+    proc = run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         die(f"docker compose down failed: {(proc.stderr or proc.stdout).strip()}")
     order = "nginx -> frontend -> backend -> db" if dev else "nginx -> backend -> db"

@@ -6,14 +6,14 @@ import subprocess
 import sys
 import urllib.request
 
-from common import COMPOSE, die, env_value, wait_for_healthy, wait_for_service
+from common import COMPOSE, die, env_value, run, wait_for_healthy, wait_for_service
 
 
 def _has_volume_mount(compose, service, target):
-    cid = subprocess.run(compose + ["ps", "-q", service],
+    cid = run(compose + ["ps", "-q", service],
                          capture_output=True, text=True).stdout.strip()
     tpl = '{{range .Mounts}}{{if eq .Destination "%s"}}{{.Type}} {{.Name}}{{end}}{{end}}' % target
-    mount = subprocess.run(["docker", "inspect", "-f", tpl, cid],
+    mount = run(["docker", "inspect", "-f", tpl, cid],
                            capture_output=True, text=True).stdout
     return mount.startswith("volume")
 
@@ -26,7 +26,7 @@ def main():
     if not (port.isdigit() and 1 <= int(port) <= 65535):
         die("invalid NGINX_PORT")
 
-    json_out = subprocess.run(
+    json_out = run(
         compose + ["config", "--format", "json"],
         capture_output=True, text=True,
     ).stdout
@@ -49,10 +49,10 @@ def main():
             die(f"{service} did not become healthy")
 
     for service in services:
-        proc = subprocess.run(compose + ["ps", "-q", service],
+        proc = run(compose + ["ps", "-q", service],
                               capture_output=True, text=True)
         cid = proc.stdout.strip()
-        exposure = subprocess.run(["docker", "port", cid],
+        exposure = run(["docker", "port", cid],
                                   capture_output=True, text=True).stdout
         if service == "nginx":
             if not re.search(rf"^80/tcp\s+->\s+.*:{port}$", exposure, re.M):
@@ -61,7 +61,7 @@ def main():
             if exposure.strip():
                 die(f"{service} has a published port")
 
-    plan = subprocess.run(
+    plan = run(
         compose + ["exec", "-T", "backend", "python", "manage.py", "showmigrations", "--plan"],
         capture_output=True, text=True,
     )
@@ -69,17 +69,17 @@ def main():
         die("migration plan failed")
     if "[ ]" in plan.stdout:
         die("unapplied migrations")
-    if subprocess.run(
+    if run(
             compose + ["exec", "-T", "backend", "python", "manage.py", "check", "--database", "default"],
             capture_output=True).returncode != 0:
         die("Django DB check failed")
-    if subprocess.run(compose + ["exec", "-T", "nginx", "nginx", "-t"],
+    if run(compose + ["exec", "-T", "nginx", "nginx", "-t"],
                       capture_output=True).returncode != 0:
         die("Nginx syntax failed")
-    if subprocess.run(compose + ["exec", "-T", "nginx", "getent", "hosts", "backend"],
+    if run(compose + ["exec", "-T", "nginx", "getent", "hosts", "backend"],
                       capture_output=True).returncode != 0:
         die("backend DNS failed")
-    if subprocess.run(
+    if run(
             compose + ["exec", "-T", "nginx", "wget", "-q", "-O", "-",
                        "http://backend:8000/admin/login/"],
             capture_output=True).returncode != 0:
@@ -117,7 +117,7 @@ def main():
     log_services = ["db", "backend", "nginx"]
     if dev:
         log_services.append("frontend")
-    proc = subprocess.run(
+    proc = run(
         compose + ["logs", "--tail=50"] + log_services,
         capture_output=True, text=True,
     )

@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, root_path, wait_for_db
+from common import COMPOSE, ROOT, die, env_value, root_path, run, wait_for_db
 import preflight
 import backup
 import verify
@@ -22,7 +22,7 @@ def main():
     os.makedirs(deployment_dir, mode=0o700, exist_ok=True)
     os.chmod(deployment_dir, 0o700)
 
-    tag = subprocess.run(["git", "rev-parse", "--short=12", "HEAD"],
+    tag = run(["git", "rev-parse", "--short=12", "HEAD"],
                          capture_output=True, text=True).stdout.strip()
     os.environ["IMAGE_TAG"] = tag
     if tag in ("dev", "latest") or "CHANGE_ME" in tag:
@@ -34,17 +34,17 @@ def main():
     with open(state, "w") as f:
         f.write(f"IMAGE_TAG={tag}\nIMAGE_NAMESPACE={env_value('IMAGE_NAMESPACE')}\n")
     for service in ("backend", "nginx"):
-        proc = subprocess.run(COMPOSE + ["ps", "-q", service],
+        proc = run(COMPOSE + ["ps", "-q", service],
                               capture_output=True, text=True)
         cid = proc.stdout.strip()
         if cid:
-            image = subprocess.run(
+            image = run(
                 ["docker", "inspect", "-f", "{{.Config.Image}}", cid],
                 capture_output=True, text=True).stdout.strip()
-            digest = subprocess.run(
+            digest = run(
                 ["docker", "inspect", "-f", "{{index .RepoDigests 0}}", cid],
                 capture_output=True, text=True).stdout.strip()
-            st = subprocess.run(
+            st = run(
                 ["docker", "inspect", "-f", "{{.State.Status}}", cid],
                 capture_output=True, text=True).stdout.strip()
             up = service.upper()
@@ -53,19 +53,19 @@ def main():
 
     backup_path = backup.main()
 
-    if subprocess.run(COMPOSE + ["build", "backend", "nginx"],
+    if run(COMPOSE + ["build", "backend", "nginx"],
                       capture_output=True).returncode != 0:
         die("docker compose build failed")
-    if subprocess.run(COMPOSE + ["up", "-d", "db"], capture_output=True).returncode != 0:
+    if run(COMPOSE + ["up", "-d", "db"], capture_output=True).returncode != 0:
         die("docker compose up db failed")
     if not wait_for_db(90):
         die("database did not become healthy")
     for cmd in (["run", "--rm", "--no-deps", "backend", "python", "manage.py", "migrate", "--noinput"],
                 ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "createcachetable", "--database", "default"],
                 ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "collectstatic", "--noinput"]):
-        if subprocess.run(COMPOSE + cmd, capture_output=True).returncode != 0:
+        if run(COMPOSE + cmd, capture_output=True).returncode != 0:
             die("management command failed")
-    if subprocess.run(COMPOSE + ["up", "-d", "--force-recreate", "backend", "nginx"],
+    if run(COMPOSE + ["up", "-d", "--force-recreate", "backend", "nginx"],
                       capture_output=True).returncode != 0:
         die("docker compose up backend nginx failed")
 
@@ -88,7 +88,7 @@ def main():
             print("APPLICATION ROLLBACK FAILED: preserve logs and recover manually; database remains unchanged.",
                   file=sys.stderr)
     else:
-        subprocess.run(COMPOSE + ["stop", "backend", "nginx"],
+        run(COMPOSE + ["stop", "backend", "nginx"],
                        capture_output=True)
         print("No complete prior state; stopped only backend/nginx.", file=sys.stderr)
     return 1

@@ -6,7 +6,7 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, die, wait_for_db
+from common import COMPOSE, die, run, wait_for_db
 
 os.umask(0o077)
 
@@ -26,21 +26,21 @@ def main():
         die("invalid or empty dump")
 
     def restart_apps():
-        if subprocess.run(COMPOSE + ["up", "-d", "backend", "nginx"],
+        if run(COMPOSE + ["up", "-d", "backend", "nginx"],
                           capture_output=True).returncode != 0:
             print("RESTORE FAILURE: restore completed but application services did not restart",
                   file=sys.stderr)
             return False
         return True
 
-    if subprocess.run(COMPOSE + ["stop", "backend", "nginx"],
+    if run(COMPOSE + ["stop", "backend", "nginx"],
                       capture_output=True).returncode != 0:
         die("could not stop backend/nginx; restore was not started")
 
     restore_status = 0
-    proc = subprocess.run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
+    proc = run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
     if not proc.stdout.strip():
-        if subprocess.run(COMPOSE + ["up", "-d", "db"], capture_output=True).returncode != 0:
+        if run(COMPOSE + ["up", "-d", "db"], capture_output=True).returncode != 0:
             restore_status = 1
     if restore_status == 0:
         if not wait_for_db(90):

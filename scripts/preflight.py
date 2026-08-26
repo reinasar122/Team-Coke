@@ -7,7 +7,7 @@ import socket
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, root_path
+from common import COMPOSE, ROOT, die, env_value, root_path, run
 
 os.umask(0o077)
 
@@ -24,16 +24,16 @@ def check_tools():
             die(f"required shell tool missing: {tool}")
     if shutil.which("docker") is None:
         die("Docker is missing")
-    if subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
+    if run(["docker", "info"], capture_output=True).returncode != 0:
         die("Docker daemon unavailable")
-    if subprocess.run(["docker", "compose", "version"], capture_output=True).returncode != 0:
+    if run(["docker", "compose", "version"], capture_output=True).returncode != 0:
         die("Compose v2 unavailable")
 
-    docker_version = subprocess.run(
+    docker_version = run(
         ["docker", "version", "--format", "{{.Server.Version}}"],
         capture_output=True, text=True,
     ).stdout.strip()
-    compose_version = subprocess.run(
+    compose_version = run(
         ["docker", "compose", "version", "--short"],
         capture_output=True, text=True,
     ).stdout.strip()
@@ -124,9 +124,9 @@ def check_files_and_disk():
 
 
 def check_compose_and_port():
-    if subprocess.run(COMPOSE + ["config"], capture_output=True).returncode != 0:
+    if run(COMPOSE + ["config"], capture_output=True).returncode != 0:
         die("invalid Compose configuration")
-    json_out = subprocess.run(
+    json_out = run(
         COMPOSE + ["config", "--format", "json"],
         capture_output=True, text=True,
     ).stdout
@@ -148,14 +148,14 @@ def check_compose_and_port():
         sock.bind(("127.0.0.1", port))
         sock.close()
     except OSError:
-        proc = subprocess.run(
+        proc = run(
             COMPOSE + ["ps", "-q", "nginx"],
             capture_output=True, text=True,
         )
         cid = proc.stdout.strip()
         published = ""
         if cid:
-            published = subprocess.run(
+            published = run(
                 ["docker", "inspect", "-f",
                  "{{(index (index .NetworkSettings.Ports \"80/tcp\") 0).HostPort}}",
                  cid],
@@ -166,13 +166,13 @@ def check_compose_and_port():
 
 
 def check_images_network_and_nginx():
-    network = subprocess.run(
+    network = run(
         COMPOSE + ["config", "--networks"],
         capture_output=True, text=True,
     ).stdout.strip().splitlines()
     if network:
         last = network[-1].strip()
-        if last and subprocess.run(
+        if last and run(
                 ["docker", "network", "inspect", last],
                 capture_output=True).returncode != 0:
             print(f"Compose network deferred until deploy: {last}")
@@ -180,11 +180,11 @@ def check_images_network_and_nginx():
                   "nginx:" + env_value("NGINX_IMAGE_TAG"),
                   f"{env_value('IMAGE_NAMESPACE')}/coke-backend:{env_value('IMAGE_TAG')}",
                   f"{env_value('IMAGE_NAMESPACE')}/coke-nginx:{env_value('IMAGE_TAG')}"):
-        if subprocess.run(["docker", "image", "inspect", image],
+        if run(["docker", "image", "inspect", image],
                           capture_output=True).returncode != 0:
             print(f"Image deferred to deploy/build: {image}")
     nginx_tag = env_value("NGINX_IMAGE_TAG")
-    if subprocess.run(
+    if run(
             ["docker", "run", "--rm", "--add-host", "backend:127.0.0.1",
              "-v", f"{ROOT}/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro",
              f"nginx:{nginx_tag}", "nginx", "-t"],
@@ -193,16 +193,16 @@ def check_images_network_and_nginx():
 
 
 def check_running_database():
-    proc = subprocess.run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
+    proc = run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
     cid = proc.stdout.strip()
     if cid:
-        status = subprocess.run(
+        status = run(
             ["docker", "inspect", "-f", "{{.State.Health.Status}}", cid],
             capture_output=True, text=True,
         ).stdout.strip()
         if status != "healthy":
             die("running db is not healthy")
-        if subprocess.run(
+        if run(
                 COMPOSE + ["exec", "-T", "db", "sh", "-c",
                            'export MYSQL_PWD="$MYSQL_PASSWORD"; mysql -u "$MYSQL_USER" "$MYSQL_DATABASE" -e "SELECT 1"'],
                 capture_output=True).returncode != 0:
