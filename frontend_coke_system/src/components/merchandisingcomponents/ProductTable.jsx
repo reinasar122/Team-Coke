@@ -351,6 +351,11 @@ useEffect(() => {
       row.discrepancyShellEmpty = "";
       row.discrepancyPcsEmpty = "";
       recalculateRowTotals(row, price);
+    } else if (["expectedReturnShellEmpty", "expectedReturnPcsEmpty"].includes(field)) {
+      row.expectedReturnShellEmpty = "";
+      row.expectedReturnPcsEmpty = "";
+      row.discrepancyShellEmpty = n(row.soldShell);
+      row.discrepancyPcsEmpty = n(row.soldPcs);
     }
 
     updated[index] = row;
@@ -521,20 +526,41 @@ if (["expectedReturnPcsEmpty", "expectedReturnShellEmpty"].includes(field)) {
     if (field === "expectedReturnShellEmpty") {
       const shellQty = Math.floor(n(value));
 
-      // Clamp to sold Shell so reserve rows can stay unsold.
-      row.expectedReturnShellEmpty = Math.min(shellQty, soldShell);
-
-      if (soldShell > 0) {
-        const pcsPerShell = soldPcs / soldShell;
-        row.expectedReturnPcsEmpty = Math.round(row.expectedReturnShellEmpty * pcsPerShell);
-      } else {
+      // Handle empty/null value - reset both shell and PCS
+      if (value === null || value === "" || Number.isNaN(shellQty)) {
+        row.expectedReturnShellEmpty = 0;
         row.expectedReturnPcsEmpty = 0;
+      } else {
+        // Clamp to sold Shell so reserve rows can stay unsold.
+        row.expectedReturnShellEmpty = Math.min(shellQty, soldShell);
+
+        if (soldShell > 0) {
+          const pcsPerShell = soldPcs / soldShell;
+          row.expectedReturnPcsEmpty = Math.round(row.expectedReturnShellEmpty * pcsPerShell);
+        } else {
+          row.expectedReturnPcsEmpty = 0;
+        }
       }
     }
 
     else if (field === "expectedReturnPcsEmpty") {
       const pcsQty = n(value);
-      row.expectedReturnPcsEmpty = Math.min(pcsQty, soldPcs);
+      
+      // Handle empty/null value - reset both PCS and Shell
+      if (value === null || value === "" || Number.isNaN(pcsQty)) {
+        row.expectedReturnPcsEmpty = 0;
+        row.expectedReturnShellEmpty = 0;
+      } else {
+        row.expectedReturnPcsEmpty = Math.min(pcsQty, soldPcs);
+        
+        // Calculate corresponding Shell value
+        if (soldShell > 0) {
+          const pcsPerShell = soldPcs / soldShell;
+          row.expectedReturnShellEmpty = Math.round(row.expectedReturnPcsEmpty / pcsPerShell);
+        } else {
+          row.expectedReturnShellEmpty = 0;
+        }
+      }
     }
 
     row.discrepancyPcsEmpty = n(row.soldPcs) - n(row.expectedReturnPcsEmpty);
