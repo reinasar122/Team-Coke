@@ -945,32 +945,32 @@ useEffect(() => {
 
                 {/* DISPATCHED */}
                 <td className="border border-gray-200 py-1 px-1">
-                  <input
-                    type="number"
-                    placeholder="0"
-                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : allowDispatchEdit ? "bg-yellow-50" : "bg-gray-100 cursor-default"}`}
-                    value={row.dispatchedShell === null || row.dispatchedShell === undefined ? "" : row.dispatchedShell}
-                    onChange={(e) =>
-                      handleRowChange(rowIndex, "dispatchedShell", e.target.value === "" ? null : e.target.value)
-                    }
-                    readOnly={!allowDispatchEdit}
-                    disabled={!hasProduct}
-                    tabIndex={allowDispatchEdit ? 0 : -1}
-                  />
+<input
+                     type="number"
+                     placeholder="0"
+                     className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : allowDispatchEdit ? "bg-yellow-50" : "bg-gray-100 cursor-default"}`}
+                     value={row.dispatchedShell === null || row.dispatchedShell === undefined || row.dispatchedShell === "" ? "-" : row.dispatchedShell}
+                     onChange={(e) =>
+                       handleRowChange(rowIndex, "dispatchedShell", e.target.value === "-" || e.target.value === "" ? null : e.target.value)
+                     }
+                     readOnly={!allowDispatchEdit}
+                     disabled={!hasProduct}
+                     tabIndex={allowDispatchEdit ? 0 : -1}
+                   />
                 </td>
                 <td className="border border-gray-200 py-1 px-1">
-                  <input
-                    type="number"
-                    placeholder="0"
-                    className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : allowDispatchEdit ? "bg-yellow-50" : "bg-gray-100 cursor-default"}`}
-                    value={row.dispatchedPcs === null || row.dispatchedPcs === undefined ? "" : row.dispatchedPcs}
-                    onChange={(e) =>
-                      handleRowChange(rowIndex, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
-                    }
-                    readOnly={!allowDispatchEdit}
-                    disabled={!hasProduct}
-                    tabIndex={allowDispatchEdit ? 0 : -1}
-                  />
+<input
+                     type="number"
+                     placeholder="0"
+                     className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : allowDispatchEdit ? "bg-yellow-50" : "bg-gray-100 cursor-default"}`}
+                     value={row.dispatchedPcs === null || row.dispatchedPcs === undefined || row.dispatchedPcs === "" ? "-" : row.dispatchedPcs}
+                     onChange={(e) =>
+                       handleRowChange(rowIndex, "dispatchedPcs", e.target.value === "-" || e.target.value === "" ? null : e.target.value)
+                     }
+                     readOnly={!allowDispatchEdit}
+                     disabled={!hasProduct}
+                     tabIndex={allowDispatchEdit ? 0 : -1}
+                   />
                 </td>
 
                 {/* SELLING PRICE */}
@@ -1117,15 +1117,15 @@ useEffect(() => {
 
                 {/* DISCOUNT (%) */}
                 <td className="border border-gray-200 py-1 px-1">
-                  <input
-                    type="number"
-                    className={discountInputEnabled
-                      ? "input-always-spinner w-full p-1 text-sm text-center rounded border bg-yellow-50"
-                      : "input-always-spinner w-full p-1 text-sm text-center rounded border bg-gray-200 cursor-not-allowed"}
-                    value={row.discount ?? ""}
-                    onChange={(e) => handleRowChange(rowIndex, "discount", e.target.value)}
-                    disabled={!discountInputEnabled}
-                  />
+<input
+                     type="number"
+                     className={discountInputEnabled
+                       ? "input-always-spinner w-full p-1 text-sm text-center rounded border bg-yellow-50"
+                       : "input-always-spinner w-full p-1 text-sm text-center rounded border bg-gray-200 cursor-not-allowed"}
+                     value={row.discount === null || row.discount === undefined || row.discount === "" ? "-" : row.discount}
+                     onChange={(e) => handleRowChange(rowIndex, "discount", e.target.value === "-" || e.target.value === "" ? "" : e.target.value)}
+                     disabled={!discountInputEnabled}
+                   />
                 </td>
 
                 {/* ACTUAL SALE */}
