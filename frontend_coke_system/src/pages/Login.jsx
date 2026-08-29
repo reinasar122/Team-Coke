@@ -488,28 +488,28 @@ const Login = () => {
             {isSignUp ? (
               <>
                 {/* Sign Up Form */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-200 mb-1">Phone Number *</label>
-                  <input
-                    type="text"
-                    name="signup-phone"
-                    autoComplete="off"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    autoCorrect="off"
-                    autoCapitalize="off"
-                    spellCheck={false}
-                    value={phoneNumber}
-                    onChange={handlePhoneNumberChange}
-                    placeholder="Enter phone number"
-                    required
-                    maxLength={11}
-                    className="w-full rounded-xl border border-gray-400/50 px-4 py-2 text-base text-white placeholder-gray-300 bg-white/10
-                    focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
-                    focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
-                  />
-                  {fieldErrors.phoneNumber && <p className="text-red-400 text-sm mt-1">{fieldErrors.phoneNumber}</p>}
-                </div>
+<div>
+                    <label className="block text-sm font-medium text-gray-200 mb-1">Phone Number *</label>
+                    <input
+                      type="text"
+                      name="signup-phone"
+                      autoComplete="off"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      spellCheck={false}
+                      value={phoneNumber}
+                      onChange={handlePhoneNumberChange}
+                      placeholder="09xx-xxx-xxxx"
+                      required
+                      maxLength={11}
+                      className="w-full rounded-xl border border-gray-400/50 px-4 py-2 text-base text-white placeholder-gray-300 bg-white/10
+                      focus:outline-none focus:ring-2 focus:ring-blue-500/60 focus:border-blue-400
+                      focus:shadow-[0_0_0_4px_rgba(59,130,246,0.15)] transition"
+                    />
+                    {fieldErrors.phoneNumber && <p className="text-red-400 text-sm mt-1">{fieldErrors.phoneNumber}</p>}
+                  </div>
 
                 <div>
                   <label className="block text-sm font-medium text-gray-200 mb-1">Password *</label>
@@ -667,7 +667,7 @@ const Login = () => {
                     autoComplete="off"
                     value={phoneNumber}
                     onChange={handlePhoneNumberChange}
-                    placeholder="Enter phone number"
+                    placeholder="09xx-xxx-xxxx"
                     required
                     maxLength={11}
                     className="w-full rounded-xl border border-gray-400/50 px-4 py-3 text-base text-white placeholder-gray-300 bg-white/10
