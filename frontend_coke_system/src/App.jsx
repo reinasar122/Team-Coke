@@ -19,6 +19,7 @@ import "./styles/global.scss";
 
 // Pages
 import Login from "./pages/Login";
+import ChatbotDeviceApprovals from "./pages/ChatbotDeviceApprovals.jsx";
 import ChangePassword from "./pages/ChangePassword";
 import WarehouseForm from "./pages/WarehouseForm";
 import Warehouses from "./pages/Warehouses";
@@ -324,7 +325,10 @@ const ProtectedLayout = ({
                   <Dashboard />
                 </AccessControlledRoute>
               }
-            />
+/>
+            
+            {/* Chatbot Devices */}
+            <Route path="/chatbot-devices" element={<ChatbotDeviceApprovals />} />
 
             {/* Forecasting */}
             <Route path="/forecasting" element={<ForecastingDashboard />} />
