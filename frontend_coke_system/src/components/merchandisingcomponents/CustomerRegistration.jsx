@@ -227,7 +227,9 @@ const CustomerRegistration = ({
     } else if (!/^\d+$/.test(normalizedPhone)) {
       errors.phone_number = "Phone number must contain digits only";
     } else if (normalizedPhone.length !== 11) {
-      errors.phone_number = "Phone number must be 11 digits";
+      errors.phone_number = "Phone number must be 11 digits (e.g., 09xx-xxx-xxxx)";
+    } else if (!normalizedPhone.startsWith("09")) {
+      errors.phone_number = "Phone number must start with 09 (Philippines format)";
     }
     
     if (newCustomer.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newCustomer.email)) {
@@ -596,7 +598,7 @@ const CustomerRegistration = ({
 
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+<label htmlFor="phone_number" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                       Phone Number *
                     </label>
                     <input
@@ -612,7 +614,7 @@ const CustomerRegistration = ({
                       value={newCustomer.phone_number}
                       onChange={handleInputChange}
                       className={fieldClass(customerErrors.phone_number)}
-                      placeholder="Enter phone number"
+                      placeholder="09xx-xxx-xxxx"
                     />
                     {customerErrors.phone_number && <p className="text-red-500 text-xs mt-1">{customerErrors.phone_number}</p>}
                   </div>
