@@ -163,9 +163,9 @@ useEffect(() => {
       const response = await api.get(`/stocks/${productId}/availability/`); // Use api instance
       const quantity = response.data.quantity_available ?? 0;
       setAvailableStock((prev) => ({ ...prev, [productId]: quantity }));
-      console.log(`Ã¢Å“â€¦ Stock for product ${productId}:`, quantity);
+      console.log(`Stock for product ${productId}:`, quantity);
     } catch (err) {
-      console.error("Ã¢ÂÅ’ Error fetching stock:", err);
+      console.error("Error fetching stock:", err);
       setAvailableStock((prev) => ({ ...prev, [productId]: null }));
     }
   };
@@ -935,7 +935,7 @@ useEffect(() => {
                 <td className="border border-gray-200 py-1 px-1 w-[180px] relative">
                   <ProductSearchSelect
                     products={products}
-                    value={row.productName ?? ""}
+                    value={row.productId ?? ""}
                     onChange={(id) => handleProductChange(rowIndex, String(id))}
                     excludeIds={getSelectedProductIds(rowIndex)}
                     placeholder="Search product..."
@@ -999,7 +999,7 @@ useEffect(() => {
                     className={soldInputClass}
                     value={row.soldShell ?? ""}
                     onChange={(e) =>
-                      handleRowChange(rowIndex, "soldShell", e.target.value === "" ? null : e.target.value)
+                      handleRowChange(rowIndex, "soldShell", e.target.value === "-" || e.target.value === "" ? null : e.target.value)
                     }
                     readOnly={!allowManualSoldEntry}
                     disabled={soldInputDisabled}
@@ -1013,7 +1013,7 @@ useEffect(() => {
                     className={soldInputClass}
                     value={row.soldPcs ?? ""}
                     onChange={(e) =>
-                      handleRowChange(rowIndex, "soldPcs", e.target.value === "" ? null : e.target.value)
+                      handleRowChange(rowIndex, "soldPcs", e.target.value === "-" || e.target.value === "" ? null : e.target.value)
                     }
                     readOnly={!allowManualSoldEntry}
                     disabled={soldInputDisabled}
@@ -1096,7 +1096,7 @@ useEffect(() => {
                         handleRowChange(
                           rowIndex,
                           field,
-                          e.target.value === "" ? null : e.target.value
+                          e.target.value === "-" || e.target.value === "" ? null : e.target.value
                         )
                       }
                       readOnly={field.includes("discrepancy")}

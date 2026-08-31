@@ -160,7 +160,3 @@ const ProductSearchSelect = ({
 };
 
 export default ProductSearchSelect;
-
-
-
-
