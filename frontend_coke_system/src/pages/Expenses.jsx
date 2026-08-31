@@ -55,30 +55,49 @@ const formatCurrencyInput = (rawValue) => {
 };
 
 // ✅ Custom alert component
-const showAlert = (message, type = 'info') => {
-  const alertDiv = document.createElement('div');
-  alertDiv.className = 'modal-overlay';
-  
-  const modalContent = document.createElement('div');
-  modalContent.className = 'modal';
-  modalContent.innerHTML = `
-    <div style="display: flex; align-items: center; margin-bottom: 1rem;">
-      <div class="btn ${type === 'error' ? 'btn-danger' : type === 'success' ? 'btn-add' : 'btn-primary'}" style="border-radius: 50%; width: 40px; height: 40px; margin-right: 12px;">
-        <i class="fas ${type === 'error' ? 'fa-exclamation-triangle' : type === 'success' ? 'fa-check' : 'fa-info'}"></i>
+  const showAlert = (message, type = 'info') => {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = 'modal-overlay';
+    alertDiv.setAttribute('data-alert', 'true');
+    
+    const modalContent = document.createElement('div');
+    modalContent.className = 'modal';
+    modalContent.innerHTML = `
+      <div style="display: flex; align-items: center; margin-bottom: 1rem;">
+        <div class="btn ${type === 'error' ? 'btn-danger' : type === 'success' ? 'btn-add' : 'btn-primary'}" style="border-radius: 50%; width: 40px; height: 40px; margin-right: 12px;">
+          <i class="fas ${type === 'error' ? 'fa-exclamation-triangle' : type === 'success' ? 'fa-check' : 'fa-info'}"></i>
+        </div>
+        <h3 style="margin: 0; font-weight: 600;">
+          ${type === 'error' ? 'Error' : type === 'success' ? 'Success' : 'Information'}
+        </h3>
       </div>
-      <h3 style="margin: 0; font-weight: 600;">
-        ${type === 'error' ? 'Error' : type === 'success' ? 'Success' : 'Information'}
-      </h3>
-    </div>
-    <p style="margin-bottom: 1rem; color: var(--text-muted);">${message}</p>
-    <div style="display: flex; justify-content: flex-end;">
-      <button class="btn ${type === 'error' ? 'btn-danger' : type === 'success' ? 'btn-add' : 'btn-primary'}" onclick="this.closest('.modal-overlay').remove()">OK</button>
-    </div>
-  `;
-  
-  alertDiv.appendChild(modalContent);
-  document.body.appendChild(alertDiv);
-};
+      <p style="margin-bottom: 1rem; color: var(--text-muted);">${message}</p>
+      <div style="display: flex; justify-content: flex-end;">
+        <button class="btn ${type === 'error' ? 'btn-danger' : type === 'success' ? 'btn-add' : 'btn-primary'}" onclick="this.closest('.modal-overlay').remove()">OK</button>
+      </div>
+    `;
+    
+    alertDiv.appendChild(modalContent);
+    document.body.appendChild(alertDiv);
+    
+    // ✅ Add Enter key listener to close alert
+    const handleKeyDown = (e) => {
+      if (e.key === 'Enter') {
+        alertDiv.remove();
+        document.removeEventListener('keydown', handleKeyDown);
+      }
+    };
+    
+    document.addEventListener('keydown', handleKeyDown);
+    
+    // ✅ Auto-close alert after 3 seconds for better UX
+    setTimeout(() => {
+      if (alertDiv.parentNode) {
+        alertDiv.remove();
+        document.removeEventListener('keydown', handleKeyDown);
+      }
+    }, 3000);
+  };
 
 export default function Expenses() {
   const [items, setItems] = useState([]); // miscellaneous items
