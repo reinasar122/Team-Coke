@@ -434,7 +434,7 @@ const VanLoadTable = ({
                 <td className="border border-gray-200 py-1 px-1 w-[200px]">
                   <ProductSearchSelect
                     products={getSortedProductsForRow(row.productId)}
-                    value={row.productName ?? ""}
+                    value={row.productId ?? ""}
                     onChange={(id) => handleProductChange(index, String(id))}
                     excludeIds={Array.from(pickedIds).filter(id => id !== Number(row.productId))}
                     placeholder="Search product…"
@@ -519,7 +519,7 @@ const VanLoadTable = ({
                     placeholder="0"
                     className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : "bg-yellow-50"}`}
                     value={row.discount ?? ""}
-                    onChange={(e) => handleRowChange(index, "discount", e.target.value)}
+                    onChange={(e) => handleRowChange(index, "discount", e.target.value === "-" || e.target.value === "" ? "" : e.target.value)}
                     disabled={!hasProduct} // Disabled if no product is selected
                   />
                 </td>
