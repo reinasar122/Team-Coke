@@ -6,7 +6,9 @@ const VerifyOTPModal = ({ onClose, onVerified, phone = null, mode = "signup" }) 
   const [error, setError] = useState("");
   const [timer, setTimer] = useState(120);
   const [canResend, setCanResend] = useState(true);
+  const [isVerifying, setIsVerifying] = useState(false);
   const inputsRef = useRef([]);
+  const submittedOtpRef = useRef("");
 
   useEffect(() => {
     let countdownInterval;
@@ -33,6 +35,16 @@ const VerifyOTPModal = ({ onClose, onVerified, phone = null, mode = "signup" }) 
     }
   };
 
+  const handlePaste = (e) => {
+    const pastedOtp = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
+    if (!pastedOtp) return;
+
+    e.preventDefault();
+    const newOtp = Array.from({ length: 6 }, (_, index) => pastedOtp[index] || "");
+    setOtpDigits(newOtp);
+    inputsRef.current[Math.min(pastedOtp.length, 6) - 1]?.focus();
+  };
+
   const handleKeyDown = (index, e) => {
     if (e.key === "Backspace") {
       if (otpDigits[index] === "") {
@@ -54,15 +66,15 @@ const VerifyOTPModal = ({ onClose, onVerified, phone = null, mode = "signup" }) 
     }
   };
 
-  const handleVerify = async (e) => {
-    e.preventDefault();
+  const verifyOtp = async (otp) => {
+    if (isVerifying) return;
     setError("");
-
-    const otp = otpDigits.join("");
     if (otp.length !== 6) {
       setError("Please enter a valid 6-digit OTP.");
       return;
     }
+
+    setIsVerifying(true);
 
     try {
       if (!phone) {
@@ -142,8 +154,27 @@ const VerifyOTPModal = ({ onClose, onVerified, phone = null, mode = "signup" }) 
       }
       
       setError(errorMessage);
+    } finally {
+      setIsVerifying(false);
     }
   };
+
+  const handleVerify = (e) => {
+    e.preventDefault();
+    void verifyOtp(otpDigits.join(""));
+  };
+
+  useEffect(() => {
+    const otp = otpDigits.join("");
+    if (otp.length < 6) {
+      submittedOtpRef.current = "";
+      return;
+    }
+
+    if (submittedOtpRef.current === otp || isVerifying) return;
+    submittedOtpRef.current = otp;
+    void verifyOtp(otp);
+  }, [otpDigits, isVerifying]);
 
   const handleResendOTP = async () => {
     if (!canResend) return;
@@ -209,6 +240,7 @@ const VerifyOTPModal = ({ onClose, onVerified, phone = null, mode = "signup" }) 
                 value={digit}
                 onChange={(e) => handleChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
+                onPaste={handlePaste}
                 className="w-12 h-12 text-center text-xl rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-red-500"
               />
             ))}
@@ -216,9 +248,10 @@ const VerifyOTPModal = ({ onClose, onVerified, phone = null, mode = "signup" }) 
 
           <button
             type="submit"
+            disabled={isVerifying}
             className="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-2 rounded-md transition duration-200 shadow-sm"
           >
-            Verify
+            {isVerifying ? "Verifying..." : "Verify"}
           </button>
         </form>
 
