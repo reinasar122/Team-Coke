@@ -3,6 +3,7 @@ import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { notifyProductChange } from "../utils/productNotifier";
+import { resolveProductImage } from "../utils/productImages";
 import api from "../api";
 
 import "../styles/pages/productedit.scss";
@@ -199,7 +200,7 @@ const ProductEdit = () => {
           warehouse: product.warehouse || warehouseId,
           image: null,
           imagePreview: null,
-          currentImage: product.image || null,
+          currentImage: resolveProductImage(product),
           removeImage: false
         };
 
@@ -219,7 +220,7 @@ const ProductEdit = () => {
           content_no: product.unit_type?.content_no || "",
           shell_type: product.unit_type?.shell_type || "",
           content_type: product.unit_type?.content_type || "",
-          currentImage: product.image || null,
+          currentImage: resolveProductImage(product),
           category_name: product.product_category?.name || "",
           supplier_name: "",
           shell_type_name: "",

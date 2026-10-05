@@ -7,6 +7,7 @@ import { AiFillProduct } from "react-icons/ai";
 import { canCreate, canEdit, canDelete } from '../utils/accessControl';
 import { notifyProductChange } from '../utils/productNotifier';
 import { getCurrentWarehouse, findWarehouseByName, getWarehouseAxiosConfig } from '../utils/warehouseUtils'; // ✅ KEPT: from old version
+import { resolveProductImage } from '../utils/productImages';
 import { showAppAlertDialog, showAppConfirmDialog } from "../components/common/modalDialogs";
 import PageSearchToolbar, { PageToolbarSelect } from "../components/common/PageSearchToolbar";
 import '../styles/pages/productlist.scss';
@@ -21,6 +22,7 @@ const ProductList = () => {
   const [viewMode, setViewMode] = useState('carousel');
   const [currentWarehouse, setCurrentWarehouse] = useState(null); // ✅ KEPT: from old version
   const [searchQuery, setSearchQuery] = useState('');
+  const [brokenImages, setBrokenImages] = useState({});
   const gridRef = useRef(null);
 
   useEffect(() => {
@@ -211,6 +213,11 @@ const ProductList = () => {
   const prevPage = () => {
     setCurrentPage(prev => Math.max(prev - 1, 0));
   };
+
+  // Fall back to the placeholder once per product if the file is missing.
+  const handleImageError = useCallback((productId) => {
+    setBrokenImages(prev => (prev[productId] ? prev : { ...prev, [productId]: true }));
+  }, []);
 
   const handleViewModeChange = (mode) => {
     setViewMode(mode);
@@ -478,7 +485,12 @@ const ProductList = () => {
             data-columns={visibleCarouselColumns}
             style={carouselLayoutStyle}
           >
-            {currentProducts.map(prod => (
+            {currentProducts.map(prod => {
+              const productImageSrc = brokenImages[prod.id]
+                ? null
+                : resolveProductImage(prod);
+
+              return (
               <div
                 key={prod.id}
                 className="card product-carousel-card"
@@ -487,11 +499,12 @@ const ProductList = () => {
                 }}
               >
                 <div className="product-carousel-card__media">
-                  {prod.image ? (
+                  {productImageSrc ? (
                       <img
-                        src={prod.image}
+                        src={productImageSrc}
                         alt={prod.product_name}
                         className="product-carousel-card__preview"
+                        onError={() => handleImageError(prod.id)}
                       />
                     ) : (
                       <div className="product-carousel-card__placeholder">
@@ -562,7 +575,8 @@ const ProductList = () => {
                     </div>
                   </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* Carousel Pagination Controls */}
