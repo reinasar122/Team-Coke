@@ -214,7 +214,6 @@ const ProductList = () => {
     setCurrentPage(prev => Math.max(prev - 1, 0));
   };
 
-  // Fall back to the placeholder once per product if the file is missing.
   const handleImageError = useCallback((productId) => {
     setBrokenImages(prev => (prev[productId] ? prev : { ...prev, [productId]: true }));
   }, []);

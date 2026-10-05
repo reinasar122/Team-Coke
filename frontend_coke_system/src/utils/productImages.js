@@ -1,7 +1,5 @@
 // utils/productImages.js
 
-// Hosts that only ever exist on a developer machine or a private LAN.
-// They must never be used as the media origin of a deployed site.
 const isPrivateHost = (hostname) =>
   /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/i.test(
     hostname || ""
@@ -26,8 +24,6 @@ const getMediaOrigin = () => {
 
     if (parsed && parsed.origin && parsed.origin !== "null") {
       const targetsThisMachine = parsed.hostname === hostname;
-      // A loopback/LAN API host is only trustworthy while the browser itself
-      // is not talking to the deployed site.
       if (!isPrivateHost(parsed.hostname) || (isCraDevServer && !targetsThisMachine)) {
         return parsed.origin;
       }
@@ -41,18 +37,8 @@ const getMediaOrigin = () => {
   return origin;
 };
 
-// Paths the backend/nginx serve from the shared media and static volumes.
 const MEDIA_PATH_PREFIXES = ["/media/", "/static/"];
 
-// Resolve an uploaded product image to a URL that works on the host the page
-// is actually being served from.
-//
-// The API returns two values and both can be wrong for a deployed site:
-//   * `image_url` -> "/media/product_images/x.png" (relative, safe)
-//   * `image`     -> request.build_absolute_uri(...) which, behind the Nginx
-//                    proxy, is built from `Host $host` and therefore has no
-//                    port, e.g. "http://SERVER_IP/media/..." for a site that
-//                    is really on http://SERVER_IP:8080
 export const resolveImageSource = (raw) => {
   if (typeof raw !== "string") {
     return null;
@@ -81,13 +67,10 @@ export const resolveImageSource = (raw) => {
       parsed.pathname.startsWith(prefix)
     );
 
-    // External asset (e.g. a CDN) is already correct: keep it untouched.
     if (!servesFromBackend) {
       return parsed.href;
     }
 
-    // Backend-served file: rebuild it against the current site origin so the
-    // port and host of the deployed site are preserved.
     return `${origin}${parsed.pathname}${parsed.search}`;
   }
 
@@ -104,8 +87,6 @@ export const resolveProductImage = (product) => {
     return null;
   }
 
-  // `image_url` is preferred: it stays relative and therefore survives any
-  // proxy/host configuration.
   return resolveImageSource(product.image_url) || resolveImageSource(product.image);
 };
 
