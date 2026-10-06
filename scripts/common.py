@@ -24,12 +24,9 @@ def ok(msg): print(_color('32', f"[OK] {msg}"))
 def warn(msg): print(_color('33', f"[WARN] {msg}"), file=sys.stderr)
 def fail(msg): print(_color('31', f"[ERROR] {msg}"), file=sys.stderr)
 def skip(msg): print(_color('90', f"[SKIP] {msg}"))
-def passed(msg): print(_color('32', f"[OK] {msg}"))
 def phase(msg):
     print("")
     info(msg)
-log_ok=ok; log_info=info; log_pass=passed; log_fail=fail
-log_warn=warn; log_skip=skip; log_error=fail; log_phase=phase
 
 def _short(cmd):
     parts = list(cmd) if isinstance(cmd, (list, tuple)) else str(cmd).split()
@@ -54,7 +51,6 @@ def run(cmd, label=None, **kwargs):
         detail = f" - {err[0][:120]}" if err and err[0] else ""
         fail(f"{name} failed{detail}")
     return proc
-log_run = run
 
 ROOT = Path(__file__).resolve().parent.parent
 os.chdir(ROOT)

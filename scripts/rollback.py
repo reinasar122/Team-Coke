@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-from common import COMPOSE, die, env_value, info, ok, phase, root_path, run
+from common import COMPOSE, die, env_value, ok, phase, root_path, run
 import verify
 
 os.umask(0o077)
@@ -46,8 +46,7 @@ def main(state_file=None):
     os.environ["IMAGE_TAG"] = tag
     if namespace:
         os.environ["IMAGE_NAMESPACE"] = namespace
-    info("Starting rollback")
-    if run(COMPOSE + ["up", "-d", "--no-build", "--force-recreate", "backend", "nginx"], "Restarting old version",
+    if run(COMPOSE + ["up", "-d", "--no-build", "--remove-orphans", "--force-recreate", "backend", "nginx"], "Restarting old version",
                       capture_output=True).returncode != 0:
         die("I could not restart the old version. Please check docker logs.")
 
@@ -55,7 +54,6 @@ def main(state_file=None):
         ok(f"Rollback done. Back on version {tag}. Data was not changed.")
         return 0
     die("Rollback failed. Data was not changed. Fix it by hand.")
-    return 1
 
 
 if __name__ == "__main__":

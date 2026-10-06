@@ -5,9 +5,10 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, fail, info, ok, phase, root_path, run, wait_for_db, warn
+from common import COMPOSE, die, env_value, fail, info, ok, phase, root_path, run, wait_for_db, warn
 import preflight
 import backup
+import cleanup
 import verify
 import rollback
 
@@ -60,27 +61,45 @@ def main():
     backup_path = backup.main()
     ok(f"Backup saved to {backup_path}")
 
+    def _fail(reason):
+        fail(reason)
+        if os.path.getsize(state) > 0 and _count(state, "_IMAGE=") == 2:
+            if rollback.main(state) == 0:
+                ok("Rollback done. Database was not changed.")
+            else:
+                fail("Rollback failed. Check the logs and fix it by hand. Database was not changed.")
+        else:
+            run(COMPOSE + ["stop", "backend", "nginx"], "Stopping backend and nginx",
+                           capture_output=True)
+            warn("No last working version found, so the app was stopped.")
+        info(f"Database backup available at {backup_path} if manual restore is needed.")
+        cleanup.main()
+        _summary(deployment_dir, tag, backup_path, "FAILED")
+        return 1
+
     phase("Building images")
+    if run(COMPOSE + ["pull", "db"], "Pulling base images", capture_output=True).returncode != 0:
+        warn("Could not pull latest base images. Using cached images.")
     if run(COMPOSE + ["build", "backend", "nginx"], "Building backend and nginx images",
                       capture_output=True).returncode != 0:
-        die("Building the app images failed. Check the error above.")
+        return _fail("Building the app images failed. Check the error above.")
     phase("Starting services")
-    if run(COMPOSE + ["up", "-d", "db"], "Starting database",
+    if run(COMPOSE + ["up", "-d", "--remove-orphans", "db"], "Starting database",
                       capture_output=True).returncode != 0:
-        die("Starting the database failed. Check docker logs for db.")
+        return _fail("Starting the database failed. Check docker logs for db.")
     if not wait_for_db(90):
-        die("The database did not get ready in time. Check docker logs for db.")
+        return _fail("The database did not get ready in time. Check docker logs for db.")
     ok("Database is ready")
     for cmd in (["run", "--rm", "--no-deps", "backend", "python", "manage.py", "migrate", "--noinput"],
                 ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "createcachetable", "--database", "default"],
                 ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "collectstatic", "--noinput"]):
         if run(COMPOSE + cmd, "Updating database and static files",
                capture_output=True).returncode != 0:
-            die("Setting up the database failed during migrate or collectstatic.")
+            return _fail("Setting up the database failed during migrate or collectstatic.")
     ok("Database update done")
-    if run(COMPOSE + ["up", "-d", "--force-recreate", "backend", "nginx"], "Starting backend and nginx",
+    if run(COMPOSE + ["up", "-d", "--remove-orphans", "--force-recreate", "backend", "nginx"], "Starting backend and nginx",
                       capture_output=True).returncode != 0:
-        die("Starting the app failed. Check docker logs for backend and nginx.")
+        return _fail("Starting the app failed. Check docker logs for backend and nginx.")
     ok("Services started")
 
     if verify.main() == 0:
@@ -90,20 +109,31 @@ def main():
             f.write(f"IMAGE_TAG={tag}\nIMAGE_NAMESPACE={ns}\nBACKUP={backup_path}\n"
                     f"BACKEND_IMAGE={ns}/coke-backend:{tag}\nNGINX_IMAGE={ns}/coke-nginx:{tag}\n")
         shutil.copyfile(current, os.path.join(deployment_dir, "last-known-good"))
+        cleanup.main()
+        _summary(deployment_dir, tag, backup_path, "SUCCESS")
         ok(f"Deployment complete. Version {tag} is live.")
         return 0
 
-    fail("Deploy stopped because the final check failed. Database was not restored.")
-    if os.path.getsize(state) > 0 and _count(state, "_IMAGE=") == 2:
-        if rollback.main(state) == 0:
-            ok("Rollback done. Database was not changed.")
-        else:
-            fail("Rollback failed. Check the logs and fix it by hand. Database was not changed.")
-    else:
-        run(COMPOSE + ["stop", "backend", "nginx"], "Stopping backend and nginx",
-                       capture_output=True)
-        warn("No last working version found, so the app was stopped.")
-    return 1
+    return _fail("Deploy stopped because the final check failed. Database was not restored.")
+
+
+def _summary(deployment_dir, tag, backup_path, result):
+    phase("Summary")
+    ns = env_value("IMAGE_NAMESPACE")
+    lines = [
+        f"Result: {result}",
+        f"Version: {tag}",
+        f"Backup: {backup_path}",
+        f"Backend: {ns}/coke-backend:{tag}",
+        f"Nginx: {ns}/coke-nginx:{tag}",
+    ]
+    for line in lines:
+        info(line)
+    try:
+        with open(os.path.join(deployment_dir, f"deploy-{tag}.log"), "w") as f:
+            f.write("\n".join(lines) + "\n")
+    except OSError:
+        warn("Could not write deployment summary file.")
 
 
 def _count(path, needle):
