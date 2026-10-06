@@ -19,8 +19,7 @@ def _has_volume_mount(compose, service, target):
 
 
 def main():
-    dev = len(sys.argv) > 1 and sys.argv[1] == "dev"
-    compose = COMPOSE + (["-f", "compose.dev.yaml"] if dev else [])
+    compose = COMPOSE
 
     port = env_value("NGINX_PORT")
     if not (port.isdigit() and 1 <= int(port) <= 65535):
@@ -40,8 +39,6 @@ def main():
         die("invalid Compose exposure")
 
     services = ["db", "backend", "nginx"]
-    if dev:
-        services.append("frontend")
     for service in services:
         if not wait_for_service(service, 45):
             die(f"{service} did not start")
@@ -115,8 +112,6 @@ def main():
             die(f"{path} returned {code}")
 
     log_services = ["db", "backend", "nginx"]
-    if dev:
-        log_services.append("frontend")
     proc = run(
         compose + ["logs", "--tail=50"] + log_services,
         capture_output=True, text=True,

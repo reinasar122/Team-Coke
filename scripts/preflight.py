@@ -102,10 +102,10 @@ def check_environment():
 
 
 def check_files_and_disk():
-    for file in ("compose.yaml", "compose.dev.yaml", "nginx/Dockerfile",
-                 "nginx/default.conf", "nginx/dev.conf",
+    for file in ("compose.yaml", "nginx/Dockerfile",
+                 "nginx/default.conf",
                  "backend_coke_system/Dockerfile", "backend_coke_system/requirements.txt",
-                 "frontend_coke_system/Dockerfile", "frontend_coke_system/package-lock.json"):
+                 "frontend_coke_system/package-lock.json"):
         if not os.path.isfile(file):
             die(f"missing {file}")
 

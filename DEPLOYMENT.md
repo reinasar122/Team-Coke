@@ -49,20 +49,6 @@ python scripts/restore.py backups/database_....sql.gz --confirm # restore databa
 python scripts/rollback.py                                      # back to last-known-good images
 ```
 
-### Development mode
-
-```bash
-docker compose --env-file .env -f compose.yaml -f compose.dev.yaml up -d
-python scripts/verify.py dev
-```
-
-Dev mode adds a hot-reloading frontend container. On a fresh database, run
-migrations once:
-
-```bash
-docker compose --env-file .env -f compose.yaml -f compose.dev.yaml exec backend python manage.py migrate
-```
-
 ### Troubleshooting
 
 - **`Access denied for user 'coke'`** — the MySQL volume keeps the old password
@@ -98,12 +84,8 @@ build context. It serves `/coke/` with SPA fallback to `/coke/index.html`,
 redirects `/coke` to `/coke/`, proxies `/api/` and `/admin/` without stripping
 prefixes, and serves read-only shared `/media/` and `/static/` volumes.
 The root URL `/` also redirects to `/coke/`, so
-`http://SERVER_IP:${NGINX_PORT}` is the documented entry point.
-
-Development adds CRA internally on port 3000 with source and node_modules
-mounts. CRA uses Node's built-in `fetch` health check. Dev Nginx proxies
-`/coke/` to `frontend:3000`, forwards websocket upgrade headers, and still
-proxies API/admin to the backend. Use Nginx, never direct app ports.
+`http://SERVER_IP:${NGINX_PORT}` is the documented entry point. Use Nginx,
+never direct app ports.
 
 ## Dependencies and runtime
 
@@ -115,7 +97,7 @@ Prophet 1.1.6, and gunicorn 23.0.0. Frontend package manager is npm with
 Create React App (`react-scripts` 5.0.1); major existing dependencies:
 React 19.1.0, react-router-dom 7.13.1, and axios 1.13.6.
 
-Internal service ports: backend/gunicorn `8000`, CRA dev server `3000`,
+Internal service ports: backend/gunicorn `8000`,
 MySQL `3306`. External dependencies: Gmail SMTP (`smtp.gmail.com:587` with
 TLS) and a browser fallback image CDN used by the existing frontend
 application. No Redis or queue runtime is deployed.
@@ -161,14 +143,6 @@ python scripts/verify.py
 docker compose --env-file .env -f compose.yaml ps
 ```
 
-Development:
-
-```bash
-docker compose --env-file .env -f compose.yaml -f compose.dev.yaml build frontend
-docker compose --env-file .env -f compose.yaml -f compose.dev.yaml up
-python scripts/verify.py dev
-```
-
 Open `http://127.0.0.1:${NGINX_PORT}/coke/`; the template selects port 8080.
 Port checks:
 
@@ -189,9 +163,9 @@ docker ps --format "table {{.Names}}\t{{.Ports}}"
 ```
 
 Expected result: only the `nginx` container shows `${NGINX_PORT}->80/tcp` in
-the PORTS column. The `backend`, `db`, and (in dev mode) `frontend` containers
-show no published host ports â€” they are reachable only through Nginx via Compose
-DNS. If any other container exposes a host port, the Compose files need
+the PORTS column. The `backend` and `db` containers
+show no published host ports — they are reachable only through Nginx via Compose
+DNS. If any other container exposes a host port, the Compose file needs
 correction; the application should never be accessed directly.
 
 ## Deployment behavior and safety

@@ -11,20 +11,16 @@ os.umask(0o077)
 
 def main():
     if "--help" in sys.argv or "-h" in sys.argv:
-        print(f"Usage: {sys.argv[0]} --confirm [--volumes|--wipe-data] [--dev]")
+        print(f"Usage: {sys.argv[0]} --confirm [--volumes|--wipe-data]")
         print("  --confirm required; --volumes/--wipe-data also removes named volumes")
-        print("  --dev include frontend/dev compose (nginx -> frontend -> backend -> db)")
         return 0
     if "--confirm" not in sys.argv:
-        die(f"Usage: {sys.argv[0]} --confirm [--volumes|--wipe-data] [--dev]")
+        die(f"Usage: {sys.argv[0]} --confirm [--volumes|--wipe-data]")
     wipe = "--volumes" in sys.argv or "--wipe-data" in sys.argv
-    dev = "--dev" in sys.argv
     if shutil.which("docker") is None:
         die("required tool missing: docker")
-    compose = COMPOSE + (["-f", "compose.dev.yaml"] if dev else [])
-    for svc in ["nginx", "frontend", "backend", "db"]:
-        if svc == "frontend" and not dev:
-            continue
+    compose = COMPOSE
+    for svc in ["nginx", "backend", "db"]:
         q = subprocess.run(compose + ["ps", "-q", svc], capture_output=True, text=True)
         if not q.stdout.strip():
             continue
@@ -38,8 +34,7 @@ def main():
     proc = run(cmd, capture_output=True, text=True)
     if proc.returncode != 0:
         die(f"docker compose down failed: {(proc.stderr or proc.stdout).strip()}")
-    order = "nginx -> frontend -> backend -> db" if dev else "nginx -> backend -> db"
-    print(f"TERMINATE SUCCESS: stack terminated in reverse order ({order})")
+    print("TERMINATE SUCCESS: stack terminated in reverse order (nginx -> backend -> db)")
     if wipe:
         print("TERMINATE SUCCESS: volumes wiped - system clean like never deployed")
     else:
