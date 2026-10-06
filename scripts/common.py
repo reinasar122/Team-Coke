@@ -19,11 +19,12 @@ def _supports_color():
     if os.getenv("TERM") == "dumb": return False
     return sys.stdout.isatty() or sys.stderr.isatty()
 def _color(code, text): return f"\033[{code}m{text}\033[0m" if _supports_color() else text
-def info(msg): print(_color('96', f"[INFO] {msg}"))
-def ok(msg): print(_color('92', f"[OK] {msg}"))
-def warn(msg): print(_color('93', f"[WARN] {msg}"), file=sys.stderr)
-def fail(msg): print(_color('91', f"[ERROR] {msg}"), file=sys.stderr)
-def skip(msg): print(_color('90', f"[SKIP] {msg}"))
+def _tag(level): return f"[{level}]".ljust(8)
+def info(msg): print(_color('96', f"{_tag('INFO')}{msg}"))
+def ok(msg): print(_color('92', f"{_tag('OK')}{msg}"))
+def warn(msg): print(_color('93', f"{_tag('WARN')}{msg}"), file=sys.stderr)
+def fail(msg): print(_color('91', f"{_tag('ERROR')}{msg}"), file=sys.stderr)
+def skip(msg): print(_color('90', f"{_tag('SKIP')}{msg}"))
 def phase(msg):
     print("")
     info(msg)
@@ -80,7 +81,7 @@ def env_value(key):
 
 
 def die(msg):
-    print(_color('31', f"[ERROR] {msg}"), file=sys.stderr)
+    print(_color('91', f"{_tag('ERROR')}{msg}"), file=sys.stderr)
     sys.exit(1)
 
 
