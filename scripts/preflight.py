@@ -7,7 +7,7 @@ import socket
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, info, ok, root_path, run, skip
+from common import COMPOSE, ROOT, die, env_value, info, ok, phase, root_path, run, skip
 
 os.umask(0o077)
 
@@ -231,14 +231,14 @@ def check_smtp_in_production():
 
 
 def main():
-    info("Checking prerequisites")
+    phase("Checking prerequisites")
     check_tools()
     ok("Prerequisites done")
-    info("Validating environment configuration")
+    phase("Validating environment configuration")
     check_environment()
     check_files_and_disk()
     ok("Environment validation done")
-    info("Checking services")
+    phase("Checking services")
     check_compose_and_port()
     check_images_network_and_nginx()
     check_running_database()

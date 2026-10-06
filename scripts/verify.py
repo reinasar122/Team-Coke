@@ -6,7 +6,7 @@ import subprocess
 import sys
 import urllib.request
 
-from common import COMPOSE, die, env_value, info, ok, run, wait_for_healthy, wait_for_service
+from common import COMPOSE, die, env_value, info, ok, phase, run, wait_for_healthy, wait_for_service
 
 
 def _has_volume_mount(compose, service, target):
@@ -20,7 +20,7 @@ def _has_volume_mount(compose, service, target):
 
 def main():
     compose = COMPOSE
-    info("Running health checks")
+    phase("Running health checks")
 
     port = env_value("NGINX_PORT")
     if not (port.isdigit() and 1 <= int(port) <= 65535):
@@ -40,7 +40,7 @@ def main():
         die("The web port does not match NGINX_PORT in your .env file.")
 
     services = ["db", "backend", "nginx"]
-    info("Checking services")
+    phase("Checking services")
     for service in services:
         if not wait_for_service(service, 45):
             die(f"The {service} service did not start. Check docker logs for {service}.")
@@ -119,7 +119,7 @@ def main():
             die(f"The page {path} has a server error ({code}). Check docker logs for backend.")
 
     log_services = ["db", "backend", "nginx"]
-    info("Checking app pages")
+    phase("Checking app pages")
     proc = run(
         compose + ["logs", "--tail=50"] + log_services,
         "Reading recent service logs",

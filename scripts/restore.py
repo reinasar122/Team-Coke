@@ -6,12 +6,13 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, die, info, ok, run, wait_for_db, warn
+from common import COMPOSE, die, info, ok, phase, run, wait_for_db, warn
 
 os.umask(0o077)
 
 
 def main():
+    phase("Starting restore")
     if shutil.which("docker") is None:
         die("Docker is missing. Please install Docker first.")
     if len(sys.argv) != 3 or sys.argv[2] != "--confirm":

@@ -4,13 +4,14 @@ import os
 import subprocess
 import sys
 
-from common import COMPOSE, die, env_value, info, ok, root_path, run
+from common import COMPOSE, die, env_value, info, ok, phase, root_path, run
 import verify
 
 os.umask(0o077)
 
 
 def main(state_file=None):
+    phase("Starting rollback")
     deployment_dir = root_path(env_value("DEPLOYMENT_DIR"))
     input_path = state_file or (sys.argv[1] if len(sys.argv) > 1 else os.path.join(deployment_dir, "last-known-good"))
 

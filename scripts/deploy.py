@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, fail, info, ok, root_path, run, wait_for_db, warn
+from common import COMPOSE, ROOT, die, env_value, fail, info, ok, phase, root_path, run, wait_for_db, warn
 import preflight
 import backup
 import verify
@@ -15,7 +15,7 @@ os.umask(0o077)
 
 
 def main():
-    info("Starting deployment")
+    phase("Starting deployment")
     info("Checking prerequisites")
     deploy_env = env_value("DEPLOY_ENV")
     if deploy_env.lower() != "production":
@@ -32,11 +32,10 @@ def main():
         die("I could not find a good version name from git. Please commit your code first.")
     ok(f"Deploying version {tag}")
 
-    info("Validating environment configuration")
     preflight.main()
     ok("Environment validation done")
 
-    info("Checking services")
+    phase("Checking services")
     state = os.path.join(deployment_dir, f"previous-{tag}.state")
     with open(state, "w") as f:
         f.write(f"IMAGE_TAG={tag}\nIMAGE_NAMESPACE={env_value('IMAGE_NAMESPACE')}\n")
@@ -58,15 +57,14 @@ def main():
             with open(state, "a") as f:
                 f.write(f"{up}_IMAGE={image}\n{up}_DIGEST={digest}\n{up}_STATE={st}\n")
 
-    info("Creating backup")
     backup_path = backup.main()
     ok(f"Backup saved to {backup_path}")
 
-    info("Building images")
+    phase("Building images")
     if run(COMPOSE + ["build", "backend", "nginx"], "Building backend and nginx images",
                       capture_output=True).returncode != 0:
         die("Building the app images failed. Check the error above.")
-    info("Starting services")
+    phase("Starting services")
     if run(COMPOSE + ["up", "-d", "db"], "Starting database",
                       capture_output=True).returncode != 0:
         die("Starting the database failed. Check docker logs for db.")
@@ -85,7 +83,6 @@ def main():
         die("Starting the app failed. Check docker logs for backend and nginx.")
     ok("Services started")
 
-    info("Running health checks")
     if verify.main() == 0:
         current = os.path.join(deployment_dir, "current")
         ns = env_value("IMAGE_NAMESPACE")
@@ -98,7 +95,6 @@ def main():
 
     fail("Deploy stopped because the final check failed. Database was not restored.")
     if os.path.getsize(state) > 0 and _count(state, "_IMAGE=") == 2:
-        info("Starting rollback to last working version")
         if rollback.main(state) == 0:
             ok("Rollback done. Database was not changed.")
         else:

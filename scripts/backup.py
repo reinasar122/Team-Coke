@@ -7,12 +7,13 @@ import subprocess
 import time
 from datetime import datetime
 
-from common import COMPOSE, die, env_value, info, ok, root_path, run, wait_for_db
+from common import COMPOSE, die, env_value, info, ok, phase, root_path, run, wait_for_db
 
 os.umask(0o077)
 
 
 def main():
+    phase("Creating backup")
     if shutil.which("docker") is None:
         die("Docker is missing. Please install Docker first.")
 

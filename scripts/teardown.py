@@ -5,12 +5,13 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, info, ok, root_path, run, warn
+from common import COMPOSE, ROOT, die, env_value, info, ok, phase, root_path, run, warn
 
 os.umask(0o077)
 
 
 def main():
+    phase("Starting teardown")
     if "--help" in sys.argv or "-h" in sys.argv:
         print(f"Usage: {sys.argv[0]} --confirm [--volumes|--wipe-data]")
         print("  --confirm required; --volumes/--wipe-data also removes named volumes")
