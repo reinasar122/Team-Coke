@@ -177,7 +177,7 @@ def check_images_network_and_nginx():
         if last and subprocess.run(
                 ["docker", "network", "inspect", last],
                 capture_output=True).returncode != 0:
-            skip(f"Network {last} will be created during deploy.")
+            skip(f'Network "{last}" will be created during deploy.')
     for image in ("mysql:" + env_value("MYSQL_IMAGE_TAG"),
                   "nginx:" + env_value("NGINX_IMAGE_TAG"),
                   f"{env_value('IMAGE_NAMESPACE')}/coke-backend:{env_value('IMAGE_TAG')}",

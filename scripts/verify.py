@@ -6,7 +6,7 @@ import subprocess
 import sys
 import urllib.request
 
-from common import COMPOSE, die, env_value, info, ok, phase, run, wait_for_healthy, wait_for_service
+from common import COMPOSE, die, env_value, ok, phase, run, wait_for_healthy, wait_for_service
 
 
 def _has_volume_mount(compose, service, target):
@@ -70,7 +70,6 @@ def main():
         die("I could not check database updates. Check docker logs for backend.")
     if "[ ]" in plan.stdout:
         die("Some database updates are missing. Run migrate first.")
-    ok("Database updates done")
     if run(
             compose + ["exec", "-T", "backend", "python", "manage.py", "check", "--database", "default"],
             "Checking database connection",
@@ -126,7 +125,6 @@ def main():
         capture_output=True, text=True,
     )
     logs = proc.stdout + proc.stderr
-    info("Checking recent service logs")
     if re.search(r"panic|traceback|address already in use|unable to connect|cannot connect|startup failed|exited with code",
                  logs, re.I):
         die("I found an error in the recent logs. Please check docker logs.")

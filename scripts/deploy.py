@@ -17,7 +17,6 @@ os.umask(0o077)
 
 def main():
     phase("Starting deployment")
-    info("Checking prerequisites")
     deploy_env = env_value("DEPLOY_ENV")
     if deploy_env.lower() != "production":
         die("This deploy is for production only. Set DEPLOY_ENV to production in .env.")
@@ -34,9 +33,7 @@ def main():
     ok(f"Deploying version {tag}")
 
     preflight.main()
-    ok("Environment validation done")
 
-    phase("Checking services")
     state = os.path.join(deployment_dir, f"previous-{tag}.state")
     with open(state, "w") as f:
         f.write(f"IMAGE_TAG={tag}\nIMAGE_NAMESPACE={env_value('IMAGE_NAMESPACE')}\n")
@@ -59,7 +56,6 @@ def main():
                 f.write(f"{up}_IMAGE={image}\n{up}_DIGEST={digest}\n{up}_STATE={st}\n")
 
     backup_path = backup.main()
-    ok(f"Backup saved to {backup_path}")
 
     def _fail(reason):
         fail(reason)
@@ -90,12 +86,15 @@ def main():
     if not wait_for_db(90):
         return _fail("The database did not get ready in time. Check docker logs for db.")
     ok("Database is ready")
-    for cmd in (["run", "--rm", "--no-deps", "backend", "python", "manage.py", "migrate", "--noinput"],
-                ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "createcachetable", "--database", "default"],
-                ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "collectstatic", "--noinput"]):
-        if run(COMPOSE + cmd, "Updating database and static files",
+    for label, cmd in (("Applying database migrations",
+                      ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "migrate", "--noinput"]),
+                     ("Creating cache table",
+                      ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "createcachetable", "--database", "default"]),
+                     ("Collecting static files",
+                      ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "collectstatic", "--noinput"])):
+        if run(COMPOSE + cmd, label,
                capture_output=True).returncode != 0:
-            return _fail("Setting up the database failed during migrate or collectstatic.")
+            return _fail(f"Deploy stopped. Failed step: {label}. Check the error above.")
     ok("Database update done")
     if run(COMPOSE + ["up", "-d", "--remove-orphans", "--force-recreate", "backend", "nginx"], "Starting backend and nginx",
                       capture_output=True).returncode != 0:
@@ -121,7 +120,6 @@ def _summary(deployment_dir, tag, backup_path, result):
     phase("Summary")
     ns = env_value("IMAGE_NAMESPACE")
     lines = [
-        f"Result: {result}",
         f"Version: {tag}",
         f"Backup: {backup_path}",
         f"Backend: {ns}/coke-backend:{tag}",
@@ -129,9 +127,13 @@ def _summary(deployment_dir, tag, backup_path, result):
     ]
     for line in lines:
         info(line)
+    if result == "SUCCESS":
+        ok("Result: SUCCESS")
+    else:
+        fail("Result: FAILED")
     try:
         with open(os.path.join(deployment_dir, f"deploy-{tag}.log"), "w") as f:
-            f.write("\n".join(lines) + "\n")
+            f.write("\n".join(lines + [f"Result: {result}"]) + "\n")
     except OSError:
         warn("Could not write deployment summary file.")
 
