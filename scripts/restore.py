@@ -6,41 +6,41 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, die, run, wait_for_db
+from common import COMPOSE, die, info, ok, run, wait_for_db, warn
 
 os.umask(0o077)
 
 
 def main():
     if shutil.which("docker") is None:
-        die("required tool missing: docker")
+        die("Docker is missing. Please install Docker first.")
     if len(sys.argv) != 3 or sys.argv[2] != "--confirm":
-        die(f"Usage: {sys.argv[0]} dump.sql.gz --confirm")
+        die(f"Please tell me which backup to use, like: {sys.argv[0]} backups/file.sql.gz --confirm")
     dump = sys.argv[1]
     if not (os.path.isfile(dump) and os.path.getsize(dump) > 0):
-        die("invalid or empty dump")
+        die("That backup file is missing or empty. Check the file name.")
     try:
         with gzip.open(dump, "rb") as gz:
             gz.read(1)
     except OSError:
-        die("invalid or empty dump")
+        die("That backup file looks broken. Try another backup.")
 
     def restart_apps():
-        if run(COMPOSE + ["up", "-d", "backend", "nginx"],
+        if run(COMPOSE + ["up", "-d", "backend", "nginx"], "Restarting app services",
                           capture_output=True).returncode != 0:
-            print("RESTORE FAILURE: restore completed but application services did not restart",
-                  file=sys.stderr)
+            warn("Data is back, but the app did not restart. Start backend and nginx by hand.")
             return False
         return True
 
-    if run(COMPOSE + ["stop", "backend", "nginx"],
+    info("Pausing app services")
+    if run(COMPOSE + ["stop", "backend", "nginx"], "Pausing backend and nginx",
                       capture_output=True).returncode != 0:
-        die("could not stop backend/nginx; restore was not started")
+        die("I could not pause the app. Nothing was restored.")
 
     restore_status = 0
     proc = subprocess.run(COMPOSE + ["ps", "-q", "db"], capture_output=True, text=True)
     if not proc.stdout.strip():
-        if run(COMPOSE + ["up", "-d", "db"], capture_output=True).returncode != 0:
+        if run(COMPOSE + ["up", "-d", "db"], "Starting database", capture_output=True).returncode != 0:
             restore_status = 1
     if restore_status == 0:
         if not wait_for_db(90):
@@ -62,8 +62,8 @@ def main():
     if not restart_apps():
         restore_status = 1
     if restore_status != 0:
-        die("restore failed; database may be partially restored; application services were restarted")
-    print("Restore complete. Media is separate and was not restored.")
+        die("Restore failed. Data may be half restored. App was restarted, please check it.")
+    ok("Restore done. Database is back. Uploaded files were not changed.")
     return 0
 
 

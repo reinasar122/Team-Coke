@@ -7,7 +7,7 @@ import socket
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, root_path, run
+from common import COMPOSE, ROOT, die, env_value, info, ok, root_path, run, skip
 
 os.umask(0o077)
 
@@ -18,27 +18,29 @@ def _has_template(value):
 
 def check_tools():
     if not os.path.isfile(".env"):
-        die(".env is missing")
+        die("I could not find your .env file. Copy .env.example to .env first.")
     for tool in ("git", "curl"):
         if shutil.which(tool) is None:
-            die(f"required shell tool missing: {tool}")
+            die(f"The tool {tool} is missing. Please install it first.")
     if shutil.which("docker") is None:
-        die("Docker is missing")
-    if run(["docker", "info"], capture_output=True).returncode != 0:
-        die("Docker daemon unavailable")
-    if run(["docker", "compose", "version"], capture_output=True).returncode != 0:
-        die("Compose v2 unavailable")
+        die("Docker is missing. Please install Docker first.")
+    if run(["docker", "info"], "Checking Docker status", capture_output=True).returncode != 0:
+        die("Docker is not running. Please start Docker first.")
+    if run(["docker", "compose", "version"], "Checking Compose status", capture_output=True).returncode != 0:
+        die("Docker Compose v2 is missing. Please update Docker first.")
 
     docker_version = run(
         ["docker", "version", "--format", "{{.Server.Version}}"],
+        "Checking Docker version",
         capture_output=True, text=True,
     ).stdout.strip()
     compose_version = run(
         ["docker", "compose", "version", "--short"],
+        "Checking Compose version",
         capture_output=True, text=True,
     ).stdout.strip()
-    print(f"Docker: {docker_version}")
-    print(f"Compose: {compose_version}")
+    info(f"Found Docker version {docker_version}")
+    info(f"Found Compose version {compose_version}")
 
 
 def check_environment():
@@ -67,8 +69,8 @@ def check_environment():
 
     port = env_value("NGINX_PORT")
     if not (port.isdigit() and 1 <= int(port) <= 65535):
-        die("NGINX_PORT must be 1..65535")
-    print(f"Selected Nginx host port: {port}")
+        die("The web port in NGINX_PORT looks wrong. Use a number from 1 to 65535.")
+    info(f"We will use web port {port}.")
 
     debug = env_value("DEBUG").lower()
     env_name = env_value("DEPLOY_ENV").lower()
@@ -107,7 +109,7 @@ def check_files_and_disk():
                  "backend_coke_system/Dockerfile", "backend_coke_system/requirements.txt",
                  "frontend_coke_system/package-lock.json"):
         if not os.path.isfile(file):
-            die(f"missing {file}")
+            die(f"The file {file} is missing.")
 
     backup_dir = root_path(env_value("BACKUP_DIR"))
     deployment_dir = root_path(env_value("DEPLOYMENT_DIR"))
@@ -116,16 +118,16 @@ def check_files_and_disk():
     os.chmod(backup_dir, 0o700)
     os.chmod(deployment_dir, 0o700)
     if not (os.access(backup_dir, os.W_OK) and os.access(deployment_dir, os.W_OK)):
-        die("backup/deployment directories are not writable")
+        die("I cannot write to the backup folder. Please check folder rights.")
     min_free = int(env_value("BACKUP_MIN_FREE_GB"))
     free = shutil.disk_usage(ROOT).free
     if free < min_free * 1024 * 1024 * 1024:
-        die("free disk below threshold")
+        die("There is not enough free disk space for a safe deploy.")
 
 
 def check_compose_and_port():
     if subprocess.run(COMPOSE + ["config"], capture_output=True).returncode != 0:
-        die("invalid Compose configuration")
+        die("The compose file looks wrong. Please check compose.yaml.")
     json_out = subprocess.run(
         COMPOSE + ["config", "--format", "json"],
         capture_output=True, text=True,
@@ -133,14 +135,14 @@ def check_compose_and_port():
     x = json.loads(json_out)
     s = x["services"]
     if [n for n, v in s.items() if n != "nginx" and v.get("ports")]:
-        die("rendered exposure or configured volumes are invalid")
+        die("Only the web service should open a port. Please check compose.yaml.")
     p = s["nginx"]["ports"]
     if not (len(p) == 1 and p[0].get("target") == 80):
-        die("rendered exposure or configured volumes are invalid")
+        die("The web service should only open port 80 inside Docker.")
     if str(p[0].get("published")) != env_value("NGINX_PORT"):
-        die("rendered exposure or configured volumes are invalid")
+        die("The web port does not match NGINX_PORT in your .env file.")
     if not {"mysql_data", "media_data", "static_data"}.issubset(x["volumes"]):
-        die("rendered exposure or configured volumes are invalid")
+        die("A needed data folder is missing. Please check compose.yaml.")
 
     port = int(env_value("NGINX_PORT"))
     try:
@@ -162,7 +164,7 @@ def check_compose_and_port():
                 capture_output=True, text=True,
             ).stdout.strip()
         if published != env_value("NGINX_PORT"):
-            die("NGINX_PORT is already in use")
+            die(f"Port {env_value('NGINX_PORT')} is already in use. Stop the other app or change NGINX_PORT.")
 
 
 def check_images_network_and_nginx():
@@ -175,21 +177,22 @@ def check_images_network_and_nginx():
         if last and subprocess.run(
                 ["docker", "network", "inspect", last],
                 capture_output=True).returncode != 0:
-            print(f"Compose network deferred until deploy: {last}")
+            skip(f"Network {last} will be created during deploy.")
     for image in ("mysql:" + env_value("MYSQL_IMAGE_TAG"),
                   "nginx:" + env_value("NGINX_IMAGE_TAG"),
                   f"{env_value('IMAGE_NAMESPACE')}/coke-backend:{env_value('IMAGE_TAG')}",
                   f"{env_value('IMAGE_NAMESPACE')}/coke-nginx:{env_value('IMAGE_TAG')}"):
         if subprocess.run(["docker", "image", "inspect", image],
                           capture_output=True).returncode != 0:
-            print(f"Image deferred to deploy/build: {image}")
+            skip(f"Image {image} will be built during deploy.")
     nginx_tag = env_value("NGINX_IMAGE_TAG")
     if run(
             ["docker", "run", "--rm", "--add-host", "backend:127.0.0.1",
              "-v", f"{ROOT}/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro",
              f"nginx:{nginx_tag}", "nginx", "-t"],
+            "Checking nginx settings",
             capture_output=True).returncode != 0:
-        die("Nginx config syntax failed")
+        die("The web server settings have a mistake. Please check nginx/default.conf.")
 
 
 def check_running_database():
@@ -201,39 +204,47 @@ def check_running_database():
             capture_output=True, text=True,
         ).stdout.strip()
         if status != "healthy":
-            die("running db is not healthy")
+            die("The database is running but not healthy yet. Check docker logs for db.")
         if run(
                 COMPOSE + ["exec", "-T", "db", "sh", "-c",
                            'export MYSQL_PWD="$MYSQL_PASSWORD"; mysql -u "$MYSQL_USER" "$MYSQL_DATABASE" -e "SELECT 1"'],
+                "Checking database connection",
                 capture_output=True).returncode != 0:
-            die("running db connectivity failed")
+            die("I cannot reach the database. Please check your DB password in .env.")
 
 
 def check_smtp_in_production():
     env_name = env_value("DEPLOY_ENV").lower()
     if env_name in ("dev", "development"):
+        skip("Mail check skipped for dev environment")
         return
     smtp = env_value("EMAIL_HOST")
     try:
         socket.gethostbyname(smtp)
     except OSError:
-        die("SMTP DNS failed")
+        die("I cannot find your mail server. Please check EMAIL_HOST in .env.")
     try:
         sock = socket.create_connection((smtp, int(env_value("EMAIL_PORT"))), 5)
         sock.close()
     except OSError:
-        die("SMTP TCP check failed")
+        die("I cannot reach your mail server. Please check EMAIL_HOST and EMAIL_PORT.")
 
 
 def main():
+    info("Checking prerequisites")
     check_tools()
+    ok("Prerequisites done")
+    info("Validating environment configuration")
     check_environment()
     check_files_and_disk()
+    ok("Environment validation done")
+    info("Checking services")
     check_compose_and_port()
     check_images_network_and_nginx()
     check_running_database()
     check_smtp_in_production()
-    print("PREFLIGHT SUCCESS (no production services were started, stopped, or recreated).")
+    ok("Service checks done")
+    ok("Preflight complete. Ready to deploy.")
     return 0
 
 

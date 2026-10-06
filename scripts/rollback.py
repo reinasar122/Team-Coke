@@ -4,7 +4,7 @@ import os
 import subprocess
 import sys
 
-from common import COMPOSE, die, env_value, root_path, run
+from common import COMPOSE, die, env_value, info, ok, root_path, run
 import verify
 
 os.umask(0o077)
@@ -26,7 +26,7 @@ def main(state_file=None):
         backend = state.get("BACKEND_IMAGE", "")
         nginx = state.get("NGINX_IMAGE", "")
         if not (backend and nginx):
-            die("state lacks both exact application images")
+            die("That save file is missing app details. Try another save file.")
     else:
         tag = input_path
         namespace = env_value("IMAGE_NAMESPACE")
@@ -34,25 +34,26 @@ def main(state_file=None):
         nginx = f"{namespace}/coke-nginx:{tag}"
 
     if not tag:
-        die("no prior tag/state")
-    if run(["docker", "image", "inspect", backend],
+        die("I could not find which version to go back to.")
+    if run(["docker", "image", "inspect", backend], "Checking old app image",
                       capture_output=True).returncode != 0:
-        die(f"missing exact backend image {backend}")
-    if run(["docker", "image", "inspect", nginx],
+        die(f"I cannot find the old app image {backend}. It may have been deleted.")
+    if run(["docker", "image", "inspect", nginx], "Checking old web image",
                       capture_output=True).returncode != 0:
-        die(f"missing exact nginx image {nginx}")
+        die(f"I cannot find the old web image {nginx}. It may have been deleted.")
 
     os.environ["IMAGE_TAG"] = tag
     if namespace:
         os.environ["IMAGE_NAMESPACE"] = namespace
-    if run(COMPOSE + ["up", "-d", "--no-build", "--force-recreate", "backend", "nginx"],
+    info("Starting rollback")
+    if run(COMPOSE + ["up", "-d", "--no-build", "--force-recreate", "backend", "nginx"], "Restarting old version",
                       capture_output=True).returncode != 0:
-        die("failed to recreate backend/nginx")
+        die("I could not restart the old version. Please check docker logs.")
 
     if verify.main() == 0:
-        print(f"ROLLBACK SUCCESS to {tag}; database unchanged and not restored.")
+        ok(f"Rollback done. Back on version {tag}. Data was not changed.")
         return 0
-    print("ROLLBACK FAILURE: database unchanged; manual recovery required.", file=sys.stderr)
+    die("Rollback failed. Data was not changed. Fix it by hand.")
     return 1
 
 

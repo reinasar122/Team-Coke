@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, root_path, run, wait_for_db
+from common import COMPOSE, ROOT, die, env_value, fail, info, ok, root_path, run, wait_for_db, warn
 import preflight
 import backup
 import verify
@@ -15,21 +15,28 @@ os.umask(0o077)
 
 
 def main():
+    info("Starting deployment")
+    info("Checking prerequisites")
     deploy_env = env_value("DEPLOY_ENV")
     if deploy_env.lower() != "production":
-        die("DEPLOY_ENV must be production")
+        die("This deploy is for production only. Set DEPLOY_ENV to production in .env.")
     deployment_dir = root_path(env_value("DEPLOYMENT_DIR"))
     os.makedirs(deployment_dir, mode=0o700, exist_ok=True)
     os.chmod(deployment_dir, 0o700)
 
     tag = run(["git", "rev-parse", "--short=12", "HEAD"],
-                         capture_output=True, text=True).stdout.strip()
+                      "Reading version from git",
+                      capture_output=True, text=True).stdout.strip()
     os.environ["IMAGE_TAG"] = tag
     if tag in ("dev", "latest") or "CHANGE_ME" in tag:
-        die("could not derive a production Git SHA")
+        die("I could not find a good version name from git. Please commit your code first.")
+    ok(f"Deploying version {tag}")
 
+    info("Validating environment configuration")
     preflight.main()
+    ok("Environment validation done")
 
+    info("Checking services")
     state = os.path.join(deployment_dir, f"previous-{tag}.state")
     with open(state, "w") as f:
         f.write(f"IMAGE_TAG={tag}\nIMAGE_NAMESPACE={env_value('IMAGE_NAMESPACE')}\n")
@@ -51,24 +58,34 @@ def main():
             with open(state, "a") as f:
                 f.write(f"{up}_IMAGE={image}\n{up}_DIGEST={digest}\n{up}_STATE={st}\n")
 
+    info("Creating backup")
     backup_path = backup.main()
+    ok(f"Backup saved to {backup_path}")
 
-    if run(COMPOSE + ["build", "backend", "nginx"],
+    info("Building images")
+    if run(COMPOSE + ["build", "backend", "nginx"], "Building backend and nginx images",
                       capture_output=True).returncode != 0:
-        die("docker compose build failed")
-    if run(COMPOSE + ["up", "-d", "db"], capture_output=True).returncode != 0:
-        die("docker compose up db failed")
+        die("Building the app images failed. Check the error above.")
+    info("Starting services")
+    if run(COMPOSE + ["up", "-d", "db"], "Starting database",
+                      capture_output=True).returncode != 0:
+        die("Starting the database failed. Check docker logs for db.")
     if not wait_for_db(90):
-        die("database did not become healthy")
+        die("The database did not get ready in time. Check docker logs for db.")
+    ok("Database is ready")
     for cmd in (["run", "--rm", "--no-deps", "backend", "python", "manage.py", "migrate", "--noinput"],
                 ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "createcachetable", "--database", "default"],
                 ["run", "--rm", "--no-deps", "backend", "python", "manage.py", "collectstatic", "--noinput"]):
-        if run(COMPOSE + cmd, capture_output=True).returncode != 0:
-            die("management command failed")
-    if run(COMPOSE + ["up", "-d", "--force-recreate", "backend", "nginx"],
+        if run(COMPOSE + cmd, "Updating database and static files",
+               capture_output=True).returncode != 0:
+            die("Setting up the database failed during migrate or collectstatic.")
+    ok("Database update done")
+    if run(COMPOSE + ["up", "-d", "--force-recreate", "backend", "nginx"], "Starting backend and nginx",
                       capture_output=True).returncode != 0:
-        die("docker compose up backend nginx failed")
+        die("Starting the app failed. Check docker logs for backend and nginx.")
+    ok("Services started")
 
+    info("Running health checks")
     if verify.main() == 0:
         current = os.path.join(deployment_dir, "current")
         ns = env_value("IMAGE_NAMESPACE")
@@ -76,21 +93,20 @@ def main():
             f.write(f"IMAGE_TAG={tag}\nIMAGE_NAMESPACE={ns}\nBACKUP={backup_path}\n"
                     f"BACKEND_IMAGE={ns}/coke-backend:{tag}\nNGINX_IMAGE={ns}/coke-nginx:{tag}\n")
         shutil.copyfile(current, os.path.join(deployment_dir, "last-known-good"))
-        print(f"DEPLOY SUCCESS (state directory: {deployment_dir})")
+        ok(f"Deployment complete. Version {tag} is live.")
         return 0
 
-    print("DEPLOY FAILURE: no database restore was attempted; schema changes may require a backward-compatible release or manual restore.",
-          file=sys.stderr)
+    fail("Deploy stopped because the final check failed. Database was not restored.")
     if os.path.getsize(state) > 0 and _count(state, "_IMAGE=") == 2:
+        info("Starting rollback to last working version")
         if rollback.main(state) == 0:
-            print("Application rollback succeeded; database remains unchanged.", file=sys.stderr)
+            ok("Rollback done. Database was not changed.")
         else:
-            print("APPLICATION ROLLBACK FAILED: preserve logs and recover manually; database remains unchanged.",
-                  file=sys.stderr)
+            fail("Rollback failed. Check the logs and fix it by hand. Database was not changed.")
     else:
-        run(COMPOSE + ["stop", "backend", "nginx"],
+        run(COMPOSE + ["stop", "backend", "nginx"], "Stopping backend and nginx",
                        capture_output=True)
-        print("No complete prior state; stopped only backend/nginx.", file=sys.stderr)
+        warn("No last working version found, so the app was stopped.")
     return 1
 
 

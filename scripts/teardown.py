@@ -5,7 +5,7 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, env_value, root_path, run
+from common import COMPOSE, ROOT, die, env_value, info, ok, root_path, run, warn
 
 os.umask(0o077)
 
@@ -16,16 +16,17 @@ def main():
         print("  --confirm required; --volumes/--wipe-data also removes named volumes")
         return 0
     if "--confirm" not in sys.argv:
-        die(f"Usage: {sys.argv[0]} --confirm [--volumes|--wipe-data]")
+        die(f"Please add --confirm, like: {sys.argv[0]} --confirm")
     wipe = "--volumes" in sys.argv or "--wipe-data" in sys.argv
     if shutil.which("docker") is None:
-        die("required tool missing: docker")
+        die("Docker is missing. Please install Docker first.")
     if wipe:
-        print("WARNING: --volumes wipes DB (mysql_data, media_data, static_data); ensure backup exists.", file=sys.stderr)
+        warn("This will delete your database. Make sure you have a backup.")
+    info("Stopping app")
     cmd = COMPOSE + ["down"] + (["-v"] if wipe else [])
-    proc = run(cmd, capture_output=True, text=True)
+    proc = run(cmd, "Stopping app", capture_output=True, text=True)
     if proc.returncode != 0:
-        die(f"docker compose down failed: {(proc.stderr or proc.stdout).strip()}")
+        die(f"Stopping the app failed: {(proc.stderr or proc.stdout).strip()}")
     tags = set()
     cur = env_value("IMAGE_TAG")
     if cur:
@@ -46,13 +47,13 @@ def main():
             continue
         for svc in ("coke-backend", "coke-nginx"):
             img = f"{ns}/{svc}:{tag}" if ns else f"local/{svc}:{tag}"
-            if run(["docker", "image", "inspect", img], capture_output=True).returncode == 0:
-                run(["docker", "rmi", img], capture_output=True)
+            if run(["docker", "image", "inspect", img], f"Checking image {img}", capture_output=True).returncode == 0:
+                run(["docker", "rmi", img], f"Removing image {img}", capture_output=True)
     if wipe:
-        print("TEARDOWN SUCCESS: stack removed, volumes wiped - system clean like never deployed")
+        ok("Teardown done. App removed and data folders are empty.")
     else:
-        print("TEARDOWN SUCCESS: stack removed, volumes kept")
-    print("Backups/deployments kept for audit. To wipe fully: rm -rf deployments backups", file=sys.stderr)
+        ok("Teardown done. App stopped but data is saved.")
+    info("Backups are still saved.")
     return 0
 
 

@@ -6,7 +6,7 @@ import subprocess
 import sys
 import urllib.request
 
-from common import COMPOSE, die, env_value, run, wait_for_healthy, wait_for_service
+from common import COMPOSE, die, env_value, info, ok, run, wait_for_healthy, wait_for_service
 
 
 def _has_volume_mount(compose, service, target):
@@ -20,10 +20,11 @@ def _has_volume_mount(compose, service, target):
 
 def main():
     compose = COMPOSE
+    info("Running health checks")
 
     port = env_value("NGINX_PORT")
     if not (port.isdigit() and 1 <= int(port) <= 65535):
-        die("invalid NGINX_PORT")
+        die("The web port in NGINX_PORT looks wrong. Use a number from 1 to 65535.")
 
     json_out = subprocess.run(
         compose + ["config", "--format", "json"],
@@ -31,19 +32,21 @@ def main():
     ).stdout
     s = json.loads(json_out)["services"]
     if [n for n, v in s.items() if n != "nginx" and v.get("ports")]:
-        die("invalid Compose exposure")
+        die("Only the web service should open a port. Please check compose.yaml.")
     p = s["nginx"]["ports"]
     if not (len(p) == 1 and p[0]["target"] == 80):
-        die("invalid Compose exposure")
+        die("The web service should only open port 80 inside Docker.")
     if str(p[0]["published"]) != port:
-        die("invalid Compose exposure")
+        die("The web port does not match NGINX_PORT in your .env file.")
 
     services = ["db", "backend", "nginx"]
+    info("Checking services")
     for service in services:
         if not wait_for_service(service, 45):
-            die(f"{service} did not start")
+            die(f"The {service} service did not start. Check docker logs for {service}.")
         if not wait_for_healthy(service, 45):
-            die(f"{service} did not become healthy")
+            die(f"The {service} service is not healthy yet. Check docker logs for {service}.")
+    ok("Services are running")
 
     for service in services:
         proc = subprocess.run(compose + ["ps", "-q", service],
@@ -53,76 +56,81 @@ def main():
                                   capture_output=True, text=True).stdout
         if service == "nginx":
             if not re.search(rf"^80/tcp\s+->\s+.*:{port}$", exposure, re.M):
-                die(f"running nginx mapping is not 80/tcp -> {port}")
+                die(f"The web port is not open as 80 to {port}. Please check compose.yaml.")
         else:
             if exposure.strip():
-                die(f"{service} has a published port")
+                die(f"The {service} service should not open a port to your computer.")
 
     plan = run(
         compose + ["exec", "-T", "backend", "python", "manage.py", "showmigrations", "--plan"],
+        "Checking database updates",
         capture_output=True, text=True,
     )
     if plan.returncode != 0:
-        die("migration plan failed")
+        die("I could not check database updates. Check docker logs for backend.")
     if "[ ]" in plan.stdout:
-        die("unapplied migrations")
+        die("Some database updates are missing. Run migrate first.")
+    ok("Database updates done")
     if run(
             compose + ["exec", "-T", "backend", "python", "manage.py", "check", "--database", "default"],
+            "Checking database connection",
             capture_output=True).returncode != 0:
-        die("Django DB check failed")
+        die("The app cannot reach its database. Check your DB settings in .env.")
     if run(compose + ["exec", "-T", "nginx", "nginx", "-t"],
+           "Checking nginx settings",
                       capture_output=True).returncode != 0:
-        die("Nginx syntax failed")
+        die("The web server settings have a mistake. Please check nginx/default.conf.")
     if subprocess.run(compose + ["exec", "-T", "nginx", "getent", "hosts", "backend"],
                       capture_output=True).returncode != 0:
-        die("backend DNS failed")
+        die("The web service cannot find the app service. Check docker network.")
     if subprocess.run(
             compose + ["exec", "-T", "nginx", "wget", "-q", "-O", "-",
                        "http://backend:8000/admin/login/"],
             capture_output=True).returncode != 0:
-        die("backend connectivity failed")
+        die("The web service cannot reach the app. Check docker logs for backend.")
 
     targets = {"db": "/var/lib/mysql", "backend": "/app/media", "nginx": "/media"}
     for service, target in targets.items():
         if not _has_volume_mount(compose, service, target):
-            die(f"{service} is missing named volume mount {target}")
+            die(f"The {service} service lost its saved files at {target}. Check compose.yaml.")
     if not _has_volume_mount(compose, "backend", "/app/staticfiles"):
-        die("backend is missing static_data mount")
+        die("The app lost its static files folder. Check compose.yaml.")
     if not _has_volume_mount(compose, "nginx", "/static"):
-        die("nginx is missing static_data mount")
+        die("The web service lost its static files folder. Check compose.yaml.")
 
     base = f"http://127.0.0.1:{port}"
     code, body = _http(base + "/nginx-health")
     if code != 200:
-        die(f"nginx-health returned {code}")
+        die(f"The web health page returned {code}. Check docker logs for nginx.")
     if body.strip() != "ok":
-        die("nginx-health body failed")
+        die("The web health page looks wrong. Check docker logs for nginx.")
 
     for path in ("/coke/", "/coke/not-a-real-route"):
         code, body = _http(base + path)
         if code != 200:
-            die(f"CRA HTML failed {path}")
+            die(f"The app page {path} did not open. Check docker logs for nginx and backend.")
         if '<div id="root"' not in body:
-            die(f"CRA root missing {path}")
+            die(f"The app page {path} is missing its content. The frontend build may have failed.")
         if not re.search(r"static/(js|css)/", body):
-            die(f"CRA assets missing {path}")
+            die(f"The app page {path} is missing its style and script files.")
     for path in ("/admin/login/", "/api/"):
         code, _ = _http(base + path)
         if not (str(code).isdigit() and code < 500):
-            die(f"{path} returned {code}")
+            die(f"The page {path} has a server error ({code}). Check docker logs for backend.")
 
     log_services = ["db", "backend", "nginx"]
+    info("Checking app pages")
     proc = run(
         compose + ["logs", "--tail=50"] + log_services,
+        "Reading recent service logs",
         capture_output=True, text=True,
     )
     logs = proc.stdout + proc.stderr
-    print("Recent service logs:")
-    print(logs, file=sys.stderr)
+    info("Checking recent service logs")
     if re.search(r"panic|traceback|address already in use|unable to connect|cannot connect|startup failed|exited with code",
                  logs, re.I):
-        die("fatal startup pattern found in recent logs")
-    print(f"VERIFY SUCCESS: port {port}, exposure, health, CRA, SPA, API/admin, volumes, DB, DNS, migrations, and logs passed.")
+        die("I found an error in the recent logs. Please check docker logs.")
+    ok(f"Health checks done. App is live on port {port}.")
     return 0
 
 

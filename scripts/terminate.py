@@ -4,7 +4,7 @@ import shutil
 import subprocess
 import sys
 
-from common import COMPOSE, ROOT, die, run
+from common import COMPOSE, ROOT, die, info, ok, run, warn
 
 os.umask(0o077)
 
@@ -15,31 +15,32 @@ def main():
         print("  --confirm required; --volumes/--wipe-data also removes named volumes")
         return 0
     if "--confirm" not in sys.argv:
-        die(f"Usage: {sys.argv[0]} --confirm [--volumes|--wipe-data]")
+        die(f"Please add --confirm, like: {sys.argv[0]} --confirm")
     wipe = "--volumes" in sys.argv or "--wipe-data" in sys.argv
     if shutil.which("docker") is None:
-        die("required tool missing: docker")
+        die("Docker is missing. Please install Docker first.")
     compose = COMPOSE
+    info("Stopping services")
     for svc in ["nginx", "backend", "db"]:
         q = subprocess.run(compose + ["ps", "-q", svc], capture_output=True, text=True)
         if not q.stdout.strip():
             continue
-        print(f"Stopping {svc}...")
-        r = run(compose + ["stop", svc], capture_output=True, text=True)
+        info(f"Stopping {svc}")
+        r = run(compose + ["stop", svc], f"Stopping {svc}", capture_output=True, text=True)
         if r.returncode != 0:
-            print(f"warning: stop {svc} failed: {(r.stderr or r.stdout).strip()}", file=sys.stderr)
+            warn(f"Stopping {svc} had a problem: {(r.stderr or r.stdout).strip()}")
     if wipe:
-        print("WARNING: --volumes wipes DB (mysql_data, media_data, static_data); ensure backup exists.", file=sys.stderr)
+        warn("This will delete your database. Make sure you have a backup.")
     cmd = compose + ["down"] + (["-v"] if wipe else [])
-    proc = run(cmd, capture_output=True, text=True)
+    proc = run(cmd, "Stopping app", capture_output=True, text=True)
     if proc.returncode != 0:
-        die(f"docker compose down failed: {(proc.stderr or proc.stdout).strip()}")
-    print("TERMINATE SUCCESS: stack terminated in reverse order (nginx -> backend -> db)")
+        die(f"Stopping the app failed: {(proc.stderr or proc.stdout).strip()}")
+    ok("Terminate done. Stopped in order: web, app, database.")
     if wipe:
-        print("TERMINATE SUCCESS: volumes wiped - system clean like never deployed")
+        ok("Data folders are now empty.")
     else:
-        print("TERMINATE SUCCESS: volumes kept")
-    print("Backups/deployments kept for audit. To wipe fully: rm -rf deployments backups", file=sys.stderr)
+        ok("Data is still saved.")
+    info("Backups are still saved.")
     return 0
 
 

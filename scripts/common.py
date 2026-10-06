@@ -11,30 +11,45 @@ try:
 except Exception:
     pass
 
-# ponytail: ANSI only, no colorama dep - VT ANSI with plain fallback
+# Flat leveled logs: [INFO] step, [OK] done, [WARN] non-fatal,
+# [ERROR] failed, [SKIP] intentionally skipped. One line per event.
+# No tree, nested, or indented messages. Colors for terminals only.
 def _supports_color():
     if os.getenv("NO_COLOR") is not None: return False
     if os.getenv("TERM") == "dumb": return False
     return sys.stdout.isatty() or sys.stderr.isatty()
 def _color(code, text): return f"\033[{code}m{text}\033[0m" if _supports_color() else text
-def ok(msg): print(f"{_color('32', '[ OK ]')} {msg}")
-def info(msg): print(f"{_color('36', '[INFO]')} {msg}")
-def passed(msg): print(f"{_color('32', '[PASS]')} {msg}")
-def fail(msg): print(f"{_color('31', '[FAIL]')} {msg}", file=sys.stderr)
+def info(msg): print(_color('36', f"[INFO] {msg}"))
+def ok(msg): print(_color('32', f"[OK] {msg}"))
+def warn(msg): print(_color('33', f"[WARN] {msg}"), file=sys.stderr)
+def fail(msg): print(_color('31', f"[ERROR] {msg}"), file=sys.stderr)
+def skip(msg): print(_color('90', f"[SKIP] {msg}"))
+def passed(msg): print(_color('32', f"[OK] {msg}"))
 log_ok=ok; log_info=info; log_pass=passed; log_fail=fail
+log_warn=warn; log_skip=skip; log_error=fail
 
-def run(cmd, **kwargs):
-    disp = cmd if isinstance(cmd, str) else " ".join(str(c) for c in cmd)
-    info(f"$ {disp}")
+def _short(cmd):
+    parts = list(cmd) if isinstance(cmd, (list, tuple)) else str(cmd).split()
+    if parts[:2] == ["docker", "compose"]:
+        parts = parts[2:]
+        while parts and parts[0] in ("--env-file", "-f"):
+            parts = parts[2:]
+    text = " ".join(str(c) for c in parts).strip()
+    return text[:100] if text else "command"
+
+def run(cmd, label=None, **kwargs):
+    name = label or _short(cmd)
+    info(f"{name}")
     proc = subprocess.run(cmd, **kwargs)
     if proc.returncode == 0:
-        ok(f"\u2192 ok ({proc.returncode})")
+        ok(f"{name} done")
     else:
         raw = getattr(proc, "stderr", None) or getattr(proc, "stdout", None) or ""
         if isinstance(raw, bytes):
             raw = raw.decode("utf-8", "replace")
         err = raw.strip().splitlines()[:1]
-        fail(f"\u2192 fail ({proc.returncode})" + (f": {err[0][:120]}" if err and err[0] else ""))
+        detail = f" - {err[0][:120]}" if err and err[0] else ""
+        fail(f"{name} failed{detail}")
     return proc
 log_run = run
 
@@ -66,7 +81,7 @@ def env_value(key):
 
 
 def die(msg):
-    print(f"{_color('31', '[FAIL]')} {msg}", file=sys.stderr)
+    print(_color('31', f"[ERROR] {msg}"), file=sys.stderr)
     sys.exit(1)
 
 
