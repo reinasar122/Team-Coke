@@ -1,17 +1,40 @@
+# Version control and local config
 .git
+.env
+.env.*
 **/.env
 **/.env.*
+
+# Dependencies and build output
 node_modules
 **/node_modules
 build
 **/build
 dist
 **/dist
+
+# Python caches and artifacts
 __pycache__
-*.pyc
+**/__pycache__
+*.py[cod]
+*.egg-info
 .pytest_cache
 .mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# Logs, DB dumps, deployment state
 *.log
+*.sql
+*.sql.gz
 backups
 deployments
 tmpclaude-*
+
+# Not used by the nginx build (root context)
+backend_coke_system
+scripts
+api_test.py
+deploy.py
+*.md

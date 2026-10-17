@@ -1,7 +1,25 @@
+# Python caches and artifacts
 __pycache__/
 *.py[cod]
+*.egg-info/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments and local config
+venv/
+.venv/
 .env
 .env.*
+
+# Django
 staticfiles/
 *.log
+*.sql
+*.sql.gz
+
+# OS files
+.DS_Store
+Thumbs.db
