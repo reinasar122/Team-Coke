@@ -190,6 +190,22 @@ const Sidebar = ({ isSidebarOpen, onClose, isDesktopViewport }) => {
               ) : (
                 <DisabledSubItem text="Trading" />
               )}
+              {checkAccess("Trading") ? (
+                <li>
+                  <NavLink
+                    to="/mobile-transaction"
+                    className={({ isActive }) =>
+                      `block p-2 text-sm rounded hover:bg-gray-600 ${
+                        isActive ? "bg-gray-700" : ""
+                      }`
+                    }
+                  >
+                    Mobile Transaction
+                  </NavLink>
+                </li>
+              ) : (
+                <DisabledSubItem text="Mobile Transaction" />
+              )}
               {checkAccess("Supplier Return") ? (
                 <li>
                   <NavLink

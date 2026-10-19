@@ -29,9 +29,14 @@ def _env_list(name, default=""):
 
 
 def _env_bool(name, default=False):
-    return os.environ.get(name, str(default)).strip().lower() in (
-        "true", "1", "yes", "on",
-    )
+    value = os.environ.get(name, "").strip().lower()
+    if value in ("true", "1", "yes", "on"):
+        return True
+    if value in ("false", "0", "no", "off"):
+        return False
+    # Other programs may use DEBUG for values such as "release". These are
+    # not Django boolean settings and must not disable local connections.
+    return default
 
 
 # Quick-start development settings - unsuitable for production
@@ -115,13 +120,34 @@ WSGI_APPLICATION = 'backend_coke_system.wsgi.application'
 DATABASES = {
     'default': {
          'ENGINE': 'django.db.backends.mysql',
-         'NAME': os.environ.get("DB_NAME", "C11"),
+         'NAME': os.environ.get("DB_NAME", "coke_pos"),
          'USER': os.environ.get("DB_USER", "root"),
          'PASSWORD': os.environ.get("DB_PASSWORD", "12345"),
          'HOST': os.environ.get("DB_HOST", "localhost"),
          'PORT': os.environ.get("DB_PORT", "3306"),
      }
  } 
+# The Flutter backend keeps its own orders. Read that database separately;
+# never migrate or create POS records in it. Local development currently uses
+# the mobile backend's database "1"; deployments must set the name explicitly.
+# Processing also requires UPDATE on merchandising/chatbot_order and INSERT
+# on order_fulfillment; this connection never migrates the mobile schema.
+MOBILE_ORDERS_DB_NAME = os.environ.get("MOBILE_ORDERS_DB_NAME", "1" if DEBUG else "").strip()
+MOBILE_ORDERS_MEDIA_BASE_URL = os.environ.get("MOBILE_ORDERS_MEDIA_BASE_URL", "").strip()
+POS_SESSION_MAX_AGE = 12 * 60 * 60
+DATABASE_ROUTERS = ["api.mobile_orders.MobileOrdersDatabaseRouter"]
+if MOBILE_ORDERS_DB_NAME:
+    DATABASES["mobile_orders"] = {
+        "ENGINE": "django.db.backends.mysql",
+        "NAME": MOBILE_ORDERS_DB_NAME,
+        "USER": os.environ.get("MOBILE_ORDERS_DB_USER", DATABASES["default"]["USER"]),
+        "PASSWORD": os.environ.get("MOBILE_ORDERS_DB_PASSWORD", DATABASES["default"]["PASSWORD"]),
+        "HOST": os.environ.get("MOBILE_ORDERS_DB_HOST", DATABASES["default"]["HOST"]),
+        "PORT": os.environ.get("MOBILE_ORDERS_DB_PORT", DATABASES["default"]["PORT"]),
+        "OPTIONS": {"connect_timeout": 5, "read_timeout": 10},
+        "CONN_MAX_AGE": 0,
+    }
+
 # ✅ ADD THIS BLOCK
 CACHES = {
     "default": {

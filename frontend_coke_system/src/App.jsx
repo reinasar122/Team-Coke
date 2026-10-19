@@ -40,6 +40,7 @@ import VanList from "./pages/VanList";
 import ReceivingList from "./pages/ReceivingList";
 import ReceivingForm from "./pages/ReceivingForm";
 import MerchandisingList from "./pages/MerchandisingList";
+import MobileTransaction from "./pages/MobileTransaction";
 import ReservationList from "./pages/ReservationList";
 import ReservationDetailPage from "./pages/ReservationDetailPage";
 import ReservationSaleDetails from "./pages/ReservationSaleDetails";
@@ -251,6 +252,7 @@ const ProtectedLayout = ({
                   }
                 />
                 <Route path="/dashboard" element={null}/>
+                <Route path="/mobile-transaction" element={null} />
 
                 {/* Customer page titles */}
                 <Route path="/customers" element={null} />
@@ -375,6 +377,14 @@ const ProtectedLayout = ({
 
             {/* Merchandising */}
             <Route path="/trading" element={<MerchandisingList />} />
+            <Route
+              path="/mobile-transaction"
+              element={
+                <AccessControlledRoute submenu="Trading">
+                  <MobileTransaction />
+                </AccessControlledRoute>
+              }
+            />
             <Route path="/reservationlist" element={<ReservationList />} />
             <Route path="/reservation-details/:id" element={<ReservationDetailPage />} />
             <Route path="/reservation-sale-details/:id" element={<ReservationSaleDetails />} />

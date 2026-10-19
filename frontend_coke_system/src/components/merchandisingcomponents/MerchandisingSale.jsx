@@ -10,6 +10,7 @@ import "../../styles/components/merchandisingSale.scss";
 import api from "../../api"; // centralized API instance
 import CustomerRegistration from './CustomerRegistration';
 import VanForm from "../../pages/VanForm";
+import { mobileVanLoadRows } from "../../utils/mobileVanLoad";
 
 // Van Load notification helper
 const notifyVanLoadCreated = (vanLoadData) => {
@@ -109,6 +110,9 @@ const MerchandisingSale = () => {
   const navigate = useNavigate();
   const [transactionDate, setTransactionDate] = useState(() => toDatetimeLocalValue());
   const location = useLocation();
+  const mobileVanLoad = location.state?.mobileVanLoad || null;
+  const mobileHydratedRef = useRef(null);
+  const [mobileLoadError, setMobileLoadError] = useState("");
   const requestedReservationMode = Boolean(location.state?.reservationMode);
   const incomingReservationStatus = String(location.state?.sale?.status || "").trim().toLowerCase();
   const isReservationMode =
@@ -344,10 +348,10 @@ const MerchandisingSale = () => {
         });
       });
 
-      if (location.state?.editMode) {
+      if (location.state?.editMode || mobileVanLoad) {
         const usedIds = new Set(
-          (location.state?.sale?.items || []).map((it) =>
-            Number(it.product?.id ?? it.product)
+          (mobileVanLoad?.items || location.state?.sale?.items || []).map((it) =>
+            Number(it.product_id ?? it.product?.id ?? it.product)
           )
         );
 
@@ -368,7 +372,7 @@ const MerchandisingSale = () => {
         setProducts(availableProducts);
       }
 
-      if (!location.state?.editMode && availableProducts.length === 0) {
+      if (!location.state?.editMode && !mobileVanLoad && availableProducts.length === 0) {
         console.warn("No in-stock products found for this warehouse.");
       }
     } catch (err) {
@@ -601,6 +605,24 @@ const MerchandisingSale = () => {
       discrepancy: 0,
     },
   ]);
+
+  useEffect(() => {
+    if (!mobileVanLoad || !allProductsRaw.length || !transactionTypes.length || mobileHydratedRef.current === mobileVanLoad.id) return;
+    const type = transactionTypes.find((item) => item.name.trim().toLowerCase() === "van load");
+    if (!type) {
+      setMobileLoadError("Van Load transaction type is unavailable. Configure it before dispatching these orders.");
+      return;
+    }
+    try {
+      setRows(mobileVanLoadRows(mobileVanLoad, allProductsRaw));
+      setTransactionType(String(type.id));
+      setSelectedTransactionTypeName(type.name);
+      setMobileLoadError("");
+      mobileHydratedRef.current = mobileVanLoad.id;
+    } catch (error) {
+      setMobileLoadError(error.message);
+    }
+  }, [mobileVanLoad, allProductsRaw, transactionTypes]);
 
   const customerInfo = useMemo(() => {
     const incomingCustomer = location.state?.sale?.customer;
@@ -970,6 +992,11 @@ const MerchandisingSale = () => {
       return false;
     }
 
+    if (mobileVanLoad && (mobileLoadError || Number(mobileVanLoad.warehouse) !== Number(warehouseId) || !isVanLoad)) {
+      showAlert(mobileLoadError || "Return to Mobile Transaction and confirm the orders in their warehouse.");
+      return false;
+    }
+
     if (isVanLoad) {
       if (!route) {
         showAlert("Route is required for Van Load.");
@@ -1109,7 +1136,9 @@ const MerchandisingSale = () => {
     try {
       const response = isWarehouseEdit
         ? await api.patch("merchandisings/" + activeSale.id + "/", payload)
-        : await api.post("merchandisings/", payload);
+        : mobileVanLoad
+          ? await api.post(`mobile-van-loads/${mobileVanLoad.id}/dispatch/`, payload, { params: { warehouse: warehouseId } })
+          : await api.post("merchandisings/", payload);
       const merchandising = response.data;
       console.log(
         isWarehouseEdit
@@ -1252,6 +1281,13 @@ const MerchandisingSale = () => {
   const handleFinalizeSale = async () => {
     const success = await handleSubmit();
     if (!success) return;
+
+    if (mobileVanLoad) {
+      // Confirmation already committed these pieces on the server.
+      window.dispatchEvent(new Event("stocksChanged"));
+      navigate("/trading");
+      return;
+    }
 
     const wid = currentWarehouse?.id;
     if (!wid) {
@@ -1456,7 +1492,7 @@ const MerchandisingSale = () => {
 
           <div>
             <label className="text-sm">Transaction Type</label>
-            {isReservationMode ? (
+            {isReservationMode || mobileVanLoad ? (
               <input
                 type="text"
                 value={selectedTransactionTypeName || "Warehouse"}
@@ -1504,7 +1540,7 @@ const MerchandisingSale = () => {
               readOnly
               className="merch-sale-form-control border w-full rounded-md px-2 py-1 text-black text-base bg-white cursor-default"
             />
-            <input type="hidden" name="handled_by" value={selectedUser} />
+            <input type="hidden" name="handled_by" value={selectedUser ?? ""} />
           </div>
         </div>
 
@@ -1728,6 +1764,9 @@ const MerchandisingSale = () => {
       </div>
 
       {selectedTransactionTypeName === "Van Load" ? (
+        <>
+        {mobileVanLoad && <p role="status">Orders remain Processing. Declare sold products and returned bottles when the van returns.</p>}
+        {mobileLoadError && <p role="alert">{mobileLoadError}</p>}
         <VanLoadTable
           rows={rows}
           setRows={setRows}
@@ -1736,7 +1775,9 @@ const MerchandisingSale = () => {
           setTotalExpectedSale={setTotalExpectedSale}
           onAdjustmentsChange={setDispatchAdjustments}
           defaultDiscount={vanLoadDiscount}
+          locked={Boolean(mobileVanLoad)}
         />
+        </>
       ) : (
         <ProductTable
           rows={rows}

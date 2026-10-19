@@ -12,6 +12,7 @@ from rest_framework.exceptions import NotFound
 from rest_framework.views import APIView
 from api.models import Warehouse, RoleAccessibility
 from .serializers import WarehouseSerializer
+from .pos_auth import create_pos_session_token
 from rest_framework import status  # Fix: Import generics and status
 from rest_framework.response import Response  # Fix: Import Response
 from django.db import connection
@@ -1830,7 +1831,8 @@ class LoginSerializer(serializers.Serializer):
                 "warehouse": user.warehouse.name if (user.warehouse and hasattr(user.warehouse, 'name')) else None,
                 "warehouse_id": user.warehouse.id if (user.warehouse and hasattr(user.warehouse, 'id')) else None,
                 "must_change_password": getattr(user, 'must_change_password', False),
-                "accessibilities": access_list
+                "accessibilities": access_list,
+                "token": create_pos_session_token(user),
             }
             
         except serializers.ValidationError:
@@ -2343,6 +2345,8 @@ class VanLoadReturnUpdateAPIView(APIView):
             return Response({"error": "Missing sale_id"}, status=status.HTTP_400_BAD_REQUEST)
 
         sale = get_object_or_404(Merchandising, id=sale_id)
+        if hasattr(sale, "mobile_van_load_batch"):
+            return Response({"detail": "Use this mobile van load's return declaration endpoint."}, status=status.HTTP_409_CONFLICT)
 
         if not sale.warehouse_id:
             return Response({"error": "Sale has no warehouse set"}, status=status.HTTP_400_BAD_REQUEST)

@@ -1,4 +1,5 @@
 from django.db import models, transaction
+import hashlib
 import uuid
 import string
 import random
@@ -1095,3 +1096,112 @@ class ProcessedNotification(models.Model):
     
     def __str__(self):
         return f"Processed: {self.identifier}"
+
+
+class MobileDeliveryAddress(models.Model):
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT)
+    address = models.CharField(max_length=255)
+    address_key = models.CharField(max_length=64, editable=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "mobile_delivery_address"
+        ordering = ["address", "id"]
+        constraints = [models.UniqueConstraint(
+            fields=["warehouse", "address_key"], name="unique_mobile_delivery_address",
+        )]
+
+    def save(self, *args, **kwargs):
+        self.address = " ".join(self.address.split())
+        self.address_key = hashlib.sha256(self.address.casefold().encode("utf-8")).hexdigest()
+        super().save(*args, **kwargs)
+
+
+class MobileDelivery(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT)
+    destination = models.ForeignKey(MobileDeliveryAddress, on_delete=models.PROTECT)
+    address = models.CharField(max_length=255)  # Snapshot for the delivery sheet.
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "mobile_delivery"
+        ordering = ["-created_at", "id"]
+
+
+class MobileDeliveryOrder(models.Model):
+    delivery = models.ForeignKey(MobileDelivery, related_name="orders", on_delete=models.CASCADE)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT)
+    order_number = models.CharField(max_length=20)
+
+    class Meta:
+        db_table = "mobile_delivery_order"
+        ordering = ["order_number"]
+        constraints = [models.UniqueConstraint(
+            fields=["warehouse", "order_number"], name="unique_mobile_delivery_order",
+        )]
+
+
+class MobileVanLoadBatch(models.Model):
+    """Durable handoff from confirmed mobile inventory to one van load."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT)
+    merchandising = models.OneToOneField(
+        Merchandising, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="mobile_van_load_batch",
+    )
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    return_fingerprint = models.CharField(max_length=64, blank=True)
+    return_outcomes = models.JSONField(default=dict)
+
+
+class MobileOrderStockCommitment(models.Model):
+    """POS inventory receipt; source-database retries never debit stock twice."""
+
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT)
+    order_number = models.CharField(max_length=20)
+    merchandising = models.OneToOneField(
+        Merchandising, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="mobile_stock_commitment",
+    )
+    quantities = models.JSONField(default=dict)
+    van_load_batch = models.ForeignKey(
+        MobileVanLoadBatch, on_delete=models.PROTECT, null=True, blank=True,
+        related_name="orders",
+    )
+    active = models.BooleanField(default=True)
+    confirmed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    confirmed_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "mobile_order_stock_commitment"
+        constraints = [models.UniqueConstraint(
+            fields=["warehouse", "order_number"], name="unique_mobile_stock_commitment",
+        )]
+
+
+class Promotion(models.Model):
+    class Type(models.TextChoices):
+        BUY_ONE_TAKE_ONE = "buy-one-take-one", "Buy One Take One"
+        OCCASIONAL_DISCOUNT = "occasional-discount", "Occasional Discount"
+        FREE_SHIPPING = "free-shipping", "Free Shipping"
+
+    warehouse = models.ForeignKey(Warehouse, on_delete=models.CASCADE)
+    promotion_type = models.CharField(max_length=30, choices=Type.choices)
+    discount_percent = models.DecimalField(max_digits=5, decimal_places=2, default=0)
+    products = models.ManyToManyField(Product, related_name="promotions")
+    start_date = models.DateField()
+    end_date = models.DateField()
+    is_active = models.BooleanField(default=True)
+    created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        constraints = [
+            models.CheckConstraint(condition=Q(end_date__gte=models.F("start_date")), name="promotion_valid_dates"),
+            models.CheckConstraint(condition=Q(discount_percent__gte=0, discount_percent__lte=100), name="promotion_valid_discount"),
+        ]

@@ -893,6 +893,7 @@ class PaymentSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class MerchandisingSerializer(serializers.ModelSerializer):
+    mobile_van_load_batch_id = serializers.UUIDField(source="mobile_van_load_batch.pk", read_only=True, default=None)
     # Store text in DB, but still accept numbers from the client
     handled_by = serializers.CharField(required=False, allow_null=True, allow_blank=True)
     handled_by_name = serializers.SerializerMethodField()
@@ -1010,6 +1011,16 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         CHANGED: on PATCH, fall back to instance values so Van Load
         validation still applies even if the field is omitted.
         """
+        if self.instance:
+            from .models import MobileOrderStockCommitment, MobileVanLoadBatch
+            if MobileOrderStockCommitment.objects.filter(merchandising=self.instance, van_load_batch__merchandising__isnull=False).exists():
+                raise serializers.ValidationError("This mobile reservation was transferred to a van load. Manage that van load in Trading.")
+            batch = MobileVanLoadBatch.objects.filter(merchandising=self.instance).first()
+            if batch:
+                if "items" in data or any(field in data for field in ("warehouse", "transaction_type", "full_returns_applied")):
+                    raise serializers.ValidationError("Mobile van-load products and dispatch quantities are fixed. Declare sales and returns through Van Load Remittance.")
+                if str(data.get("status", "")).lower() in {"complete", "completed"} and not self.instance.full_returns_applied:
+                    raise serializers.ValidationError("Declare sold products and returned bottles before completing this van load.")
         transaction_type = data.get("transaction_type") or getattr(self.instance, "transaction_type", None)
         route = data.get("route") if "route" in data else getattr(self.instance, "route", None)
         van = data.get("van") if "van" in data else getattr(self.instance, "van", None)
@@ -1036,15 +1047,23 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         tt_name = (getattr(transaction_type, "name", transaction_type) or "").strip().lower()
         return tt_name == "warehouse"
 
-    def _warehouse_holds_stock(self, transaction_type, status_value):
+    def _warehouse_holds_stock(self, transaction_type, status_value, instance=None):
         if not self._is_warehouse_transaction(transaction_type):
             return False
 
         status_name = self._normalize_status_key(status_value)
-        # Business rule:
-        # - "Reserved" should NOT deduct on-hand stock yet.
-        # - Deduct only when customer actually gets the goods.
-        return status_name in {"complete", "completed", "picked up"}
+        # Ordinary reservations wait for pickup. Mobile orders commit inventory
+        # at confirmation and keep that deduction through later fulfillment.
+        if status_name in {"complete", "completed", "picked up"}:
+            return True
+        if status_name not in {
+            "confirmed", "order confirmed", "processing", "in progress",
+            "out for delivery", "shipped", "delivered",
+        }:
+            return False
+        return "[AIVA:" in (getattr(instance, "remarks", "") or "") or (
+            instance is not None and hasattr(instance, "mobile_stock_commitment")
+        )
 
     def _warehouse_committed_pcs(self, item, status_value):
         if item is None:
@@ -1057,7 +1076,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         return int(getattr(item, "sold_pcs", 0) or 0)
 
     def _normalize_status_key(self, value):
-        return " ".join(str(value or "").strip().lower().replace("-", " ").split())
+        return " ".join(str(value or "").strip().lower().replace("-", " ").replace("_", " ").split())
 
     def _sync_reservation_lifecycle_fields(self, validated_data, instance=None):
         transaction_type = validated_data.get("transaction_type", getattr(instance, "transaction_type", None))
@@ -1233,7 +1252,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
                 )
 
             # Warehouse stock is deducted only when the reservation is completed/picked up.
-            if self._warehouse_holds_stock(merchandising.transaction_type, merchandising.status):
+            if self._warehouse_holds_stock(merchandising.transaction_type, merchandising.status, merchandising):
                 committed_pcs = self._warehouse_committed_pcs(merchandising_item, merchandising.status)
                 if committed_pcs > 0:
                     self._adjust_stock_quantity(
@@ -1328,6 +1347,11 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         - Deletes rows missing from the payload
         - Leaves payments read-only in updates
         """
+        # Confirmation may have committed since this instance was loaded.
+        # Calculate inventory deltas from the locked, current POS state.
+        instance = Merchandising.objects.select_for_update().select_related(
+            "transaction_type", "warehouse",
+        ).get(pk=instance.pk)
         # Prevent clients from altering msp_no on update as well
         validated_data.pop('msp_no', None)
 
@@ -1336,6 +1360,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         validated_data.pop('payments', None)                    # ignore on update
         before_transaction_type = instance.transaction_type
         before_status = instance.status
+        before_holds_stock = self._warehouse_holds_stock(before_transaction_type, before_status, instance)
         self._sync_reservation_lifecycle_fields(validated_data, instance)
         transaction_type = validated_data.get("transaction_type", instance.transaction_type)
         status_value = validated_data.get("status", instance.status)
@@ -1415,8 +1440,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
 
         if self._is_warehouse_transaction(before_transaction_type) or self._is_warehouse_transaction(transaction_type):
             stock_deltas = defaultdict(int)
-            before_holds_stock = self._warehouse_holds_stock(before_transaction_type, before_status)
-            after_holds_stock = self._warehouse_holds_stock(transaction_type, status_value)
+            after_holds_stock = self._warehouse_holds_stock(transaction_type, status_value, instance)
 
             for obj in before_items:
                 if before_holds_stock:

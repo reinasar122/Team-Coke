@@ -6,6 +6,7 @@ import ExpensesSection from '../components/merchandisingcomponents/ExpensesSecti
 import PaymentModal from '../components/PaymentModal';
 import { useNotifications } from '../contexts/NotificationContext';
 import api from "../api";
+import { mobileReturnError } from "../utils/mobileVanLoad";
 
 
 /* --------------------------- tiny UI helpers --------------------------- */
@@ -163,6 +164,9 @@ const validateSoldBeforeRemit = () => {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
 //updated remittance blocking
   const [sale, setSale] = useState(null);
+  const [mobileBatch, setMobileBatch] = useState(null);
+  const [orderOutcomes, setOrderOutcomes] = useState({});
+  const [mobileBatchError, setMobileBatchError] = useState('');
   const [rows, setRows] = useState([]);
   const [unitTypes, setUnitTypes] = useState([]);
   const [remarks, setRemarks] = useState('');
@@ -170,6 +174,24 @@ const validateSoldBeforeRemit = () => {
   const handledByDisplay = sale?.handled_by_name || sale?.handled_by || '--';
   const customerDisplay = sale?.customer?.name || sale?.customer_name || 'Walk-in';
   const pageTitle = 'Van Load Return / Remittance';
+
+  useEffect(() => {
+    if (!sale?.mobile_van_load_batch_id) return;
+    const controller = new AbortController();
+    setMobileBatch(null);
+    setMobileBatchError('');
+    api.get(`/mobile-van-loads/${sale.mobile_van_load_batch_id}/`, {
+      params: { warehouse: getCurrentWarehouseId() }, signal: controller.signal,
+    }).then(({ data }) => {
+      if (!controller.signal.aborted) {
+        setMobileBatch(data);
+        setOrderOutcomes(data.outcomes || {});
+      }
+    }).catch(() => {
+      if (!controller.signal.aborted) setMobileBatchError('Could not load the linked orders. Refresh before declaring returns.');
+    });
+    return () => controller.abort();
+  }, [sale?.mobile_van_load_batch_id]);
 
   // Expenses
   const [activeTab, setActiveTab] = useState('expenses');
@@ -658,6 +680,7 @@ const validateSoldBeforeRemit = () => {
 
     const payload = {
       sale_id: saleId,
+      ...(sale.mobile_van_load_batch_id ? { order_outcomes: orderOutcomes } : {}),
       total_expected_sale: totalExpectedSale,
       actual_sale: totalActualSaleLocal,
       expenses_total: miscTotal,
@@ -701,11 +724,18 @@ const validateSoldBeforeRemit = () => {
 
   const handleVanLoadPaymentSuccess = async (paymentData) => {
     try {
+      const outcomeError = sale.mobile_van_load_batch_id ? mobileBatchError || mobileReturnError(mobileBatch, orderOutcomes, rows) : '';
+      if (outcomeError) {
+        throw new Error(outcomeError);
+      }
       const { payload, misc, miscTotal, totalActualSaleLocal } = buildVanLoadReturnPayload(paymentData);
 
       console.log('Processing Van Load remittance...', payload);
 
-      await api.post('/van-load-return/', payload);
+      await api.post(
+        sale.mobile_van_load_batch_id ? `/mobile-van-loads/${sale.mobile_van_load_batch_id}/return/` : '/van-load-return/',
+        payload, { params: { warehouse: getCurrentWarehouseId() } }
+      );
 
       if (misc.length > 0) {
         await Promise.all(
@@ -775,7 +805,7 @@ const validateSoldBeforeRemit = () => {
 
     } catch (err) {
       console.error('Failed to save Van Load remittance:', err);
-      showAlert('Saving van load remittance failed. Please try again.');
+      showAlert(err.response?.data?.detail || err.message || 'Saving van load remittance failed. Please try again.');
       throw err;
     }
   };
@@ -818,6 +848,20 @@ const validateSoldBeforeRemit = () => {
         </div>
       </div>
 
+      {sale.mobile_van_load_batch_id && <section aria-label="Mobile order delivery results">
+        <h3>Mobile order delivery results</h3>
+        <p>Accepted orders become Delivered. Orders refused by the customer become Returned.</p>
+        {mobileBatchError && <p role="alert">{mobileBatchError}</p>}
+        {!mobileBatch && !mobileBatchError && <p role="status">Loading linked orders…</p>}
+        {mobileBatch?.orders.map((order) => <div key={order.order_number}>
+          <label htmlFor={`outcome-${order.order_number}`}>{order.number} · {order.customer}</label>
+          <select id={`outcome-${order.order_number}`} value={orderOutcomes[order.order_number] || ''} onChange={(event) => setOrderOutcomes((current) => ({ ...current, [order.order_number]: event.target.value }))}>
+            <option value="">Choose delivery result</option>
+            <option value="DELIVERED">Accepted</option>
+            <option value="RETURNED">Returned — customer did not accept</option>
+          </select>
+        </div>)}
+      </section>}
       <h3 className="text-lg font-semibold mt-6 mb-2">Product Details</h3>
 
       <div className="table-wrapper">
@@ -1063,6 +1107,11 @@ const validateSoldBeforeRemit = () => {
           className="bg-blue-600 text-white px-6 py-2 rounded hover:bg-blue-700 transition"
           onClick={() => {
             // Hard block before opening confirmation
+            const outcomeError = sale.mobile_van_load_batch_id ? mobileBatchError || mobileReturnError(mobileBatch, orderOutcomes, rows) : '';
+            if (outcomeError) {
+              showAlert(outcomeError);
+              return;
+            }
             if (!validateSoldBeforeRemit()) return;
 
             setShowPaymentModal(true);

@@ -1,6 +1,5 @@
 // src/components/merchandisingcomponents/VanLoadTable.jsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import axios from "axios";
 import { FaTrash } from 'react-icons/fa';
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -24,6 +23,7 @@ const VanLoadTable = ({
   warehouseId,
   setTotalExpectedSale,
   onAdjustmentsChange,
+  locked = false,
   defaultDiscount, // ✅ optional
 }) => {
   const [availableStock, setAvailableStock] = useState({});
@@ -285,6 +285,7 @@ const VanLoadTable = ({
 
 
   const handleRowChange = (index, field, value) => {
+    if (locked) return;
     const updated = [...rows];
     const row = { ...updated[index] };
 
@@ -432,13 +433,13 @@ const VanLoadTable = ({
               <tr key={row.id ?? index} className="bg-white hover:bg-gray-50 transition duration-150">
                 {/* PRODUCT SELECT */}
                 <td className="border border-gray-200 py-1 px-1 w-[200px]">
-                  <ProductSearchSelect
+                  {locked ? <span>{row.productName}</span> : <ProductSearchSelect
                     products={getSortedProductsForRow(row.productId)}
                     value={row.productId ?? ""}
                     onChange={(id) => handleProductChange(index, String(id))}
                     excludeIds={Array.from(pickedIds).filter(id => id !== Number(row.productId))}
                     placeholder="Search product…"
-                  />
+                  />}
                 </td>
 
                 {/* DISPATCHED Shell */}
@@ -453,7 +454,7 @@ const VanLoadTable = ({
                     onChange={(e) =>
                       handleRowChange(index, "dispatchedShell", e.target.value === "" ? null : e.target.value)
                     }
-                    disabled={!hasProduct} // Disabled if no product is selected
+                    disabled={locked || !hasProduct}
                   />
                 </td>
 
@@ -469,7 +470,7 @@ const VanLoadTable = ({
                     onChange={(e) =>
                       handleRowChange(index, "dispatchedPcs", e.target.value === "" ? null : e.target.value)
                     }
-                    disabled={!hasProduct} // Disabled if no product is selected
+                    disabled={locked || !hasProduct}
                   />
                 </td>
 
@@ -520,7 +521,7 @@ const VanLoadTable = ({
                     className={`input-always-spinner input text-center ${!hasProduct ? "bg-gray-200 cursor-not-allowed" : "bg-yellow-50"}`}
                     value={row.discount ?? ""}
                     onChange={(e) => handleRowChange(index, "discount", e.target.value === "-" || e.target.value === "" ? "" : e.target.value)}
-                    disabled={!hasProduct} // Disabled if no product is selected
+                    disabled={locked || !hasProduct}
                   />
                 </td>
 
@@ -545,7 +546,7 @@ const VanLoadTable = ({
 
                 {/* ACTIONS */}
                 <td className="icon-btn-danger">
-                  {row.productId && (
+                  {row.productId && !locked && (
                     <button
                       type="button"
                       onClick={() => removeRow(index)}

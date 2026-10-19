@@ -511,6 +511,49 @@ main {
   letter-spacing: 0.2px;
 }
 
+/* Mobile transaction number spacing */
+.mobile-purchases .mobile-purchases__card-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 1rem;
+  padding-left: 0;
+  margin-bottom: 0.75rem;
+
+  h2 {
+    margin: 0;
+    color: #008b00;
+    font-size: 0.875rem;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+  }
+}
+
+.dark .mobile-purchases .mobile-purchases__card-heading h2 {
+  color: #86efac;
+}
+
+.mobile-purchases__card:has(.mobile-purchases__selection input) .mobile-purchases__card-heading {
+  padding-left: 1.75rem;
+}
+
+.mobile-purchases .mobile-purchases__view-details {
+  position: relative;
+  z-index: 2;
+  pointer-events: auto;
+  border: 0;
+  background: transparent;
+  color: var(--primary);
+  cursor: pointer;
+  padding: 0;
+  font: inherit;
+}
+
+.mobile-purchases .mobile-purchases__status--returned {
+  color: #9a3412;
+  background: #ffedd5;
+}
+
 /* Compact warehouse badge used beside page titles */
 .page-warehouse-chip,
 .trading-warehouse-chip {
