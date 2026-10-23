@@ -607,7 +607,7 @@ const MerchandisingSale = () => {
   ]);
 
   useEffect(() => {
-    if (!mobileVanLoad || !allProductsRaw.length || !transactionTypes.length || mobileHydratedRef.current === mobileVanLoad.id) return;
+    if (!mobileVanLoad || !allProductsRaw.length || !transactionTypes.length || mobileHydratedRef.current === mobileVanLoad) return;
     const type = transactionTypes.find((item) => item.name.trim().toLowerCase() === "van load");
     if (!type) {
       setMobileLoadError("Van Load transaction type is unavailable. Configure it before dispatching these orders.");
@@ -618,7 +618,7 @@ const MerchandisingSale = () => {
       setTransactionType(String(type.id));
       setSelectedTransactionTypeName(type.name);
       setMobileLoadError("");
-      mobileHydratedRef.current = mobileVanLoad.id;
+      mobileHydratedRef.current = mobileVanLoad;
     } catch (error) {
       setMobileLoadError(error.message);
     }
@@ -1137,7 +1137,7 @@ const MerchandisingSale = () => {
       const response = isWarehouseEdit
         ? await api.patch("merchandisings/" + activeSale.id + "/", payload)
         : mobileVanLoad
-          ? await api.post(`mobile-van-loads/${mobileVanLoad.id}/dispatch/`, payload, { params: { warehouse: warehouseId } })
+          ? await api.post(mobileVanLoad.id ? `mobile-van-loads/${mobileVanLoad.id}/dispatch/` : "mobile-orders/van-load/dispatch/", { ...payload, order_numbers: mobileVanLoad.order_numbers }, { params: { warehouse: warehouseId } })
           : await api.post("merchandisings/", payload);
       const merchandising = response.data;
       console.log(
@@ -1283,7 +1283,7 @@ const MerchandisingSale = () => {
     if (!success) return;
 
     if (mobileVanLoad) {
-      // Confirmation already committed these pieces on the server.
+      // Saving the van load committed these pieces on the server.
       window.dispatchEvent(new Event("stocksChanged"));
       navigate("/trading");
       return;
@@ -1765,7 +1765,7 @@ const MerchandisingSale = () => {
 
       {selectedTransactionTypeName === "Van Load" ? (
         <>
-        {mobileVanLoad && <p role="status">Orders remain Processing. Declare sold products and returned bottles when the van returns.</p>}
+        {mobileVanLoad && <p role="status">Orders and stock stay unchanged until you save For Delivery. Mark orders Accepted or Returned when the van returns.</p>}
         {mobileLoadError && <p role="alert">{mobileLoadError}</p>}
         <VanLoadTable
           rows={rows}

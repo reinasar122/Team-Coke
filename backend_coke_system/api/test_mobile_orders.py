@@ -525,6 +525,73 @@ class MobileOrderProcessingTests(MobileOrderFixture):
         self.stock.refresh_from_db()
         self.assertEqual(self.stock.quantity_available, 98)
 
+    def test_disambiguated_mobile_number_links_only_its_original_reservation(self):
+        sale = self.reservation()
+        original_number = sale.msp_no
+        source_number = f"POS-{sale.pk}"
+        with connections["mobile_orders"].cursor() as cursor:
+            for table in ("merchandising", "merchandising_item"):
+                cursor.execute(f"UPDATE {table} SET msp_no=%s WHERE msp_no=%s",
+                               [source_number, original_number])
+        unrelated = Merchandising.objects.create(
+            msp_no=original_number, warehouse=self.warehouse,
+            transaction_type=sale.transaction_type, status="Reserved",
+            remarks="[AIVA:99999999-1234-1234-1234-123456789abc]",
+        )
+        for _ in range(2):
+            self.assertEqual(self.confirm(source_number).status_code, 200)
+        sale.refresh_from_db()
+        unrelated.refresh_from_db()
+        self.stock.refresh_from_db()
+        self.assertEqual(sale.status, "Confirmed")
+        self.assertEqual(unrelated.status, "Reserved")
+        self.assertEqual(self.stock.quantity_available, 98)
+        self.assertEqual(MobileOrderStockCommitment.objects.get().merchandising, sale)
+
+    def test_duplicate_checkout_markers_are_rejected_without_stock_changes(self):
+        sale = self.reservation()
+        Merchandising.objects.create(
+            msp_no="WA-OTHER", warehouse=self.warehouse,
+            transaction_type=sale.transaction_type, status="Reserved", remarks=sale.remarks,
+        )
+        self.assertEqual(self.patch_status("CONFIRMED").status_code, 409)
+        self.stock.refresh_from_db()
+        self.assertEqual(self.stock.quantity_available, 100)
+        self.assertFalse(MobileOrderStockCommitment.objects.exists())
+
+    def cancel_reservation(self, sale, request_id="12345678-1234-1234-1234-123456789abc"):
+        return self.client.post(f"/api/merchandising-set/{sale.pk}/cancel-mobile-reservation/",
+                                {"request_id": request_id}, format="json")
+
+    def test_customer_can_cancel_reserved_pos_order_idempotently_without_stock_changes(self):
+        sale = self.reservation()
+        for _ in range(2):
+            response = self.cancel_reservation(sale)
+            self.assertEqual(response.status_code, 200, response.data)
+        sale.refresh_from_db()
+        self.stock.refresh_from_db()
+        self.assertEqual(sale.status, "Cancelled")
+        self.assertEqual(self.stock.quantity_available, 100)
+        self.assertFalse(MobileOrderStockCommitment.objects.exists())
+
+    def test_customer_cannot_cancel_after_store_confirmation(self):
+        sale = self.reservation()
+        self.assertEqual(self.patch_status("CONFIRMED").status_code, 200)
+        response = self.cancel_reservation(sale)
+        self.assertEqual(response.status_code, 409, response.data)
+        sale.refresh_from_db()
+        self.stock.refresh_from_db()
+        self.assertEqual(sale.status, "Confirmed")
+        self.assertEqual(self.stock.quantity_available, 98)
+        self.assertTrue(MobileOrderStockCommitment.objects.get().active)
+
+    def test_wrong_reservation_marker_never_cancels_another_order(self):
+        sale = self.reservation()
+        self.assertEqual(self.cancel_reservation(sale,
+            "99999999-1234-1234-1234-123456789abc").status_code, 400)
+        sale.refresh_from_db()
+        self.assertEqual(sale.status, "Reserved")
+
     def test_processed_pos_reservation_is_not_deducted_again(self):
         self.reservation(status="Complete")
         self.assertEqual(self.patch_status("CONFIRMED").status_code, 409)

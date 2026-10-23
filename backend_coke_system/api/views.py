@@ -1,6 +1,7 @@
 # api/views.py - CORRECTED VERSION WITH CONSISTENT WAREHOUSE FILTERING
 
 from decimal import Decimal, InvalidOperation          # 👈 for to_decimal()
+import hashlib
 from django.db import transaction
 from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404  
@@ -342,6 +343,36 @@ class MerchandisingViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(warehouse_id=warehouse_id)
         
         return queryset.select_related('transaction_type', 'warehouse', 'customer', 'route', 'van')
+
+    @action(detail=True, methods=["post"], url_path="cancel-mobile-reservation")
+    def cancel_mobile_reservation(self, request, pk=None):
+        """Atomically reject cancellation once the store accepts a reservation."""
+        import uuid
+        from django.db import transaction
+        from .models import MobileOrderStockCommitment
+
+        try:
+            request_id = uuid.UUID(str(request.data.get("request_id")))
+        except (ValueError, TypeError, AttributeError):
+            return Response({"detail": "A valid reservation request_id is required."}, status=400)
+        initial = self.get_object()
+        with transaction.atomic():
+            # Use the same lock order as mobile inventory confirmation.
+            Warehouse.objects.select_for_update().get(pk=initial.warehouse_id)
+            sale = Merchandising.objects.select_for_update().select_related("transaction_type").get(pk=initial.pk)
+            if (f"[AIVA:{request_id}]" not in (sale.remarks or "")
+                    or sale.transaction_type.name.strip().lower() != "warehouse"):
+                return Response({"detail": "The mobile reservation link could not be verified."}, status=400)
+            current = sale.status.strip().upper()
+            if current == "CANCELLED":
+                return Response(self.get_serializer(sale).data)
+            if (current not in {"RESERVED", "PENDING", "NEW"}
+                    or MobileOrderStockCommitment.objects.filter(merchandising=sale, active=True).exists()):
+                return Response({"detail": "Orders confirmed by the store cannot be modified or cancelled."}, status=409)
+            serializer = self.get_serializer(sale, data={"status": "Cancelled"}, partial=True)
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            return Response(serializer.data)
 
     @action(detail=True, methods=["post"])
     def set_invoice_no(self, request, pk=None):
@@ -2422,6 +2453,16 @@ class VanLoadReturnUpdateAPIView(APIView):
                 if remarks is not None:
                     sale.remarks = remarks
                     fields_to_update.append('remarks')
+
+                if sale.transaction_type.name.strip().lower() == "van load":
+                    route_address = " ".join((sale.route.route_name if sale.route else "").split())
+                    address_key = hashlib.sha256(route_address.casefold().encode("utf-8")).hexdigest()
+                    configured_fee = MobileDeliveryAddress.objects.filter(
+                        warehouse_id=sale.warehouse_id,
+                        address_key=address_key,
+                    ).values_list("delivery_fee", flat=True).first()
+                    sale.delivery_fee = configured_fee or Decimal("0.00")
+                    fields_to_update.append("delivery_fee")
 
                 # ---- NEW: save FE-computed discrepancy totals on the header ----
                 de = request.data.get('discrepancy_empty_total', None)

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { FaUserAlt, FaMapMarkerAlt, FaRegClock, FaWineBottle, FaTimes, FaTruck, FaCheck } from "react-icons/fa";
+import { FaUserAlt, FaMapMarkerAlt, FaRegClock, FaWineBottle, FaTimes, FaTruck, FaCheck, FaPrint } from "react-icons/fa";
 import api from "../api";
 import { deliveryError } from "../hooks/useMobileDeliveries";
 import { toPurchaseCard } from "../utils/mobileOrders";
@@ -37,6 +37,10 @@ const MobileOrderDetails = ({ order, warehouseId, onClose, onConfirm }) => {
   const [error, setError] = useState("");
   const [confirming, setConfirming] = useState(false);
   const [confirmationError, setConfirmationError] = useState("");
+  const isDelivered = details.rawStatus === "DELIVERED";
+  const productSubtotal = Number(details.total) || 0;
+  const deliveryFee = Number(details.deliveryFee) || 0;
+  const orderTotal = productSubtotal + deliveryFee;
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -79,47 +83,85 @@ const MobileOrderDetails = ({ order, warehouseId, onClose, onConfirm }) => {
   };
 
   return createPortal(
-    <dialog ref={dialogRef} className="mobile-order-dialog" aria-labelledby="mobile-order-title" onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === dialogRef.current) onClose(); }}>
-      <div className="mobile-order-dialog__content">
-        <header>
-          <div><p><strong>Order details</strong></p><h2 id="mobile-order-title">{orderNumber(details)}</h2></div>
-          <button type="button" className="mobile-order-dialog__close" aria-label="Close order details" onClick={onClose} autoFocus><FaTimes /></button>
-        </header>
-        {loading && <p role="status" className="mobile-order-dialog__notice">Refreshing order details…</p>}
-        {error && <p role="alert" className="mobile-order-dialog__notice">{error}</p>}
-        <span className={`mobile-purchases__status mobile-purchases__status--${details.statusClass}`}>{details.status}</span>
-        {details.isTest && <span className="mobile-purchases__test-label">Test order</span>}
-        <dl className="mobile-order-dialog__info">
-          <div><dt><FaUserAlt /> Customer</dt><dd>{details.customer}</dd></div>
-          <div><dt><FaMapMarkerAlt /> Delivery address</dt><dd>{details.address}</dd></div>
-          <div><dt><FaRegClock /> Ordered on</dt><dd>{details.dateLabel}</dd></div>
-          {details.deliveryId && <div><dt><FaTruck /> Grouped delivery</dt><dd>{details.deliveryAddress}</dd></div>}
-        </dl>
-        <div className="mobile-order-dialog__items-heading"><h3>Products ({details.products.length})</h3><span>Subtotal</span></div>
-        <ul className="mobile-order-dialog__items">
-          {details.products.map((item, index) => {
-            const hasPrice = item.unitPrice != null && item.unitPrice !== "" && Number.isFinite(Number(item.unitPrice));
-            const hasTotal = item.lineTotal != null && item.lineTotal !== "" && Number.isFinite(Number(item.lineTotal));
-            return <li key={item.id || index}>
-              <div className="mobile-order-dialog__item-details">
-                <ProductPreview item={item} />
-                <div className="mobile-order-dialog__computation">
-                  <span>{item.quantity} {Number(item.quantity) === 1 ? "piece" : "pieces"}{hasPrice && <> × ₱ {formatAmount(item.unitPrice)}</>}</span>
-                  {Number(item.discountPercent) > 0 && <span>Less {Number(item.discountPercent)}% discount</span>}
-                  {(!hasPrice || !hasTotal) && <span>Price breakdown unavailable</span>}
+    <>
+      <dialog ref={dialogRef} className="mobile-order-dialog" aria-labelledby="mobile-order-title" onCancel={(event) => { event.preventDefault(); onClose(); }} onClick={(event) => { if (event.target === dialogRef.current) onClose(); }}>
+        <div className="mobile-order-dialog__content">
+          <header>
+            <div><p><strong>Order details</strong></p><h2 id="mobile-order-title">{orderNumber(details)}</h2></div>
+            <button type="button" className="mobile-order-dialog__close" aria-label="Close order details" onClick={onClose} autoFocus><FaTimes /></button>
+          </header>
+          {loading && <p role="status" className="mobile-order-dialog__notice">Refreshing order details…</p>}
+          {error && <p role="alert" className="mobile-order-dialog__notice">{error}</p>}
+          <span className={`mobile-purchases__status mobile-purchases__status--${details.statusClass}`}>{details.status}</span>
+          {details.isTest && <span className="mobile-purchases__test-label">Test order</span>}
+          <dl className="mobile-order-dialog__info">
+            <div><dt><FaUserAlt /> Customer</dt><dd>{details.customer}</dd></div>
+            <div><dt><FaMapMarkerAlt /> Delivery address</dt><dd>{details.address}</dd></div>
+            <div><dt><FaRegClock /> Ordered on</dt><dd>{details.dateLabel}</dd></div>
+            {details.deliveryId && <div><dt><FaTruck /> Grouped delivery</dt><dd>{details.deliveryAddress}</dd></div>}
+          </dl>
+          <div className="mobile-order-dialog__items-heading"><h3>Products ({details.products.length})</h3><span>Subtotal</span></div>
+          <ul className="mobile-order-dialog__items">
+            {details.products.map((item, index) => {
+              const hasPrice = item.unitPrice != null && item.unitPrice !== "" && Number.isFinite(Number(item.unitPrice));
+              const hasTotal = item.lineTotal != null && item.lineTotal !== "" && Number.isFinite(Number(item.lineTotal));
+              return <li key={item.id || index}>
+                <div className="mobile-order-dialog__item-details">
+                  <ProductPreview item={item} />
+                  <div className="mobile-order-dialog__computation">
+                    <span>{item.quantity} {Number(item.quantity) === 1 ? "piece" : "pieces"}{hasPrice && <> × ₱ {formatAmount(item.unitPrice)}</>}</span>
+                    {Number(item.discountPercent) > 0 && <span>Less {Number(item.discountPercent)}% discount</span>}
+                    {(!hasPrice || !hasTotal) && <span>Price breakdown unavailable</span>}
+                  </div>
                 </div>
-              </div>
-              <strong className="mobile-order-dialog__subtotal">{hasTotal ? `₱ ${formatAmount(item.lineTotal)}` : "—"}</strong>
-            </li>;
-          })}
-        </ul>
-        {details.products.length === 0 && <p>No product details available.</p>}
-        <footer><span>Order total</span><strong>₱ {formatAmount(details.total)}</strong></footer>
-        {confirmationError && <p role="alert" className="mobile-purchases__feedback">{confirmationError}</p>}
-        {["NEW", "PENDING"].includes(details.rawStatus) && <button type="button" className="mobile-purchases__primary mobile-order-dialog__confirm" disabled={loading || Boolean(error) || confirming || details.isTest} onClick={confirmOrder}><FaCheck />{confirming ? "Confirming…" : "Confirm Order"}</button>}
-        <button type="button" className="mobile-purchases__primary mobile-order-dialog__done" onClick={onClose}>Done</button>
-      </div>
-    </dialog>, document.body,
+                <strong className="mobile-order-dialog__subtotal">{hasTotal ? `₱ ${formatAmount(item.lineTotal)}` : "—"}</strong>
+              </li>;
+            })}
+          </ul>
+          {details.products.length === 0 && <p>No product details available.</p>}
+          <div className="mobile-order-dialog__totals">
+            <div><span>Products subtotal</span><span>₱ {formatAmount(productSubtotal)}</span></div>
+            <div><span>Shipping fee</span><span>₱ {formatAmount(deliveryFee)}</span></div>
+            <div className="mobile-order-dialog__grand-total"><strong>Total</strong><strong>₱ {formatAmount(orderTotal)}</strong></div>
+          </div>
+          {confirmationError && <p role="alert" className="mobile-purchases__feedback">{confirmationError}</p>}
+          {["NEW", "PENDING"].includes(details.rawStatus) && <button type="button" className="mobile-purchases__primary mobile-order-dialog__confirm" disabled={loading || Boolean(error) || confirming || details.isTest} onClick={confirmOrder}><FaCheck />{confirming ? "Confirming…" : "Confirm Order"}</button>}
+          {isDelivered && <button type="button" className="mobile-purchases__primary mobile-order-dialog__print-receipt" disabled={loading || Boolean(error)} onClick={() => window.print()}><FaPrint />Print Receipt</button>}
+          <button type="button" className="mobile-purchases__primary mobile-order-dialog__done" onClick={onClose}>Done</button>
+        </div>
+      </dialog>
+      <section className="mobile-order-receipt" aria-hidden={!isDelivered}>
+        <header>
+          <h1>Delivery Receipt</h1>
+          <strong>{orderNumber(details)}</strong>
+        </header>
+        <p><strong>Customer:</strong> {details.customer}</p>
+        <p><strong>Delivery address:</strong> {details.address}</p>
+        <p><strong>Order date:</strong> {details.dateLabel}</p>
+        <p><strong>Status:</strong> Delivered</p>
+        <table>
+          <thead><tr><th>Product</th><th>Qty</th><th>Unit price</th><th>Discount</th><th>Amount</th></tr></thead>
+          <tbody>
+            {details.products.map((item, index) => (
+              <tr key={item.id || index}>
+                <td>{item.name}</td>
+                <td>{item.quantity}</td>
+                <td>{item.unitPrice == null ? "—" : `₱ ${formatAmount(item.unitPrice)}`}</td>
+                <td>{Number(item.discountPercent || 0)}%</td>
+                <td>{item.lineTotal == null ? "—" : `₱ ${formatAmount(item.lineTotal)}`}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div className="mobile-order-receipt__totals">
+          <p><span>Products subtotal</span><span>₱ {formatAmount(productSubtotal)}</span></p>
+          <p><span>Shipping fee</span><span>₱ {formatAmount(deliveryFee)}</span></p>
+          <p><strong>Total</strong><strong>₱ {formatAmount(orderTotal)}</strong></p>
+        </div>
+        <p className="mobile-order-receipt__thanks">Thank you for your order.</p>
+      </section>
+    </>,
+    document.body,
   );
 };
 

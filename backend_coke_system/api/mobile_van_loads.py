@@ -1,4 +1,4 @@
-"""Confirm mobile orders into a durable, idempotent van-load handoff."""
+"""Preview mobile orders, then commit their van load only on dispatch."""
 
 from collections import defaultdict
 from decimal import Decimal
@@ -7,6 +7,7 @@ import json
 
 from django.db import DatabaseError, connections, transaction
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
@@ -17,7 +18,10 @@ from .mobile_orders import (
     MobileOrderConfirmSerializer, MobileOrderConflict, MobileOrdersUnavailable,
     _request_warehouse, _source_warehouse_id, _status, process_mobile_orders, read_mobile_orders,
 )
-from .models import Merchandising, MobileOrderStockCommitment, MobileVanLoadBatch, Product
+from .models import (
+    Merchandising, MobileDeliveryAddress, MobileOrderStockCommitment,
+    MobileVanLoadBatch, Product,
+)
 from .pos_auth import CanProcessMobileOrders, POSSessionAuthentication
 from .serializers import MerchandisingSerializer
 
@@ -32,19 +36,22 @@ def batch_quantities(batch):
     return dict(quantities)
 
 
-def batch_data(batch):
-    quantities = batch_quantities(batch)
-    products = Product.objects.filter(pk__in=quantities, warehouse=batch.warehouse).select_related("unit_type", "price")
-    numbers = list(batch.orders.order_by("order_number").values_list("order_number", flat=True))
-    per_order = dict(batch.orders.values_list("order_number", "quantities"))
-    _, source_orders = read_mobile_orders(batch.warehouse, limit=100, order_numbers=numbers)
+def load_data(warehouse, numbers, per_order):
+    quantities = defaultdict(int)
+    for lines in per_order.values():
+        for product_id, quantity in lines.items():
+            quantities[product_id] += quantity
+    products = Product.objects.filter(pk__in=quantities, warehouse=warehouse).select_related("unit_type", "price")
+    _, source_orders = read_mobile_orders(warehouse, limit=100, order_numbers=numbers)
     return {
-        "id": str(batch.pk), "warehouse": batch.warehouse_id,
+        "id": None, "warehouse": warehouse.pk,
         "order_numbers": numbers,
-        "orders": [{"order_number": order["order_number"], "number": order["mobile_order_number"], "customer": order["customer_name"], "quantities": per_order[order["order_number"]]} for order in source_orders],
-        "outcomes": batch.return_outcomes,
-        "sale_id": batch.merchandising_id,
-        "status": "PROCESSING",
+        "orders": [{
+            "order_number": order["order_number"], "number": order["mobile_order_number"],
+            "customer": order["customer_name"], "quantities": per_order[order["order_number"]],
+            "status": order["status"],
+        } for order in source_orders],
+        "outcomes": {}, "sale_id": None, "status": "DRAFT",
         "items": [{
             "product_id": product.pk, "product_name": product.product_name,
             "quantity": quantities[str(product.pk)],
@@ -53,7 +60,43 @@ def batch_data(batch):
     }
 
 
-def prepare_van_load(warehouse, order_numbers, user):
+def batch_data(batch):
+    batch_quantities(batch)  # Reject cancelled receipts before exposing this load.
+    numbers = list(batch.orders.order_by("order_number").values_list("order_number", flat=True))
+    data = load_data(batch.warehouse, numbers, dict(batch.orders.values_list("order_number", "quantities")))
+    outcomes = dict(batch.return_outcomes)
+    for order in data["orders"]:
+        order["status"] = _status(order["status"])
+        if order["status"] in {"DELIVERED", "RETURNED"}:
+            outcomes.setdefault(order["order_number"], order["status"])
+    confirmer = batch.outcomes_confirmed_by
+    data.update(
+        id=str(batch.pk), outcomes=outcomes, sale_id=batch.merchandising_id,
+        status="OUT_FOR_DELIVERY" if batch.merchandising_id else "DRAFT",
+        outcomes_confirmed_by=(
+            " ".join(filter(None, [confirmer.first_name, confirmer.last_name]))
+            or confirmer.email or str(confirmer.pk)
+        ) if confirmer else None,
+        outcomes_confirmed_at=batch.outcomes_confirmed_at,
+    )
+    return data
+
+
+def validated_return_outcomes(batch, outcomes, require_all=True):
+    receipts = list(batch.orders.all())
+    receipt_numbers = {receipt.order_number for receipt in receipts}
+    if (
+        not isinstance(outcomes, dict)
+        or not set(outcomes).issubset(receipt_numbers)
+        or (require_all and set(outcomes) != receipt_numbers)
+        or any(value not in {"DELIVERED", "RETURNED"} for value in outcomes.values())
+    ):
+        raise ValidationError("Choose a valid delivery result for each selected mobile order.")
+    return receipts
+
+
+def prepare_van_load(warehouse, order_numbers, user, reserve=False):
+    """Preview by default; only the dispatch save may reserve inventory."""
     numbers = sorted(order_numbers)
     # Commit the POS receipt before the source transaction exits. If source
     # history fails, this durable batch lets the same selection resume safely.
@@ -70,7 +113,7 @@ def prepare_van_load(warehouse, order_numbers, user):
             orders = dict(cursor.fetchall())
             if len(orders) != len(numbers):
                 raise NotFound("One or more orders were not found in this warehouse.")
-            if any(_status(value) not in {"NEW", "PENDING", "CONFIRMED", "PROCESSING"} for value in orders.values()):
+            if any(_status(value) not in {"NEW", "PENDING", "CONFIRMED", "PROCESSING", "OUT_FOR_DELIVERY"} for value in orders.values()):
                 raise MobileOrderConflict("Only orders awaiting dispatch can be loaded into a van.")
             if any(number.startswith("MOCK-") for number in numbers):
                 raise MobileOrderConflict("Test orders cannot be dispatched.")
@@ -89,7 +132,15 @@ def prepare_van_load(warehouse, order_numbers, user):
                     if batch.merchandising_id:
                         return batch_data(batch)
                 else:
+                    if any(_status(value) == "OUT_FOR_DELIVERY" for value in orders.values()):
+                        raise MobileOrderConflict("An order was already dispatched. Refresh before confirming.")
+                    if not reserve:
+                        return load_data(warehouse, numbers, {
+                            number: _quantities(cursor, number, warehouse) for number in numbers
+                        })
                     batch = MobileVanLoadBatch.objects.create(warehouse=warehouse, created_by=user)
+                if not reserve:
+                    return batch_data(batch)
                 existing = {receipt.order_number: receipt for receipt in receipts}
                 for number in numbers:
                     receipt = existing.get(number)
@@ -97,13 +148,12 @@ def prepare_van_load(warehouse, order_numbers, user):
                         if not receipt.active or receipt.quantities != _quantities(cursor, number, warehouse):
                             raise MobileOrderConflict("An order changed after its inventory was committed.")
                     else:
-                        # Confirmation reserves inventory once for both legacy
-                        # orders and verified AIVA warehouse reservations.
+                        # Only saving the van load commits inventory. Opening
+                        # its form never creates a receipt or changes stock.
                         sync_mobile_inventory(cursor, source_id, warehouse, {number: "PENDING"}, "CONFIRMED", user)
                 MobileOrderStockCommitment.objects.filter(
                     warehouse=warehouse, order_number__in=numbers,
                 ).update(van_load_batch=batch)
-                process_mobile_orders(warehouse, numbers, "PROCESSING", user, van_load_batch=batch)
             return batch_data(batch)
 
 
@@ -128,12 +178,24 @@ class MobileVanLoadPrepareView(MobileVanLoadView):
 
 
 class MobileVanLoadDispatchView(MobileVanLoadView):
+    def post(self, request, batch_id=None):
+        with transaction.atomic(using="mobile_orders"):
+            return self.record_dispatch(request, batch_id)
+
     @transaction.atomic
-    def post(self, request, batch_id):
+    def record_dispatch(self, request, batch_id):
         warehouse = _request_warehouse(request)
+        if batch_id is None:
+            selection = MobileOrderConfirmSerializer(data=request.data)
+            selection.is_valid(raise_exception=True)
+            prepared = prepare_van_load(warehouse, selection.validated_data["order_numbers"], request.user, reserve=True)
+            batch_id = prepared["id"]
         type(warehouse).objects.select_for_update().get(pk=warehouse.pk)
         batch = get_object_or_404(MobileVanLoadBatch.objects.select_for_update(), pk=batch_id, warehouse=warehouse)
         if batch.merchandising_id:
+            if not batch.return_fingerprint:
+                process_mobile_orders(warehouse, list(batch.orders.values_list("order_number", flat=True)),
+                                      "OUT_FOR_DELIVERY", request.user, van_load_batch=batch)
             return Response(MerchandisingSerializer(batch.merchandising).data)
         quantities = batch_quantities(batch)
         serializer = MerchandisingSerializer(data=request.data)
@@ -152,16 +214,14 @@ class MobileVanLoadDispatchView(MobileVanLoadView):
             sent[pid] = line.get("dispatched_pcs", 0)
         if sent != quantities:
             raise ValidationError("Keep the products and quantities from the selected mobile orders.")
-        # A draft may have survived a failed source history write. Verify that
-        # synchronization finished before dispatching its already reserved stock.
         numbers = list(batch.orders.values_list("order_number", flat=True))
         with connections["mobile_orders"].cursor() as cursor:
             source_id = _source_warehouse_id(cursor, warehouse)
             placeholders = ", ".join(["%s"] * len(numbers))
             cursor.execute(f"SELECT msp_no, status FROM merchandising WHERE warehouse_id = %s AND msp_no IN ({placeholders})", [source_id, *numbers])
             statuses = {number: _status(value) for number, value in cursor.fetchall()}
-        if any(statuses.get(number) != "PROCESSING" for number in numbers):
-            raise MobileOrderConflict("Confirm this selection again to finish its Processing status before dispatch.")
+        if any(statuses.get(number) not in {"NEW", "PENDING", "CONFIRMED", "PROCESSING"} for number in numbers):
+            raise MobileOrderConflict("An order changed before dispatch. Refresh this selection.")
         for line in lines:
             for field in ("sold_pcs", "sold_shell", "empty_return_pcs", "empty_return_shell", "actual_return_pcs", "actual_return_shell",
                           "discrepancy_empties_pc", "discrepancy_empties_shell", "discrepancy_full_pcs", "discrepancy_full_shell", "expected_sale", "actual_sale"):
@@ -172,6 +232,7 @@ class MobileVanLoadDispatchView(MobileVanLoadView):
         # These reservations now travel with the van; they must not become a
         # second completed sale or release the inventory transferred to it.
         Merchandising.objects.filter(pk__in=batch.orders.values_list("merchandising_id", flat=True)).update(status="Transferred to Van Load")
+        process_mobile_orders(warehouse, numbers, "OUT_FOR_DELIVERY", request.user, van_load_batch=batch)
         return Response(MerchandisingSerializer(sale).data, status=201)
 
 
@@ -180,6 +241,37 @@ class MobileVanLoadDetailView(MobileVanLoadView):
         warehouse = _request_warehouse(request)
         batch = get_object_or_404(MobileVanLoadBatch, pk=batch_id, warehouse=warehouse)
         response = Response(batch_data(batch))
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+class MobileVanLoadOutcomeView(MobileVanLoadView):
+    def post(self, request, batch_id):
+        warehouse = _request_warehouse(request)
+        with transaction.atomic():
+            batch = get_object_or_404(
+                MobileVanLoadBatch.objects.select_for_update(),
+                pk=batch_id, warehouse=warehouse,
+            )
+            if not batch.merchandising_id:
+                raise MobileOrderConflict("Save the van load before confirming its delivery results.")
+            if batch.return_fingerprint:
+                raise MobileOrderConflict("Delivery results are already finalized with this remittance.")
+            outcomes = request.data.get("outcomes")
+            validated_return_outcomes(batch, outcomes)
+            batch.return_outcomes = outcomes
+            batch.outcomes_confirmed_by = request.user
+            batch.outcomes_confirmed_at = timezone.now()
+            batch.save(update_fields=[
+                "return_outcomes", "outcomes_confirmed_by", "outcomes_confirmed_at",
+            ])
+        response = Response({
+            "outcomes": batch.return_outcomes,
+            "outcomes_confirmed_by": " ".join(filter(None, [
+                request.user.first_name, request.user.last_name,
+            ])) or request.user.email or str(request.user.pk),
+            "outcomes_confirmed_at": batch.outcomes_confirmed_at,
+        })
         response["Cache-Control"] = "no-store"
         return response
 
@@ -229,20 +321,21 @@ class MobileVanLoadReturnView(MobileVanLoadView):
         quantities = batch_quantities(batch)
         if len(lines.validated_data) != len(quantities) or {str(line["productId"]) for line in lines.validated_data} != set(quantities):
             raise ValidationError("Declare sold products and returns for every product in this van load once.")
-        outcomes = request.data.get("order_outcomes", {})
-        receipts = list(batch.orders.all())
-        if not isinstance(outcomes, dict) or set(outcomes) != {receipt.order_number for receipt in receipts} or any(value not in {"DELIVERED", "RETURNED"} for value in outcomes.values()):
-            raise ValidationError("Mark every mobile order as Accepted or Returned.")
-        sold = defaultdict(int)
-        returned = defaultdict(int)
-        for receipt in receipts:
-            target = sold if outcomes[receipt.order_number] == "DELIVERED" else returned
-            for pid, quantity in receipt.quantities.items():
-                target[pid] += quantity
-        for line in lines.validated_data:
-            pid = str(line["productId"])
-            if line["sold_pcs"] != sold[pid] or line["actual_return_pcs"] != returned[pid]:
-                raise ValidationError("Sold and returned full pieces must match the Accepted/Returned orders.")
+        outcomes = request.data.get("order_outcomes") or batch.return_outcomes or {}
+        receipts = validated_return_outcomes(batch, outcomes, require_all=False)
+        if batch.outcomes_confirmed_by and outcomes != batch.return_outcomes:
+            raise MobileOrderConflict("Delivery results changed after confirmation. Confirm them again before remittance.")
+        if len(outcomes) == len(receipts):
+            sold = defaultdict(int)
+            returned = defaultdict(int)
+            for receipt in receipts:
+                target = sold if outcomes[receipt.order_number] == "DELIVERED" else returned
+                for pid, quantity in receipt.quantities.items():
+                    target[pid] += quantity
+            for line in lines.validated_data:
+                pid = str(line["productId"])
+                if line["sold_pcs"] != sold[pid] or line["actual_return_pcs"] != returned[pid]:
+                    raise ValidationError("Sold and returned full pieces must match the Accepted/Returned orders.")
         adjustment = {}
         for line in lines.validated_data:
             pid = str(line.pop("productId"))
@@ -267,10 +360,16 @@ class MobileVanLoadReturnView(MobileVanLoadView):
         for field, key in money_fields.items():
             value = serializers.DecimalField(max_digits=12, decimal_places=2, min_value=Decimal(0)).run_validation(request.data.get(key, 0))
             setattr(sale, field, value)
+        route_address = " ".join((sale.route.route_name if sale.route else "").split())
+        address_key = hashlib.sha256(route_address.casefold().encode("utf-8")).hexdigest()
+        sale.delivery_fee = MobileDeliveryAddress.objects.filter(
+            warehouse_id=sale.warehouse_id, address_key=address_key,
+        ).values_list("delivery_fee", flat=True).first() or Decimal("0.00")
         sale.remarks = str(request.data.get("remarks", ""))
         sale.full_returns_applied = True
         sale.save()
         batch.return_fingerprint = fingerprint
         batch.return_outcomes = outcomes
-        batch.save(update_fields=["return_fingerprint", "return_outcomes"])
+        update_fields = ["return_fingerprint", "return_outcomes"]
+        batch.save(update_fields=update_fields)
         return Response({"sale_id": sale.pk, "status": sale.status}), batch

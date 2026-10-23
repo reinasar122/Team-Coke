@@ -77,3 +77,45 @@ class PromotionTests(TestCase):
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.data["discount_percent"], "0.00")
         self.assertEqual(response.data["title"], "Buy One Take One")
+
+    def test_management_list_hides_expired_promotions(self):
+        expired = Promotion.objects.create(
+            warehouse=self.warehouse, promotion_type="free-shipping",
+            start_date=self.today - timedelta(days=2), end_date=self.today - timedelta(days=1),
+            is_active=True,
+        )
+        expired.products.add(self.product)
+        active = Promotion.objects.create(
+            warehouse=self.warehouse, promotion_type="free-shipping",
+            start_date=self.today, end_date=self.today, is_active=True,
+        )
+        active.products.add(self.product)
+        response = self.client.get("/api/promotions/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([row["id"] for row in response.data], [active.pk])
+
+    def test_active_promotion_can_be_edited(self):
+        promotion = Promotion.objects.create(
+            warehouse=self.warehouse, promotion_type="occasional-discount", discount_percent="12.50",
+            start_date=self.today, end_date=self.today + timedelta(days=3), is_active=True,
+        )
+        promotion.products.add(self.product)
+        response = self.client.patch(
+            f"/api/promotions/{promotion.pk}/",
+            {"discount_percent": "15.00"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data["discount_percent"], "15.00")
+        promotion.refresh_from_db()
+        self.assertEqual(str(promotion.discount_percent), "15.00")
+
+    def test_expired_promotion_cannot_be_edited(self):
+        promotion = Promotion.objects.create(
+            warehouse=self.warehouse, promotion_type="free-shipping",
+            start_date=self.today - timedelta(days=2), end_date=self.today - timedelta(days=1),
+            is_active=True,
+        )
+        promotion.products.add(self.product)
+        response = self.client.patch(f"/api/promotions/{promotion.pk}/", {"end_date": "2026-10-30"}, format="json")
+        self.assertEqual(response.status_code, 400)

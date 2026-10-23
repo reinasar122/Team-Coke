@@ -612,6 +612,7 @@ class Merchandising(models.Model):
 
     expected_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     actual_sale = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    delivery_fee = models.DecimalField(max_digits=12, decimal_places=2, default=0)
 
     discrepancy_non_empty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     discrepancy_empty = models.DecimalField(max_digits=12, decimal_places=2, default=0)
@@ -680,8 +681,10 @@ class Merchandising(models.Model):
                         else:
                             prev_num = 0
 
-                        seq.last_number = prev_num + 1
-                        seq.save(update_fields=['last_number'])
+                        seq.last_number = prev_num
+
+                    seq.last_number += 1
+                    seq.save(update_fields=['last_number'])
 
                     self.msp_no = f'{prefix}-{seq.last_number:04d}'
 
@@ -1102,6 +1105,10 @@ class MobileDeliveryAddress(models.Model):
     warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT)
     address = models.CharField(max_length=255)
     address_key = models.CharField(max_length=64, editable=False)
+    delivery_fee = models.DecimalField(
+        max_digits=10, decimal_places=2, default=Decimal("0.00"),
+        validators=[MinValueValidator(Decimal("0.00"))],
+    )
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -1122,6 +1129,8 @@ class MobileDelivery(models.Model):
     warehouse = models.ForeignKey(Warehouse, on_delete=models.PROTECT)
     destination = models.ForeignKey(MobileDeliveryAddress, on_delete=models.PROTECT)
     address = models.CharField(max_length=255)  # Snapshot for the delivery sheet.
+    delivery_fee_per_order = models.DecimalField(max_digits=10, decimal_places=2, default=Decimal("0.00"))
+    delivery_fee_total = models.DecimalField(max_digits=12, decimal_places=2, default=Decimal("0.00"))
     created_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -1156,6 +1165,10 @@ class MobileVanLoadBatch(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     return_fingerprint = models.CharField(max_length=64, blank=True)
     return_outcomes = models.JSONField(default=dict)
+    outcomes_confirmed_by = models.ForeignKey(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="+",
+    )
+    outcomes_confirmed_at = models.DateTimeField(null=True, blank=True)
 
 
 class MobileOrderStockCommitment(models.Model):

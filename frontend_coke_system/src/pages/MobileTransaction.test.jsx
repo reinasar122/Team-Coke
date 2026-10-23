@@ -28,7 +28,7 @@ const rawOrder = {
 let orderState;
 let historyState;
 const preparedBatch = {
-  id: "batch-1", warehouse: 1, status: "PROCESSING", order_numbers: ["ORD-1001"],
+  id: null, warehouse: 1, status: "DRAFT", order_numbers: ["ORD-1001"],
   items: [{ product_id: 51, product_name: "Coke 1.5L", quantity: 2 }],
 };
 const selectOrder = (number) => {
@@ -56,6 +56,109 @@ test("Returned is displayed as an order result and cannot be selected for anothe
   render(<MobileTransaction />);
   expect(within(screen.getByRole("table", { name: "Mobile order statuses" })).getByText("Returned")).toBeInTheDocument();
   expect(screen.queryByRole("button", { name: "Select order ORD-1001" })).not.toBeInTheDocument();
+});
+
+test("delivered orders are removed from purchase cards but remain in order status", () => {
+  const deliveredOrder = toPurchaseCard({
+    ...rawOrder, order_number: "ORD-DELIVERED", mobile_order_number: "MO-0002", status: "DELIVERED",
+  });
+  orderState.orders = [
+    toPurchaseCard(rawOrder),
+    deliveredOrder,
+  ];
+  historyState.orders = [deliveredOrder];
+
+  render(<MobileTransaction />);
+
+  expect(screen.getByRole("article", { name: "ORD-1001" })).toBeInTheDocument();
+  expect(screen.queryByRole("article", { name: "MO-0002" })).not.toBeInTheDocument();
+  const statusTable = screen.getByRole("table", { name: "Mobile order statuses" });
+  expect(within(statusTable).getByText("MO-0002")).toBeInTheDocument();
+});
+
+test("delivered order status opens a printable per-order receipt with its shipping share", async () => {
+  const delivered = {
+    ...rawOrder,
+    order_number: "ORD-DELIVERED",
+    mobile_order_number: "MO-0002",
+    status: "DELIVERED",
+    delivery_fee: "3.34",
+  };
+  const deliveredCard = toPurchaseCard(delivered);
+  orderState.orders = [deliveredCard];
+  historyState.orders = [deliveredCard];
+  api.get.mockResolvedValue({ data: delivered });
+  const print = jest.spyOn(window, "print").mockImplementation(() => {});
+
+  render(<MobileTransaction />);
+  fireEvent.click(screen.getByRole("button", { name: "View order status for MO-0002" }));
+
+  const dialog = await screen.findByRole("dialog", { name: "MO-0002" });
+  expect(within(dialog).getByText("Products subtotal")).toBeInTheDocument();
+  expect(within(dialog).getByText("Shipping fee").nextSibling).toHaveTextContent("3.34");
+  expect(within(dialog).getByText("Total").nextSibling).toHaveTextContent("323.34");
+  fireEvent.click(within(dialog).getByRole("button", { name: "Print Receipt" }));
+  expect(print).toHaveBeenCalledTimes(1);
+  expect(document.querySelector(".mobile-order-receipt")).toHaveTextContent("MO-0002");
+});
+
+test("empty online orders show a centered clickable refresh message", () => {
+  orderState.orders = [];
+  orderState.refresh = jest.fn();
+  render(<MobileTransaction />);
+
+  const emptyState = screen.getByRole("button", { name: "Refresh online orders" });
+  expect(emptyState).toHaveTextContent("No online orders yet. Please click here to refresh.");
+  expect(emptyState).toHaveClass("mobile-purchases__empty");
+  fireEvent.click(emptyState);
+  expect(orderState.refresh).toHaveBeenCalledTimes(1);
+});
+
+test("delivery grouping is in the Order Status panel", () => {
+  render(<MobileTransaction />);
+  const orderStatusPanel = screen.getByRole("complementary", { name: "Order Status" });
+  selectOrder("ORD-1001");
+  expect(within(orderStatusPanel).getByRole("table", { name: "Mobile order statuses" })).toBeInTheDocument();
+  expect(within(orderStatusPanel).getByText("Group into One Delivery", { selector: "summary" })).toBeInTheDocument();
+  expect(within(orderStatusPanel).getByText("Delivery tools (1 selected)")).toBeInTheDocument();
+  expect(document.querySelector("#mobile-delivery-tools")?.parentElement).toBe(orderStatusPanel);
+});
+
+test("selecting an order auto-selects the saved route matching its municipality", () => {
+  const ginatilanOrder = {
+    ...rawOrder,
+    order_address: "Purok Tulingan, Palanas, Ginatilan, Cebu, Region VII (Central Visayas), 6028, Philippines",
+  };
+  orderState.orders = [toPurchaseCard(ginatilanOrder)];
+  useMobileDeliveries.mockReturnValue({
+    available: [], saved: [
+      { id: 3, address: "Cebu", delivery_fee: "20.00" },
+      { id: 7, address: "Ginatilan", delivery_fee: "10.00" },
+    ], deliveries: [], error: "", rememberAddress: jest.fn(),
+    rememberDelivery: jest.fn(), refreshDeliveries: jest.fn(),
+  });
+
+  render(<MobileTransaction />);
+  selectOrder("ORD-1001");
+
+  expect(screen.getByLabelText("Delivery address / area")).toHaveValue("7");
+});
+
+test("recent delivery groups display public mobile order numbers", () => {
+  useMobileDeliveries.mockReturnValue({
+    available: [], saved: [],
+    deliveries: [{
+      id: "delivery-1", address: "Cebu City", order_numbers: ["WA-0001"],
+      mobile_order_numbers: ["MO-0001"], delivery_fee_total: "10.00",
+    }],
+    error: "", rememberAddress: jest.fn(), rememberDelivery: jest.fn(), refreshDeliveries: jest.fn(),
+  });
+
+  render(<MobileTransaction />);
+
+  const summary = document.querySelector(".mobile-purchases__delivery-summary");
+  expect(summary).toHaveTextContent("MO-0001");
+  expect(summary).not.toHaveTextContent("WA-0001");
 });
 
 test("public MO numbers are displayed while detail and confirmation use the source reference", async () => {
@@ -103,7 +206,7 @@ test("clicking a card opens fresh details including products hidden from its pre
   await waitFor(() => expect(within(dialog).queryByRole("status")).not.toBeInTheDocument());
   expect(api.get).toHaveBeenCalledWith("mobile-orders/ORD-1001/", expect.objectContaining({ params: { warehouse: 1 } }));
   expect(within(dialog).getByText("Royal 1.5L")).toBeInTheDocument();
-  expect(within(dialog).getByText("₱ 320.00")).toBeInTheDocument();
+  expect(within(dialog).getAllByText("₱ 320.00")).toHaveLength(2);
   expect(within(dialog).getByText("Greenview, Cebu City")).toBeInTheDocument();
   expect(document.body.style.overflow).toBe("hidden");
   fireEvent.click(within(dialog).getByRole("button", { name: "Close order details" }));
@@ -183,6 +286,8 @@ test("confirmation hands selected orders to Van Load after server acknowledgment
   expect(screen.getByText("Order Status")).toBeInTheDocument();
   expect(orderState.refresh).toHaveBeenCalled();
   expect(historyState.refresh).toHaveBeenCalled();
+  expect(within(history).getByText("Pending")).toBeInTheDocument();
+  expect(within(history).queryByText("Processing")).not.toBeInTheDocument();
 });
 
 test("failed confirmation keeps the selection and reports the API error", async () => {
@@ -268,4 +373,3 @@ test("the toolbar address filter keeps selected orders and can open the saved ad
   expect(useMobileOrders).toHaveBeenCalledWith(rawOrder.customer_address);
   expect(screen.getByRole("checkbox", { name: "Select ORD-1001" })).toBeChecked();
 });
-

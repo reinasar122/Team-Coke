@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 from django.db import transaction
 from django.utils import timezone
 from rest_framework import serializers
-from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.exceptions import NotFound, PermissionDenied, ValidationError
 from rest_framework.permissions import AllowAny, BasePermission
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -79,16 +79,20 @@ class PromotionSerializer(serializers.ModelSerializer):
         return "Expired" if obj.end_date < today else "Active"
 
     def validate(self, attrs):
-        if attrs["end_date"] < attrs["start_date"]:
+        start_date = attrs.get("start_date", getattr(self.instance, "start_date", None))
+        end_date = attrs.get("end_date", getattr(self.instance, "end_date", None))
+        if end_date < start_date:
             raise serializers.ValidationError({"end_date": "End date must be on or after start date."})
-        discount = attrs.get("discount_percent", 0)
-        if attrs["promotion_type"] == Promotion.Type.OCCASIONAL_DISCOUNT:
+        promotion_type = attrs.get("promotion_type", getattr(self.instance, "promotion_type", None))
+        discount = attrs.get("discount_percent", getattr(self.instance, "discount_percent", 0))
+        if promotion_type == Promotion.Type.OCCASIONAL_DISCOUNT:
             if not 0 < discount <= 100:
                 raise serializers.ValidationError({"discount_percent": "Enter a discount greater than 0 and at most 100%."})
         else:
             attrs["discount_percent"] = 0
         warehouse = self.context["warehouse"]
-        if any(product.warehouse_id != warehouse.pk for product in attrs["products"]):
+        products = attrs.get("products")
+        if products is not None and any(product.warehouse_id != warehouse.pk for product in products):
             raise serializers.ValidationError({"product_ids": "Choose products from this warehouse only."})
         return attrs
 
@@ -99,8 +103,10 @@ class PromotionListCreateView(APIView):
 
     def get(self, request):
         warehouse = promotion_warehouse(request)
-        rows = Promotion.objects.filter(warehouse=warehouse).prefetch_related("products")
-        return Response(PromotionSerializer(rows, many=True).data, headers={"Cache-Control": "no-store"})
+        today = promotion_today()
+        rows = Promotion.objects.filter(warehouse=warehouse, end_date__gte=today).prefetch_related("products")
+        return Response(PromotionSerializer(rows, many=True, context={"today": today}).data,
+                        headers={"Cache-Control": "no-store"})
 
     def post(self, request):
         warehouse = promotion_warehouse(request)
@@ -109,6 +115,23 @@ class PromotionListCreateView(APIView):
         with transaction.atomic():
             serializer.save(warehouse=warehouse, created_by=request.user)
         return Response(serializer.data, status=201, headers={"Cache-Control": "no-store"})
+
+    def patch(self, request, promotion_id):
+        warehouse = promotion_warehouse(request)
+        promotion = Promotion.objects.filter(warehouse=warehouse).prefetch_related("products").filter(
+            pk=promotion_id,
+        ).first()
+        if promotion is None:
+            raise NotFound("Promotion not found.")
+        if PromotionSerializer(promotion, context={"today": promotion_today()}).data["status"] != "Active":
+            raise ValidationError({"detail": "Only active promotions can be edited."})
+        serializer = PromotionSerializer(
+            promotion, data=request.data, partial=True,
+            context={"warehouse": warehouse, "today": promotion_today()},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, headers={"Cache-Control": "no-store"})
 
 
 class ActivePromotionListView(APIView):

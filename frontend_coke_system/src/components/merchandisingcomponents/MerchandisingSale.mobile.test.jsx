@@ -5,7 +5,7 @@ import MerchandisingSale from "./MerchandisingSale";
 import api from "../../api";
 
 const mockNavigate = jest.fn();
-const mockBatch = { id: "batch-1", warehouse: 1, order_numbers: ["WA-0001", "WA-0002", "WA-0003"], items: [{ product_id: 75, product_name: "Coke", quantity: 6 }] };
+const mockBatch = { id: null, status: "DRAFT", warehouse: 1, order_numbers: ["WA-0001", "WA-0002", "WA-0003"], items: [{ product_id: 75, product_name: "Coke", quantity: 6 }] };
 const mockLocation = { pathname: "/merchandising-sale", key: "mobile", state: { transactionTypeName: "Van Load", mobileVanLoad: mockBatch } };
 jest.mock("react-router-dom", () => ({ useNavigate: () => mockNavigate, useLocation: () => mockLocation }), { virtual: true });
 jest.mock("../../api", () => ({ get: jest.fn(), post: jest.fn(), patch: jest.fn() }));
@@ -41,7 +41,7 @@ afterEach(() => {
   document.querySelectorAll("body > .fixed").forEach((element) => element.remove());
 });
 
-test("confirmed mobile stock preloads Van Load even when remaining stock is zero and saves without bulk deduction", async () => {
+test("mobile preview preloads Van Load without saving and commits through the dispatch endpoint only on For Delivery", async () => {
   render(<MerchandisingSale />);
   const product = await screen.findByText("Coke");
   const row = product.closest("tr");
@@ -58,8 +58,11 @@ test("confirmed mobile stock preloads Van Load even when remaining stock is zero
   fireEvent.change(van, { target: { value: "4" } });
   const save = screen.getByRole("button", { name: "For Delivery" });
   await waitFor(() => expect(save).toBeEnabled());
+  expect(api.post).not.toHaveBeenCalled();
+  expect(api.patch).not.toHaveBeenCalled();
   fireEvent.click(save);
-  await waitFor(() => expect(api.post).toHaveBeenCalledWith("mobile-van-loads/batch-1/dispatch/", expect.objectContaining({
+  await waitFor(() => expect(api.post).toHaveBeenCalledWith("mobile-orders/van-load/dispatch/", expect.objectContaining({
+    order_numbers: mockBatch.order_numbers,
     status: "Pending", warehouse: 1, route: 3, van: 4,
     items: [expect.objectContaining({ product: 75, dispatched_pcs: 6, actual_return_pcs: 0, actual_sale: 0 })],
   }), { params: { warehouse: 1 } }));

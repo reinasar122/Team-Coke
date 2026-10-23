@@ -245,6 +245,7 @@
 
   &__primary-btn {
     min-width: 9.5rem;
+    color: #fff;
     box-shadow: 0 10px 24px rgba(37, 99, 235, 0.2);
   }
 
@@ -261,6 +262,96 @@
     font-size: 0.95rem;
     font-weight: 700;
     color: #1e3a8a;
+  }
+
+  &__delivery-fees {
+    margin-top: 2rem;
+    padding-top: 1.6rem;
+    border-top: 1px solid rgba(203, 213, 225, 0.85);
+  }
+
+  &__delivery-fees-heading h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: 1.1rem;
+    font-weight: 700;
+  }
+
+  &__delivery-fees-heading p {
+    margin: 0.4rem 0 1rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+  }
+
+  &__delivery-fee-form {
+    display: grid;
+    grid-template-columns: minmax(220px, 2fr) minmax(150px, 1fr) auto;
+    gap: 0.8rem;
+    align-items: end;
+    margin-bottom: 1rem;
+
+    label {
+      display: grid;
+      gap: 0.4rem;
+      color: var(--text);
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+
+    input {
+      min-height: 2.6rem;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      background: var(--surface, #fff);
+      color: var(--text);
+    }
+  }
+
+  &__delivery-fee-actions,
+  &__delivery-fee-row-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: center;
+
+    button {
+      min-height: 2.4rem;
+      padding: 0.45rem 0.75rem;
+      border: 1px solid var(--border);
+      border-radius: 0.55rem;
+      background: var(--surface, #fff);
+      color: var(--text);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+
+    button:first-child {
+      border-color: #2563eb;
+      background: #2563eb;
+      color: #fff;
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.55;
+    }
+  }
+
+  &__delivery-fee-row-actions button:last-child {
+    color: #b91c1c;
+  }
+
+  &__delivery-fee-row-actions button {
+    min-height: auto;
+    padding: 0.4rem;
+    border: 0;
+    background: transparent;
+  }
+
+  &__delivery-fee-row-actions button:first-child {
+    border: 0;
+    background: transparent;
+    color: #2563eb;
   }
 
   @media (max-width: 1100px) {
@@ -285,6 +376,18 @@
     &__actions {
       flex-direction: column-reverse;
       align-items: stretch;
+    }
+
+    &__delivery-fee-form {
+      grid-template-columns: 1fr;
+    }
+
+    &__delivery-fee-actions {
+      justify-content: stretch;
+    }
+
+    &__delivery-fee-actions button {
+      flex: 1;
     }
 
     &__secondary-btn,

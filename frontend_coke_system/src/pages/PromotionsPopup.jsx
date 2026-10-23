@@ -4,15 +4,17 @@ import { FaTimes } from "react-icons/fa";
 import api from "../api";
 import "../styles/pages/mobiletransaction.scss";
 
-const PromotionsPopup = ({ warehouseId, onClose, onSaved }) => {
+const PromotionsPopup = ({ warehouseId, promotion, onClose, onSaved }) => {
   const dialogRef = useRef(null);
-  const [promotionType, setPromotionType] = useState("");
-  const [promotionValue, setPromotionValue] = useState("");
-  const [selectedProducts, setSelectedProducts] = useState([]);
+  const [promotionType, setPromotionType] = useState(promotion?.promotion_type || "");
+  const [promotionValue, setPromotionValue] = useState(promotion?.discount_percent || "");
+  const [selectedProducts, setSelectedProducts] = useState(
+    promotion?.products?.map((product) => String(product.id)) || [],
+  );
   const [allProducts, setAllProducts] = useState([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
+  const [startDate, setStartDate] = useState(promotion?.start_date || "");
+  const [endDate, setEndDate] = useState(promotion?.end_date || "");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -34,7 +36,7 @@ const PromotionsPopup = ({ warehouseId, onClose, onSaved }) => {
     const controller = new AbortController();
     const fetchProducts = async () => {
       setLoadingProducts(true);
-      setSelectedProducts([]);
+      setSelectedProducts(promotion?.products?.map((product) => String(product.id)) || []);
       setError("");
       try {
         if (!warehouseId) throw new Error("Select a warehouse before adding a promotion.");
@@ -49,7 +51,7 @@ const PromotionsPopup = ({ warehouseId, onClose, onSaved }) => {
     };
     fetchProducts();
     return () => controller.abort();
-  }, [warehouseId]);
+  }, [warehouseId, promotion]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,15 +68,20 @@ const PromotionsPopup = ({ warehouseId, onClose, onSaved }) => {
     }
     setSaving(true);
     try {
-      const response = await api.post("promotions/", {
+      const payload = {
         promotion_type: promotionType,
         discount_percent: promotionType === "occasional-discount" ? promotionValue : "0",
         product_ids: selectedProducts.map(Number), start_date: startDate, end_date: endDate,
-      }, { params: { warehouse: warehouseId } });
+      };
+      const response = promotion
+        ? await api.patch(`promotions/${promotion.id}/`, payload, { params: { warehouse: warehouseId } })
+        : await api.post("promotions/", payload, { params: { warehouse: warehouseId } });
       onSaved?.(response.data);
-      setMessage(response.data.status === "Active"
-        ? "Promotion saved. It is now available on the mobile home page."
-        : "Promotion saved. It will appear on the mobile home page during its scheduled dates.");
+      setMessage(promotion
+        ? "Promotion updated."
+        : response.data.status === "Active"
+          ? "Promotion saved. It is now available on the mobile home page."
+          : "Promotion saved. It will appear on the mobile home page during its scheduled dates.");
       setSelectedProducts([]);
       setPromotionType("");
       setPromotionValue("");
@@ -105,7 +112,7 @@ const PromotionsPopup = ({ warehouseId, onClose, onSaved }) => {
       <div className="mobile-order-dialog__content">
         <header>
           <div>
-            <h2 id="promotions-title">Add Promotion</h2>
+            <h2 id="promotions-title">{promotion ? "Edit Promotion" : "Add Promotion"}</h2>
           </div>
           <button
             type="button"
@@ -213,7 +220,7 @@ const PromotionsPopup = ({ warehouseId, onClose, onSaved }) => {
           {error && <p role="alert" className="mobile-purchases__feedback">{error}</p>}
 
           <button type="submit" className="mobile-purchases__primary mobile-order-dialog__confirm" disabled={saving || loadingProducts || !warehouseId || allProducts.length === 0}>
-            {saving ? "Saving…" : "Save Promotion"}
+            {saving ? "Saving…" : promotion ? "Save Changes" : "Save Promotion"}
           </button>
           <button type="button" className="mobile-purchases__primary mobile-order-dialog__done" onClick={onClose} disabled={saving}>
             Cancel

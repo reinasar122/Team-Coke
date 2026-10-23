@@ -3,7 +3,7 @@ import api from "../api";
 
 const dateLabel = (value) => new Intl.DateTimeFormat("en-PH", { dateStyle: "medium", timeZone: "Asia/Manila" }).format(new Date(`${value}T00:00:00+08:00`));
 
-export default function MobilePromotions({ warehouseId, refreshKey }) {
+export default function MobilePromotions({ warehouseId, refreshKey, onEdit }) {
   const [state, setState] = useState({ rows: [], loading: true, error: "" });
   useEffect(() => {
     if (!warehouseId) return;
@@ -23,6 +23,7 @@ export default function MobilePromotions({ warehouseId, refreshKey }) {
     window.addEventListener("focus", load);
     return () => { controller.abort(); window.clearInterval(timer); window.removeEventListener("focus", load); };
   }, [warehouseId, refreshKey]);
+  const visibleRows = state.rows.filter((promotion) => promotion.status !== "Expired");
 
   return <section className="mobile-promotions" aria-labelledby="mobile-promotions-title">
     <h2 id="mobile-promotions-title">Promotions</h2>
@@ -30,13 +31,29 @@ export default function MobilePromotions({ warehouseId, refreshKey }) {
     {!warehouseId ? <p className="mobile-promotions__hint">Select a warehouse to view promotions.</p>
       : state.loading ? <p role="status">Loading promotions…</p>
       : state.error ? <p role="alert" className="mobile-purchases__feedback">{state.error}</p>
-      : state.rows.length === 0 ? <p className="mobile-promotions__hint">No promotions yet. Use Add Promotions to create one.</p>
+      : visibleRows.length === 0 ? <p className="mobile-promotions__hint">No current or upcoming promotions. Use Add Promotions to create one.</p>
       : <div className="mobile-promotions__list">
-        {state.rows.map((promotion) => <article className={`mobile-promotions__card mobile-promotions__card--${promotion.promotion_type}`} key={promotion.id}>
-          <div className="mobile-promotions__heading"><h3>{promotion.title}</h3><span>{promotion.status}</span></div>
-          <p>{promotion.products.map((product) => product.product_name).join(", ")}</p>
-          <small>{dateLabel(promotion.start_date)} – {dateLabel(promotion.end_date)}</small>
-        </article>)}
+        {visibleRows.map((promotion) => {
+          const editable = promotion.status === "Active" && Boolean(onEdit);
+          return <article
+            className={`mobile-promotions__card mobile-promotions__card--${promotion.promotion_type}${editable ? " mobile-promotions__card--editable" : ""}`}
+            key={promotion.id}
+            role={editable ? "button" : undefined}
+            tabIndex={editable ? 0 : undefined}
+            aria-label={editable ? `${promotion.title}, edit promotion` : undefined}
+            onClick={editable ? () => onEdit(promotion) : undefined}
+            onKeyDown={editable ? (event) => {
+              if (event.key === "Enter" || event.key === " ") {
+                event.preventDefault();
+                onEdit(promotion);
+              }
+            } : undefined}
+          >
+            <div className="mobile-promotions__heading"><h3>{promotion.title}</h3><span>{promotion.status}</span></div>
+            <p>{promotion.products.map((product) => product.product_name).join(", ")}</p>
+            <small>{dateLabel(promotion.start_date)} – {dateLabel(promotion.end_date)}</small>
+          </article>;
+        })}
       </div>}
   </section>;
 }

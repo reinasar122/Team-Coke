@@ -2,8 +2,11 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from . import views
 from .mobile_orders import MobileOrderConfirmView, MobileOrderDetailView, MobileOrderListView
-from .mobile_van_loads import MobileVanLoadPrepareView, MobileVanLoadDispatchView, MobileVanLoadReturnView, MobileVanLoadDetailView
-from .mobile_deliveries import MobileDeliveryAddressView, MobileDeliveryListCreateView
+from .mobile_van_loads import MobileVanLoadPrepareView, MobileVanLoadDispatchView, MobileVanLoadReturnView, MobileVanLoadDetailView, MobileVanLoadOutcomeView
+from .mobile_deliveries import (
+    DeliveryFeeDetailView, DeliveryFeeView, MobileDeliveryAddressView,
+    MobileDeliveryListCreateView,
+)
 from .promotions import ActivePromotionListView, PromotionListCreateView
 from .views import (
     WarehouseListCreateView, WarehouseDetailView,
@@ -73,10 +76,13 @@ router.register(r'notification-preferences', NotificationPreferenceViewSet, base
 
 urlpatterns = [
     path('mobile-orders/van-load/', MobileVanLoadPrepareView.as_view(), name='mobile-van-load-prepare'),
+    path('mobile-orders/van-load/dispatch/', MobileVanLoadDispatchView.as_view(), name='mobile-van-load-save'),
     path('mobile-van-loads/<uuid:batch_id>/dispatch/', MobileVanLoadDispatchView.as_view(), name='mobile-van-load-dispatch'),
     path('mobile-van-loads/<uuid:batch_id>/return/', MobileVanLoadReturnView.as_view(), name='mobile-van-load-return'),
+    path('mobile-van-loads/<uuid:batch_id>/outcomes/', MobileVanLoadOutcomeView.as_view(), name='mobile-van-load-outcomes'),
     path('mobile-van-loads/<uuid:batch_id>/', MobileVanLoadDetailView.as_view(), name='mobile-van-load-detail'),
     path('promotions/', PromotionListCreateView.as_view(), name='promotion-list-create'),
+    path('promotions/<int:promotion_id>/', PromotionListCreateView.as_view(), name='promotion-detail'),
     path('promotions/active/', ActivePromotionListView.as_view(), name='active-promotions'),
     # User URLs
     path('register/', RegisterView.as_view(), name='register'),
@@ -191,6 +197,8 @@ urlpatterns = [
     path('login/', LoginAPIView.as_view(), name='login'),
     path('mobile-orders/', MobileOrderListView.as_view(), name='mobile-order-list'),
     path('mobile-delivery-addresses/', MobileDeliveryAddressView.as_view(), name='mobile-delivery-addresses'),
+    path('delivery-fees/', DeliveryFeeView.as_view(), name='delivery-fee-list-create'),
+    path('delivery-fees/<int:pk>/', DeliveryFeeDetailView.as_view(), name='delivery-fee-detail'),
     path('mobile-deliveries/', MobileDeliveryListCreateView.as_view(), name='mobile-deliveries'),
     path('mobile-orders/confirm/', MobileOrderConfirmView.as_view(), name='mobile-order-confirm'),
     path('mobile-orders/<str:order_number>/', MobileOrderDetailView.as_view(), name='mobile-order-detail'),

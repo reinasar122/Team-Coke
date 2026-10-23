@@ -37,20 +37,17 @@ afterEach(() => {
   document.querySelectorAll('body > .fixed').forEach((element) => element.remove());
 });
 
-test('customer refusal is declared per order and submitted with products and quantities before van completion', async () => {
+test('mobile delivery results section is removed and remittance does not submit redundant outcomes', async () => {
   render(<VanLoadReturnRemittance />);
-  const accepted = await screen.findByLabelText('MO-0001 · Customer A');
-  const refused = screen.getByLabelText('MO-0002 · Customer B');
-  fireEvent.click(screen.getByRole('button', { name: 'Remittance' }));
-  expect(screen.queryByRole('button', { name: 'Submit declaration' })).not.toBeInTheDocument();
-  fireEvent.change(accepted, { target: { value: 'DELIVERED' } });
-  fireEvent.change(refused, { target: { value: 'RETURNED' } });
+  await screen.findByText('Coke');
+  expect(screen.queryByRole('region', { name: 'Mobile order delivery results' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'Confirm delivery status' })).not.toBeInTheDocument();
+
   fireEvent.click(screen.getByRole('button', { name: 'Remittance' }));
   fireEvent.click(await screen.findByRole('button', { name: 'Submit declaration' }));
+
   await waitFor(() => expect(api.post).toHaveBeenCalledWith('/mobile-van-loads/batch-1/return/', expect.objectContaining({
-    order_outcomes: { 'WA-1': 'DELIVERED', 'WA-2': 'RETURNED' },
     products: [expect.objectContaining({ productId: 75, sold_pcs: 4, actual_return_pcs: 2 })],
   }), { params: { warehouse: 1 } }));
   await waitFor(() => expect(api.patch).toHaveBeenCalledWith('/merchandising-set/91/', expect.objectContaining({ status: 'Complete' })));
-  expect(api.post.mock.invocationCallOrder[0]).toBeLessThan(api.patch.mock.invocationCallOrder[0]);
 });

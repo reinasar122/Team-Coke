@@ -23,6 +23,14 @@ this order address. The `address` filter accepts up to 1,000 characters.
 `customer_address` remains the profile address, and `delivery_address` remains
 the separately assigned POS delivery-group destination. These endpoints keep
 the existing POS login, Trading permissions, and warehouse restrictions.
+Delivery group responses keep source references in `order_numbers` for
+processing and also provide public `mobile_order_numbers` (for example,
+`MO-0001`) for display.
+Mobile order list and detail responses include `delivery_fee`. For completed
+mobile Van Loads, the configured one-time route fee is split evenly across the
+batch's orders, with remaining cents assigned in source-order order. Each order
+detail can show its products subtotal, shipping share, and total; the printable
+per-order receipt becomes available after that order is marked `DELIVERED`.
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -127,16 +135,22 @@ The status table has its own paginated query, independent of the address filter.
 Run POS migration `0041_mobile_van_load_batch` before enabling this workflow.
 
 - `POST /api/mobile-orders/van-load/` accepts `order_numbers` (1–100 source
-  references). It commits inventory once, records a durable batch, changes the
-  source orders to `PROCESSING`, and returns POS product IDs with quantities
-  summed across all selected orders. Public `MO-*` numbers remain display labels.
+  references). It returns a read-only preview (`status: DRAFT`, `id: null`), with
+  POS product IDs and quantities summed across the selection. Opening or leaving
+  this form creates no batch, inventory receipt, stock deduction, or status/history
+  change. Public `MO-*` numbers remain display labels.
 - The response opens Trading Sale with Van Load selected and the aggregated
   products prefilled. Choose the route and van, then use **For Delivery**.
-- `POST /api/mobile-van-loads/<batch_id>/dispatch/` validates the exact products,
-  quantities, warehouse, route and van. It creates one Pending van load with zero
-  sold/returned quantities. Repeating the request returns that same load. The
-  frontend skips the ordinary bulk stock deduction because these pieces are
-  already committed. Existing AIVA reservations become `Transferred to Van Load`
+- `POST /api/mobile-orders/van-load/dispatch/` accepts the selected `order_numbers`
+  together with the van-load payload. Saving **For Delivery** revalidates the
+  exact products, quantities, warehouse, route and van, commits inventory once,
+  and creates one Pending van load with zero sold/returned quantities. Only then
+  do source orders change to `OUT_FOR_DELIVERY` (displayed as **For Delivery**).
+  Validation or source-history failures roll back the save and stock changes.
+  Repeating the same selection returns the existing load. The frontend skips the
+  ordinary bulk stock deduction because the server applies it during this save.
+  `POST /api/mobile-van-loads/<batch_id>/dispatch/` remains available for existing
+  durable batches. Existing AIVA reservations become `Transferred to Van Load`
   and cannot subsequently be completed as separate sales.
 - Reconfirming the exact same selection resumes its batch. Partial selections
   cannot split an existing batch. `GET /api/mobile-van-loads/<batch_id>/` returns

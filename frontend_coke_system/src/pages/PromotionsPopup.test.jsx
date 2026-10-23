@@ -5,9 +5,10 @@ import PromotionsPopup from "./PromotionsPopup";
 import MobilePromotions from "../components/MobilePromotions";
 import api from "../api";
 
-jest.mock("../api", () => ({ get: jest.fn(), post: jest.fn() }));
+jest.mock("../api", () => ({ get: jest.fn(), post: jest.fn(), patch: jest.fn() }));
 const offer = { id: 9, title: "12.5% Off", status: "Active", promotion_type: "occasional-discount",
-  products: [{ id: 6, product_name: "Yakult" }], start_date: "2026-10-17", end_date: "2026-10-20" };
+  discount_percent: "12.50", products: [{ id: 6, product_name: "Yakult" }],
+  start_date: "2026-10-17", end_date: "2026-10-20" };
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -52,6 +53,20 @@ test("failed persistence preserves the selection and never claims success", asyn
   expect(screen.queryByText(/Promotion saved/)).not.toBeInTheDocument();
 });
 
+test("editing an active promotion pre-fills its values and saves an update", async () => {
+  api.patch.mockResolvedValue({ data: { ...offer, discount_percent: "15.00" } });
+  render(<PromotionsPopup warehouseId={1} promotion={offer} onSaved={jest.fn()} onClose={jest.fn()} />);
+  expect(await screen.findByLabelText("Promotion Type")).toHaveValue("occasional-discount");
+  expect(screen.getByLabelText("Discount (%)")).toHaveValue(12.5);
+  expect(await screen.findByRole("checkbox", { name: "Yakult" })).toBeChecked();
+  fireEvent.change(screen.getByLabelText("Discount (%)"), { target: { value: "15" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+  await waitFor(() => expect(api.patch).toHaveBeenCalledWith("promotions/9/", {
+    promotion_type: "occasional-discount", discount_percent: "15", product_ids: [6],
+    start_date: "2026-10-17", end_date: "2026-10-20",
+  }, { params: { warehouse: 1 } }));
+});
+
 test("the promotion list refreshes saved offers and clears them when switching warehouses", async () => {
   api.get.mockResolvedValue({ data: [offer] });
   const { rerender } = render(<MobilePromotions warehouseId={1} refreshKey={0} />);
@@ -60,7 +75,24 @@ test("the promotion list refreshes saved offers and clears them when switching w
   expect(screen.getByText("Active")).toBeInTheDocument();
   api.get.mockResolvedValue({ data: [] });
   rerender(<MobilePromotions warehouseId={2} refreshKey={1} />);
-  expect(await screen.findByText(/No promotions yet/)).toBeInTheDocument();
+  expect(await screen.findByText(/No current or upcoming promotions/)).toBeInTheDocument();
   expect(screen.queryByText("12.5% Off")).not.toBeInTheDocument();
   expect(api.get).toHaveBeenLastCalledWith("promotions/", expect.objectContaining({ params: { warehouse: 2 } }));
+});
+
+test("expired promotions are hidden and clicking an active promotion opens edit", async () => {
+  const onEdit = jest.fn();
+  api.get.mockResolvedValue({ data: [
+    offer,
+    { ...offer, id: 10, title: "Expired", status: "Expired" },
+  ] });
+  render(<MobilePromotions warehouseId={1} refreshKey={0} onEdit={onEdit} />);
+  expect(await screen.findByText("12.5% Off")).toBeInTheDocument();
+  expect(screen.queryByText("Expired")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Edit" })).not.toBeInTheDocument();
+  const promotionCard = screen.getByRole("button", { name: "12.5% Off, edit promotion" });
+  fireEvent.click(promotionCard);
+  expect(onEdit).toHaveBeenCalledWith(offer);
+  fireEvent.keyDown(promotionCard, { key: "Enter" });
+  expect(onEdit).toHaveBeenCalledTimes(2);
 });

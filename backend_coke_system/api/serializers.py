@@ -916,7 +916,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
     warehouse_full_address = serializers.SerializerMethodField()
 
     # Route and Van details
-    route_name = serializers.CharField(source="route.name", read_only=True)
+    route_name = serializers.CharField(source="route.route_name", read_only=True)
     van_name = serializers.CharField(source="van.name", read_only=True)
 
     def get_warehouse_full_address(self, obj):
@@ -966,6 +966,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
             'transaction_type_name',
             'total_trading_amount',
             'total_expenses_amount',
+            'delivery_fee',
             # 'discrepancy_non_empty',  # remove these two
             # 'discrepancy_empty',
         ]
@@ -1033,7 +1034,7 @@ class MerchandisingSerializer(serializers.ModelSerializer):
         return data
 
     def get_total_trading_amount(self, obj):
-        return sum([(item.actual_sale or 0) for item in obj.items.all()])
+        return sum([(item.actual_sale or 0) for item in obj.items.all()]) + (obj.delivery_fee or 0)
 
     def get_total_expenses_amount(self, obj):
         return sum([(item.amount or 0) for item in obj.misc_items.all()])

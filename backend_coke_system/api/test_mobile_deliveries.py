@@ -85,13 +85,19 @@ class MobileDeliveryTests(MobileOrderFixture):
     def test_multiple_orders_are_saved_as_one_delivery_without_changing_customers(self):
         self.save_mobile_order()
         self.save_mobile_order("MSP-20261005-002")
+        with connections["mobile_orders"].cursor() as cursor:
+            cursor.execute(
+                "INSERT INTO mobile_order_reference VALUES (1, 'MSP-20261005-001'), (2, 'MSP-20261005-002')"
+            )
         response = self.group(["MSP-20261005-001", "MSP-20261005-002"])
         self.assertEqual(response.status_code, 201)
         self.assertEqual(MobileDelivery.objects.count(), 1)
         self.assertEqual(MobileDeliveryOrder.objects.count(), 2)
         self.assertEqual(response.data["order_numbers"], ["MSP-20261005-001", "MSP-20261005-002"])
+        self.assertEqual(response.data["mobile_order_numbers"], ["MO-0001", "MO-0002"])
         reloaded = self.client.get("/api/mobile-deliveries/").data["results"]
         self.assertEqual(reloaded[0]["id"], response.data["id"])
+        self.assertEqual(reloaded[0]["mobile_order_numbers"], ["MO-0001", "MO-0002"])
         for order in self.client.get("/api/mobile-orders/").data["results"]:
             self.assertEqual(order["delivery_id"], response.data["id"])
             self.assertEqual(order["delivery_address"], "Cebu City")

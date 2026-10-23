@@ -15,7 +15,22 @@ const formatAmount = (amount) =>
 
 const orderNumber = (order) => order.number || order.id;
 
+const isDelivered = (order) => order.statusClass === "completed";
+
 const canSelect = (order) => !order.isTest && !order.vanLoadSaleId && ["NEW", "PENDING", "CONFIRMED", "ORDER_CONFIRMED", "PROCESSING", "IN_PROGRESS"].includes(order.rawStatus);
+
+const normalizeLocation = (value) => ` ${String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+
+const matchRoute = (address, routes) => {
+  const normalizedAddress = normalizeLocation(address);
+  if (!normalizedAddress.trim()) return null;
+  const matches = routes
+    .map((route) => ({ route, normalizedRoute: normalizeLocation(route.address) }))
+    .filter(({ normalizedRoute }) => normalizedRoute.trim() && normalizedAddress.includes(normalizedRoute))
+    .sort((a, b) => b.normalizedRoute.length - a.normalizedRoute.length);
+  if (!matches.length || (matches[1] && matches[0].normalizedRoute.length === matches[1].normalizedRoute.length)) return null;
+  return matches[0].route;
+};
 
 const newRequestId = () => {
   if (window.crypto.randomUUID) return window.crypto.randomUUID();
@@ -66,9 +81,11 @@ const PurchaseCard = ({ order, selected, showSelection, onToggle, onOpen, disabl
         </div>
       </div>
       <div className="mobile-purchases__footer">
-        <button type="button" className="mobile-purchases__view-details" onClick={onOpen} aria-label={`View order details for ${number}`}>View</button>
         <time className="mobile-purchases__time" dateTime={order.createdAt} title={order.dateLabel}>{order.time}</time>
-        <span className="mobile-purchases__total">Total: <strong>₱ {formatAmount(order.total)}</strong></span>
+        <div className="mobile-purchases__total-actions">
+          <span className="mobile-purchases__total">Total: <strong>₱ {formatAmount(order.total)}</strong></span>
+          <button type="button" className="mobile-purchases__view-details" onClick={onOpen} aria-label={`View order details for ${number}`}>View</button>
+        </div>
       </div>
     </article>
   );
@@ -102,10 +119,13 @@ const MobileTransaction = () => {
   const [saving, setSaving] = useState("");
   const [actionError, setActionError] = useState("");
   const [message, setMessage] = useState("");
+  const [groupError, setGroupError] = useState("");
+  const [groupMessage, setGroupMessage] = useState("");
   const [activeOrder, setActiveOrder] = useState(null);
   const [recentlyConfirmed, setRecentlyConfirmed] = useState(() => new Map());
   const [showPromotions, setShowPromotions] = useState(false);
   const [promotionVersion, setPromotionVersion] = useState(0);
+  const [editingPromotion, setEditingPromotion] = useState(null);
   const warehouseRef = useRef(warehouseId);
   const deliveryRequestRef = useRef(null);
   warehouseRef.current = warehouseId;
@@ -142,11 +162,23 @@ const MobileTransaction = () => {
       orders.forEach((order) => {
         if (!next.has(order.id)) return;
         if (order.statusClass === "cancelled") next.delete(order.id);
-        else if (["confirmed", "processing", "completed"].includes(order.statusClass)) next.set(order.id, order);
+        else if (["confirmed", "for-delivery", "processing", "completed"].includes(order.statusClass)) next.set(order.id, order);
       });
       return next;
     });
   }, [orders]);
+
+  useEffect(() => {
+    if (selectedOrders.size === 0) {
+      setDestinationId("");
+      return;
+    }
+    const matchedRoutes = [...selectedOrders.values()].map((order) => matchRoute(order.address, deliveryState.saved));
+    const routeId = matchedRoutes[0]?.id;
+    setDestinationId(
+      routeId && matchedRoutes.every((route) => route?.id === routeId) ? String(routeId) : "",
+    );
+  }, [selectedOrders, deliveryState.saved]);
 
   useEffect(() => {
     if (error && orders.length === 0) {
@@ -194,8 +226,8 @@ const MobileTransaction = () => {
     const key = JSON.stringify([scope, destinationId, numbers]);
     if (deliveryRequestRef.current?.key !== key) deliveryRequestRef.current = { key, id: newRequestId() };
     setSaving("delivery");
-    setActionError("");
-    setMessage("");
+    setGroupError("");
+    setGroupMessage("");
     try {
       const response = await api.post("mobile-deliveries/", {
         destination_id: Number(destinationId), order_numbers: numbers, request_id: deliveryRequestRef.current.id,
@@ -204,11 +236,13 @@ const MobileTransaction = () => {
       deliveryState.rememberDelivery(response.data);
       setSelectedOrders(new Map());
       deliveryRequestRef.current = null;
-      setMessage(`${numbers.length} order${numbers.length === 1 ? "" : "s"} grouped into one delivery.`);
+      setGroupMessage(
+        `${numbers.length} order${numbers.length === 1 ? "" : "s"} grouped into one delivery. Van Load Delivery Fee: ₱${formatAmount(response.data.delivery_fee_total || 0)}.`
+      );
       refresh();
       deliveryState.refreshDeliveries();
     } catch (failure) {
-      if (warehouseRef.current === scope) setActionError(deliveryError(failure));
+      if (warehouseRef.current === scope) setGroupError(deliveryError(failure));
     } finally {
       if (warehouseRef.current === scope) setSaving("");
     }
@@ -217,7 +251,10 @@ const MobileTransaction = () => {
   const filterAddresses = [...new Set([...deliveryState.available, ...deliveryState.saved.map((item) => item.address), ...orders.map((order) => order.address).filter((address) => address !== "Address unavailable")])].sort((a, b) => a.localeCompare(b));
   const eligibleOrders = orders.filter(canSelect);
   const selected = [...selectedOrders.values()];
-  const visibleOrders = [...orders].sort((a, b) => {
+  const selectedDestination = deliveryState.saved.find((item) => String(item.id) === String(destinationId));
+  const deliveryFeePerOrder = Number(selectedDestination?.delivery_fee || 0);
+  const selectedDeliveryFee = deliveryFeePerOrder * selected.length;
+  const visibleOrders = orders.filter((order) => !isDelivered(order)).sort((a, b) => {
     const newestFirst = new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
     return sortOrder === "oldest" ? -newestFirst : newestFirst;
   });
@@ -238,7 +275,7 @@ const MobileTransaction = () => {
         order_numbers: chosen.map((order) => order.id).sort(),
       }, { params: { warehouse: scope } });
       if (warehouseRef.current !== scope) return;
-      if (!data.id || data.status !== "PROCESSING" || !data.items?.length || Number(data.warehouse) !== Number(scope)) {
+      if (!["DRAFT", "OUT_FOR_DELIVERY"].includes(data.status) || !data.items?.length || Number(data.warehouse) !== Number(scope)) {
         throw new Error("The van-load handoff could not be verified. Retry the same selection.");
       }
       refresh();
@@ -263,7 +300,7 @@ const MobileTransaction = () => {
        <div className="mobile-purchases__main">
          <div className="mobile-purchases__topbar">
            <div className="mobile-purchases__topbar-left">
-             <button type="button" className="mobile-purchases__add-promotions" disabled={!warehouseId} onClick={() => setShowPromotions(true)}>ADD PROMOTIONS</button>
+             <button type="button" className="mobile-purchases__add-promotions" disabled={!warehouseId} onClick={() => { setEditingPromotion(null); setShowPromotions(true); }}>ADD PROMOTIONS</button>
            </div>
            <div className="mobile-purchases__topbar-right">
              <label className="sr-only" htmlFor="mobile-address-filter">Filter by Address</label>
@@ -278,7 +315,7 @@ const MobileTransaction = () => {
              </select>
            </div>
          </div>
-      <MobilePromotions warehouseId={warehouseId} refreshKey={promotionVersion} />
+      <MobilePromotions warehouseId={warehouseId} refreshKey={promotionVersion} onEdit={(promotion) => { setShowPromotions(false); setEditingPromotion(promotion); }} />
       {error && (
         <div className="mobile-purchases__error" role="alert">
           <span>{error}</span>
@@ -286,9 +323,21 @@ const MobileTransaction = () => {
       )}
       {loading ? (
         <div className="mobile-purchases__empty" role="status">Loading mobile purchases…</div>
-      ) : orders.length === 0 && !error ? (
-        <div className="mobile-purchases__empty">{addressFilter ? "No orders match this address." : "No order like that. It was already implemented."}</div>
-      ) : orders.length > 0 ? (
+      ) : visibleOrders.length === 0 && !error ? (
+        <button
+          type="button"
+          className="mobile-purchases__empty"
+          disabled={refreshing}
+          onClick={refresh}
+          aria-label={refreshing ? "Refreshing online orders" : "Refresh online orders"}
+        >
+          {refreshing
+            ? "Refreshing online orders..."
+            : addressFilter
+              ? "No orders match this address. Click here to refresh."
+              : "No online orders yet. Please click here to refresh."}
+        </button>
+      ) : visibleOrders.length > 0 ? (
         <div className="mobile-purchases__grid">
           {visibleOrders.map((order) => (
             <PurchaseCard key={order.id} order={recentlyConfirmed.get(order.id) || order} selected={selectedOrders.has(order.id)} showSelection={selectedOrders.size > 0} onToggle={() => toggleOrder(order)} onOpen={() => setActiveOrder(recentlyConfirmed.get(order.id) || order)} disabled={Boolean(saving)} />
@@ -322,60 +371,75 @@ const MobileTransaction = () => {
         </div>
         {confirmedHistory.error && <p className="mobile-purchases__feedback" role="alert">{confirmedHistory.error}</p>}
         {confirmedHistory.hasMore && <button type="button" className="mobile-purchases__link" disabled={confirmedHistory.refreshing} onClick={confirmedHistory.loadMore}>Load more transactions</button>}
-      </aside>
-      </div>
-      {(selected.length > 0 || addingAddress || actionError || deliveryState.error || message || deliveryState.deliveries.length > 0) && (
-      <details id="mobile-delivery-tools" className="mobile-purchases__management" open={selected.length > 0 || addingAddress || Boolean(actionError || deliveryState.error || message)}>
-        <summary><FaTruck aria-hidden="true" />Delivery tools{selected.length > 0 ? ` (${selected.length} selected)` : ""}</summary>
-        <div className="mobile-purchases__panel-section">
-          <div className="mobile-purchases__panel-heading">
-            <h2>Selected Orders ({selectedOrders.size})</h2>
-            <button type="button" className="mobile-purchases__link" disabled={Boolean(saving) || selectedOrders.size === 0} onClick={() => setSelectedOrders(new Map())}>Clear All</button>
-          </div>
-          <div className="mobile-purchases__selected-orders">
-            {selected.map((order) => <span className="mobile-purchases__selected-order" key={order.id}>{orderNumber(order)}<button type="button" aria-label={`Remove ${orderNumber(order)} from selection`} disabled={Boolean(saving)} onClick={() => toggleOrder(order)}><FaTimes aria-hidden="true" /></button></span>)}
-            {selected.length === 0 && <p className="mobile-purchases__hint">Select orders using the checkboxes.</p>}
-          </div>
-          <button type="button" className="mobile-purchases__link" disabled={loading || Boolean(saving) || eligibleOrders.length === 0} onClick={() => setSelectedOrders((current) => new Map([...current, ...eligibleOrders.map((order) => [order.id, order])]))}>Select visible orders</button>
-          <div className="mobile-purchases__order-actions">
-            <button type="button" className="btn btn-primary" disabled={Boolean(saving) || selected.length === 0 || selected.length > 100} onClick={() => confirmOrders(selected).catch(() => {})}>{saving === "confirm" ? "Confirming…" : "Confirm Orders → Van Load"}</button>
-            <button type="button" className="mobile-purchases__print-button" disabled={Boolean(saving) || selected.length === 0} onClick={() => window.print()}><FaPrint />Print Pick List</button>
-          </div>
-        </div>
-        {addingAddress && (
-          <div className="mobile-purchases__panel-section">
-          <form id="mobile-add-address" className="mobile-purchases__address-form" onSubmit={saveAddress}>
-            <label htmlFor="mobile-new-address">New delivery address / area</label>
-            <input id="mobile-new-address" value={newAddress} onChange={(event) => setNewAddress(event.target.value)} maxLength={255} required autoFocus placeholder="e.g. Greenview, Cebu City" disabled={Boolean(saving)} />
-            <div className="mobile-purchases__panel-actions">
-              <button type="submit" className="mobile-purchases__primary" disabled={!newAddress.trim() || Boolean(saving)}>{saving === "address" ? "Saving…" : "Save Address"}</button>
-              <button type="button" className="mobile-purchases__refresh" disabled={Boolean(saving)} onClick={() => setAddingAddress(false)}>Cancel</button>
-            </div>
-          </form>
-          </div>
-        )}
         <details className="mobile-purchases__panel-section mobile-purchases__delivery-options">
-          <summary><FaTruck />Group into One Delivery</summary>
+          <summary><FaTruck aria-hidden="true" />Group into One Delivery</summary>
           <label htmlFor="mobile-delivery-destination">Delivery address / area</label>
           <select id="mobile-delivery-destination" value={destinationId} disabled={Boolean(saving)} onChange={(event) => setDestinationId(event.target.value)}>
             <option value="">Choose a saved address</option>
             {deliveryState.saved.map((item) => <option key={item.id} value={item.id}>{item.address}</option>)}
           </select>
+          {selectedDestination && <p className="mobile-purchases__hint">
+            Van Load Delivery Fee: ₱{formatAmount(deliveryFeePerOrder)} per order × {selected.length} order{selected.length === 1 ? "" : "s"} = ₱{formatAmount(selectedDeliveryFee)}
+          </p>}
           <p className="mobile-purchases__hint">Use + to save an address. Selected orders stay selected when you change the filter.</p>
           <button type="button" className="mobile-purchases__primary mobile-purchases__group-button" disabled={loading || Boolean(saving) || !warehouseId || !destinationId || selectedOrders.size === 0 || selectedOrders.size > 100} onClick={createDelivery}><FaTruck aria-hidden="true" />{saving === "delivery" ? "Grouping…" : "Group into One Delivery"}</button>
           {selectedOrders.size > 100 && <p className="mobile-purchases__feedback" role="alert">Select up to 100 orders per delivery.</p>}
+          {(groupError || deliveryState.error) && <p className="mobile-purchases__feedback" role="alert">{groupError || deliveryState.error}</p>}
+          {groupMessage && <p className="mobile-purchases__success" role="status">{groupMessage}</p>}
+          {deliveryState.deliveries.length > 0 && <div className="mobile-purchases__panel-section">
+            <h2>Recent Delivery Groups</h2>
+            {deliveryState.deliveries.slice(0, 5).map((delivery) => {
+              const displayOrderNumbers = delivery.mobile_order_numbers || delivery.order_numbers;
+              return (
+                <div className="mobile-purchases__delivery-summary" key={delivery.id}>
+                  <strong>{delivery.address}</strong>
+                  <span>{delivery.order_numbers.length} order{delivery.order_numbers.length === 1 ? "" : "s"}</span>
+                  <small>Van Load Delivery Fee: ₱{formatAmount(delivery.delivery_fee_total || 0)}</small>
+                  <small>{displayOrderNumbers.join(", ")}</small>
+                </div>
+              );
+            })}
+            {(deliveryState.hasMore || deliveryState.deliveries.length > 5) && <p className="mobile-purchases__hint">Showing the 5 most recent delivery groups.</p>}
+          </div>}
         </details>
-        {(actionError || deliveryState.error) && <p className="mobile-purchases__feedback" role="alert">{actionError || deliveryState.error}</p>}
-        {message && <p className="mobile-purchases__success" role="status">{message}</p>}
-        {deliveryState.deliveries.length > 0 && <div className="mobile-purchases__panel-section">
-          <h2>Recent Delivery Groups</h2>
-          {deliveryState.deliveries.slice(0, 5).map((delivery) => <div className="mobile-purchases__delivery-summary" key={delivery.id}><strong>{delivery.address}</strong><span>{delivery.order_numbers.length} order{delivery.order_numbers.length === 1 ? "" : "s"}</span><small>{delivery.order_numbers.join(", ")}</small></div>)}
-          {(deliveryState.hasMore || deliveryState.deliveries.length > 5) && <p className="mobile-purchases__hint">Showing the 5 most recent delivery groups.</p>}
-        </div>}
-      </details>
-      )}
+          {(selected.length > 0 || addingAddress || actionError || deliveryState.error || message) && (
+          <details id="mobile-delivery-tools" className="mobile-purchases__delivery-tools" open={selected.length > 0 || addingAddress || Boolean(actionError || deliveryState.error || message)}>
+            <summary><FaTruck aria-hidden="true" />Delivery tools{selected.length > 0 ? ` (${selected.length} selected)` : ""}</summary>
+            <div className="mobile-purchases__panel-section">
+              <div className="mobile-purchases__panel-heading">
+                <h2>Selected Orders ({selectedOrders.size})</h2>
+                <button type="button" className="mobile-purchases__link" disabled={Boolean(saving) || selectedOrders.size === 0} onClick={() => setSelectedOrders(new Map())}>Clear All</button>
+              </div>
+              <div className="mobile-purchases__selected-orders">
+                {selected.map((order) => <span className="mobile-purchases__selected-order" key={order.id}>{orderNumber(order)}<button type="button" aria-label={`Remove ${orderNumber(order)} from selection`} disabled={Boolean(saving)} onClick={() => toggleOrder(order)}><FaTimes aria-hidden="true" /></button></span>)}
+                {selected.length === 0 && <p className="mobile-purchases__hint">Select orders using the checkboxes.</p>}
+              </div>
+              <button type="button" className="mobile-purchases__link" disabled={loading || Boolean(saving) || eligibleOrders.length === 0} onClick={() => setSelectedOrders((current) => new Map([...current, ...eligibleOrders.map((order) => [order.id, order])]))}>Select visible orders</button>
+              <div className="mobile-purchases__order-actions">
+                <button type="button" className="btn btn-primary" disabled={Boolean(saving) || selected.length === 0 || selected.length > 100} onClick={() => confirmOrders(selected).catch(() => {})}>{saving === "confirm" ? "Confirming…" : "Confirm Orders → Van Load"}</button>
+                <button type="button" className="mobile-purchases__print-button" disabled={Boolean(saving) || selected.length === 0} onClick={() => window.print()}><FaPrint />Print Pick List</button>
+              </div>
+            </div>
+            {addingAddress && (
+              <div className="mobile-purchases__panel-section">
+                <form id="mobile-add-address" className="mobile-purchases__address-form" onSubmit={saveAddress}>
+                  <label htmlFor="mobile-new-address">New delivery address / area</label>
+                  <input id="mobile-new-address" value={newAddress} onChange={(event) => setNewAddress(event.target.value)} maxLength={255} required autoFocus placeholder="e.g. Greenview, Cebu City" disabled={Boolean(saving)} />
+                  <div className="mobile-purchases__panel-actions">
+                    <button type="submit" className="mobile-purchases__primary" disabled={!newAddress.trim() || Boolean(saving)}>{saving === "address" ? "Saving…" : "Save Address"}</button>
+                    <button type="button" className="mobile-purchases__refresh" disabled={Boolean(saving)} onClick={() => setAddingAddress(false)}>Cancel</button>
+                  </div>
+                </form>
+            </div>
+            )}
+            {actionError && <p className="mobile-purchases__feedback" role="alert">{actionError}</p>}
+            {message && <p className="mobile-purchases__success" role="status">{message}</p>}
+          </details>
+          )}
+      </aside>
+      </div>
       {activeOrder && <MobileOrderDetails key={activeOrder.id} order={activeOrder} warehouseId={warehouseId} onClose={() => setActiveOrder(null)} onConfirm={(order) => confirmOrders([order])} />}
-          {showPromotions && <PromotionsPopup key={warehouseId} warehouseId={warehouseId} onSaved={() => setPromotionVersion((version) => version + 1)} onClose={() => setShowPromotions(false)} />}
+          {(showPromotions || editingPromotion) && <PromotionsPopup key={`${warehouseId}-${editingPromotion?.id || "new"}`} warehouseId={warehouseId} promotion={editingPromotion} onSaved={() => setPromotionVersion((version) => version + 1)} onClose={() => { setShowPromotions(false); setEditingPromotion(null); }} />}
       <PickList orders={selected} />
     </section>
   );

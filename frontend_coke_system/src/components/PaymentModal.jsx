@@ -103,6 +103,7 @@ const PaymentModal = ({
   // Van Load extras
   transactionTypeName, // "Warehouse" | "Van Load"
   expensesTotal = 0,
+  deliveryFee = 0,
   remarks = "",
 
 
@@ -421,7 +422,8 @@ const PaymentModal = ({
       n(emptiesPriceTotal) -
       n(emptyReturns) -
       n(emptyDiscrepancies) -
-      (isVanLoad ? n(expensesTotal) : 0);
+      (isVanLoad ? n(expensesTotal) : 0) +
+      (isVanLoad ? n(deliveryFee) : 0);
     return Math.max(base, 0);
   }, [
     actualSalesValue,
@@ -429,6 +431,7 @@ const PaymentModal = ({
     emptyReturns,
     emptyDiscrepancies,
     expensesTotal,
+    deliveryFee,
     isVanLoad,
   ]);
 
@@ -447,7 +450,8 @@ const PaymentModal = ({
   const vl_overallTotal = n(overallTotalVL) || vl_actual + vl_discE + vl_discNE;
 
 
-  const vl_grandTotal = n(grandTotalVL) || vl_overallTotal - n(expensesTotal);
+  const vl_grandTotal =
+    (n(grandTotalVL) || vl_overallTotal - n(expensesTotal)) + n(deliveryFee);
 
 
   // Prefer parent values only if they're explicitly positive
@@ -1076,6 +1080,10 @@ const PaymentModal = ({
                       <span className="tabular-nums">- ₱{fmt(expensesTotal)}</span>
                     </div>
 
+                    <div className="flex justify-between">
+                      <span>Van Load Delivery Fee:</span>
+                      <span className="tabular-nums">+ ₱{fmt(deliveryFee)}</span>
+                    </div>
 
                     {/* Karen Changes */}
                     <div className="border-t mt-2 pt-2 flex justify-between font-bold">
@@ -1642,4 +1650,3 @@ const PaymentModal = ({
 
 
 export default PaymentModal;
-

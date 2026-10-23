@@ -5,7 +5,10 @@ import {
   FaExclamationTriangle,
   FaCubes,
   FaCheckCircle,
+  FaEdit,
+  FaTrash,
 } from "react-icons/fa";
+import api from "../api";
 import { getStockThresholds } from "../utils/stockThresholds";
 import "../styles/pages/settings.scss";
 
@@ -70,9 +73,46 @@ function Settings() {
   const [initialThresholds, setInitialThresholds] = useState(DEFAULT_THRESHOLDS);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [deliveryFees, setDeliveryFees] = useState([]);
+  const [deliveryFeesLoading, setDeliveryFeesLoading] = useState(false);
+  const [deliveryFeeSaving, setDeliveryFeeSaving] = useState(false);
+  const [deliveryFeeAddress, setDeliveryFeeAddress] = useState("");
+  const [deliveryFeeAmount, setDeliveryFeeAmount] = useState("");
+  const [editingDeliveryFeeId, setEditingDeliveryFeeId] = useState(null);
+  const [feeToDelete, setFeeToDelete] = useState(null);
+
+  const getWarehouseId = () => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      const selected = JSON.parse(localStorage.getItem("selectedWarehouse") || "null");
+      return selected?.id || user.warehouse_id || null;
+    } catch (error) {
+      console.error("Unable to read the selected warehouse:", error);
+      return null;
+    }
+  };
+
+  const fetchDeliveryFees = async () => {
+    const warehouseId = getWarehouseId();
+    if (!warehouseId) {
+      setDeliveryFees([]);
+      return;
+    }
+    setDeliveryFeesLoading(true);
+    try {
+      const response = await api.get("/delivery-fees/", { params: { warehouse: warehouseId } });
+      setDeliveryFees(response.data || []);
+    } catch (error) {
+      console.error("Error loading delivery fees:", error);
+      toast.error(error.response?.data?.detail || "Failed to load delivery fees.");
+    } finally {
+      setDeliveryFeesLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchStockThresholds();
+    fetchDeliveryFees();
   }, []);
 
   const fetchStockThresholds = async () => {
@@ -158,6 +198,70 @@ function Settings() {
   const resetToDefaults = () => {
     setStockThresholds(DEFAULT_THRESHOLDS);
     toast.info("Thresholds reset to default values");
+  };
+
+  const clearDeliveryFeeForm = () => {
+    setEditingDeliveryFeeId(null);
+    setDeliveryFeeAddress("");
+    setDeliveryFeeAmount("");
+  };
+
+  const saveDeliveryFee = async (event) => {
+    event.preventDefault();
+    const address = deliveryFeeAddress.trim().replace(/\s+/g, " ");
+    const amount = Number(deliveryFeeAmount);
+    if (!address || !Number.isFinite(amount) || amount < 0) {
+      toast.error("Enter an address and a delivery fee of zero or more.");
+      return;
+    }
+    const warehouseId = getWarehouseId();
+    if (!warehouseId) {
+      toast.error("Select a warehouse before managing delivery fees.");
+      return;
+    }
+    setDeliveryFeeSaving(true);
+    try {
+      const payload = { address, delivery_fee: amount.toFixed(2) };
+      if (editingDeliveryFeeId) {
+        await api.patch(`/delivery-fees/${editingDeliveryFeeId}/`, payload, {
+          params: { warehouse: warehouseId },
+        });
+        toast.success("Delivery fee updated.");
+      } else {
+        await api.post("/delivery-fees/", payload, { params: { warehouse: warehouseId } });
+        toast.success("Delivery fee added.");
+      }
+      clearDeliveryFeeForm();
+      await fetchDeliveryFees();
+    } catch (error) {
+      console.error("Error saving delivery fee:", error);
+      toast.error(error.response?.data?.address?.[0] || error.response?.data?.detail || "Failed to save delivery fee.");
+    } finally {
+      setDeliveryFeeSaving(false);
+    }
+  };
+
+  const editDeliveryFee = (fee) => {
+    setEditingDeliveryFeeId(fee.id);
+    setDeliveryFeeAddress(fee.address);
+    setDeliveryFeeAmount(String(fee.delivery_fee));
+  };
+
+  const deleteDeliveryFee = async (fee) => {
+    const warehouseId = getWarehouseId();
+    setDeliveryFeeSaving(true);
+    try {
+      await api.delete(`/delivery-fees/${fee.id}/`, { params: { warehouse: warehouseId } });
+      if (editingDeliveryFeeId === fee.id) clearDeliveryFeeForm();
+      setFeeToDelete(null);
+      toast.success("Delivery fee removed.");
+      await fetchDeliveryFees();
+    } catch (error) {
+      console.error("Error deleting delivery fee:", error);
+      toast.error(error.response?.data?.detail || "Failed to remove delivery fee.");
+    } finally {
+      setDeliveryFeeSaving(false);
+    }
   };
 
   const previewItems = [
@@ -280,13 +384,126 @@ function Settings() {
             className={`settings-page__primary-btn
               ${
                 !isDirty || saving
-                  ? "cursor-not-allowed bg-gray-400"
+                  ? "cursor-not-allowed bg-gray-600"
                   : "bg-gradient-to-r from-blue-600 to-blue-700 shadow-md hover:from-blue-700 hover:to-blue-800 hover:shadow-lg"
               }`}
           >
             {saving ? "Saving..." : "Save Settings"}
           </button>
         </div>
+
+        <section className="settings-page__delivery-fees" aria-labelledby="delivery-fees-heading">
+          <div className="settings-page__delivery-fees-heading">
+            <div>
+              <h3 id="delivery-fees-heading">Van Load Delivery Fees</h3>
+              <p>Configure a fee for each delivery address or route. Mobile delivery groups charge per order and regular van loads charge once per transaction.</p>
+            </div>
+          </div>
+          <form className="settings-page__delivery-fee-form" onSubmit={saveDeliveryFee}>
+            <label>
+              Address / route
+              <input
+                value={deliveryFeeAddress}
+                onChange={(event) => setDeliveryFeeAddress(event.target.value)}
+                maxLength={255}
+                required
+                placeholder="Enter delivery address or route name"
+                disabled={deliveryFeeSaving}
+              />
+            </label>
+            <label>
+              Delivery fee (₱)
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={deliveryFeeAmount}
+                onChange={(event) => setDeliveryFeeAmount(event.target.value)}
+                required
+                placeholder="0.00"
+                disabled={deliveryFeeSaving}
+              />
+            </label>
+            <div className="settings-page__delivery-fee-actions">
+              <button type="submit" disabled={deliveryFeeSaving}>
+                {deliveryFeeSaving ? "Saving..." : editingDeliveryFeeId ? "Update Fee" : "Add Fee"}
+              </button>
+              {editingDeliveryFeeId && (
+                <button type="button" disabled={deliveryFeeSaving} onClick={clearDeliveryFeeForm}>Cancel</button>
+              )}
+            </div>
+          </form>
+          <div className="table-wrapper">
+            <table className="table">
+              <thead><tr><th>Address / Route</th><th>Delivery Fee</th><th>Actions</th></tr></thead>
+              <tbody>
+                {deliveryFeesLoading ? (
+                  <tr><td colSpan={3}>Loading delivery fees...</td></tr>
+                ) : deliveryFees.length === 0 ? (
+                  <tr><td colSpan={3}>No delivery fees configured.</td></tr>
+                ) : deliveryFees.map((fee) => (
+                  <tr key={fee.id}>
+                    <td>{fee.address}</td>
+                    <td>₱{Number(fee.delivery_fee).toLocaleString("en-PH", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td>
+                      <div className="settings-page__delivery-fee-row-actions">
+                        <button
+                          type="button" disabled={deliveryFeeSaving} onClick={() => editDeliveryFee(fee)} >
+                          <FaEdit aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button" disabled={deliveryFeeSaving} onClick={() => setFeeToDelete(fee)}>
+                          <FaTrash aria-hidden="true" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {feeToDelete && (
+          <div
+            className="app-modal-overlay"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-delivery-fee-title"
+            aria-describedby="delete-delivery-fee-description"
+            onClick={() => !deliveryFeeSaving && setFeeToDelete(null)}
+          >
+            <div
+              className="app-modal-panel app-modal-panel-sm p-6"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <h3 id="delete-delivery-fee-title" className="mb-3 text-lg font-semibold">
+                Remove delivery fee?
+              </h3>
+              <p id="delete-delivery-fee-description" className="mb-6">
+                Are you sure you want to remove the fee for {feeToDelete.address}?
+              </p>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  className="btn btn-cancel"
+                  disabled={deliveryFeeSaving}
+                  onClick={() => setFeeToDelete(null)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={deliveryFeeSaving}
+                  onClick={() => deleteDeliveryFee(feeToDelete)}
+                >
+                  {deliveryFeeSaving ? "Removing..." : "Remove"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="settings-page__info">
           <h4 className="settings-page__info-title">How it works</h4>

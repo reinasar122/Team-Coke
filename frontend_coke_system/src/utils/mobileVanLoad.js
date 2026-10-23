@@ -19,9 +19,7 @@ export const mobileVanLoadRows = (batch, products) => batch.items.map((item, ind
 });
 
 export const mobileReturnError = (batch, outcomes, rows) => {
-  if (!batch || batch.orders.some((order) => !["DELIVERED", "RETURNED"].includes(outcomes[order.order_number]))) {
-    return "Mark every mobile order as Accepted or Returned first.";
-  }
+  if (!batch || batch.orders.some((order) => !["DELIVERED", "RETURNED"].includes(outcomes[order.order_number]))) return "";
   const sold = {};
   const returned = {};
   batch.orders.forEach((order) => {

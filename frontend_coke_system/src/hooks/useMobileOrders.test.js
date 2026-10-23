@@ -60,8 +60,32 @@ test("status changes update the existing purchase on refresh", async () => {
   api.get.mockResolvedValue(response([{ ...order, status: "OUT_FOR_DELIVERY" }]));
   await act(async () => result.current.refresh());
   expect(result.current.orders).toHaveLength(1);
-  expect(result.current.orders[0].status).toBe("Out for Delivery");
-  expect(result.current.orders[0].statusClass).toBe("processing");
+  expect(result.current.orders[0].status).toBe("For Delivery");
+  expect(result.current.orders[0].statusClass).toBe("for-delivery");
+});
+
+test.each(["CONFIRMED", "ORDER_CONFIRMED", "OUT_FOR_DELIVERY"])("%s orders show For Delivery while preserving their source status", async (status) => {
+  api.get.mockResolvedValue(response([{ ...order, status }]));
+  const { result } = renderHook(() => useMobileOrders());
+  await waitFor(() => expect(result.current.orders).toHaveLength(1));
+  expect(result.current.orders[0]).toMatchObject({
+    status: "For Delivery", statusClass: "for-delivery", rawStatus: status,
+  });
+});
+
+test("dispatched van-load orders show For Delivery until an explicit outcome is recorded", async () => {
+  api.get.mockResolvedValue(response([
+    { ...order, status: "COMPLETE", van_load_sale_id: 12, van_load_batch_id: "batch-1" },
+    { ...order, order_number: "MSP-RETURNED", status: "RETURNED", van_load_sale_id: 12 },
+  ]));
+  const { result } = renderHook(() => useMobileOrders());
+  await waitFor(() => expect(result.current.orders).toHaveLength(2));
+  expect(result.current.orders[0]).toMatchObject({
+    status: "For Delivery", statusClass: "for-delivery", rawStatus: "COMPLETE",
+  });
+  expect(result.current.orders[1]).toMatchObject({
+    status: "Returned", statusClass: "returned",
+  });
 });
 
 test("failed requests show an error instead of reporting an empty order list", async () => {

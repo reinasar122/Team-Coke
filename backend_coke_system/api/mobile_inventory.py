@@ -48,7 +48,9 @@ def _reservation(cursor, number, source_id, warehouse, quantities):
             raise MobileInventoryConflict("This transaction number has no verified POS reservation link.")
         return None
     matches = list(Merchandising.objects.select_for_update().filter(
-        warehouse=warehouse, msp_no=number, remarks__contains=marker.group(),
+        # The mobile source may disambiguate a reused POS display number.
+        # Match the immutable checkout marker within this warehouse instead.
+        warehouse=warehouse, remarks__contains=marker.group(),
         transaction_type__name__iexact="Warehouse",
     ).select_related("transaction_type", "warehouse"))
     if len(matches) != 1:

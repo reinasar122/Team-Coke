@@ -191,12 +191,28 @@ def read_mobile_orders(warehouse, limit=50, offset=0, order_number=None, address
             warehouse=warehouse, order_number__in=order_numbers,
         ).select_related("delivery")
     }
-    van_loads = {
-        receipt.order_number: receipt.van_load_batch
-        for receipt in MobileOrderStockCommitment.objects.filter(
+    van_load_receipts = list(MobileOrderStockCommitment.objects.filter(
             warehouse=warehouse, order_number__in=order_numbers, van_load_batch__isnull=False,
-        ).select_related("van_load_batch")
-    }
+        ).select_related("van_load_batch__merchandising"))
+    van_loads = {receipt.order_number: receipt.van_load_batch for receipt in van_load_receipts}
+    van_load_fees = {}
+    batch_ids = {receipt.van_load_batch_id for receipt in van_load_receipts}
+    if batch_ids:
+        batch_order_numbers = defaultdict(list)
+        for batch_id, number in MobileOrderStockCommitment.objects.filter(
+            warehouse=warehouse, van_load_batch_id__in=batch_ids,
+        ).order_by("van_load_batch_id", "order_number").values_list("van_load_batch_id", "order_number"):
+            batch_order_numbers[batch_id].append(number)
+
+        batches = {receipt.van_load_batch_id: receipt.van_load_batch for receipt in van_load_receipts}
+        for batch_id, numbers in batch_order_numbers.items():
+            delivery_fee = batches[batch_id].merchandising.delivery_fee if batches[batch_id].merchandising_id else Decimal("0.00")
+            total_cents = int((delivery_fee * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+            cents_per_order, remainder = divmod(total_cents, len(numbers))
+            for index, number in enumerate(numbers):
+                share_cents = cents_per_order + (1 if index < remainder else 0)
+                van_load_fees[number] = Decimal(share_cents) / 100
+
     return count, [
         {
             "order_number": order["msp_no"],
@@ -211,6 +227,13 @@ def read_mobile_orders(warehouse, limit=50, offset=0, order_number=None, address
             "products": products[order["msp_no"]],
             "delivery_id": str(deliveries[order["msp_no"]].pk) if order["msp_no"] in deliveries else None,
             "delivery_address": deliveries[order["msp_no"]].address if order["msp_no"] in deliveries else None,
+            "delivery_fee": str(
+                van_load_fees.get(
+                    order["msp_no"],
+                    deliveries[order["msp_no"]].delivery_fee_per_order
+                    if order["msp_no"] in deliveries else Decimal("0.00"),
+                )
+            ),
             "van_load_batch_id": str(van_loads[order["msp_no"]].pk) if order["msp_no"] in van_loads else None,
             "van_load_sale_id": van_loads[order["msp_no"]].merchandising_id if order["msp_no"] in van_loads else None,
         }
@@ -332,8 +355,9 @@ def process_mobile_orders(warehouse, order_numbers, status, user, notes="", expe
                 if expected_status is not None and current != expected_status:
                     raise MobileOrderConflict(f"Order {number} is now {current}. Refresh and try again.")
                 van_load_confirmation = van_load_batch is not None and status == "PROCESSING" and current in {"NEW", "PENDING"}
-                van_load_return = van_load_batch is not None and van_load_batch.return_fingerprint and status in {"DELIVERED", "RETURNED"} and current == "PROCESSING"
-                if current != status and status not in STATUS_TRANSITIONS.get(current, set()) and not van_load_confirmation and not van_load_return:
+                van_load_dispatch = van_load_batch is not None and van_load_batch.merchandising_id and status == "OUT_FOR_DELIVERY" and current in {"NEW", "PENDING"}
+                van_load_return = van_load_batch is not None and van_load_batch.return_fingerprint and status in {"DELIVERED", "RETURNED"} and current in {"PROCESSING", "OUT_FOR_DELIVERY"}
+                if current != status and status not in STATUS_TRANSITIONS.get(current, set()) and not van_load_confirmation and not van_load_dispatch and not van_load_return:
                     raise MobileOrderConflict(f"Order {number} cannot change from {current} to {status}.")
             from .mobile_inventory import sync_mobile_inventory
             if van_load_batch is None or not van_load_batch.merchandising_id:

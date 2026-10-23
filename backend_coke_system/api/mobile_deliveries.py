@@ -1,8 +1,10 @@
 """Saved delivery addresses and durable groups of mobile orders in the POS DB."""
 
 import uuid
+from decimal import Decimal
 
 from django.db import connections, DatabaseError, IntegrityError, transaction
+from django.db.models.deletion import ProtectedError
 from rest_framework import serializers
 from rest_framework.exceptions import NotFound, ValidationError
 from rest_framework.response import Response
@@ -19,7 +21,7 @@ from .pos_auth import CanProcessMobileOrders, CanViewMobileOrders, POSSessionAut
 class DeliveryAddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = MobileDeliveryAddress
-        fields = ["id", "address"]
+        fields = ["id", "address", "delivery_fee"]
         read_only_fields = ["id"]
 
     def validate_address(self, value):
@@ -28,18 +30,121 @@ class DeliveryAddressSerializer(serializers.ModelSerializer):
 
 class DeliverySerializer(serializers.ModelSerializer):
     order_numbers = serializers.SerializerMethodField()
+    mobile_order_numbers = serializers.SerializerMethodField()
 
     class Meta:
         model = MobileDelivery
-        fields = ["id", "address", "destination_id", "order_numbers", "created_at"]
+        fields = [
+            "id", "address", "destination_id", "order_numbers", "mobile_order_numbers",
+            "delivery_fee_per_order", "delivery_fee_total", "created_at",
+        ]
 
     def get_order_numbers(self, delivery):
         return [item.order_number for item in delivery.orders.all()]
+
+    def get_mobile_order_numbers(self, delivery):
+        number_map = self.context.get("mobile_order_number_map", {})
+        return [
+            number_map.get(item.order_number, item.order_number)
+            for item in delivery.orders.all()
+        ]
+
+
+def _mobile_order_number_map(warehouse, deliveries):
+    order_numbers = sorted({
+        item.order_number
+        for delivery in deliveries
+        for item in delivery.orders.all()
+    })
+    if not order_numbers:
+        return {}
+
+    source = connections["mobile_orders"]
+    with source.cursor() as cursor:
+        source_warehouse_id = _source_warehouse_id(cursor, warehouse)
+        if source_warehouse_id is None:
+            return {}
+        has_references = "mobile_order_reference" in source.introspection.table_names(cursor)
+        reference_column = "r.id" if has_references else "NULL"
+        reference_join = (
+            "LEFT JOIN mobile_order_reference r ON r.source_order_id = m.msp_no"
+            if has_references else ""
+        )
+        placeholders = ", ".join(["%s"] * len(order_numbers))
+        cursor.execute(
+            f"SELECT m.msp_no, {reference_column} AS mobile_reference_id "
+            f"FROM merchandising m {reference_join} "
+            f"WHERE m.warehouse_id = %s AND m.msp_no IN ({placeholders})",
+            [source_warehouse_id, *order_numbers],
+        )
+        return {
+            number: f"MO-{reference_id:04d}" if reference_id else number
+            for number, reference_id in cursor.fetchall()
+        }
 
 
 class DeliveryCreateSerializer(MobileOrderConfirmSerializer):
     destination_id = serializers.IntegerField(min_value=1)
     request_id = serializers.UUIDField(default=uuid.uuid4)
+
+
+class DeliveryFeeView(APIView):
+    authentication_classes = [POSSessionAuthentication]
+
+    def get_permissions(self):
+        return [CanViewMobileOrders() if self.request.method == "GET" else CanProcessMobileOrders()]
+
+    def get(self, request):
+        warehouse = _request_warehouse(request)
+        fees = MobileDeliveryAddress.objects.filter(warehouse=warehouse)
+        return _response(DeliveryAddressSerializer(fees, many=True).data)
+
+    def post(self, request):
+        warehouse = _request_warehouse(request)
+        serializer = DeliveryAddressSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            fee = serializer.save(warehouse=warehouse)
+        except IntegrityError:
+            raise ValidationError({"address": "A fee is already configured for this address in this warehouse."})
+        return _response(DeliveryAddressSerializer(fee).data, status=201)
+
+
+class DeliveryFeeDetailView(APIView):
+    authentication_classes = [POSSessionAuthentication]
+
+    def get_permissions(self):
+        return [CanProcessMobileOrders()]
+
+    def put(self, request, pk):
+        return self._update(request, pk, partial=False)
+
+    def patch(self, request, pk):
+        return self._update(request, pk, partial=True)
+
+    def _update(self, request, pk, partial):
+        warehouse = _request_warehouse(request)
+        fee = MobileDeliveryAddress.objects.filter(pk=pk, warehouse=warehouse).first()
+        if fee is None:
+            raise NotFound("Delivery fee not found in this warehouse.")
+        serializer = DeliveryAddressSerializer(fee, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        try:
+            fee = serializer.save()
+        except IntegrityError:
+            raise ValidationError({"address": "A fee is already configured for this address in this warehouse."})
+        return _response(DeliveryAddressSerializer(fee).data)
+
+    def delete(self, request, pk):
+        warehouse = _request_warehouse(request)
+        fee = MobileDeliveryAddress.objects.filter(pk=pk, warehouse=warehouse).first()
+        if fee is None:
+            raise NotFound("Delivery fee not found in this warehouse.")
+        try:
+            fee.delete()
+        except ProtectedError:
+            raise ValidationError({"detail": "This address is used by a delivery group and cannot be deleted."})
+        return _response({}, status=204)
 
 
 def _response(data, status=200):
@@ -104,7 +209,10 @@ class MobileDeliveryListCreateView(APIView):
             from .mobile_orders import MobileOrderPagination
             pagination = MobileOrderPagination()
             page = pagination.paginate_queryset(deliveries, request, view=self)
-            response = pagination.get_paginated_response(DeliverySerializer(page, many=True).data)
+            number_map = _mobile_order_number_map(warehouse, page)
+            response = pagination.get_paginated_response(DeliverySerializer(
+                page, many=True, context={"mobile_order_number_map": number_map},
+            ).data)
             response["Cache-Control"] = "no-store"
             return response
         except DatabaseError:
@@ -124,7 +232,10 @@ class MobileDeliveryListCreateView(APIView):
                     and existing.destination_id == data["destination_id"]
                     and {item.order_number for item in existing.orders.all()} == set(data["order_numbers"])
                 ):
-                    return _response(DeliverySerializer(existing).data)
+                    number_map = _mobile_order_number_map(warehouse, [existing])
+                    return _response(DeliverySerializer(
+                        existing, context={"mobile_order_number_map": number_map},
+                    ).data)
                 raise MobileOrderConflict("This delivery request was already used. Refresh and try again.")
             destination = MobileDeliveryAddress.objects.filter(
                 pk=data["destination_id"], warehouse=warehouse,
@@ -156,12 +267,17 @@ class MobileDeliveryListCreateView(APIView):
                     delivery = MobileDelivery.objects.create(
                         pk=data["request_id"], warehouse=warehouse, destination=destination,
                         address=destination.address, created_by=request.user,
+                        delivery_fee_per_order=destination.delivery_fee,
+                        delivery_fee_total=destination.delivery_fee * Decimal(len(data["order_numbers"])),
                     )
                     MobileDeliveryOrder.objects.bulk_create([
                         MobileDeliveryOrder(delivery=delivery, warehouse=warehouse, order_number=number)
                         for number in data["order_numbers"]
                     ])
-            return _response(DeliverySerializer(delivery).data, status=201)
+            number_map = _mobile_order_number_map(warehouse, [delivery])
+            return _response(DeliverySerializer(
+                delivery, context={"mobile_order_number_map": number_map},
+            ).data, status=201)
         except IntegrityError:
             raise MobileOrderConflict("One or more orders were grouped by another request. Refresh and try again.")
         except (DatabaseError, ValueError):

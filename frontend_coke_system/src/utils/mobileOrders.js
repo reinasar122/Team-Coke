@@ -1,11 +1,11 @@
 const statusLabels = {
   PENDING: ["Pending", "pending"],
   NEW: ["New", "new"],
-  CONFIRMED: ["Confirmed", "confirmed"],
-  ORDER_CONFIRMED: ["Confirmed", "confirmed"],
+  CONFIRMED: ["For Delivery", "for-delivery"],
+  ORDER_CONFIRMED: ["For Delivery", "for-delivery"],
   PROCESSING: ["Processing", "processing"],
   IN_PROGRESS: ["In Progress", "processing"],
-  OUT_FOR_DELIVERY: ["Out for Delivery", "processing"],
+  OUT_FOR_DELIVERY: ["For Delivery", "for-delivery"],
   SHIPPED: ["Shipped", "processing"],
   COMPLETED: ["Completed", "completed"],
   COMPLETE: ["Completed", "completed"],
@@ -19,7 +19,12 @@ const statusLabels = {
 export const toPurchaseCard = (order) => {
   const rawStatus = String(order.status || "Unknown");
   const statusKey = rawStatus.trim().toUpperCase().replace(/[\s-]+/g, "_");
-  const [status, statusClass] = statusLabels[statusKey] || [rawStatus, "unknown"];
+  const vanLoadSaleId = order.van_load_sale_id || null;
+  const isVanLoadAwaitingDelivery = vanLoadSaleId
+    && !["DELIVERED", "RETURNED", "CANCELLED", "CANCELED", "PICKED_UP"].includes(statusKey);
+  const [status, statusClass] = isVanLoadAwaitingDelivery
+    ? ["For Delivery", "for-delivery"]
+    : statusLabels[statusKey] || [rawStatus, "unknown"];
   const date = order.created_at ? new Date(order.created_at) : null;
   const validDate = date && !Number.isNaN(date.getTime());
 
@@ -33,8 +38,9 @@ export const toPurchaseCard = (order) => {
     statusClass,
     deliveryId: order.delivery_id || null,
     deliveryAddress: order.delivery_address || "",
+    deliveryFee: order.delivery_fee ?? "0.00",
     vanLoadBatchId: order.van_load_batch_id || null,
-    vanLoadSaleId: order.van_load_sale_id || null,
+    vanLoadSaleId,
     isTest: Boolean(order.is_test),
     createdAt: validDate ? date.toISOString() : undefined,
     dateLabel: validDate ? new Intl.DateTimeFormat("en-PH", {
